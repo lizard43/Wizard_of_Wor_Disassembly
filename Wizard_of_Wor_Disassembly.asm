@@ -6550,520 +6550,83 @@ L3125:	ld	 hl,LD18E
 	res	 3,(hl)
 	ret	
 
-;
-; Strings here. Definatly starting at $3132 to $3335 or so...
-;
 	nop	
-L3131:	dec	 bc
-	ld	 c,c
-	ld	 c,(hl)
-	ld	 d,e
-	ld	 b,l
-	ld	 d,d
-	ld	 d,h
-L3138:	ld	 b,b
-	ld	 b,e
-	ld	 c,a
-	ld	 c,c
-	ld	 c,(hl)
-	dec	 bc
-	ld	 c,b
-	ld	 c,c
-	ld	 b,a
-	ld	 c,b
-	ld	 b,b
-	ld	 d,e
-	ld	 b,e
-	ld	 c,a
-	ld	 d,d
-	ld	 b,l
-	ld	 d,e
-	rla	
-	ld	 d,b
-	ld	 d,d
-	ld	 b,l
-	ld	 d,e
-	ld	 d,e
-	ld	 b,b
-	ld	 c,a
-	ld	 c,(hl)
-	ld	 b,l
-	ld	 b,b
-	ld	 d,b
-	ld	 c,h
-	ld	 b,c
-	ld	 e,c
-	ld	 b,l
-	ld	 d,d
-	ld	 b,b
-	ld	 b,d
-	ld	 d,l
-	ld	 d,h
-	ld	 d,h
-	ld	 c,a
-	ld	 c,(hl)
-	rla	
-	ld	 d,b
-	ld	 d,d
-	ld	 b,l
-	ld	 d,e
-	ld	 d,e
-	ld	 b,b
-	ld	 d,h
-	ld	 d,a
-	ld	 c,a
-	ld	 b,b
-	ld	 d,b
-	ld	 c,h
-	ld	 b,c
-	ld	 e,c
-	ld	 b,l
-	ld	 d,d
-	ld	 b,b
-	ld	 b,d
-	ld	 d,l
-	ld	 d,h
-	ld	 d,h
-	ld	 c,a
-	ld	 c,(hl)
-	ld	 (bc),a
-	ld	 c,a
-	ld	 d,d
-	rla	
-	ld	 b,h
-	ld	 b,l
-	ld	 d,b
-	ld	 c,a
-	ld	 d,e
-	ld	 c,c
-	ld	 d,h
-	ld	 b,b
-	ld	 b,c
-	ld	 b,h
-	ld	 b,h
-	ld	 c,c
-	ld	 d,h
-	ld	 c,c
-	ld	 c,a
-	ld	 c,(hl)
-	ld	 b,c
-	ld	 c,h
-	ld	 b,b
-	ld	 b,e
-	ld	 c,a
-	ld	 c,c
-	ld	 c,(hl)
-	inc	 de
-	ld	 b,(hl)
-	ld	 c,a
-	ld	 d,d
-	ld	 b,b
-	ld	 d,h
-	ld	 d,a
-	ld	 c,a
-	ld	 b,b
-	ld	 d,b
-	ld	 c,h
-	ld	 b,c
-	ld	 e,c
-	ld	 b,l
-	ld	 d,d
-	ld	 b,b
-	ld	 b,a
-	ld	 b,c
-	ld	 c,l
-	ld	 b,l
-	ld	 b,$50
-	ld	 c,a
-	ld	 c,c
-	ld	 c,(hl)
-	ld	 d,h
-	ld	 d,e
-	inc	 c
-	ld	 b,d
-	ld	 c,a
-	ld	 c,(hl)
-	ld	 d,l
-	ld	 d,e
-	ld	 b,b
-	ld	 d,b
-	ld	 c,h
-	ld	 b,c
-	ld	 e,c
-	ld	 b,l
-	ld	 d,d
-	dec	 d
-	ld	 d,a
-	ld	 b,c
-	ld	 c,c
-	ld	 d,h
-	ld	 b,b
-	ld	 b,(hl)
-	ld	 c,a
-	ld	 d,d
-	ld	 b,b
-	ld	 c,c
-	ld	 c,(hl)
-	ld	 d,e
-	ld	 d,h
-	ld	 d,d
-	ld	 d,l
-	ld	 b,e
-	ld	 d,h
-	ld	 c,c
-	ld	 c,a
-	ld	 c,(hl)
-	ld	 d,e
-	ld	 e,$49
-	ld	 c,(hl)
-	ld	 d,(hl)
-	ld	 c,c
-	ld	 d,e
-	ld	 c,c
-	ld	 b,d
-	ld	 c,h
-	ld	 b,l
-	ld	 b,b
-	ld	 c,l
-	ld	 c,a
-	ld	 c,(hl)
-	ld	 d,e
-	ld	 d,h
-	ld	 b,l
-	ld	 d,d
-	ld	 d,e
-	ld	 b,b
-	ld	 c,c
-	ld	 c,(hl)
-	ld	 b,b
-	ld	 d,h
-	ld	 c,b
-	ld	 b,l
-	ld	 b,b
-	ld	 c,l
-	ld	 b,c
-	ld	 e,d
-	ld	 b,l
-	ld	 (L5241),hl
-	ld	 b,l
-	ld	 b,b
-	ld	 c,h
-	ld	 c,a
-	ld	 b,e
-	ld	 b,c
-	ld	 d,h
-	ld	 b,l
-	ld	 b,h
-	ld	 b,b
-	ld	 d,l
-	ld	 d,e
-	ld	 c,c
-	ld	 c,(hl)
-	ld	 b,a
-L3203:	ld	 b,b
-	ld	 d,h
-	ld	 c,b
-	ld	 b,l
-	ld	 b,b
-	ld	 d,d
-	ld	 b,c
-	ld	 b,h
-	ld	 b,c
-	ld	 d,d
-	ld	 b,b
-	ld	 d,e
-	ld	 b,e
-	ld	 d,d
-	ld	 b,l
-	ld	 b,l
-	ld	 c,(hl)
-	dec	 h
-	ld	 c,l
-	ld	 c,a
-	ld	 c,(hl)
-	ld	 d,e
-	ld	 d,h
-	ld	 b,l
-	ld	 d,d
-	ld	 d,e
-L321D:	ld	 b,b
-	ld	 b,d
-	ld	 b,l
-	ld	 b,e
-	ld	 c,a
-	ld	 c,l
-	ld	 b,l
-	ld	 b,b
-	ld	 d,(hl)
-	ld	 c,c
-	ld	 d,e
-	ld	 c,c
-	ld	 b,d
-	ld	 c,h
-	ld	 b,l
-	ld	 b,b
-	ld	 d,a
-	ld	 c,b
-	ld	 b,l
-	ld	 c,(hl)
-	ld	 b,b
-	ld	 b,l
-	ld	 c,(hl)
-	ld	 d,h
-	ld	 b,l
-	ld	 d,d
-	ld	 c,c
-L3238:	ld	 c,(hl)
-	ld	 b,a
-	inc	 h
-	ld	 d,h
-	ld	 c,b
-	ld	 b,l
-	ld	 b,b
-	ld	 d,e
-	ld	 b,c
-	ld	 c,l
-	ld	 b,l
-	ld	 b,b
-	ld	 c,l
-	ld	 b,c
-	ld	 e,d
-	ld	 b,l
-	ld	 b,b
-	ld	 b,e
-	ld	 c,a
-	ld	 d,d
-	ld	 d,d
-	ld	 c,c
-	ld	 b,h
-	ld	 c,a
-	ld	 d,d
-	ld	 b,b
-	ld	 b,c
-	ld	 d,e
-	ld	 b,b
-	ld	 d,h
-	ld	 c,b
-	ld	 b,l
-	ld	 b,b
-	ld	 d,b
-	ld	 c,h
-	ld	 b,c
-	ld	 e,c
-	ld	 b,l
-	ld	 d,d
-	dec	 bc
-	ld	 b,b
-	ld	 b,a
-	ld	 b,l
-	ld	 d,h
-	ld	 b,b
-	ld	 d,d
-	ld	 b,l
-	ld	 b,c
-	ld	 b,h
-	ld	 e,c
-	ld	 b,b
-	dec	 b
-	ld	 d,d
-	ld	 b,c
-	ld	 b,h
-	ld	 b,c
-	ld	 d,d
-	rlca	
-	ld	 b,l
-	ld	 d,e
-	ld	 b,e
-	ld	 b,c
-	ld	 d,b
-	ld	 b,l
-	ld	 b,h
-	rlca	
-	ld	 b,e
-	ld	 d,d
-	ld	 b,l
-	ld	 b,h
-	ld	 c,c
-	ld	 d,h
-	ld	 d,e
-	add	 hl,bc
-	ld	 b,h
-	ld	 d,l
-	ld	 c,(hl)
-	ld	 b,a
-	ld	 b,l
-	ld	 c,a
-	ld	 c,(hl)
-	ld	 b,b
-	ld	 b,b
-	rrca	
-	ld	 d,a
-	ld	 c,a
-	ld	 d,d
-	ld	 c,h
-	ld	 c,a
-	ld	 d,d
-	ld	 b,h
-	ld	 b,b
-	ld	 b,h
-	ld	 d,l
-	ld	 c,(hl)
-	ld	 b,a
-	ld	 b,l
-	ld	 c,a
-	ld	 c,(hl)
-	add	 hl,bc
-	ld	 d,h
-	ld	 c,b
-	ld	 b,l
-	ld	 b,b
-	ld	 b,c
-	ld	 d,d
-	ld	 b,l
-	ld	 c,(hl)
-	ld	 b,c
-	rlca	
-	ld	 d,h
-	ld	 c,b
-	ld	 b,l
-	ld	 b,b
-	ld	 d,b
-	ld	 c,c
-	ld	 d,h
-	dec	 d
-	ld	 c,a
-	ld	 d,d
-	ld	 b,b
-	ld	 b,(hl)
-	ld	 c,a
-	ld	 d,d
-	ld	 b,b
-	ld	 b,l
-	ld	 e,b
-	ld	 d,h
-	ld	 d,d
-	ld	 b,c
-	ld	 b,b
-	ld	 d,a
-	ld	 c,a
-	ld	 d,d
-	ld	 d,d
-	ld	 c,c
-	ld	 c,a
-	ld	 d,d
-	ld	 d,e
-	ld	 b,a
-	ld	 c,a
-	ld	 b,h
-	ld	 c,a
-	ld	 d,l
-	ld	 b,d
-	ld	 c,h
-	ld	 b,l
-	ld	 b,b
-	ld	 d,e
-	ld	 b,e
-	ld	 c,a
-	ld	 d,d
-	ld	 b,l
-L32D1:	ld	 b,a
-	ld	 b,c
-	ld	 c,l
-	ld	 b,l
-	ld	 b,b
-	ld	 c,a
-	ld	 d,(hl)
-	ld	 b,l
-	ld	 d,d
-	ld	 e,e
-	ld	 b,b
-	ld	 sp,L3839
-	jr	 nc,L3321
-	ld	 c,l
-	ld	 c,c
-	ld	 b,h
-	ld	 d,a
-	ld	 b,c
-	ld	 e,c
-	ld	 b,b
-	ld	 c,l
-	ld	 b,(hl)
-	ld	 b,a
-	ld	 b,b
-	ld	 b,e
-	ld	 c,a
-L32EE:	ld	 e,h
-	ld	 e,l
-	ld	 e,(hl)
-	ld	 b,h
-	ld	 d,l
-	ld	 c,(hl)
-	ld	 b,a
-	ld	 b,l
-	ld	 c,a
-	ld	 c,(hl)
-	ld	 b,d
-	ld	 d,l
-	ld	 d,d
-	ld	 d,a
-	ld	 c,a
-	ld	 d,d
-	ld	 b,a
-	ld	 b,c
-	ld	 d,d
-	ld	 d,a
-	ld	 c,a
-	ld	 d,d
-	ld	 d,h
-	ld	 c,b
-	ld	 c,a
-	ld	 d,d
-	ld	 d,a
-	ld	 c,a
-	ld	 d,d
-	ld	 d,a
-	ld	 c,a
-	ld	 d,d
-	ld	 c,h
-	ld	 d,l
-	ld	 c,e
-	ld	 d,a
-	ld	 c,c
-	ld	 e,d
-	ld	 b,c
-	ld	 d,d
-	ld	 b,h
-	ld	 b,b
-	ld	 c,a
-	ld	 b,(hl)
-L331A:	ld	 b,b
-	ld	 d,a
-	ld	 c,a
-	ld	 d,d
-	ld	 d,d
-	ld	 c,c
-	ld	 c,a
-L3321:	ld	 d,d
-	ld	 d,e
-	ld	 b,c
-	ld	 c,h
-	ld	 c,h
-	ld	 b,b
-	ld	 d,d
-	ld	 c,c
-	ld	 b,a
-	ld	 c,b
-	ld	 d,h
-	ld	 d,e
-	ld	 b,b
-	ld	 d,d
-	ld	 b,l
-	ld	 d,e
-	ld	 b,l
-L3332:	ld	 d,d
-	ld	 d,(hl)
-	ld	 b,l
-	ld	 b,h
+
+;*******************************************************************************
+;
+; Text string table
+;
+; String format:
+;
+;   +0  Length byte
+;   +1  Character data (not null terminated)
+;
+; Example:
+;
+;   .db $0B,"INSERT@COIN"
+;
+; Length byte counts only the character data and does not include itself.
+;
+; Special characters:
+;
+;   @ = space
+;   [ = copyright symbol
+;
+; Some Labels are in middle of strings to preserve code refs
+;
+;*******************************************************************************
+
+L3131:  .db $0B,"INSERT"
+L3138:  .db     "@COIN"
+
+L313D:  .db $0B,"HIGH@SCORES"
+L3149:  .db $17,"PRESS@ONE@PLAYER@BUTTON"
+L3161:  .db $17,"PRESS@TWO@PLAYER@BUTTON"
+L3179:  .db $02,"OR"
+L317C:  .db $17,"DEPOSIT@ADDITIONAL@COIN"
+L3194:  .db $13,"FOR@TWO@PLAYER@GAME"
+L31A8:  .db $06,"POINTS"
+
+L31AF:  .db $0C,"BONUS@PLAYER"
+L31BC:  .db $15,"WAIT@FOR@INSTRUCTIONS"
+L31D2:  .db $1E,"INVISIBLE@MONSTERS@IN@THE@MAZE"
+
+L31F1:  .db $22,"ARE@LOCATED@USING"
+L3203:  .db     "@THE@RADAR@SCREEN"
+
+L3214:  .db $25,"MONSTERS"
+L321D:  .db     "@BECOME@VISIBLE@WHEN@ENTERI"
+L3238:  .db     "NG"
+
+L323A:  .db $24,"THE@SAME@MAZE@CORRIDOR@AS@THE@PLAYER"
+
+L325F:  .db $0B,"@GET@READY@"
+L326B:  .db $05,"RADAR"
+L3271:  .db $07,"ESCAPED"
+L3279:  .db $07,"CREDITS"
+L3281:  .db $09,"DUNGEON@@"
+L328B:  .db $0F,"WORLORD@DUNGEON"
+L329B:  .db $09,"THE@ARENA"
+L32A5:  .db $07,"THE@PIT"
+L32AD:  .db $15,"OR@FOR@EXTRA@WARRIORS"
+
+;
+; these don't have length bytes, not sure why not
+;
+
+L32C3:  .db "GODOUBLE@SCORE"
+
+L32D1:  .db "GAME@OVER"
+        .db "[@1980@MIDWAY@MFG@CO"
+
+;
+; these aren't length codes, maybe some kind of control markings?
+;
+L32EE:  .db $5C,$5D,$5E
+        .db "DUNGEONBURWORGARWORTHORWORWORLUKWIZARD@OF"
+
+L331A:  .db "@WORRIORSALL@RIGHTS@RESERVED"	
+
 	ld	 sp,L3030
 	ld	 (L3030),a
 	dec	 (hl)
@@ -18917,6 +18480,9 @@ LAF26:	nop
 	nop	
 	jp	 L000C
 	nop	
+
+; end of sprites
+
 	ld	 bc,$1445
 	nop	
 	ld	 (L3538),a
@@ -19036,61 +18602,19 @@ LAFC4:	ld	 (hl),$FF
 	djnz	 LAFC4
 	ret	
 
-	rst	 38H
-	rst	 38H
-	rst	 38H
-	rst	 38H
-	rst	 38H
-	rst	 38H
-	rst	 38H
-	rst	 38H
-	rst	 38H
-	rst	 38H
-	rst	 38H
-	rst	 38H
-	rst	 38H
-	rst	 38H
-	rst	 38H
-	rst	 38H
-	rst	 38H
-	rst	 38H
-	rst	 38H
-	rst	 38H
-	rst	 38H
-	rst	 38H
-	rst	 38H
-	rst	 38H
-	rst	 38H
-	rst	 38H
-	rst	 38H
-	rst	 38H
-	rst	 38H
-	ld	 d,h
-	ld	 c,b
-	ld	 b,l
-	nop	
-	ld	 d,a
-	ld	 c,c
-	ld	 e,d
-	ld	 b,c
-	ld	 d,d
-	ld	 b,h
-	nop	
-	ld	 c,a
-	ld	 b,(hl)
-	nop	
-	ld	 d,a
-	ld	 c,a
-	ld	 d,d
-	nop	
-	ld	 b,h
-	ld	 c,(hl)
-	ld	 b,c
-	nop	
-	inc	 b
-	.db	$22, $81
+        .db     $FF,$FF,$FF,$FF,$FF,$FF,$FF,$FF
+        .db     $FF,$FF,$FF,$FF,$FF,$FF,$FF,$FF
+        .db     $FF,$FF,$FF,$FF,$FF,$FF,$FF,$FF
+        .db     $FF,$FF,$FF,$FF,$FF
 
-
+AuthorString:
+        .db     "THE",0
+        .db     "WIZARD",0
+        .db     "OF",0
+        .db     "WOR",0
+        .db     "DNA",0
+        .db     $04
+        .db     $22,$81
 
 ;END OF ASSEMBLY - EQUATES ARE BELOW
 
