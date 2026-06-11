@@ -13,7 +13,7 @@
 		ld	 a,$01		                              
 L0006:		out	 ($08),a	; Set Video to HI-RES 
 
-L0008:		ld	 a,%00101100	; 00xxxxxxb = Position to switch left and right			
+L0008:		ld	 a,00101100b	; 00xxxxxxb = Position to switch left and right			
 L000A:		out	 ($09),a	; pallete. xx000000b vblank color 
 
 L000C:		ld	 a,$CC		; Set to 204 screen height.                                                     
@@ -21,7 +21,7 @@ L000C:		ld	 a,$CC		; Set to 204 screen height.
 		
 L0010:		call	 L0093		; Set interrupt vector and color mapping
 
-		ld	 a,%00001000	; 0000S0L0b = Enable/disable Screen/Lightpen interrupts   
+		ld	 a,00001000b	; 0000S0L0b = Enable/disable Screen/Lightpen interrupts   
 L0015:		out	 ($0E),a	; 00000S0Lb = MODE for Screen/Lightpen interrupts 
 		
 
@@ -2804,7 +2804,7 @@ L16D2:	ld	 a,(LD347)
 	in	 a,($12)		; Now check P1 Controls - all active LOW	
 	cpl				; Make active HIGH
 	or	 b			; Combine with P2 controls
-	and	 %00111111		; Mask unused input bits (see port description)	
+	and	 00111111b		; Mask unused input bits (see port description)	
 	ld	 (LD1DE),a		; Save it ..
 	ret
 ;
