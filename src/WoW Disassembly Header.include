@@ -1,0 +1,317 @@
+; Disassembly of the Wizard of Wor ROM
+; 
+; CPU Type Z80
+; 
+; Created with dZ80 1.50 on 021902 by David E. Turner
+;
+;==============================================================================
+;
+; Memory map for Wizard of Wor
+;
+; $0000-$3fff ROMS X1-X4 but also magic RAM (which processes data and copies it to the video RAM)
+; $4000-$7fbf Viewable SCREEN RAM (bitmap). Every line on screen is $50 bytes long.
+; $7fc0-$7fff Non-viewable. This $40 bytes is used for STACK during game.
+; $8000-$afff ROMS X5-X7
+; $b000-$bfff ROM X8 Foreign language-never seen one... normally empty socket.
+; $c000-$cfff X11 EMPTY SOCKET (not used in WOW)
+; $d000-$d3ff STATIC RAM (protected write - X21 & X22)
+; $d400-$dfff Empty static RAM sockets in WOW (X23-X28). Used in Gorf however.
+; $e000-$ffff X12-X13 EMPTY SOCKETS (not used in WOW)
+;
+;
+; Specific ROM locations and checksums, according to MAME
+;
+; Socket X01 wow.x1	$0000 to $0fff, Checksum $c1295786 
+; Socket X02 wow.x2	$1000 to $1fff, Checksum $9be93215
+; Socket X03 wow.x3	$2000 to $2fff, Checksum $75e5a22e 
+; Socket X04 wow.x4	$3000 to $3fff, Checksum $ef28eb84 
+; Socket X05 wow.x5	$8000 to $8fff, Checksum $16912c2b 
+; Socket X06 wow.x6	$9000 to $9fff, Checksum $35797f82 
+; Socket X07 wow.x7	$a000 to $afff, Checksum $ce404305 
+; Socket X08 wow.x8	$b000 to $bfff, Checksum (None)	----Here would go the foreign language ROM
+; Socket X11 (None)	$c000 to $cfff, Checksum (None)	----Not used in game
+; Socket X12 (None)	$e000 to $efff, Checksum (None)	----Not used in game
+; Socket X13 (None)	$f000 to $ffff, Checksum (None)	----Not used in game
+;
+;=================================================================================
+; Interesting ROM locations
+;	
+; $8006 Byte is C3 in normal MAME ROM's. Tested for C3 at locations 0030, 
+;	 00fc and 08d7 in the code. Function Unknown at this time. -DET 9/17/2002
+;
+;
+; How Video Memory is arranged (Preliminary)
+; 
+;  Memory goes from left to right on the screen. Meaning $4000 is the
+;  first position on top left. It then continues to the right for $50
+;  bytes. So $4050 is the first pixel position on the left on the second line.
+;  $FF draws a line the total width of the character.
+;  Writes to video memory is done with the pattern board (DMA) for the 
+;  most part. 
+;
+;  Magic RAM is located at $0000 through $3FFF.  
+;
+;  The formula for printing to screen in double size mode is
+;	DE = ((line number - 1)  960) + ((character position - 1) 2)
+;	where line number is 1-16 and character position is 1-40.
+;	-OR-
+;	DE = 960(Line Number) + 2(Character Position) - 962
+;	(The latter form is used in this code)
+;
+;  Note! TASM does not use operator precidence, but just interprets left to right.
+;
+;  These formula are only used to simplify placing characters. In reality, you 
+;  could just use absolute values. With the formulas, you just have to fill in the
+;  line and character positioning.
+;
+;==============================================================================
+; Input Ports - most descriptions taken from MAME
+;==============================================================================
+;
+; $08        intercept register (collision detector)
+; 	     bit 0 intercept in pixel 3 in an OR or XOR write since last reset
+; 	     bit 1 intercept in pixel 2 in an OR or XOR write since last reset
+; 	     bit 2 intercept in pixel 1 in an OR or XOR write since last reset
+; 	     bit 3 intercept in pixel 0 in an OR or XOR write since last reset
+; 	     bit 4 intercept in pixel 3 in last OR or XOR write
+; 	     bit 5 intercept in pixel 2 in last OR or XOR write
+; 	     bit 6 intercept in pixel 1 in last OR or XOR write
+; 	     bit 7 intercept in pixel 0 in last OR or XOR write
+;
+; $10        bit 0 Coin Input 1 	active low
+; 	     bit 1 Coin Input 2		active low
+; 	     bit 2 Coin Input 3 	active low
+; 	     bit 3 Service Switch 	active low
+; 	     bit 4 Tilt 		active low
+; 	     bit 5 Player 1 Start	active low
+; 	     bit 6 Player 2 Start	active low
+; 	     bit 7 Flip Screen 		active low 	Cocktail Setting	
+;	
+; $11        
+;	     bit 0 Joystick Up	  - Player 2	active low
+; 	     bit 1 Joystick Down  - Player 2	active low
+; 	     bit 2 Joystick Left  - Player 2	active low
+; 	     bit 3 Joystick Right - Player 2	active low
+; 	     bit 4 Button 2       - Player 2    active HIGH
+; 	     bit 5 Button 1	  - Player 2	active low		
+; 	     bit 6 Unknown 	
+; 	     bit 7 Unknown 
+;
+; $12        IN2
+;	     bit 0 Joystick Up	  - Player 1	active low
+; 	     bit 1 Joystick Down  - Player 1	active low
+; 	     bit 2 Joystick Left  - Player 1	active low
+; 	     bit 3 Joystick Right - Player 1	active low
+; 	     bit 4 Button 2       - Player 1    active HIGH
+; 	     bit 5 Button 1	  - Player 1	active low
+; 	     bit 6 Unknown 			active low 
+; 	     bit 7 Speech Status		active HIGH - Speech chip ready to accept phonemes
+;
+; $13        Dip Switch 
+;	     bit 0 Coin Slot A Settings 	On=active HIGH
+;	     	   Off = 1 Coin,  1 Credit
+;	     	   On  = 2 coins, 1 Credit
+;
+; 	     bit 1 Coin Slot B Settings 	On=active HIGH
+; 	     bit 2 Coin Slot B Settings		On=active HIGH
+;		   0,0 = 1 Coin,  5 Credits
+;		   0,1 = 1 Coin,  3 Credits
+;		   1,0 = 2 Coins, 1 Credits
+;		   1,1 = 1 Coin,  1 Credit
+;
+; 	     bit 3 Language			on=active HIGH
+;	            Off = Foreign (NEED ROM)
+;		    On  = English
+;
+; 	     bit 4 Lives			on=active HIGH
+;	            Off = 3  7
+;		    On  = 2  5
+;
+; 	     bit 5 Bonus Life			on=active HIGH
+;	            Off = 4th Level
+;		    On  = 3rd Level
+;
+; 	     bit 6 Free Play			on=active HIGH 
+;	            Off = No Free Play
+;		    On  = Free Play
+;
+; 	     bit 7 Demo Sounds
+;	            Off = No Demo Sounds	on=active HIGH 
+;		    On  = Demo Sounds 
+;
+; $14	    Video Retrace
+;
+; $15	Special Control Register 1 
+;	These are data writes, done by IN commands by putting the function
+;	in register A. Register A will be put on the upper address lines A8-A15
+;	upon execution of the IN instruction. The format for this particular
+;	control port is: 
+;	
+;	0000 xxx y (binary)
+;		
+;	where the upper nybble is always zero, xxx is which function to use
+;	zero through seven, and y = 0 to activate or y = 1 to deactivate. 
+;	Here is the table of what this port controls
+;	    
+;	0 coin counter 3
+;	1 coin counter 2
+;	2 Star field
+;	3 Sparkle 1 - sparkles color 01
+;	4 Sparkle 2 - sparkles color 10
+;	5 Sparkle 3 - sparkles color 11
+;	6 Audio 2 (also enablesdisables speech)
+;	7 Not used ???
+;
+; $17       Speech Synthesizer (Output)
+;		Load the B register with out phoneme
+;		Load register C with $17
+;		Execute IN A,(C) -- This is not a typo.
+;		(Register A holds  after execution)
+;
+;		How this works:  
+;		---> THIS NEEDS TOTAL REVISION 
+;		The Votrax SC-01 chip 
+;		is wired to the upper address lines. When an IN A,(C) is executed, 
+;		the value in A  is put to the upper address lines! The IN command 
+;		also fires a strobe to the chip letting it know the data is available 
+;		on the address lines. The speech chip reads the phoneme, outputs the 
+;		sound and then places in A after execution. 
+;
+;
+;==============================================================================
+; Output Ports - most descriptions taken from MAME
+;==============================================================================
+;
+; $00-07     palette (00-03 = right part of screen; 04-07 left part)
+;
+; $08        select video mode (0 = low res 160x102, 1 = high res 320x204)
+;
+; $09        --xxxxxx position where to switch from the left to the right palette
+;            xx------ background color (portion of screen after vblank)
+;
+; $0a        Vertical Blank. The Address chip needs this register to determine 
+;	     the scan line below which Screen Refresh is no longer needed. 
+;	     The Data chip must duplicate this register to determine when to 
+;	     turn on the border color.
+;
+; $0b        color block transfer
+;
+; $0c        magic RAM control
+; 	      bit 7 
+; 	      bit 6 flip
+; 	      bit 5 draw in XOR mode
+; 	      bit 4 draw in OR mode
+; 	      bit 3 expand mode (convert 1bpp data to 2bpp)
+; 	      bit 2 rotate mode (rotate 90 degrees)
+; 	      bit 1 shift amount to be applied before copying
+; 	      bit 0
+;
+; $0d        set interrupt vector
+;
+; $0e	     Interrupt Enable and ModeVertical Line Feedback. On write, 
+;	     this register enables the two interrupts and determines the 
+;	     interrupt mode of each. On read, this register contains
+;            the vertical line number that a Light Pen Interrupt was 
+;	     received on (not used in WOW). Bit 3 of the Interrupt Enable port (0x0E) when 
+;	     set enables line interrupts, while bit 1 of the same register 
+;	     enables the Light Pen interrupt.
+;
+; $0f	     Interrupt LineHorizontal Address Feedback. On write, this 
+;	     register sets the scan line number on which to generate a 
+;	     line interrupt back to the Z80. On read, this register
+;	     contains the horizontal address (i.e., position in the line) 
+;	     that a Light Pen Interrupt was received on.
+;
+; $10-$18   sound
+;
+; $19       magic RAM expand mode color - How does this work
+;
+; $5b	    Write an A5 to unlock write on D000-DC30  static memory
+;
+;
+;==============================================================================
+; Pattern board ports 
+;==============================================================================
+;
+; $78	LSB of source address
+; $79	MSB of source address
+; $7a	Line offset value (WOW manual has this listed as $7b also
+; $7b	LSB of destination address
+; $7c	MSB of destination address
+; $7d	Width of pattern 
+; $7e	Height of pattern, and also starts the xfer process!
+;
+;==============================================================================
+; Votrax Phoneme List
+; 
+; These are the phonemes used on the Votrax SC-01 speech chip. More information
+; on the speech chip implementation will be added here at a later date.
+;
+;==============================================================================
+;
+; 00 = EH3	
+; 01 = EH2	
+; 02 = EH1	
+; 03 = PA0	
+; 04 = DT	
+; 05 = A2	
+; 06 = A1	
+; 07 = ZH	
+; 08 = AH2	
+; 09 = I3	
+; 0A = I2	
+; 0B = I1	
+; 0C = M	
+; 0D = N	
+; 0E = B	
+; 0F = V	
+; 10 = CH	
+; 11 = SH	
+; 12 = Z	
+; 13 = AW1	
+; 14 = NG	
+; 15 = AH1
+; 16 = OO1	
+; 17 = OO	
+; 18 = L	
+; 19 = K	
+; 1A = J	
+; 1B = H	
+; 1C = G	
+; 1D = F	
+; 1E = D	
+; 1F = S	
+; 20 = A	
+; 21 = AY	
+; 22 = Y1
+; 23 = UH3
+; 24 = AH
+; 25 = P
+; 26 = O
+; 27 = I
+; 28 = U
+; 29 = Y
+; 2A = T
+; 2B = R
+; 2C = E
+; 2D = W
+; 2E = AE
+; 2F = AE1
+; 30 = AW2
+; 31 = UH2
+; 32 = UH1
+; 33 = UH
+; 34 = O2
+; 35 = O1
+; 36 = IU
+; 37 = U1
+; 38 = THV
+; 39 = TH
+; 3A = ER
+; 3B = EH
+; 3C = E1
+; 3D = AW
+; 3E = PA1
+; 3F = STOP
+;
+;
