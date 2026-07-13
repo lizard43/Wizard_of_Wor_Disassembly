@@ -1,51 +1,51 @@
-; #INCLUDE "..\\WoW Disassembly Include Files\\WoW Disassembly Header.include"
-
+; #INCLUDE ".\\WoW_Disassembly\\WoW_Disassembly_Include_Files\\WoW_Disassembly_Header.include"
+; This code was written for the TASM assembler and will have to be converted to for ZMAC to compile it.
 ; Verified working 7/8/2018
 
 ;******************************************************************************
 ; Begin game initialization
 ;******************************************************************************
-		    ORG	$0000		; Beginning of ROM (see memory map)
-
-		di			; No Interruptions
+		.ORG	 $0000		; Beginning of ROM (see memory map)                           
+					                                                             
+		di			; No Interruptions                                            
 		ld	 sp,$D400	; Set Stack at $D400 ($0400 stack size)
 					; STATIC RAM is at $D000 - $D3FF
-		ld	 a,$01
-L0006:		out	 ($08),a	; Set Video to HI-RES
+		ld	 a,$01		                              
+L0006:		out	 ($08),a	; Set Video to HI-RES 
 
-L0008:		ld	 a,00101100b	; 00xxxxxxb = Position to switch left and right
-L000A:		out	 ($09),a	; pallete. xx000000b vblank color
+L0008:		ld	 a,00101100b	; 00xxxxxxb = Position to switch left and right			
+L000A:		out	 ($09),a	; pallete. xx000000b vblank color 
 
-L000C:		ld	 a,$CC		; Set to 204 screen height.
+L000C:		ld	 a,$CC		; Set to 204 screen height.                                                     
 		out	 ($0A),a	; Note DNA manual says 0-203. Why 204?
-
+		
 L0010:		call	 L0093		; Set interrupt vector and color mapping
 
-		ld	 a,00001000b	; 0000S0L0b = Enable/disable Screen/Lightpen interrupts
-L0015:		out	 ($0E),a	; 00000S0Lb = MODE for Screen/Lightpen interrupts
+		ld	 a,00001000b	; 0000S0L0b = Enable/disable Screen/Lightpen interrupts   
+L0015:		out	 ($0E),a	; 00000S0Lb = MODE for Screen/Lightpen interrupts 
+		
 
-
-L0017:		ld	 a,00000000b	; Disable coin counter 3
-		in	 a,($15)
-		ld	 a,00000010b	; Disable coin counter 2
-		in	 a,($15)
-		ld	 a,00001110b	; Disable ???  On gorf it is unused light transistor
-		in	 a,($15)
-
+L0017:		ld	 a,00000000b	; Disable coin counter 3                                                                                                     
+		in	 a,($15)	                
+		ld	 a,00000010b	; Disable coin counter 2                                          
+		in	 a,($15)	            
+		ld	 a,00001110b	; Disable ???  On gorf it is unused light transistor                                         
+		in	 a,($15)	 
+		
 		call	 L06C8		; Set interrupt line and turn on all sparkle colors
-
-L0026:		ld	 a,$00		; Set High order byte for Interrupt
-		ld	 i,a		; Interrupts will be from $0000 to $00FF
+		
+L0026:		ld	 a,$00		; Set High order byte for Interrupt                                                            
+		ld	 i,a		; Interrupts will be from $0000 to $00FF                          
 		im	 2		; Explaination: A call is made to an address read from
-					; address (register I � 256 + value from interrupting device)
-
+					; address (register I × 256 + value from interrupting device)        
+				         
 
 
 ;******************************************************************************
 ;
 ; This looks like the end of the hardware initialization code
-; and the beginning of the code to run the game. So far, I have found that the
-; program has tokens associated with subroutines and are kept in a table and
+; and the beginning of the code to run the game. So far, I have found that the 
+; program has tokens associated with subroutines and are kept in a table and 
 ; called by indexing in IY.
 ;
 ; This is due to this being a Forth like language called TERSE. The tokens
@@ -53,12 +53,12 @@ L0026:		ld	 a,$00		; Set High order byte for Interrupt
 ; what the "Forth" commands execute.
 ;
 ;******************************************************************************
-
-	xor	 a
+	
+	xor	 a		                                                        
 	ld	 (LD2D3),a	; Zero ??? (location always seems to have a $D2 in it)
-
-L0030:	ld	 a,(L8006)	; If l8006 = Jump Instruction, call it
-	cp	 $C3
+	
+L0030:	ld	 a,(L8006)	; If l8006 = Jump Instruction, call it  
+	cp	 $C3		                                                             
 	call	 z,L8006	; Load ($D270)->($D272) with $18, $40, $87
 				; Zero 14 locations above
 				; Zero music output (8 zero bytes to music output block)
@@ -72,34 +72,34 @@ L0030:	ld	 a,(L8006)	; If l8006 = Jump Instruction, call it
 ; $D2AC = $58, $40, $87
 ; $D2BE = $01
 ; $D3F5 = $AF, $D2, $AF, $D2, $58, $08, $AB, $D2, $63, $82, $38
+; 
 ;
-;
-		ld	 hl,LD03A	; Increment <??? variable>
-		ld	 c,(hl)		;
-L003C:		inc	 c		;
+		ld	 hl,LD03A	; Increment <??? variable>                                                                        
+		ld	 c,(hl)		;                            
+L003C:		inc	 c		;              
 		call	 L0F6A		; Write to protected memory (HL)=C routine
+		
 
-
-L0040:		ld	 hl,(LD038)	; Load <??? variable>
+L0040:		ld	 hl,(LD038)	; Load <??? variable>      
 		call	 L00AA		; ...and ???
 
-		ld	 hl,(LD03E)	; Load <??? variable>
+		ld	 hl,(LD03E)	; Load <??? variable>      
 		call	 L00AA		; ...and ???
 
 		ld	 a,(LD03C)	; If ($d03c)=$1f then
-L004F:		cp	 $1F		; ...Go zero first $40 bytes of static RAM  ($D000-$D03F)
-		call	 nc,L00B5	;
-
-L0054:		ld	 hl,Is_Speech_Active	;
-		call	 L00BA		; 256 bytes to $D245 ???
-		call	 L00B8		; 64 bytes to
-
-		ld	 a,r		; Load a with refresh register??? RND Number?
-		ld	 (LD34A),a	; ...and save it to <??? variable>
-
-		ld	 hl,LD000	; Move $20 bytes (32 decimal) from $D000 to $D300
-		ld	 de,LD300	;
-L0068:		ld	 bc,L0020	;
+L004F:		cp	 $1F		; ...Go zero first $40 bytes of static RAM  ($D000-$D03F)                    
+		call	 nc,L00B5	; 
+		
+L0054:		ld	 hl,Is_Speech_Active	;  
+		call	 L00BA		; 256 bytes to $D245 ???     
+		call	 L00B8		; 64 bytes to 
+		
+		ld	 a,r		; Load a with refresh register??? RND Number?  
+		ld	 (LD34A),a	; ...and save it to <??? variable> 
+		
+		ld	 hl,LD000	; Move $20 bytes (32 decimal) from $D000 to $D300             
+		ld	 de,LD300	;       
+L0068:		ld	 bc,L0020	;                   
 		ldir			;
 
 		call	 L08AE		; Reset video and blank some static RAM ???
@@ -107,31 +107,31 @@ L0068:		ld	 bc,L0020	;
 ;
 ; Here is where all the real stuff starts happening. Details are few, but from what
 ; I can gather, this part runs the demo and game loop. It also checks to see if the
-; diagnostic switch is set and jumps to diagnostic loop if so at the end of a game or
+; diagnostic switch is set and jumps to diagnostic loop if so at the end of a game or 
 ; the demo loop. ???
 ;
 
-	ld	 a,(Game_Mode)	; Load game status variable
+	ld	 a,(Game_Mode)	; Load game status variable                      
 	and	 a		; Is game in "demo" mode (i.e. no game going on)
-	ld	 iy,$0F70	; Ready demo loop pointer
-L0078:	jr	 z,L007E	; Skip game loop - we are in demo mode
+	ld	 iy,$0F70	; Ready demo loop pointer                                   
+L0078:	jr	 z,L007E	; Skip game loop - we are in demo mode                           
 	ld	 iy,L10FD	; ...else ready game loop pointer
-
+	
 L007E:	ld	 hl,L007E	; Set up "return" from subroutine
-push	 hl		;
+L0081:	push	 hl		; 
 
 	call	 L0875		; Load up HL with a saved address in IY and IY+1
 				; ... and IY++
-
+	
 	push	 hl		; ...and push it to the stack (for return later?)
-
-	in	 a,($10)	; Check status of Service Switch (active low)
-L0088:	bit	 3,a		;
+	
+	in	 a,($10)	; Check status of Service Switch (active low)                  
+L0088:	bit	 3,a		;                                     
 	ret	 nz		; Diag switch off, continue to demo in progress
-
-	ld	 a,(Game_Mode)	; Is a game in progress
-	and	 a		;
-	ret	 nz		; Yes, continue game in progress
+	
+	ld	 a,(Game_Mode)	; Is a game in progress                               
+	and	 a		;                             
+	ret	 nz		; Yes, continue game in progress 
 				; (... don't want to jump to diag's during a game... wait until after game is over)
 ;
 	jp	 L00FB		; Otherwise, jump to diagnostics loop
@@ -140,13 +140,13 @@ L0088:	bit	 3,a		;
 ;*****************************************************
 ; Set Interrupt vector to $CA and map color pallete
 ;*****************************************************
-;
-L0093:	ld	 a,$CA		;Interrupt vector at $CA (202)
+;				
+L0093:	ld	 a,$CA		;Interrupt vector at $CA (202)         
 	out	 ($0D),a	;This is the upper byte when interrupt hits
-
-	ld	 hl,L00C5	;Point to an color mapping table
-	ld	 bc,L080B	;Move $08 bytes to Port $0b
-	otir			;(C)<-(HL), HL+1, B-1 until B=0
+	
+	ld	 hl,L00C5	;Point to an color mapping table               
+	ld	 bc,L080B	;Move $08 bytes to Port $0b                
+	otir			;(C)<-(HL), HL+1, B-1 until B=0            
 	ret			;Interrupt vector an color mapping complete
 ;
 ;*****************************************************
@@ -155,7 +155,7 @@ L0093:	ld	 a,$CA		;Interrupt vector at $CA (202)
 ;
 L00A0:	ld	 a,$CC
 	out	 ($0D),a
-L00A4:	ret
+L00A4:	ret	
 ;
 ;*****************************************************
 ; Set Interrupt vector to $CE
@@ -163,33 +163,33 @@ L00A4:	ret
 ;
 L00A5:	ld	 a,$CE
 	out	 ($0D),a
-	ret
+	ret	
 ;
 ;*****************************************************
 ; Checks HL to see if lower nybble is same as upper
 ; If yes, skip to clear memory
 ; If no, see if complement of H same as normal L
 ; If yes, then return.
-;
+; 
 ; In:	HL
 ; Out:	None
 ;
 ;*****************************************************
 ;
-L00AA:	ld	 a,l
-L00AB:	rlca
-	rlca
-	rlca
-	rlca
-	cp	 l
+L00AA:	ld	 a,l		
+L00AB:	rlca			 
+	rlca	
+	rlca	
+	rlca	
+	cp	 l		 
 	jr	 nz,L00B5
-	cpl
-	cp	 h
-	ret	 z
+	cpl			
+	cp	 h		
+	ret	 z		
 ;
 ;*****************************************************
 ; In:	None
-; Out:	Zero $40 (64) bytes at the bottom of
+; Out:	Zero $40 (64) bytes at the bottom of 
 ;	static RAM $D000 to $D040
 ;*****************************************************
 ;
@@ -215,8 +215,8 @@ L00C0:	ld	 (hl),c		; write byte
 ;*********************************************************
 ;
 
-L00C5:  DB 	$51, $7c, $f3
-L00C8:  DB	$c7, $00, $56, $09, $9e, $09, $b4, $09
+L00C5:  .db 	$51, $7c, $f3	
+L00C8:  .db	$c7, $00, $56, $09, $9e, $09, $b4, $09 
 
 ;
 ;*****************************************************
@@ -250,32 +250,32 @@ L00D0:	ld	 a,r
 ;
 ;*****************************************************
 ;
-L00D4:	exx			; Swap the main registers
-	ld	 hl,L4000	; Point to beginning of video memory
-	ld	 (hl),a		; Load the pattern to write in first
-				; byte of video memory
-	ld	 de,L4001	; point to one byte later
-	ld	 bc,$3FFF	; set count for all memory
-	ldir			; walk the bit through memory
-	cp	 (hl)		; did the pattern change?
-	jr	 nz,L00D0	; yes, then go to error routine
-	ex	 af,af'		; exchange AF
-	in	 a,($10)	; Kick the dog
-	ex	 af,af'		; exchange again
-L00E8:	dec	 de		; set up de to correct place
-	dec	 de		; ... for the next pass
-	cpl			; complement the pattern
-	ld	 (hl),a		; load it at top of video memory
-	ld	 bc,$3FFF	; whole video memory as before
-	lddr			; work it down..
-	cp	 (hl)		; did it change?
-	jr	 nz,L00D0	; yes, go to error routine
-	ex	 af,af'		; exchange
-	in	 a,($10)	; kick the dog
-	ex	 af,af'		; swap back
-	cpl			; complement the pattern back
-	exx			; swap the main register back
-	jp	 (hl)		; Go back from whence it came...
+L00D4:	exx			; Swap the main registers             
+	ld	 hl,L4000	; Point to beginning of video memory  
+	ld	 (hl),a		; Load the pattern to write in first  
+				; byte of video memory                
+	ld	 de,L4001	; point to one byte later               
+	ld	 bc,L3FFF	; set count for all memory              
+	ldir			; walk the bit through memory           
+	cp	 (hl)		; did the pattern change?               
+	jr	 nz,L00D0	; yes, then go to error routine         
+	ex	 af,af'		; exchange AF                           
+	in	 a,($10)	; Kick the dog              
+	ex	 af,af'		; exchange again                        
+L00E8:	dec	 de		; set up de to correct place            
+	dec	 de		; ... for the next pass                 
+	cpl			; complement the pattern                
+	ld	 (hl),a		; load it at top of video memory        
+	ld	 bc,L3FFF	; whole video memory as before          
+	lddr			; work it down..                        
+	cp	 (hl)		; did it change?                        
+	jr	 nz,L00D0	; yes, go to error routine              
+	ex	 af,af'		; exchange                              
+	in	 a,($10)	; kick the dog       
+	ex	 af,af'		; swap back                             
+	cpl			; complement the pattern back           
+	exx			; swap the main register back           
+	jp	 (hl)		; Go back from whence it came... 
 ;
 ;*********************************************************
 ;
@@ -285,16 +285,16 @@ L00E8:	dec	 de		; set up de to correct place
 ;
 ;*********************************************************
 ;
-L00FB:	di			; no interuptions
-	ld	 a,(L8006)	; Load from ROM
+L00FB:	di			; no interuptions 
+	ld	 a,(L8006)	; Load from ROM   
 L00FF:	cp	 $C3		; check ROM $8006 for a Jump
 				; instruction... Why check???
 L0101:	call	 z,L8006	; Well, call it if it's there...
-	call	 L06CC		; I think this sets up sound to
-				; a known state. ???
-	ld	 a,$80		; Load a pattern for video
-				; memory test (Pattern is 1000 0000B)
-				; and fall through to the test...
+	call	 L06CC		; I think this sets up sound to 
+				; a known state. ???            
+	ld	 a,$80		; Load a pattern for video        
+				; memory test (Pattern is 1000 0000B)  
+				; and fall through to the test...      
 ;
 ;*********************************************************
 ;
@@ -303,8 +303,8 @@ L0101:	call	 z,L8006	; Well, call it if it's there...
 ;
 ;*********************************************************
 ;
-L0109:	ld	 hl,L010E	; set the return location to l010e
-	jr	 L00D4		; Off to fill video memory...
+L0109:	ld	 hl,L010E	; set the return location to l010e  
+	jr	 L00D4		; Off to fill video memory... 
 ;
 ;*********************************************************
 ;
@@ -314,9 +314,9 @@ L0109:	ld	 hl,L010E	; set the return location to l010e
 ;
 ;*********************************************************
 ;
-L010E:	and	 a		; Set the flags
-	jr	 z,L0114	; Jump if done...
-L0111:	rra			; Change the fill pattern by walking bit right
+L010E:	and	 a		; Set the flags                                     
+	jr	 z,L0114	; Jump if done...                                   
+L0111:	rra			; Change the fill pattern by walking bit right      
 	jr	 L0109		; Go to memory fill at l0109
 ;
 ;*********************************************************
@@ -326,12 +326,12 @@ L0111:	rra			; Change the fill pattern by walking bit right
 ;
 ;*********************************************************
 ;
-L0114:	ld	 sp,L8000	; Set stack pointer right
-				; below high ROM, but into
-				; the top of video memory.
-				; Turns out that video memory ends at $7fbf
-				; and from $7fc0 to $7fff ($40 bytes) is not
-				; displayed. That $40 bytes is used for the stack.
+L0114:	ld	 sp,L8000	; Set stack pointer right                          
+				; below high ROM, but into                         
+				; the top of video memory.                         
+				; Turns out that video memory ends at $7fbf        
+				; and from $7fc0 to $7fff ($40 bytes) is not       
+				; displayed. That $40 bytes is used for the stack. 
 L0117:	call	 L08AE		; Reset video and blank some static RAM ???
 	ld	 hl,L042E	; String "SCREEN RAM OK"
 	ld	 de,L001A	; Color (RED) ???
@@ -348,7 +348,7 @@ L0117:	call	 L08AE		; Reset video and blank some static RAM ???
 	ld	 hl,LD000	; Bottom of Static RAM
 	ld	 bc,$0004	; Outer loop setup
 	ld	 d,$FF		; Pattern
-	ld	 a,$A5		;
+	ld	 a,$A5		; 
 L012F:	out	 ($5B),a	; Enable write to protected memory
 	ld	 (hl),d		; Store in Static RAM
 	ld	 d,(hl)		; Read it back in
@@ -361,7 +361,7 @@ L012F:	out	 ($5B),a	; Enable write to protected memory
 	jr	 nz,L016C	; No, jump off to error
 	ld	 c,$04		; Set up outer loop again
 L0140:	inc	 d		; Bump up test character...
-	ld	 a,$A5		;
+	ld	 a,$A5		; 
 L0143:	out	 ($5B),a	; Enable write to protected memory
 	dec	 hl		; Going down through memory
 	ld	 (hl),d		; Store test character
@@ -369,7 +369,7 @@ L0143:	out	 ($5B),a	; Enable write to protected memory
 	djnz	 L0143		; Go until bottom of static RAM reached
 	dec	 c		; Outer loop ???
 	jr	 nz,L0143	; go do ??? until ???
-	ld	 a,d		;
+	ld	 a,d		; 
 	and	 a		; Test if we got back test character correctly
 	jr	 nz,L016C	; Jump to ??? if not
 	ld	 c,$04		; Set up for next pass
@@ -381,14 +381,14 @@ L0155:	djnz	 L0153		; Again until reach end of memory
 	and	 a		; Did we get back correct byte? ???
 	jr	 nz,L016C	; Off to the error routine if not...
 
-	ld	 a,$55		;
+	ld	 a,$55		; 
 	ld	 (LD045),a	; This location seems to hold a $55 when ??? and static RAM tests OK
 	ld	 a,(LD045)	; This location seems to hold a $55 when ??? and static RAM tests OK
-	cp	 $55		;
+	cp	 $55		; 
 
 	ld	 hl,$043B	; String "STATIC RAM OK "
 L016A:	jr	 z,L016F	; Skip if static RAM is good ???
-L016C:	ld	 hl,L0449	; String "STATIC RAM BAD"
+L016C:	ld	 hl,L0449	; String "STATIC RAM BAD" 
 L016F:	ld	 de,$051A	; Set color and ???
 	ld	 b,$0E		; Length
 	call	 L03B3		; Write the string
@@ -399,32 +399,32 @@ L016F:	ld	 de,$051A	; Set color and ???
 ;
 ;*****************************************************
 	ld	 hl,L0457	; String "ROM "
-	ld	 de,L0A28	; Set color and ???
+	ld	 de,L0A28	; Set color and ??? 
 	call	 L03B1		; Sets length to $04 and drops
 				; through to the write string
-				; routine.
+				; routine. 
 	ld	 hl,L03D5	; String "ABCDEFGX"
 	exx			; Swap the registers
 	ld	 de,L03E0	; ???
 	ld	 hl,$0000	; Point to ROM beginning
 	ld	 a,(LD347)	; ???
-	in	 a,($13)	; Check if Foriegn language switch
-	bit	 3,a		; ... in bit 3 (DSW Switch 4 - English=On)
-	ld	 b,$07		; B=initial number of ROMS
-	jr	 nz,L0196	; If it's English, leave ROM count at 7
-	inc	 b		; If Foreign, Set ROM count to 8
-L0196:	push	 bc		; Below is ROM check... details to come... ???
-	ld	 a,h		;
+	in	 a,($13)	; Check if Foriegn language switch                     
+	bit	 3,a		; ... in bit 3 (DSW Switch 4 - English=On)                    
+	ld	 b,$07		; B=initial number of ROMS                                         
+	jr	 nz,L0196	; If it's English, leave ROM count at 7     
+	inc	 b		; If Foreign, Set ROM count to 8                
+L0196:	push	 bc		; Below is ROM check... details to come... ???      
+	ld	 a,h		; 
 	cp	 $40		; Is H=$40? ???
 	jr	 nz,L019E	; No, skip ahead
 	ld	 h,$80		; H=80 ???
 L019E:	cp	 $B0		; Is old H=$B0? ???
-	jr	 nz,L01A7	; No, skip ahead
+	jr	 nz,L01A7	; No, skip ahead 
 	ld	 de,LC00A	; DE is set to location in alt. char. ROM
 	ld	 h,$C0		; H=$C0???
-L01A7:	ld	 bc,L0010	;
+L01A7:	ld	 bc,L0010	; 
 	xor	 a		; A=0
-L01AB:	add	 a,(hl)		;
+L01AB:	add	 a,(hl)		; 
 	inc	 hl		;
 	djnz	 L01AB		; Add 255 bytes starting at HL
 	dec	 c		;
@@ -433,14 +433,14 @@ L01AB:	add	 a,(hl)		;
 	cp	 (hl)		;
 	inc	 hl
 	ex	 de,hl
-	exx
+	exx	
 	jr	 z,L01C1
 	ld	 a,d
 	ld	 (LD1D4),a
 	call	 L0374
 	dec	 hl
 L01C1:	inc	 hl
-	exx
+	exx	
 	pop	 bc
 	djnz	 L0196
 ;
@@ -452,9 +452,9 @@ L01C1:	inc	 hl
 	and	 a		;
 	call	 z,L0356	; ???
 	ld	 a,$01		;
-	ld	 (LD1C5),a	; Save 01 in ???
+	ld	 (LD1C5),a	; Save 01 in ??? 
 	ld	 de,$1403	; Set color and ??? for string write
-	call	 L03A7		; Go write "MOVE" and "FIRE" then drop to write routine
+	call	 L03A7		; Go write "MOVE" and "FIRE" then drop to write routine 
 	ld	 e,$30		; change color or ??? for string write
 	call	 L03A7		; Go write "MOVE" and "FIRE" then drop to write routine
 L01E1:	ld	 de,L1E0B	; Set color and ??? for string write
@@ -476,7 +476,7 @@ L020B:	ld	 e,$22
 	call	 L03BA
 	ld	 de,L2D0B
 	ld	 hl,L0412
-call	 L03B1
+L0216:	call	 L03B1
 	ld	 hl,L0416
 	ld	 de,L2D22
 	call	 L03C4		; Write a string and ???
@@ -506,7 +506,7 @@ L0230:	ld	 de,LD1D7	; Player 1 control status save area
 	call	 L0397		; Test and write YES or NO
 	ld	 e,$30		; ???
 	ld	 hl,LD1D1	; ???
-	ld	 a,(LD1D7)	; Load Player 1 control status
+	ld	 a,(LD1D7)	; Load Player 1 control status	
 	and	 $10		; ???
 	call	 L0397		; Test and write YES or NO
 	ld	 de,L1E03	; ???
@@ -528,36 +528,36 @@ L0230:	ld	 de,LD1D7	; Player 1 control status save area
 	ld	 e,$30		; Check ???
 	ld	 hl,LD1D3	; ???
 	in	 a,($10)	; Check IN0 for activity
-	cpl			; ???
+	cpl			; ???	
 	and	 $40		; Check ???
 	call	 L0397		; Test and write YES or NO
 L02A0:	ld	 de,L2803	; ???
 	ld	 hl,LD1C9	; ???
-	in	 a,($10)
-L02A8:	cpl
+	in	 a,($10)	
+L02A8:	cpl	
 	and	 $01
 	call	 L0397
 	ld	 e,$30
 	ld	 hl,LD1CA
 	in	 a,($10)
-	cpl
+	cpl	
 	and	 $02
 	call	 L0397
 	ld	 e,$1A
 	ld	 hl,LD1CB
 	in	 a,($10)
-	cpl
+	cpl	
 	and	 $04
 	call	 L0397
 	ld	 de,L2D03
 	ld	 hl,LD1D5
 	in	 a,($10)
-	cpl
+	cpl	
 L02D1:	and	 $10
 	call	 L0397
 	ld	 a,(LD347)
 	in	 a,($13)
-L02DB:	cpl
+L02DB:	cpl	
 	ld	 b,a
 	ld	 de,L2D1A
 	ld	 hl,LD1D8
@@ -584,19 +584,19 @@ L0300:	jr	 nz,L02E5
 L0302:	in	 a,($10)
 	and	 $60
 L0306:	jr	 z,L0310
-	in	 a,($10)	;
+	in	 a,($10)	; 
 	bit	 3,a		; Check for service switch on
 	jp	 z,L0228	; Jump back to diagnostic screen if so
-L030F:	rst	 00H		; Otherwise, restart everything!
+L030F:	rst	 00H		; Otherwise, restart everything! 
 ;
 ;*****************************************************
 ;
 ; ???
 ;
 ;*****************************************************
-L0310:	di
+L0310:	di	
 	call	 L08AE
-L0314:	jp	 $AF80
+L0314:	jp	 LAF80
 L0317:	and	 $0F
 	cp	 (hl)
 	ret	 z
@@ -728,7 +728,7 @@ L03B1:	ld	 b,$04		; Length
 ;*****************************************************
 ;
 L03B3:	ld	 a,$0C		; Expand mode color ???
-L03B5:	ld	 c,$FF		; ???
+L03B5:	ld	 c,$FF		; ??? 
 	jp	 L0460		; Go write the string...
 ;
 ;*****************************************************
@@ -745,7 +745,7 @@ L03BA:	push	 hl
 ; ??? Write string of some kind... strange stuff going on.
 ;
 ;*****************************************************
-L03C4:	ld	 b,$04		; ???
+L03C4:	ld	 b,$04		; ???	
 L03C6:	push	 bc		; Save ???
 	call	 L03A3		; B=3 and drop to write string
 	push	 hl		; save ???
@@ -762,30 +762,30 @@ L03C6:	push	 bc		; Save ???
 ;	"_" is used as ??? Verify
 ;*****************************************************
 
-L03D5:	DB	"ABCDEFGX"
-L03DD:	DB	"123"
-L03E0:	DB	$00, $6d, $f4, $2e, $62, $9d, $d4, '*'	;Could this be ROM checksums???
-L03E8:	DB	"YES@"
-L03EC:	DB	"NO"
-L03EE:	DB	"UP"
-L03F0:	DB	"DN"
-L03F2:	DB	"LF"
-L03F4:	DB	"RT"
-L03F6:	DB	"_"
-L03F7:	DB	"ERROR"
-L03FC:	DB	"FIRE"
-L0400:	DB	"MOVE@DI"
-DB	'R'
-L0408:	DB	"PL1PL2CO"
-L0410:	DB	"IN"
-L0412:	DB	"SLAM"
-L0416:	DB	"SW1SW2SW3S"
-L0420:	DB	"W4SW5SW6SW7SW8"
-	DB	"SCREEN@RAM@O"
-L043A:	DB	"KSTATIC@RAM@OK@"
-L0449:	DB	"STATIC@RAM@BAD"
-L0457:	DB	"ROM@"
-	DB	$00		; ???
+L03D5:	.db	"ABCDEFGX"
+L03DD:	.db	"123"
+L03E0:	.db	$00, $6d, $f4, $2e, $62, $9d, $d4, '*'	;Could this be ROM checksums???
+L03E8:	.db	"YES@"
+L03EC:	.db	"NO"
+L03EE:	.db	"UP"
+L03F0:	.db	"DN"
+L03F2:	.db	"LF"
+L03F4:	.db	"RT"
+L03F6:	.db	"_"
+L03F7:	.db	"ERROR"
+L03FC:	.db	"FIRE"
+L0400:	.db	"MOVE@DI"
+L0407:	.db	'R'
+L0408:	.db	"PL1PL2CO"
+L0410:	.db	"IN"
+L0412:	.db	"SLAM"
+L0416:	.db	"SW1SW2SW3S"
+L0420:	.db	"W4SW5SW6SW7SW8"
+	.db	"SCREEN@RAM@O"
+L043A:	.db	"KSTATIC@RAM@OK@"
+L0449:	.db	"STATIC@RAM@BAD"
+L0457:	.db	"ROM@"
+	.db	$00		; ???
 ;
 ;*****************************************************
 ; ???
@@ -808,7 +808,7 @@ L0460:	di			; No interruptions
 	set	 6,a		; Otherwise, set ??? bit
 L046B:	out	 ($0C),a	; Out to "Magic RAM control"
 L046D:	ld	 a,(hl)		; Get the character of the string
-	inc	 hl		; Set up for next character
+	inc	 hl		; Set up for next character 
 	push	 hl		; Save next character location
 	push	 de		; Save the color of character
 	call	 L04AB		; Translate ASCII into graphic location
@@ -818,9 +818,9 @@ L046D:	ld	 a,(hl)		; Get the character of the string
 	jr	 nz,L047D	; ... skip the modification for ???
 	xor	 $30		; Modification to ???
 L047D:	out	 ($7A),a	; Set up line offset value???
-	ld	 a,l		;
-	out	 ($78),a	; LSB of source
-ld	 a,h
+	ld	 a,l		; 
+	out	 ($78),a	; LSB of source	
+L0482:	ld	 a,h
 	out	 ($79),a	; MSB of source
 	ld	 a,e
 	out	 ($7B),a	; LSB of destination
@@ -831,12 +831,12 @@ ld	 a,h
 	jr	 nz,L0493	; Skip the mod for ??? if not cocktail
 	ld	 a,$B1		; Otherwise, set up for ???
 L0493:	out	 ($7B),a	; ??? what is this ???
-	ld	 a,$01
+	ld	 a,$01		
 	out	 ($7D),a	; Set width of pattern
 	ld	 a,$09
-	out	 ($7E),a	; Height of pattern and start transfer!
+	out	 ($7E),a	; Height of pattern and start transfer! 
 	pop	 hl		; Restore the next character to HL
-	inc	 de		;
+	inc	 de		; 
 	inc	 de		; Why did we double DE???
 	bit	 7,c		; cocktail???
 	jr	 nz,L04A8	; ... yes, skip mod of DE for ???
@@ -844,7 +844,7 @@ L0493:	out	 ($7B),a	; ??? what is this ???
 	dec	 de
 	dec	 de
 	dec	 de		; Mod for ???
-L04A8:	djnz	 L046D		; Character finished, go back and do
+L04A8:	djnz	 L046D		; Character finished, go back and do 
 				; next character until all of string is finished.
 	ret			; String is done, return to sender...
 ;
@@ -858,20 +858,20 @@ L04A8:	djnz	 L046D		; Character finished, go back and do
 ;			true ASCII, but a subset with some modifications.
 ;			See character table at L04CE for details.
 ;			It also handles translation to alternate ROM set.
-;
+; 
 ; Entry:		A  = ASCII character
-;
-; Exit:			HL = Address entry in table which corrosponds
+;			
+; Exit:			HL = Address entry in table which corrosponds 
 ;			     with the ASCII character.
 ;
-; Registers used:	A, DE, HL  ???verify
+; Registers used:	A, DE, HL  ???verify 
 ;
 ;********************************************************************
 ;
-L04AB:	sub	 $30		; Turn ASCII into table entry
+L04AB:	sub	 $30		; Turn ASCII into table entry	
 	cp	 $0A		; Check for number 0-9
 	jr	 c,L04B3	; Jump if not a number...
-	sub	 $06		; Adjust to take out unsupported characters
+	sub	 $06		; Adjust to take out unsupported characters 
 				; ... between "9" and "A" (":;<=>?")
 L04B3:	ld	 l,a		; L = table entry
 	sub	 $2C		; Check for alternate characters???
@@ -882,13 +882,13 @@ L04B3:	ld	 l,a		; L = table entry
 	inc	 hl		;  Manipulations for Alternate ROM set.
 	ld	 d,(hl)		;  Need to figure out what it does later... ???
 	ld	 l,a		; /
-L04C2:	ld	 h,$00		;
+L04C2:	ld	 h,$00		; 
 	add	 hl,hl		; Begin multiplying HL * $0A
 	push	 de		; Push beginning of table address
-	ld	 d,h		;
-ld	 e,l		;
-	add	 hl,hl		;
-	add	 hl,hl		;
+	ld	 d,h		; 
+L04C7:	ld	 e,l		;
+	add	 hl,hl		; 
+	add	 hl,hl		; 
 	add	 hl,de		; Multiply HL * $0A complete. This is table offset.
 	pop	 de		; Restore beginning of table address
 	add	 hl,de		; Add start of table address with offset to give table entry.
@@ -898,23 +898,23 @@ ld	 e,l		;
 ; Name:		Graphic_Character_Table
 ; Games:	Wizard of Wor (horizontal monitor)
 ; Purpose:	This is the Wizard of Wor character set in graphical format.
-; Description:	This is the data area for alphabetic and a few special
+; Description:	This is the data area for alphabetic and a few special 
 ;		characters in graphic format. It has the following charastics:
 ;
 ;		   1. Character patterns are stored in a bitmap 1 by 5 bytes
 ;		   2. Every bit is doubled by theMagic Expand mode.
-;		   3. The pixel color it is converted to is based on the ???
+;		   3. The pixel color it is converted to is based on the ??? 
 ;		      register, which tells what to expand each set bit
-;		      or reset bit into.
-;		   4. Each character is $0A apart.
-;
+;		      or reset bit into. 
+;		   4. Each character is $0A apart. 
+;		
 ;Example:	Character "A"
-;
-;		Data	Expanded	Expanded two
+;			
+;		Data	Expanded	Expanded two 
 ;			one bit		bits per byte
 ;			per byte
 ;
-;		$18	---XX---	------XXXX------
+;		$18	---XX---	------XXXX------	
 ;		$3C	--XXXX--	----XXXXXXXX----
 ;		$7E	-XXXXXX-	--XXXXXXXXXXXX--
 ;		$66	-XX--XX-	--XXXX----XXXX--
@@ -932,51 +932,51 @@ ld	 e,l		;
 ;
 L04CE:
 
-	DB	$3C,$7E,$66,$66,$66,$66,$66,$66,$7E,$3C		; "0"
-	DB	$18,$38,$18,$18,$18,$18,$18,$18,$3C,$3C		; "1"
-	DB	$3C,$7E,$66,$06,$3E,$7C,$60,$60,$7E,$7E		; "2"
-	DB	$3C,$7E,$66,$06,$1C,$1E,$06,$66,$7E,$3C		; "3"
-	DB	$66,$66,$66,$66,$7E,$7E,$06,$06,$06,$06		; "4"
-	DB	$7C,$7C,$60,$60,$7C,$7E,$06,$66,$7E,$3C		; "5"
-	DB	$3C,$7C,$60,$60,$7C,$7E,$66,$66,$7E,$3C		; "6"
-	DB	$7E,$7E,$06,$0E,$0C,$1C,$18,$38,$30,$30		; "7"
-	DB	$3C,$7E,$66,$66,$3C,$7E,$66,$66,$7E,$3C		; "8"
-	DB	$3C,$7E,$66,$66,$7E,$3E,$06,$06,$3E,$3C		; "9"
-	DB	$00,$00,$00,$00,$00,$00,$00,$00,$00,$00		; "space"
-	DB	$18,$3C,$7E,$66,$66,$66,$7E,$7E,$66,$66		; "A"
-	DB	$7C,$7E,$66,$66,$7C,$7E,$66,$66,$7E,$7C		; "B"
-	DB	$3C,$7E,$66,$60,$60,$60,$60,$66,$7E,$3C		; "C"
-	DB	$7C,$7E,$66,$66,$66,$66,$66,$66,$7E,$7C		; "D"
-	DB	$7E,$7E,$60,$60,$7C,$7C,$60,$60,$7E,$7E		; "E"
-	DB	$7E,$7E,$60,$60,$7C,$7C,$60,$60,$60,$60		; "F"
-	DB	$3C,$7E,$60,$60,$60,$6E,$6E,$66,$7E,$3C		; "G"
-	DB	$66,$66,$66,$66,$7E,$7E,$66,$66,$66,$66		; "H"
-	DB	$3C,$3C,$18,$18,$18,$18,$18,$18,$3C,$3C		; "I"
-	DB	$06,$06,$06,$06,$06,$06,$66,$66,$7E,$3C		; "J"
-	DB	$66,$66,$6E,$7C,$78,$78,$6C,$6E,$66,$66		; "K"
-	DB	$60,$60,$60,$60,$60,$60,$60,$60,$7E,$7E		; "L"
-	DB	$C3,$E7,$E7,$DB,$DB,$C3,$C3,$C3,$C3,$C3		; "M"
-	DB	$66,$66,$76,$7E,$7E,$6E,$66,$66,$66,$66		; "N"
-	DB	$3C,$7E,$66,$66,$66,$66,$66,$66,$7E,$3C		; "O"
-	DB	$7C,$7E,$66,$66,$7E,$7C,$60,$60,$60,$60		; "P"
-	DB	$3C,$7E,$66,$66,$66,$66,$66,$6E,$64,$3A		; "Q"
-	DB	$7C,$7E,$66,$66,$7E,$7C,$6E,$66,$66,$66		; "R"
-	DB	$3C,$7E,$66,$60,$7C,$3E,$06,$66,$7E,$3C		; "S"
-	DB	$7E,$7E,$18,$18,$18,$18,$18,$18,$18,$18		; "T"
-	DB	$66,$66,$66,$66,$66,$66,$66,$66,$7E,$3C		; "U"
-	DB	$66,$66,$66,$66,$66,$7E,$3C,$3C,$18,$18		; "V"
-	DB	$C3,$C3,$C3,$DB,$DB,$DB,$FF,$E7,$C3,$C3		; "W"
-	DB	$66,$66,$7E,$3C,$18,$18,$3C,$7E,$66,$66		; "X"
-	DB	$66,$66,$7E,$3C,$18,$18,$18,$18,$18,$18		; "Y"
-	DB	$7E,$7E,$06,$0E,$1C,$38,$70,$60,$7E,$7E		; "Z"
-	DB	$3C,$42,$99,$A5,$A1,$A1,$A5,$99,$42,$3C		; "Copyright Symbol"
-	DB	$38,$20,$60,$40,$FF,$FF,$40,$60,$20,$38		; "Left arrow"
-	DB	$18,$18,$3C,$3C,$7E,$5A,$DB,$99,$18,$18		; "Up arrow"
-	DB	$18,$18,$99,$DB,$5A,$7E,$3C,$3C,$18,$18		; "Down arrow"
-	DB	$00,$00,$00,$00,$7E,$7E,$00,$00,$00,$00		; "Dash"
-	DB	$1C,$1C,$1C,$08,$08,$00,$00,$00,$00,$00		; "Apostrophe"
-	DB	$1C,$04,$06,$02,$FF,$FF,$02,$06,$04,$1C		; "Right arrow"
-
+	.db	$3C,$7E,$66,$66,$66,$66,$66,$66,$7E,$3C		; "0" 
+	.db	$18,$38,$18,$18,$18,$18,$18,$18,$3C,$3C		; "1"
+	.db	$3C,$7E,$66,$06,$3E,$7C,$60,$60,$7E,$7E		; "2"
+	.db	$3C,$7E,$66,$06,$1C,$1E,$06,$66,$7E,$3C		; "3"
+	.db	$66,$66,$66,$66,$7E,$7E,$06,$06,$06,$06		; "4"
+	.db	$7C,$7C,$60,$60,$7C,$7E,$06,$66,$7E,$3C		; "5"
+	.db	$3C,$7C,$60,$60,$7C,$7E,$66,$66,$7E,$3C		; "6"
+	.db	$7E,$7E,$06,$0E,$0C,$1C,$18,$38,$30,$30		; "7"
+	.db	$3C,$7E,$66,$66,$3C,$7E,$66,$66,$7E,$3C		; "8"
+	.db	$3C,$7E,$66,$66,$7E,$3E,$06,$06,$3E,$3C		; "9"
+	.db	$00,$00,$00,$00,$00,$00,$00,$00,$00,$00		; "space"
+	.db	$18,$3C,$7E,$66,$66,$66,$7E,$7E,$66,$66		; "A" 
+	.db	$7C,$7E,$66,$66,$7C,$7E,$66,$66,$7E,$7C		; "B"
+	.db	$3C,$7E,$66,$60,$60,$60,$60,$66,$7E,$3C		; "C"
+	.db	$7C,$7E,$66,$66,$66,$66,$66,$66,$7E,$7C		; "D"
+	.db	$7E,$7E,$60,$60,$7C,$7C,$60,$60,$7E,$7E		; "E"
+	.db	$7E,$7E,$60,$60,$7C,$7C,$60,$60,$60,$60		; "F"
+	.db	$3C,$7E,$60,$60,$60,$6E,$6E,$66,$7E,$3C		; "G"
+	.db	$66,$66,$66,$66,$7E,$7E,$66,$66,$66,$66		; "H"
+	.db	$3C,$3C,$18,$18,$18,$18,$18,$18,$3C,$3C		; "I"
+	.db	$06,$06,$06,$06,$06,$06,$66,$66,$7E,$3C		; "J"
+	.db	$66,$66,$6E,$7C,$78,$78,$6C,$6E,$66,$66		; "K"
+	.db	$60,$60,$60,$60,$60,$60,$60,$60,$7E,$7E		; "L"
+	.db	$C3,$E7,$E7,$DB,$DB,$C3,$C3,$C3,$C3,$C3		; "M"
+	.db	$66,$66,$76,$7E,$7E,$6E,$66,$66,$66,$66		; "N"
+	.db	$3C,$7E,$66,$66,$66,$66,$66,$66,$7E,$3C		; "O"
+	.db	$7C,$7E,$66,$66,$7E,$7C,$60,$60,$60,$60		; "P"
+	.db	$3C,$7E,$66,$66,$66,$66,$66,$6E,$64,$3A		; "Q"
+	.db	$7C,$7E,$66,$66,$7E,$7C,$6E,$66,$66,$66		; "R"
+	.db	$3C,$7E,$66,$60,$7C,$3E,$06,$66,$7E,$3C		; "S"
+	.db	$7E,$7E,$18,$18,$18,$18,$18,$18,$18,$18		; "T"
+	.db	$66,$66,$66,$66,$66,$66,$66,$66,$7E,$3C		; "U"
+	.db	$66,$66,$66,$66,$66,$7E,$3C,$3C,$18,$18		; "V"
+	.db	$C3,$C3,$C3,$DB,$DB,$DB,$FF,$E7,$C3,$C3		; "W"
+	.db	$66,$66,$7E,$3C,$18,$18,$3C,$7E,$66,$66		; "X"
+	.db	$66,$66,$7E,$3C,$18,$18,$18,$18,$18,$18		; "Y"
+	.db	$7E,$7E,$06,$0E,$1C,$38,$70,$60,$7E,$7E		; "Z"
+	.db	$3C,$42,$99,$A5,$A1,$A1,$A5,$99,$42,$3C		; "Copyright Symbol"
+	.db	$38,$20,$60,$40,$FF,$FF,$40,$60,$20,$38		; "Left arrow"      
+	.db	$18,$18,$3C,$3C,$7E,$5A,$DB,$99,$18,$18		; "Up arrow"        
+	.db	$18,$18,$99,$DB,$5A,$7E,$3C,$3C,$18,$18		; "Down arrow"      
+	.db	$00,$00,$00,$00,$7E,$7E,$00,$00,$00,$00		; "Dash"            
+	.db	$1C,$1C,$1C,$08,$08,$00,$00,$00,$00,$00		; "Apostrophe"      
+	.db	$1C,$04,$06,$02,$FF,$FF,$02,$06,$04,$1C		; "Right arrow"
+	
 	nop	; Not sure why there is a NOP here... left in just in case.
 ;
 ;*************************************************
@@ -996,7 +996,7 @@ L0687:	call	 L06B5
 	dec	 (hl)
 	ld	 a,(hl)
 	sub	 $09
-	cpl
+	cpl	
 	ld	 e,a
 	call	 L06D9
 	ld	 a,e
@@ -1026,20 +1026,20 @@ L06B5:	ld	 hl,LD1C1
 	ret	 p
 ;
 ;*********************************************************
-; Set scan line interrupt and
+; Set scan line interrupt and 
 ; turn on all three sparkle colors
 ;*********************************************************
 ;
 L06C8:	ld	 a,$A8		; Set the interrupt line to 162
-	out	 ($0F),a
+	out	 ($0F),a	 
 
-L06CC:	ld	 a,00000111b	; Turn on sparkle color 1
-	in	 a,($15)
+L06CC:	ld	 a,00000111b	; Turn on sparkle color 1	
+	in	 a,($15)	
 
 	ld	 a,00001001b	; Turn on sparkle color 2
 	in	 a,($15)
 
-	ld	 a,00001011b	; Turn on sparkle color 3
+	ld	 a,00001011b	; Turn on sparkle color 3		
 	in	 a,($15)
 
 	ret
@@ -1068,13 +1068,13 @@ L06E8:	out	 ($07),a
 ;
 	ld	 d,c
 	ld	 a,h
-	di
+	di	
 	ld	 d,c
 	ld	 a,e
-	di
+	di	
 	ld	 d,c
 	ld	 a,e
-	di
+	di	
 	ld	 d,c
 	ld	 a,d
 	jp	 p,L7A51
@@ -1087,7 +1087,7 @@ L06E8:	out	 ($07),a
 	ld	 a,b
 	ret	 p
 	ld	 d,b
-ld	 a,b
+L070C:	ld	 a,b
 	ret	 p
 L070E:	ld	 a,$04
 	in	 a,($15)
@@ -1130,7 +1130,7 @@ L073E:	ld	 a,(hl)
 ;
 ;
 ; Data Below?
-;
+; 
 L0742:	rst	 00H
 	ld	 a,b
 	ld	 c,e
@@ -1180,7 +1180,7 @@ L0779:	out	 ($07),a
 ;
 ;*********************************************************
 ;
-	nop
+	nop	
 L0781:	call	 L0894
 	call	 L07A8
 	xor	 a
@@ -1209,7 +1209,7 @@ L079A:	ld	 a,(hl)
 L07A8:	call	 L0875
 	push	 hl
 	call	 L0875
-	in	 a,($10)		; Unknown what bit 7 does...
+	in	 a,($10)		; Unknown what bit 7 does... 
 	bit	 7,a
 	jr	 nz,L07B6
 	ex	 (sp),hl
@@ -1247,13 +1247,13 @@ L07D3:	call	 L0880
 ; ???
 ;*****************************************************************************
 ;
-call	 L0894
+L07E4:	call	 L0894
 	call	 L078B
 	sub	 $29
-	cpl
+	cpl	
 	ld	 e,a
 	call	 L088B
-	in	 a,($10)
+	in	 a,($10)	
 	bit	 7,a		;Unknown what bit 7 does on port $10
 	call	 L0880
 	jr	 nz,L07FF
@@ -1262,7 +1262,7 @@ call	 L0894
 	sub	 e
 	ld	 e,a
 L07FF:	push	 hl
-L0800:	call	 L0947
+L0800:	call	 CalcScreenRowOffset
 	ex	 de,hl
 	pop	 hl
 	jr	 L07D3
@@ -1272,9 +1272,9 @@ L0800:	call	 L0947
 ; ???
 ;*****************************************************************************
 ;
-call	 L0872
+L0807:	call	 L0872		
 	ld	 (hl),a
-L080B:	ret
+L080B:	ret	
 
 ;
 ;*****************************************************************************
@@ -1306,30 +1306,30 @@ L0823:	call	 L0875
 	and	 a
 	ret	 z
 	jr	 L086E
-call	 L0872
+L0836:	call	 L0872
 	call	 L0886
 	cp	 (hl)
 	ret	 c
 L083E:	push	 de
 	pop	 iy
-	ret
+	ret	
 	in	 a,($10)
 	and	 (iy+$00)
 	inc	 iy
 	call	 L0875
 	ret	 z
 	jr	 L086E
-xor	 a
+L084F:	xor	 a
 	ld	 (LD050),a
 	call	 L0880
 	ld	 (LD048),a
-	ret
+	ret	
 	xor	 a
 	ld	 (LD053),a
 	call	 L0872
 	ld	 (LD051),hl
 	ld	 (LD042),a
-	ret
+	ret	
 	ld	 l,(iy+$00)
 	ld	 h,(iy+$01)
 L086E:	push	 hl
@@ -1396,14 +1396,14 @@ L0894:	ld	 b,(iy+$00)
 ;
 L089A:	ld	 c,(iy+$00)
 	inc	 iy
-	ret
+	ret	
 ;
 ;*****************************************************************************
 ; Called this routine from L007E routine
 ; ???
 ;*****************************************************************************
 ;
-L08A0:	pop	 hl		; Return address in HL
+L08A0:	pop	 hl		; Return address in HL 
 	call	 L0886		; Load E=(IY+1), D=(IY), IY=IY+2
 	push	 iy		; Save old subroutine pointer ???
 	push	 de
@@ -1422,8 +1422,8 @@ L08A0:	pop	 hl		; Return address in HL
 ;***********************************************************************
 ;
 ; I think this routine sets video for game play and fills some
-; static RAM memory with 0's.
-; Note: In the pattern xfer below, the source destination regisers are
+; static RAM memory with 0's. 
+; Note: In the pattern xfer below, the source destination regisers are 
 ; missing. This probably means they were set before the call ???
 ;
 ;
@@ -1431,7 +1431,7 @@ L08A0:	pop	 hl		; Return address in HL
 ;
 ;***********************************************************************
 ;
-L08AE:	di
+L08AE:	di	
 	xor	 a		; Zero A
 	out	 ($19),a	; Magic RAM expand mode color ???
 	ld	 a,$08
@@ -1444,7 +1444,7 @@ L08AE:	di
 	inc	 a		; A=1
 L08C0:	out	 ($7B),a	; Line offset value ???
 	ld	 a,$4F
-	out	 ($7D),a	; Width of pattern
+	out	 ($7D),a	; Width of pattern	
 	ld	 a,$CB
 	out	 ($7E),a	; Height of pattern and start transfer
 
@@ -1460,11 +1460,11 @@ L08C0:	out	 ($7B),a	; Line offset value ???
 	ld	 de,LD041
 	ld	 bc,L0203
 	ldir
-
+	
 	ld	 a,(L8006)
 	cp	 $C3
 	call	 z,L8006
-	ret
+	ret	
 ;
 ;************************************************************************
 ;
@@ -1472,27 +1472,27 @@ L08C0:	out	 ($7B),a	; Line offset value ???
 	call	 L0880
 	ex	 af,af'
 	call	 L0875
-	exx
+	exx	
 	call	 L07A8
 	ex	 de,hl
-	exx
+	exx	
 L08F0:	ld	 a,(hl)
 	inc	 hl
-	exx
+	exx	
 	push	 hl
 	call	 L04AB
 	ex	 de,hl
 	pop	 hl
-	exx
+	exx	
 	ld	 b,$0A
-L08FC:	exx
+L08FC:	exx	
 	ld	 b,$08
 	ex	 af,af'
 	ld	 c,a
 	ex	 af,af'
 	ld	 a,(de)
 	inc	 de
-L0904:	rla
+L0904:	rla	
 	jr	 nc,L0908
 	ld	 (hl),c
 L0908:	inc	 hl
@@ -1510,30 +1510,30 @@ L0912:	pop	 af
 	jr	 nz,L0920
 	ld	 bc,LFF18
 L0920:	add	 hl,bc
-	exx
+	exx	
 	djnz	 L08FC
-	exx
+	exx	
 	ld	 bc,LF6A8
 	in	 a,($10)
 	bit	 7,a
 	jr	 nz,L0931
 	ld	 bc,L0958
 L0931:	add	 hl,bc
-	exx
+	exx	
 	dec	 c
 	jr	 nz,L08F0
-	ret
-	nop
-L0938:	push	 hl
+	ret	
+	nop	
+CalcMagicAddressFromPixelXY:	push	 hl
 	srl	 e
 	srl	 e
-	call	 L0947
+	call	 CalcScreenRowOffset
 	ld	 de,L0007
 	add	 hl,de
 	ex	 de,hl
 	pop	 hl
-	ret
-L0947:	ld	 l,d
+	ret	
+CalcScreenRowOffset:	ld	 l,d
 	ld	 h,$00
 	ld	 d,h
 	add	 hl,hl
@@ -1546,34 +1546,34 @@ L0947:	ld	 l,d
 	add	 hl,de
 	pop	 de
 	add	 hl,de
-	ret
+	ret	
 	push	 af
 L0957:	push	 bc
 L0958:	push	 de
 	push	 hl
 	ex	 af,af'
 	push	 af
-	exx
+	exx	
 	push	 bc
 	push	 de
 	push	 hl
 L0960:	push	 ix
 	call	 L0E2B
-	call	 L09D1
+	call	 GameplayRenderAndProjectileService
 	call	 L0979
 	pop	 ix
 	pop	 hl
 	pop	 de
 	pop	 bc
-	exx
+	exx	
 	pop	 af
 	ex	 af,af'
 	pop	 hl
 	pop	 de
 	pop	 bc
 	pop	 af
-	ei
-	ret
+	ei	
+	ret	
 L0979:	ld	 a,(LD1C5)
 	and	 a
 	ret	 nz
@@ -1585,18 +1585,18 @@ L0979:	ld	 a,(LD1C5)
 	ld	 a,r
 L098B:	and	 $0F
 	ld	 c,a
-	rlca
-	rlca
-	rlca
-	rlca
+	rlca	
+	rlca	
+	rlca	
+	rlca	
 	or	 c
 	ld	 c,a
-	cpl
+	cpl	
 	ld	 b,a
-	call	 L0F6A
+	call	 L0F6A		
 	inc	 hl
 	ld	 c,b
-	jp	 L0F6A
+	jp	 L0F6A		
 	push	 af
 	ld	 a,(LD1C4)
 	add	 a,$2C
@@ -1607,9 +1607,9 @@ L098B:	and	 $0F
 	ld	 a,$52
 	out	 ($07),a
 	pop	 af
-	ei
+	ei	
 	ret
-
+	
 ;
 ;************************************************************************
 ;
@@ -1622,12 +1622,12 @@ L098B:	and	 $0F
 	ld	 a,$51
 	out	 ($07),a
 	jr	 L0957
-	nop
+	nop	
 L09C8:	ld	 hl,LD003
 	ld	 c,$00
-	call	 L0F6A
+	call	 L0F6A		
 	rst	 00H
-L09D1:	ld	 a,(LD1C5)
+GameplayRenderAndProjectileService:	ld	 a,(LD1C5)
 	and	 a
 	jp	 nz,L0A68
 	in	 a,($10)		; Check for TILT
@@ -1637,45 +1637,57 @@ L09D1:	ld	 a,(LD1C5)
 	cp	 $05
 	jr	 nc,L09C8
 	ld	 a,(LD34E)
-	rra
+	rra	
 	jr	 c,L0A25
+
+; Projectile/render work is split across the two interlaced update groups.
+; Each group draws one player actor plus alternating enemy actors, then services
+; the matching projectile records.  Actor records contain their projectile at
+; actor offset $13.  The concrete RAM addresses are:
+;
+;   P1 actor $D054 -> projectile $D067
+;   P2 actor $D074 -> projectile $D087
+;   Enemy slots $D094,$D0BA,$D0E0,$D106,$D12C,$D152
+;              -> $D0A7,$D0CD,$D0F3,$D119,$D13F,$D165
+;
+
 	ld	 hl,LD05C
-	call	 L0B62
+	call	 ActorSpriteDrawPatternBoard
 	ld	 hl,LD09C
-	call	 L0B62
+	call	 ActorSpriteDrawPatternBoard
 	ld	 hl,LD0E8
-	call	 L0B62
+	call	 ActorSpriteDrawPatternBoard
 	ld	 hl,LD134
-L0A00:	call	 L0B62
+L0A00:	call	 ActorSpriteDrawPatternBoard
 	ld	 hl,LD067
-L0A06:	call	 L0AA6
+L0A06:	call	 ProjectileUpdateAndDraw
 	ld	 hl,LD0A7
-	call	 L0AA6
+	call	 ProjectileUpdateAndDraw
 	ld	 hl,LD0F3
-	call	 L0AA6
+	call	 ProjectileUpdateAndDraw
 L0A15:	ld	 hl,LD13F
-	call	 L0AA6
-	call	 L0BD7
+	call	 ProjectileUpdateAndDraw
+	call	 ResolvePlayer1ProjectileCollisions
 	call	 L075B
 	ld	 a,$05
 	jr	 L0A5D
 L0A25:	ld	 hl,LD07C
-L0A28:	call	 L0B62
+L0A28:	call	 ActorSpriteDrawPatternBoard
 	ld	 hl,LD0C2
-	call	 L0B62
+	call	 ActorSpriteDrawPatternBoard
 	ld	 hl,LD10E
-	call	 L0B62
+	call	 ActorSpriteDrawPatternBoard
 	ld	 hl,LD15A
-	call	 L0B62
+	call	 ActorSpriteDrawPatternBoard
 	ld	 hl,LD087
-	call	 L0AA6
+	call	 ProjectileUpdateAndDraw
 	ld	 hl,LD0CD
-	call	 L0AA6
+	call	 ProjectileUpdateAndDraw
 	ld	 hl,LD119
-	call	 L0AA6
+	call	 ProjectileUpdateAndDraw
 	ld	 hl,LD165
-	call	 L0AA6
-	call	 L0BE7
+	call	 ProjectileUpdateAndDraw
+	call	 ResolvePlayer2ProjectileCollisions
 	call	 L0714
 	ld	 a,$0A
 L0A5D:	ld	 hl,LD1C3
@@ -1686,8 +1698,8 @@ L0A5D:	ld	 hl,LD1C3
 L0A68:	ld	 a,(L8000)
 	cp	 $C3
 	call	 z,L8000
-	ret
-	nop
+	ret	
+	nop	
 L0A72:	call	 L0A82
 	ld	 hl,LD048
 	inc	 de
@@ -1696,7 +1708,7 @@ L0A72:	call	 L0A82
 	ret	 nz
 	ld	 b,$08
 	call	 L0A95
-	ret
+	ret	
 L0A82:	ld	 de,LD040
 	ld	 a,(de)
 	and	 a
@@ -1712,15 +1724,55 @@ L0A95:	ld	 a,(hl)
 	jr	 z,L0A9D
 	dec	 (hl)
 	jr	 nz,L0A9D
-	scf
+	scf	
 L0A9D:	rl	 c
 	inc	 hl
 L0AA0:	djnz	 L0A95
 	ld	 a,c
 	ld	 (de),a
-	ret
-	nop
-L0AA6:	bit	 7,(hl)
+	ret	
+	nop	
+;******************************************************************************
+; ProjectileUpdateAndDraw
+;
+; Updates and renders one projectile.  Unlike the character graphics, bolts
+; are not stored in a ROM sprite table and are not drawn by the pattern board.
+; Their small source patterns are immediate byte constants in
+; ProjectileDrawPattern below.
+;
+; Input:
+;   HL = seven-byte projectile record
+;
+; Projectile record layout:
+;   +0 flags/direction
+;        bit 7 = active
+;        bit 6 = old image is currently drawn
+;        bit 5 = Magic-RAM intercept occurred; stop pending resolution
+;        bit 3 = remove after erasing
+;        bit 2 = 0 player/Worrior, 1 monster
+;        bit 1 = 0 vertical, 1 horizontal
+;        bit 0 = direction polarity
+;                 0=up, 1=down, 2=left, 3=right before class bit is added
+;   +1 signed X delta
+;   +2 current X pixel coordinate
+;   +3 signed Y delta
+;   +4 current Y scanline
+;   +5 old Magic-memory address low
+;   +6 old Magic-memory address high
+;
+; Rendering sequence:
+;   1. XOR-erase the previous image if bit 6 is set.
+;   2. Add the signed X/Y deltas.
+;   3. Calculate the Magic-memory address.
+;   4. Clear the old intercept latch by reading port $08.
+;   5. Draw through Magic RAM using XPAND=$0C and MAGIC=$28
+;      ($20 XOR + $08 expand).
+;   6. Read intercept status; set bit 5 when the bolt touched nonzero pixels.
+;
+; This hardware intercept is how the game notices walls or actors.
+; The collision routines later decide which actor, if any, was struck.
+;******************************************************************************
+ProjectileUpdateAndDraw:	bit	 7,(hl)
 L0AA8:	ret	 z
 	ld	 a,$0C
 	out	 ($19),a
@@ -1729,9 +1781,9 @@ L0AA8:	ret	 z
 	bit	 3,(hl)
 	jr	 z,L0AB9
 	res	 7,(hl)
-	jr	 L0AE8
+	jr	 ProjectileEraseIfDrawn
 L0AB9:	push	 hl
-	call	 L0AE8
+	call	 ProjectileEraseIfDrawn
 	pop	 hl
 	bit	 5,(hl)
 	ret	 nz
@@ -1749,7 +1801,7 @@ L0AC9:	ld	 e,a
 	add	 a,(hl)
 	ld	 (hl),a
 	ld	 d,a
-	call	 L0938
+	call	 CalcMagicAddressFromPixelXY
 	inc	 hl
 	ld	 (hl),e
 	inc	 hl
@@ -1758,14 +1810,14 @@ L0AC9:	ld	 e,a
 	pop	 hl
 	ld	 a,(hl)
 	push	 hl
-	call	 L0AF5
+	call	 ProjectileDrawPattern
 	pop	 hl
 	set	 6,(hl)
 	in	 a,($08)
 	and	 a
 	ret	 z
 	set	 5,(hl)
-L0AE8:	bit	 6,(hl)
+ProjectileEraseIfDrawn:	bit	 6,(hl)
 	ret	 z
 	res	 6,(hl)
 	ld	 a,(hl)
@@ -1774,16 +1826,34 @@ L0AE8:	bit	 6,(hl)
 	ld	 e,(hl)
 	inc	 hl
 	ld	 d,(hl)
-L0AF5:	ex	 de,hl
+;******************************************************************************
+; ProjectileDrawPattern
+;
+; A = projectile flags/direction, DE = Magic-memory destination.
+; Source bytes are 1bpp and become 2bpp through XPAND=$0C.  Since MAGIC=$28
+; includes XOR, calling this with the same pattern/address erases the bolt.
+;
+; Pattern selection from A bits 2..1:
+;   bit2=0 bit1=0 : player vertical    ($18 rectangle)
+;   bit2=0 bit1=1 : player horizontal  ($FF rectangle)
+;   bit2=1 bit1=0 : monster vertical   ($22/$44 alternating)
+;   bit2=1 bit1=1 : monster horizontal ($99/$9E/$67 or $99/$E7)
+;
+; Note that up/down share one shape and left/right share one shape.  Bit 0
+; changes travel polarity, not the bitmap.  Burwor, Garwor, Thorwor and the
+; Wizard all use the same monster patterns; only their actor graphics differ.
+;******************************************************************************
+ProjectileDrawPattern:	ex	 de,hl
 	ld	 de,L004F
 	bit	 1,a
-	jr	 nz,L0B2E
+	jr	 nz,ProjectileDrawHorizontal
 	bit	 2,a
-	jr	 nz,L0B17
+	jr	 nz,ProjectileDrawMonsterVertical
 	ld	 a,$18
-	call	 L0B06
-L0B06:	ld	 (hl),a
-inc	 hl
+	call	 ProjectileDrawPlayerVertical
+; Player/Worrior vertical bolt.  Four source rows, two writes per row.
+ProjectileDrawPlayerVertical:	ld	 (hl),a
+L0B07:	inc	 hl
 	ld	 (hl),a
 	add	 hl,de
 	ld	 (hl),a
@@ -1798,14 +1868,16 @@ inc	 hl
 	inc	 hl
 	ld	 (hl),a
 	add	 hl,de
-	ret
-L0B17:	inc	 de
+	ret	
+; Monster vertical bolt.  $22,$22,$44,$44; repeated for the other field when
+; required by LD1C6.
+ProjectileDrawMonsterVertical:	inc	 de
 	ld	 bc,L2244
 	ld	 a,(LD1C6)
 	and	 a
-	call	 z,L0B25
-	call	 L0B25
-L0B25:	ld	 (hl),b
+	call	 z,ProjectileDrawMonsterVerticalField
+	call	 ProjectileDrawMonsterVerticalField
+ProjectileDrawMonsterVerticalField:	ld	 (hl),b
 	add	 hl,de
 	ld	 (hl),b
 	add	 hl,de
@@ -1813,9 +1885,11 @@ L0B25:	ld	 (hl),b
 	add	 hl,de
 	ld	 (hl),c
 	add	 hl,de
-	ret
-L0B2E:	bit	 2,a
-	jr	 nz,L0B3C
+	ret	
+; Horizontal bolts.  Player/Worrior uses the compact $FF block.  Monster shots
+; use the asymmetric field-aware pattern below.
+ProjectileDrawHorizontal:	bit	 2,a
+	jr	 nz,ProjectileDrawMonsterHorizontal
 	ld	 a,$FF
 	ld	 (hl),a
 	inc	 hl
@@ -1824,10 +1898,10 @@ L0B2E:	bit	 2,a
 	ld	 (hl),a
 	inc	 hl
 	ld	 (hl),a
-	ret
-L0B3C:	ld	 a,(LD1C6)
+	ret	
+ProjectileDrawMonsterHorizontal:	ld	 a,(LD1C6)
 	and	 a
-	jr	 nz,L0B55
+	jr	 nz,ProjectileDrawMonsterHorizontalAlt
 	dec	 de
 	ld	 (hl),$99
 	inc	 hl
@@ -1840,17 +1914,20 @@ L0B3C:	ld	 a,(LD1C6)
 	ld	 (hl),$67
 	inc	 hl
 	ld	 (hl),$67
-	ret
-L0B55:	ld	 (hl),$99
+	ret	
+ProjectileDrawMonsterHorizontalAlt:	ld	 (hl),$99
 	inc	 hl
 	ld	 (hl),$99
 	add	 hl,de
 	ld	 (hl),$E7
 	inc	 hl
 	ld	 (hl),$E7
-	ret
-	nop
-L0B62:	bit	 7,(hl)
+	ret	
+	nop	
+; Normal actor sprite renderer.  This is intentionally separate from the
+; procedural projectile renderer above.  It transfers a 6-byte by 18-row
+; character pattern through pattern-board ports $78-$7E.
+ActorSpriteDrawPatternBoard:	bit	 7,(hl)
 	ret	 z
 	res	 7,(hl)
 	push	 hl
@@ -1876,7 +1953,7 @@ L0B89:	bit	 4,(hl)
 	jr	 z,L0B91
 	add	 hl,de
 L0B91:	inc	 hl
-L0B92:	di
+L0B92:	di	
 	ld	 a,(hl)
 	out	 ($0C),a
 	ld	 de,L0005
@@ -1922,58 +1999,67 @@ L0BB8:	add	 a,e
 	out	 ($7D),a
 	ld	 a,$11
 	out	 ($7E),a
-	ret
-	nop
-L0BD7:	push	 iy
+	ret	
+	nop	
+; Resolve P1's projectile against P2 and all six enemy records.
+ResolvePlayer1ProjectileCollisions:	push	 iy
 	ld	 iy,LD054
 	ld	 ix,LD074
-	call	 L0C2B
+	call	 ResolvePlayerProjectileIntercept
 	pop	 iy
-	ret
-L0BE7:	push	 iy
+	ret	
+; Resolve P2's projectile against P1 and all six enemy records.
+ResolvePlayer2ProjectileCollisions:	push	 iy
 	ld	 iy,LD074
 	ld	 ix,LD054
-	call	 L0C2B
+	call	 ResolvePlayerProjectileIntercept
 	pop	 iy
-	ret
-L0BF7:	push	 iy
+	ret	
+; Resolve each of the six enemy projectiles against both player records.
+ResolveEnemyProjectileCollisions:	push	 iy
 	ld	 a,$06
 L0BFB:	push	 af
 	call	 L0F2C
-	call	 L0C09
+	call	 ResolveEnemyProjectileIntercept
 	pop	 af
 L0C03:	dec	 a
 	jr	 nz,L0BFB
 	pop	 iy
-	ret
-L0C09:	ld	 a,(iy+$13)
+	ret	
+; The projectile renderer sets bit 5 after a Magic-RAM intercept.  Test both
+; players; whether an actor matched or the projectile merely hit maze pixels,
+; the projectile is removed after this intercept is resolved.
+ResolveEnemyProjectileIntercept:	ld	 a,(iy+$13)
 L0C0C:	bit	 5,a
 	ret	 z
 	ld	 ix,LD074
-	call	 L0C49
+	call	 TestProjectileAgainstActor
 L0C16:	ld	 ix,LD054
-	call	 L0C49
+	call	 TestProjectileAgainstActor
 	ld	 (iy+$13),$00
 	ld	 a,(LD1C6)
 	and	 a
 	ret	 nz
 	ld	 (iy+$1c),$0F
-	ret
-L0C2B:	ld	 a,(iy+$13)
+	ret	
+; Resolve one player's intercepted projectile against the other player and all
+; six enemies, then retire the projectile.  TestProjectileAgainstActor performs
+; the direction-dependent bounding-box test and score/damage bookkeeping.
+ResolvePlayerProjectileIntercept:	ld	 a,(iy+$13)
 	bit	 5,a
 	ret	 z
-	call	 L0C49
+	call	 TestProjectileAgainstActor
 	call	 L0E0B
 	ld	 a,$06
 L0C39:	push	 af
 	call	 L0F1F
-	call	 L0C49
+	call	 TestProjectileAgainstActor
 	pop	 af
 	dec	 a
 	jr	 nz,L0C39
 	ld	 (iy+$13),$00
-	ret
-L0C49:	ld	 a,(ix+$00)
+	ret	
+TestProjectileAgainstActor:	ld	 a,(ix+$00)
 	and	 $9A
 	cp	 $80
 	ret	 nz
@@ -2033,7 +2119,7 @@ L0CB6:	bit	 2,(iy+$08)
 	ld	 hl,LD1E1
 	ld	 a,$04
 	jr	 nz,L0CC2
-	rlca
+	rlca	
 L0CC2:	or	 (hl)
 	ld	 (hl),a
 	bit	 3,(iy+$08)
@@ -2058,16 +2144,16 @@ L0CEA:	ld	 a,(LD351)
 	ld	 a,e
 	jr	 z,L0CF3
 	add	 a,a
-	daa
+	daa	
 L0CF3:	add	 a,(hl)
-	daa
+	daa	
 	ld	 (hl),a
 	inc	 hl
 	ld	 a,d
 	adc	 a,(hl)
-	daa
+	daa	
 	ld	 (hl),a
-	ret
+	ret	
 L0CFC:	ld	 a,(LD1EB)
 	and	 a
 	jr	 z,L0CEA
@@ -2096,7 +2182,7 @@ L0D18:	ld	 a,(ix+$07)
 	ld	 e,(hl)
 	inc	 hl
 	ld	 d,(hl)
-	ret
+	ret	
 L0D2C:	inc	 d
 	add	 hl,de
 	ld	 d,$15
@@ -2124,16 +2210,16 @@ L0D3C:	ld	 de,$1613
 L0D4C:	res	 7,(ix+$08)
 	set	 3,(ix+$00)
 	ld	 (ix+$1d),$01
-	ret
+	ret	
 L0D59:	ld	 (ix+$1d),$00
 	call	 L0DD6
 	ld	 (ix+$03),$01
 	ld	 (ix+$05),$06
 	ld	 b,(ix+$07)
 	ld	 a,b
-	rrca
-	rrca
-	rrca
+	rrca	
+	rrca	
+	rrca	
 	and	 $80
 	ld	 (ix+$07),a
 	ld	 c,$00
@@ -2153,7 +2239,7 @@ L0D87:	cp	 $01
 L0D8D:	cp	 $02
 	jr	 z,L0D9D
 	cp	 $03
-jr	 z,L0D9B
+L0D93:	jr	 z,L0D9B
 	ld	 a,(LD1DA)
 	and	 a
 	jr	 z,L0D9D
@@ -2167,15 +2253,15 @@ L0D9D:	ld	 (ix+$01),c
 	jr	 z,L0DB0
 	ld	 (LD1C8),a
 L0DB0:	ld	 a,c
-	rlca
-	rlca
-	rlca
+	rlca	
+	rlca	
+	rlca	
 	and	 $20
 	ld	 h,a
 	ld	 a,b
-	rlca
-	rlca
-	rlca
+	rlca	
+	rlca	
+	rlca	
 	and	 $10
 	or	 h
 	ld	 (ix+$07),a
@@ -2185,11 +2271,11 @@ L0DB0:	ld	 a,c
 	jr	 nz,L0DCD
 	dec	 hl
 L0DCD:	dec	 (hl)
-	ret
+	ret	
 L0DCF:	and	 a
 	ret	 z
 	ld	 (ix+$05),$01
-	ret
+	ret	
 L0DD6:	bit	 2,(ix+$07)
 	ld	 hl,LD241
 	jr	 z,L0DFA
@@ -2198,7 +2284,7 @@ L0DD6:	bit	 2,(ix+$07)
 	and	 a
 	ld	 a,$02
 	jr	 z,L0DF7
-	rra
+	rra	
 	ld	 b,a
 	ld	 a,(LD1C6)
 	and	 a
@@ -2206,10 +2292,10 @@ L0DD6:	bit	 2,(ix+$07)
 	jr	 z,L0DF7
 	ld	 hl,LD243
 	set	 0,(hl)
-	ret
+	ret	
 L0DF7:	or	 (hl)
 	ld	 (hl),a
-	ret
+	ret	
 L0DFA:	set	 0,(hl)
 	ld	 a,(LD1C6)
 	and	 a
@@ -2230,8 +2316,8 @@ L0E0B:	ld	 a,(ix+$15)
 	ret	 nc
 	set	 3,(ix+$13)
 	ld	 (ix+$1c),$0F
-	ret
-	nop
+	ret	
+	nop	
 L0E2B:	ld	 hl,LD341
 	ld	 d,$00
 	call	 L0F00
@@ -2244,12 +2330,12 @@ L0E3E:	ld	 d,$0E
 	ld	 a,(LD347)
 	in	 a,($13)
 	ld	 b,a
-	exx
+	exx	
 	ld	 de,L0F1A
 	bit	 3,a
 	jr	 nz,L0E54
 	ld	 de,LC004
-L0E54:	exx
+L0E54:	exx	
 	xor	 a
 	ex	 af,af'
 	ld	 c,$01
@@ -2264,9 +2350,9 @@ L0E54:	exx
 	bit	 3,b
 	jr	 z,L0E77
 	ld	 a,b
-	cpl
+	cpl	
 	and	 $06
-	rra
+	rra	
 	ld	 e,a
 L0E77:	call	 L0EC0
 	ld	 hl,LD344
@@ -2288,12 +2374,12 @@ L0E99:	ex	 af,af'
 	push	 af
 	and	 $0F
 	ld	 c,a
-L0EA2:	call	 L0F6A
+L0EA2:	call	 L0F6A		
 	pop	 af
-	rrca
-	rrca
-	rrca
-	rrca
+	rrca	
+	rrca	
+	rrca	
+	rrca	
 	and	 $0F
 	ret	 z
 	dec	 hl
@@ -2301,26 +2387,26 @@ L0EA2:	call	 L0F6A
 	cp	 $1F
 	ret	 nc
 	ld	 c,a
-	call	 L0F6A
+	call	 L0F6A		
 	ld	 hl,LD340
 	inc	 (hl)
-	ret
+	ret	
 L0EBB:	ld	 a,b
 	and	 c
 	ret	 nz
 	inc	 e
-	ret
+	ret	
 L0EC0:	ld	 hl,LD03B
 	in	 a,($10)
 	and	 c
 	ld	 d,(hl)
 	ld	 a,$A5
-	out	 ($5B),a
+	out	 ($5B),a	
 	jr	 nz,L0ED1
 	ld	 a,d
 	or	 c
 	ld	 (hl),a
-	ret
+	ret	
 L0ED1:	ld	 a,d
 	and	 c
 	ret	 z
@@ -2328,16 +2414,16 @@ L0ED1:	ld	 a,d
 	xor	 c
 	ld	 (hl),a
 	ld	 a,e
-	exx
+	exx	
 	ld	 l,a
 	ld	 h,$00
 	add	 hl,de
 	ex	 af,af'
 	add	 a,(hl)
 	ex	 af,af'
-	exx
-	scf
-	ret
+	exx	
+	scf	
+	ret	
 L0EE3:	bit	 3,b
 	jr	 z,L0EF4
 	bit	 2,b
@@ -2351,7 +2437,7 @@ L0EF4:	inc	 (hl)
 	set	 5,(hl)
 	ld	 a,$01
 	ld	 (LD244),a		; Turn on sounds in attract mode variable
-	ret
+	ret	
 L0F00:	ld	 a,(hl)
 L0F01:	and	 a
 	jr	 z,L0F0C
@@ -2360,7 +2446,7 @@ L0F01:	and	 a
 L0F07:	ret	 nz
 	ld	 a,d
 	in	 a,($15)
-L0F0B:	ret
+L0F0B:	ret	
 L0F0C:	inc	 hl
 	ld	 a,(hl)
 	and	 a
@@ -2371,29 +2457,29 @@ L0F0C:	inc	 hl
 	ld	 a,d
 	set	 0,a
 	in	 a,($15)
-	ret
+	ret	
 L0F1A:	djnz	 L0F24
 	jr	 nc,L0F6E
-	nop
+	nop	
 L0F1F:	ld	 ix,LD06E
 	ld	 bc,L0026
 L0F26:	add	 ix,bc
 	dec	 a
 	jr	 nz,L0F26
-	ret
+	ret	
 L0F2C:	ld	 iy,LD06E
 	ld	 bc,L0026
 L0F33:	add	 iy,bc
 	dec	 a
 	jr	 nz,L0F33
-	ret
-L0F39:	exx
+	ret	
+L0F39:	exx	
 	ld	 bc,(LD34A)
 	ld	 hl,$1321
 	add	 hl,bc
 	push	 hl
 L0F43:	ld	 hl,L2776
-adc	 hl,bc
+L0F46:	adc	 hl,bc
 	ld	 de,(LD34C)
 	add	 hl,de
 	ex	 (sp),hl
@@ -2415,7 +2501,7 @@ L0F57:	ex	 (sp),hl
 	adc	 hl,de
 	ld	 (LD34C),hl
 	ld	 a,h
-	exx
+	exx	
 	ret
 ;
 ;************************************************************
@@ -2441,220 +2527,220 @@ L0F6E:	ld	 (hl),c
 ;
 ;
 
-		DB	$07,$08,$00,$49,$D3,$81,$17,$92
-		DB	$17,$84,$16,$A0,$08,$FE,$15,$0C
-		DB	$08,$00,$00,$00,$D3,$D5,$18,$07
-		DB	$08,$0C,$E1,$D1,$CA,$07,$DA,$32
-		DB	$14,$14,$00,$0B,$08,$04,$CA,$07
-		DB	$23,$33,$13,$15,$05,$0A,$03,$04
-		DB	$E4,$07,$02,$28,$A1,$0C,$97,$16
-		DB	$07,$08,$32,$CB,$D1,$20,$08,$4F
-		DB	$D3,$B8,$0F,$07,$08,$33,$CB,$D1
-		DB	$CA,$07,$CB,$D1,$0A,$89,$11,$6E
-		DB	$2D,$0C,$07,$08,$35,$CB,$D1,$20
-		DB	$08,$4F,$D3,$D2,$0F,$07,$08,$37
-		DB	$CB,$D1,$CA,$07,$CB,$D1,$0A,$B1
-		DB	$11,$96,$2D,$0C,$D4,$19,$5A,$08
-		DB	$08,$3E,$10,$20,$08,$3C,$D0,$F3
-		DB	$0F,$07,$08,$01,$44,$D2,$5A,$08
-		DB	$03,$3E,$10,$84,$16,$2B,$08,$3C
-		DB	$D0,$34,$10,$2B,$08,$48,$D3,$34
-		DB	$10,$E4,$07,$01,$B0,$B9,$0C,$8F
-		DB	$19,$A0,$08,$23,$15,$2B,$08,$03
-		DB	$D3,$E6,$10,$4F,$08,$1E,$61,$1F
-		DB	$81,$07,$0F,$19,$37,$06,$3A,$94
-		DB	$19,$A0,$08,$23,$15,$2B,$08,$03
-		DB	$D3,$E6,$10,$4F,$08,$1E,$61,$1F
-		DB	$68,$08,$F3,$0F,$E4,$07,$0F,$B0
-		DB	$B9,$0C,$68,$08,$07,$10,$2B,$08
-		DB	$3C,$D0,$52,$10,$A0,$08,$7B,$13
-		DB	$2B,$08,$03,$D3,$E6,$10,$68,$08
-		DB	$70,$0F,$73,$17,$93,$00,$84,$16
-		DB	$BC,$16,$61,$1F,$AE,$08,$0C,$08
-		DB	$00,$00,$1B,$D3,$0C,$08,$00,$00
-		DB	$1D,$D3,$07,$08,$00,$02,$D3,$52
-		DB	$17,$08,$07,$E4,$07,$0A,$20,$A2
-		DB	$0C,$E4,$07,$05,$38,$8A,$0C,$5A
-		DB	$08,$0F,$68,$13,$03,$17,$CA,$07
-		DB	$CB,$D1,$02,$22,$00,$CD,$3C,$08
-		DB	$D9,$07,$12,$28,$00,$C7,$3C,$0C
-		DB	$E4,$07,$03,$50,$72,$08,$E4,$07
-		DB	$05,$78,$4A,$0C,$36,$08,$01,$3C
-		DB	$D0,$B5,$10,$E4,$07,$04,$90,$32
-		DB	$04,$68,$08,$C7,$10,$E4,$07,$06
-		DB	$90,$32,$04,$E4,$07,$07,$A0,$22
-		DB	$04,$E4,$07,$17,$B0,$12,$04,$C7
-		DB	$16,$2F,$1E,$EC,$16,$20,$20,$08
-		DB	$53,$D3,$D7,$10,$EC,$16,$08,$A0
-		DB	$08,$23,$15,$4F,$08,$02,$61,$1F
-		DB	$20,$08,$03,$D3,$D7,$10,$07,$08
-		DB	$01,$44,$D2,$93,$00,$A0,$08,$FE
-		DB	$15,$0C,$08,$00,$00,$1B,$D3,$0C
-		DB	$08,$00,$00,$1D,$D3,$2B,$08,$D9
-		DB	$D1,$CD,$12,$75,$16,$84,$16,$A3
-		DB	$16,$E0,$08,$09,$AA,$61,$32,$C4
-		DB	$52,$FB,$6C,$07,$08,$01,$49,$D3
-		DB	$20,$08,$50,$D3,$2B,$11,$81,$07
-		DB	$14,$64,$2D,$5B,$30,$E4,$07,$14
-		DB	$91,$9A,$08,$EC,$16,$01,$4F,$08
-		DB	$78,$61,$1F,$E0,$08,$02,$AA,$C3
-		DB	$32,$80,$62,$3F,$5D,$4F,$08,$3C
-		DB	$61,$1F,$BC,$16,$61,$1F,$AE,$08
-		DB	$20,$08,$51,$D3,$74,$11,$07,$08
-		DB	$01,$EC,$D1,$EC,$16,$02,$E0,$08
-		DB	$06,$55,$C5,$32,$10,$40,$AF,$7F
-		DB	$E0,$08,$05,$AA,$43,$31,$14,$4F
-		DB	$AB,$70,$E0,$08,$07,$FF,$F1,$32
-		DB	$0C,$5E,$B3,$61,$42,$16,$20,$08
-		DB	$CA,$D1,$87,$11,$E4,$07,$09,$90
-		DB	$32,$0C,$07,$08,$01,$EC,$D1,$20
-		DB	$08,$EC,$D1,$AE,$11,$C7,$16,$2B
-		DB	$08,$18,$D3,$A3,$11,$4F,$08,$3C
-		DB	$61,$1F,$52,$17,$20,$07,$4F,$08
-		DB	$B4,$61,$1F,$4F,$08,$78,$61,$1F
-		DB	$BC,$16,$61,$1F,$AE,$08,$79,$1A
-		DB	$2F,$18,$A0,$08,$3D,$13,$07,$08
-		DB	$80,$41,$D2,$07,$08,$07,$45,$D0
-		DB	$36,$08,$00,$50,$D3,$E4,$11,$36
-		DB	$08,$01,$50,$D3,$DC,$11,$52,$17
-		DB	$48,$07,$E4,$07,$16,$91,$9A,$0C
-		DB	$68,$08,$12,$12,$52,$17,$40,$07
-		DB	$68,$08,$F8,$11,$52,$17,$10,$0F
-		DB	$2B,$08,$18,$D3,$F8,$11,$E4,$07
-		DB	$15,$91,$9A,$0C,$68,$08,$12,$12
-		DB	$A0,$08,$0F,$16,$1F,$17,$16,$08
-		DB	$01,$02,$D3,$12,$12,$81,$07,$14
-		DB	$64,$2D,$5B,$30,$E4,$07,$10,$91
-		DB	$9A,$0C,$61,$1F,$4F,$08,$1E,$61
-		DB	$1F,$68,$08,$FD,$10,$2B,$08,$F1
-		DB	$D1,$25,$12,$50,$1F,$2B,$08,$F2
-		DB	$D1,$2D,$12,$24,$1F,$C5,$17,$2B
-		DB	$08,$F1,$D1,$37,$12,$50,$1F,$2B
-		DB	$08,$F2,$D1,$3F,$12,$24,$1F,$81
-		DB	$07,$14,$64,$2D,$5B,$30,$CA,$07
-		DB	$0B,$33,$06,$72,$2D,$4D,$30,$08
-		DB	$61,$1F,$20,$08,$D8,$D1,$9D,$12
-		DB	$81,$07,$14,$64,$2D,$5B,$30,$E4
-		DB	$07,$11,$91,$9A,$08,$4F,$08,$0A
-		DB	$61,$1F,$2B,$08,$C6,$D1,$79,$12
-		DB	$4F,$08,$78,$61,$1F,$68,$08,$FD
-		DB	$10,$CA,$07,$11,$33,$0D,$6C,$2D
-		DB	$53,$30,$0C,$20,$08,$03,$D3,$FD
-		DB	$10,$61,$1F,$2B,$08,$D8,$D1,$B0
-		DB	$12,$07,$08,$20,$BD,$D1,$5A,$08
-		DB	$05,$FD,$10,$61,$1F,$CA,$07,$C5
-		DB	$32,$0C,$6D,$2D,$53,$30,$08,$07
-		DB	$08,$20,$BB,$D1,$68,$08,$65,$12
-		DB	$07,$08,$20,$BB,$D1,$81,$07,$14
-		DB	$64,$2D,$5B,$30,$E4,$07,$11,$91
-		DB	$9A,$08,$8C,$17,$4F,$08,$B4,$61
-		DB	$1F,$68,$08,$FD,$10,$84,$16,$07
-		DB	$08,$0C,$E1,$D1,$E0,$08,$09,$FA
-		DB	$D1,$32,$A4,$59,$1B,$66,$81,$07
-		DB	$14,$64,$2D,$5B,$30,$A0,$08,$0F
-		DB	$16,$1F,$17,$52,$17,$30,$07,$4F
-		DB	$08,$01,$61,$1F,$2B,$08,$45,$D2
-		DB	$EF,$12,$5A,$08,$07,$70,$0F,$EC
-		DB	$16,$10,$20,$08,$3C,$D0,$0E,$13
-		DB	$E4,$07,$0F,$B0,$B9,$0C,$A0,$08
-		DB	$23,$15,$2B,$08,$03,$D3,$E6,$10
-		DB	$4F,$08,$1E,$61,$1F,$20,$08,$3C
-		DB	$D0,$02,$13,$81,$07,$0F,$19,$37
-		DB	$06,$3A,$A0,$08,$23,$15,$2B,$08
-		DB	$03,$D3,$E6,$10,$4F,$08,$1E,$61
-		DB	$1F,$68,$08,$02,$13,$AA,$17,$CE
-		DB	$1C,$D5,$18,$07,$08,$0C,$E1,$D1
-		DB	$07,$08,$01,$47,$D0,$C7,$16,$4F
-		DB	$08,$03,$61,$1F,$2B,$08,$C1,$D1
-		DB	$4F,$13,$B3,$29,$07,$08,$01,$DB
-		DB	$D1,$07,$08,$01,$D7,$D1,$AA,$08
-		DB	$A0,$08,$7B,$13,$BC,$16,$61,$1F
-		DB	$AE,$08,$07,$08,$01,$53,$D3,$68
-		DB	$08,$84,$10,$93,$00,$42,$2D,$AE
-		DB	$08,$C7,$16,$ED,$1C,$CA,$07,$F8
-		DB	$32,$06,$56,$01,$69,$3E,$04,$CA
-		DB	$07,$36,$33,$03,$6E,$01,$51,$3E
-		DB	$04,$D9,$07,$08,$78,$01,$47,$3E
-		DB	$04,$CA,$07,$FE,$32,$06,$16,$0A
-		DB	$A9,$35,$08,$CA,$07,$39,$33,$03
-		DB	$2E,$0A,$91,$35,$08,$D9,$07,$08
-		DB	$38,$0A,$87,$35,$08,$CA,$07,$04
-		DB	$33,$07,$D4,$12,$EB,$2C,$0C,$CA
-		DB	$07,$3C,$33,$03,$EE,$12,$D1,$2C
-		DB	$0C,$D9,$07,$08,$F8,$12,$C7,$2C
-		DB	$0C,$CA,$07,$1B,$33,$07,$94,$1B
-		DB	$2B,$24,$04,$CA,$07,$3F,$33,$04
-		DB	$AC,$1B,$13,$24,$04,$D9,$07,$08
-		DB	$B8,$1B,$07,$24,$04,$CA,$07,$1B
-		DB	$33,$07,$54,$24,$6B,$1B,$08,$CA
-		DB	$07,$3F,$33,$04,$6C,$24,$53,$1B
-		DB	$08,$D9,$07,$08,$78,$24,$47,$1B
-		DB	$08,$CA,$07,$0B,$33,$06,$16,$2D
-		DB	$A9,$12,$0C,$CA,$07,$3F,$33,$04
-		DB	$2C,$2D,$93,$12,$0C,$D9,$07,$08
-		DB	$38,$2D,$87,$12,$0C,$CA,$07,$C5
-		DB	$32,$0C,$2C,$32,$93,$0D,$0C,$CA
-		DB	$07,$11,$33,$0D,$C8,$3A,$F7,$04
-		DB	$08,$CA,$07,$43,$33,$04,$EC,$3A
-		DB	$D3,$04,$08,$D9,$07,$08,$F8,$3A
-		DB	$C7,$04,$08,$63,$17,$5A,$08,$0A
-		DB	$5E,$14,$68,$08,$08,$15,$93,$00
-		DB	$AE,$08,$E4,$07,$0B,$40,$59,$0C
-		DB	$E4,$07,$0C,$50,$49,$0C,$B9,$07
-		DB	$F0,$32,$01,$27,$1E,$0C,$2F,$18
-		DB	$C7,$16,$5A,$08,$07,$83,$14,$68
-		DB	$08,$08,$15,$BC,$16,$61,$1F,$AE
-		DB	$08,$79,$1A,$B9,$07,$EF,$32,$01
-		DB	$27,$32,$0C,$E4,$07,$0D,$B0,$C9
-		DB	$0C,$E4,$07,$0E,$C0,$B9,$0C,$AA
-		DB	$17,$07,$08,$01,$47,$D0,$C7,$16
-		DB	$4F,$08,$03,$61,$1F,$2B,$08,$C1
-		DB	$D1,$A8,$14,$0C,$08,$04,$04,$00
-		DB	$D3,$20,$08,$4F,$D3,$C5,$14,$0C
-		DB	$08,$06,$06,$00,$D3,$CE,$1C,$1E
-		DB	$16,$B3,$29,$07,$08,$01,$DB,$D1
-		DB	$07,$08,$01,$D7,$D1,$07,$08,$01
-		DB	$C9,$D1,$07,$08,$01,$46,$D0,$5A
-		DB	$08,$0A,$E8,$14,$68,$08,$08,$15
-		DB	$BC,$16,$61,$1F,$AE,$08,$79,$1A
-		DB	$1E,$16,$2F,$18,$A0,$08,$3D,$13
-		DB	$E4,$07,$10,$91,$9A,$0C,$07,$08
-		DB	$01,$46,$D0,$5A,$08,$0A,$21,$15
-		DB	$07,$08,$04,$40,$D2,$A0,$08,$23
-		DB	$15,$4F,$08,$02,$61,$1F,$20,$08
-		DB	$03,$D3,$0D,$15,$07,$08,$01,$53
-		DB	$D0,$AA,$08,$42,$08,$40,$81,$15
-		DB	$2B,$08,$48,$D3,$35,$15,$36,$08
-		DB	$01,$3C,$D0,$DA,$15,$07,$08,$02
-		DB	$03,$D3,$0C,$08,$10,$10,$19,$D3
-		DB	$0C,$08,$02,$02,$00,$D3,$20,$08
-		DB	$4F,$D3,$52,$15,$0C,$08,$03,$03
-		DB	$00,$D3,$2B,$08,$48,$D3,$5F,$15
-		DB	$36,$08,$03,$3C,$D0,$7B,$15,$0C
-		DB	$08,$20,$20,$19,$D3,$0C,$08,$05
-		DB	$05,$00,$D3,$20,$08,$4F,$D3,$77
-		DB	$15,$0C,$08,$07,$07,$00,$D3,$AC
-		DB	$16,$AC,$16,$AC,$16,$AC,$16,$AA
-		DB	$08,$42,$08,$20,$DA,$15,$2B,$08
-		DB	$48,$D3,$93,$15,$36,$08,$00,$3C
-		DB	$D0,$DA,$15,$07,$08,$01,$03,$D3
-		DB	$0C,$08,$02,$02,$00,$D3,$20,$08
-		DB	$4F,$D3,$AA,$15,$0C,$08,$03,$03
-		DB	$00,$D3,$0C,$08,$00,$10,$19,$D3
-		DB	$2B,$08,$48,$D3,$BD,$15,$36,$08
-		DB	$01,$3C,$D0,$D6,$15,$07,$08,$20
-		DB	$1A,$D3,$0C,$08,$05,$05,$00,$D3
-		DB	$20,$08,$4F,$D3,$D4,$15,$0C,$08
-		DB	$07,$07,$00,$D3,$AC,$16,$AC,$16
-		DB	$AA,$08,$2B,$08,$3C,$D0,$FC,$15
-		DB	$DE,$16,$20,$08,$DE,$D1,$FC,$15
-		DB	$2B,$08,$E4,$D1,$FC,$15,$07,$08
-		DB	$01,$44,$D2,$07,$08,$01,$E4,$D1
-		DB	$52,$17,$00,$07,$AA,$08,$9E,$17
-		DB	$D2,$16,$AE,$08,$79,$17,$07,$08
-		DB	$00,$02,$D3,$42,$2D,$AA,$08,$F8
-		DB	$16,$E4,$07,$13,$91,$9A,$0C,$07
-		DB	$08,$00,$E2,$D1,$AA,$08
+		.DB	$07,$08,$00,$49,$D3,$81,$17,$92
+		.DB	$17,$84,$16,$A0,$08,$FE,$15,$0C
+		.DB	$08,$00,$00,$00,$D3,$D5,$18,$07
+		.DB	$08,$0C,$E1,$D1,$CA,$07,$DA,$32
+		.DB	$14,$14,$00,$0B,$08,$04,$CA,$07
+		.DB	$23,$33,$13,$15,$05,$0A,$03,$04
+		.DB	$E4,$07,$02,$28,$A1,$0C,$97,$16
+		.DB	$07,$08,$32,$CB,$D1,$20,$08,$4F
+		.DB	$D3,$B8,$0F,$07,$08,$33,$CB,$D1
+		.DB	$CA,$07,$CB,$D1,$0A,$89,$11,$6E
+		.DB	$2D,$0C,$07,$08,$35,$CB,$D1,$20
+		.DB	$08,$4F,$D3,$D2,$0F,$07,$08,$37
+		.DB	$CB,$D1,$CA,$07,$CB,$D1,$0A,$B1
+		.DB	$11,$96,$2D,$0C,$D4,$19,$5A,$08
+		.DB	$08,$3E,$10,$20,$08,$3C,$D0,$F3
+		.DB	$0F,$07,$08,$01,$44,$D2,$5A,$08
+		.DB	$03,$3E,$10,$84,$16,$2B,$08,$3C
+		.DB	$D0,$34,$10,$2B,$08,$48,$D3,$34
+		.DB	$10,$E4,$07,$01,$B0,$B9,$0C,$8F
+		.DB	$19,$A0,$08,$23,$15,$2B,$08,$03
+		.DB	$D3,$E6,$10,$4F,$08,$1E,$61,$1F
+		.DB	$81,$07,$0F,$19,$37,$06,$3A,$94
+		.DB	$19,$A0,$08,$23,$15,$2B,$08,$03
+		.DB	$D3,$E6,$10,$4F,$08,$1E,$61,$1F
+		.DB	$68,$08,$F3,$0F,$E4,$07,$0F,$B0
+		.DB	$B9,$0C,$68,$08,$07,$10,$2B,$08
+		.DB	$3C,$D0,$52,$10,$A0,$08,$7B,$13
+		.DB	$2B,$08,$03,$D3,$E6,$10,$68,$08
+		.DB	$70,$0F,$73,$17,$93,$00,$84,$16
+		.DB	$BC,$16,$61,$1F,$AE,$08,$0C,$08
+		.DB	$00,$00,$1B,$D3,$0C,$08,$00,$00
+		.DB	$1D,$D3,$07,$08,$00,$02,$D3,$52
+		.DB	$17,$08,$07,$E4,$07,$0A,$20,$A2
+		.DB	$0C,$E4,$07,$05,$38,$8A,$0C,$5A
+		.DB	$08,$0F,$68,$13,$03,$17,$CA,$07
+		.DB	$CB,$D1,$02,$22,$00,$CD,$3C,$08
+		.DB	$D9,$07,$12,$28,$00,$C7,$3C,$0C
+		.DB	$E4,$07,$03,$50,$72,$08,$E4,$07
+		.DB	$05,$78,$4A,$0C,$36,$08,$01,$3C
+		.DB	$D0,$B5,$10,$E4,$07,$04,$90,$32
+		.DB	$04,$68,$08,$C7,$10,$E4,$07,$06
+		.DB	$90,$32,$04,$E4,$07,$07,$A0,$22
+		.DB	$04,$E4,$07,$17,$B0,$12,$04,$C7
+		.DB	$16,$2F,$1E,$EC,$16,$20,$20,$08
+		.DB	$53,$D3,$D7,$10,$EC,$16,$08,$A0
+		.DB	$08,$23,$15,$4F,$08,$02,$61,$1F
+		.DB	$20,$08,$03,$D3,$D7,$10,$07,$08
+		.DB	$01,$44,$D2,$93,$00,$A0,$08,$FE
+		.DB	$15,$0C,$08,$00,$00,$1B,$D3,$0C
+		.DB	$08,$00,$00,$1D,$D3,$2B,$08,$D9
+		.DB	$D1,$CD,$12,$75,$16,$84,$16,$A3
+		.DB	$16,$E0,$08,$09,$AA,$61,$32,$C4
+		.DB	$52,$FB,$6C,$07,$08,$01,$49,$D3
+		.DB	$20,$08,$50,$D3,$2B,$11,$81,$07
+		.DB	$14,$64,$2D,$5B,$30,$E4,$07,$14
+		.DB	$91,$9A,$08,$EC,$16,$01,$4F,$08
+		.DB	$78,$61,$1F,$E0,$08,$02,$AA,$C3
+		.DB	$32,$80,$62,$3F,$5D,$4F,$08,$3C
+		.DB	$61,$1F,$BC,$16,$61,$1F,$AE,$08
+		.DB	$20,$08,$51,$D3,$74,$11,$07,$08
+		.DB	$01,$EC,$D1,$EC,$16,$02,$E0,$08
+		.DB	$06,$55,$C5,$32,$10,$40,$AF,$7F
+		.DB	$E0,$08,$05,$AA,$43,$31,$14,$4F
+		.DB	$AB,$70,$E0,$08,$07,$FF,$F1,$32
+		.DB	$0C,$5E,$B3,$61,$42,$16,$20,$08
+		.DB	$CA,$D1,$87,$11,$E4,$07,$09,$90
+		.DB	$32,$0C,$07,$08,$01,$EC,$D1,$20
+		.DB	$08,$EC,$D1,$AE,$11,$C7,$16,$2B
+		.DB	$08,$18,$D3,$A3,$11,$4F,$08,$3C
+		.DB	$61,$1F,$52,$17,$20,$07,$4F,$08
+		.DB	$B4,$61,$1F,$4F,$08,$78,$61,$1F
+		.DB	$BC,$16,$61,$1F,$AE,$08,$79,$1A
+		.DB	$2F,$18,$A0,$08,$3D,$13,$07,$08
+		.DB	$80,$41,$D2,$07,$08,$07,$45,$D0
+		.DB	$36,$08,$00,$50,$D3,$E4,$11,$36
+		.DB	$08,$01,$50,$D3,$DC,$11,$52,$17
+		.DB	$48,$07,$E4,$07,$16,$91,$9A,$0C
+		.DB	$68,$08,$12,$12,$52,$17,$40,$07
+		.DB	$68,$08,$F8,$11,$52,$17,$10,$0F
+		.DB	$2B,$08,$18,$D3,$F8,$11,$E4,$07
+		.DB	$15,$91,$9A,$0C,$68,$08,$12,$12
+		.DB	$A0,$08,$0F,$16,$1F,$17,$16,$08
+		.DB	$01,$02,$D3,$12,$12,$81,$07,$14
+		.DB	$64,$2D,$5B,$30,$E4,$07,$10,$91
+		.DB	$9A,$0C,$61,$1F,$4F,$08,$1E,$61
+		.DB	$1F,$68,$08,$FD,$10,$2B,$08,$F1
+		.DB	$D1,$25,$12,$50,$1F,$2B,$08,$F2
+		.DB	$D1,$2D,$12,$24,$1F,$C5,$17,$2B
+		.DB	$08,$F1,$D1,$37,$12,$50,$1F,$2B
+		.DB	$08,$F2,$D1,$3F,$12,$24,$1F,$81
+		.DB	$07,$14,$64,$2D,$5B,$30,$CA,$07
+		.DB	$0B,$33,$06,$72,$2D,$4D,$30,$08
+		.DB	$61,$1F,$20,$08,$D8,$D1,$9D,$12
+		.DB	$81,$07,$14,$64,$2D,$5B,$30,$E4
+		.DB	$07,$11,$91,$9A,$08,$4F,$08,$0A
+		.DB	$61,$1F,$2B,$08,$C6,$D1,$79,$12
+		.DB	$4F,$08,$78,$61,$1F,$68,$08,$FD
+		.DB	$10,$CA,$07,$11,$33,$0D,$6C,$2D
+		.DB	$53,$30,$0C,$20,$08,$03,$D3,$FD
+		.DB	$10,$61,$1F,$2B,$08,$D8,$D1,$B0
+		.DB	$12,$07,$08,$20,$BD,$D1,$5A,$08
+		.DB	$05,$FD,$10,$61,$1F,$CA,$07,$C5
+		.DB	$32,$0C,$6D,$2D,$53,$30,$08,$07
+		.DB	$08,$20,$BB,$D1,$68,$08,$65,$12
+		.DB	$07,$08,$20,$BB,$D1,$81,$07,$14
+		.DB	$64,$2D,$5B,$30,$E4,$07,$11,$91
+		.DB	$9A,$08,$8C,$17,$4F,$08,$B4,$61
+		.DB	$1F,$68,$08,$FD,$10,$84,$16,$07
+		.DB	$08,$0C,$E1,$D1,$E0,$08,$09,$FA
+		.DB	$D1,$32,$A4,$59,$1B,$66,$81,$07
+		.DB	$14,$64,$2D,$5B,$30,$A0,$08,$0F
+		.DB	$16,$1F,$17,$52,$17,$30,$07,$4F
+		.DB	$08,$01,$61,$1F,$2B,$08,$45,$D2
+		.DB	$EF,$12,$5A,$08,$07,$70,$0F,$EC
+		.DB	$16,$10,$20,$08,$3C,$D0,$0E,$13
+		.DB	$E4,$07,$0F,$B0,$B9,$0C,$A0,$08
+		.DB	$23,$15,$2B,$08,$03,$D3,$E6,$10
+		.DB	$4F,$08,$1E,$61,$1F,$20,$08,$3C
+		.DB	$D0,$02,$13,$81,$07,$0F,$19,$37
+		.DB	$06,$3A,$A0,$08,$23,$15,$2B,$08
+		.DB	$03,$D3,$E6,$10,$4F,$08,$1E,$61
+		.DB	$1F,$68,$08,$02,$13,$AA,$17,$CE
+		.DB	$1C,$D5,$18,$07,$08,$0C,$E1,$D1
+		.DB	$07,$08,$01,$47,$D0,$C7,$16,$4F
+		.DB	$08,$03,$61,$1F,$2B,$08,$C1,$D1
+		.DB	$4F,$13,$B3,$29,$07,$08,$01,$DB
+		.DB	$D1,$07,$08,$01,$D7,$D1,$AA,$08
+		.DB	$A0,$08,$7B,$13,$BC,$16,$61,$1F
+		.DB	$AE,$08,$07,$08,$01,$53,$D3,$68
+		.DB	$08,$84,$10,$93,$00,$42,$2D,$AE
+		.DB	$08,$C7,$16,$ED,$1C,$CA,$07,$F8
+		.DB	$32,$06,$56,$01,$69,$3E,$04,$CA
+		.DB	$07,$36,$33,$03,$6E,$01,$51,$3E
+		.DB	$04,$D9,$07,$08,$78,$01,$47,$3E
+		.DB	$04,$CA,$07,$FE,$32,$06,$16,$0A
+		.DB	$A9,$35,$08,$CA,$07,$39,$33,$03
+		.DB	$2E,$0A,$91,$35,$08,$D9,$07,$08
+		.DB	$38,$0A,$87,$35,$08,$CA,$07,$04
+		.DB	$33,$07,$D4,$12,$EB,$2C,$0C,$CA
+		.DB	$07,$3C,$33,$03,$EE,$12,$D1,$2C
+		.DB	$0C,$D9,$07,$08,$F8,$12,$C7,$2C
+		.DB	$0C,$CA,$07,$1B,$33,$07,$94,$1B
+		.DB	$2B,$24,$04,$CA,$07,$3F,$33,$04
+		.DB	$AC,$1B,$13,$24,$04,$D9,$07,$08
+		.DB	$B8,$1B,$07,$24,$04,$CA,$07,$1B
+		.DB	$33,$07,$54,$24,$6B,$1B,$08,$CA
+		.DB	$07,$3F,$33,$04,$6C,$24,$53,$1B
+		.DB	$08,$D9,$07,$08,$78,$24,$47,$1B
+		.DB	$08,$CA,$07,$0B,$33,$06,$16,$2D
+		.DB	$A9,$12,$0C,$CA,$07,$3F,$33,$04
+		.DB	$2C,$2D,$93,$12,$0C,$D9,$07,$08
+		.DB	$38,$2D,$87,$12,$0C,$CA,$07,$C5
+		.DB	$32,$0C,$2C,$32,$93,$0D,$0C,$CA
+		.DB	$07,$11,$33,$0D,$C8,$3A,$F7,$04
+		.DB	$08,$CA,$07,$43,$33,$04,$EC,$3A
+		.DB	$D3,$04,$08,$D9,$07,$08,$F8,$3A
+		.DB	$C7,$04,$08,$63,$17,$5A,$08,$0A
+		.DB	$5E,$14,$68,$08,$08,$15,$93,$00
+		.DB	$AE,$08,$E4,$07,$0B,$40,$59,$0C
+		.DB	$E4,$07,$0C,$50,$49,$0C,$B9,$07
+		.DB	$F0,$32,$01,$27,$1E,$0C,$2F,$18
+		.DB	$C7,$16,$5A,$08,$07,$83,$14,$68
+		.DB	$08,$08,$15,$BC,$16,$61,$1F,$AE
+		.DB	$08,$79,$1A,$B9,$07,$EF,$32,$01
+		.DB	$27,$32,$0C,$E4,$07,$0D,$B0,$C9
+		.DB	$0C,$E4,$07,$0E,$C0,$B9,$0C,$AA
+		.DB	$17,$07,$08,$01,$47,$D0,$C7,$16
+		.DB	$4F,$08,$03,$61,$1F,$2B,$08,$C1
+		.DB	$D1,$A8,$14,$0C,$08,$04,$04,$00
+		.DB	$D3,$20,$08,$4F,$D3,$C5,$14,$0C
+		.DB	$08,$06,$06,$00,$D3,$CE,$1C,$1E
+		.DB	$16,$B3,$29,$07,$08,$01,$DB,$D1
+		.DB	$07,$08,$01,$D7,$D1,$07,$08,$01
+		.DB	$C9,$D1,$07,$08,$01,$46,$D0,$5A
+		.DB	$08,$0A,$E8,$14,$68,$08,$08,$15
+		.DB	$BC,$16,$61,$1F,$AE,$08,$79,$1A
+		.DB	$1E,$16,$2F,$18,$A0,$08,$3D,$13
+		.DB	$E4,$07,$10,$91,$9A,$0C,$07,$08
+		.DB	$01,$46,$D0,$5A,$08,$0A,$21,$15
+		.DB	$07,$08,$04,$40,$D2,$A0,$08,$23
+		.DB	$15,$4F,$08,$02,$61,$1F,$20,$08
+		.DB	$03,$D3,$0D,$15,$07,$08,$01,$53
+		.DB	$D0,$AA,$08,$42,$08,$40,$81,$15
+		.DB	$2B,$08,$48,$D3,$35,$15,$36,$08
+		.DB	$01,$3C,$D0,$DA,$15,$07,$08,$02
+		.DB	$03,$D3,$0C,$08,$10,$10,$19,$D3
+		.DB	$0C,$08,$02,$02,$00,$D3,$20,$08
+		.DB	$4F,$D3,$52,$15,$0C,$08,$03,$03
+		.DB	$00,$D3,$2B,$08,$48,$D3,$5F,$15
+		.DB	$36,$08,$03,$3C,$D0,$7B,$15,$0C
+		.DB	$08,$20,$20,$19,$D3,$0C,$08,$05
+		.DB	$05,$00,$D3,$20,$08,$4F,$D3,$77
+		.DB	$15,$0C,$08,$07,$07,$00,$D3,$AC
+		.DB	$16,$AC,$16,$AC,$16,$AC,$16,$AA
+		.DB	$08,$42,$08,$20,$DA,$15,$2B,$08
+		.DB	$48,$D3,$93,$15,$36,$08,$00,$3C
+		.DB	$D0,$DA,$15,$07,$08,$01,$03,$D3
+		.DB	$0C,$08,$02,$02,$00,$D3,$20,$08
+		.DB	$4F,$D3,$AA,$15,$0C,$08,$03,$03
+		.DB	$00,$D3,$0C,$08,$00,$10,$19,$D3
+		.DB	$2B,$08,$48,$D3,$BD,$15,$36,$08
+		.DB	$01,$3C,$D0,$D6,$15,$07,$08,$20
+		.DB	$1A,$D3,$0C,$08,$05,$05,$00,$D3
+		.DB	$20,$08,$4F,$D3,$D4,$15,$0C,$08
+		.DB	$07,$07,$00,$D3,$AC,$16,$AC,$16
+		.DB	$AA,$08,$2B,$08,$3C,$D0,$FC,$15
+		.DB	$DE,$16,$20,$08,$DE,$D1,$FC,$15
+		.DB	$2B,$08,$E4,$D1,$FC,$15,$07,$08
+		.DB	$01,$44,$D2,$07,$08,$01,$E4,$D1
+		.DB	$52,$17,$00,$07,$AA,$08,$9E,$17
+		.DB	$D2,$16,$AE,$08,$79,$17,$07,$08
+		.DB	$00,$02,$D3,$42,$2D,$AA,$08,$F8
+		.DB	$16,$E4,$07,$13,$91,$9A,$0C,$07
+		.DB	$08,$00,$E2,$D1,$AA,$08
 ;
 ; Is this the end of the data (subroutine jumps)???
 ;
@@ -2671,12 +2757,12 @@ L162E:	push	 af
 	pop	 af
 	dec	 a
 	jr	 nz,L162E
-	ret
+	ret	
 ;
 L163A:	ld	 a,(LD302)
 	cp	 $0C
 	jr	 z,L1657
-	ret
+	ret	
 
 
 	ld	 a,(LD347)
@@ -2690,7 +2776,7 @@ L163A:	ld	 a,(LD302)
 L164E:	ld	 a,(LD302)
 	sub	 b
 	jr	 nz,L163A
-	ld	 (LD318),a
+	ld	 (MazeIndex),a
 ;
 L1657:	ld	 hl,LD300
 	ld	 a,(Game_Mode)
@@ -2701,7 +2787,7 @@ L1657:	ld	 hl,LD300
 	and	 a
 	jr	 z,L166D
 	inc	 (hl)
-	exx
+	exx	
 	call	 L1CFA
 	exx
 ;
@@ -2718,24 +2804,24 @@ L167C:	and	 (hl)
 	inc	 hl
 L167E:	djnz	 L167C
 	jp	 nz,L179E
-	ret
+	ret	
 ;
 ;*****************************************************************************
 ; Called this routine from L007E routine
 ; Move $24 (36) bytes of data from $D300 to $D000 ???
 ;*****************************************************************************
 ;L1684:
-	di
-	ld	 hl,LD000
+	di			
+	ld	 hl,LD000	
 	ld	 de,LD300
 	ld	 b,$24		; 36 decimal
-L168D:	ld	 a,(de)
+L168D:	ld	 a,(de)		
 	inc	 de
 	ld	 c,a
 	call	 L0F6A		; Write protected memory byte (HL)=C
 	inc	 hl
 	djnz	 L168D
-	ret
+	ret	
 
 ;
 ;*****************************************************************************
@@ -2747,7 +2833,7 @@ L168D:	ld	 a,(de)
 	ld	 hl,L331A
 	ld	 de,LD1CC
 	ld	 bc,L0009
-	ldir
+	ldir	
 	ret
 ;
 	ld	 hl,LD352
@@ -2755,10 +2841,10 @@ L168D:	ld	 a,(de)
 	ld	 (hl),$00
 	dec	 hl
 	ld	 (hl),a
-	ret
+	ret	
 	ld	 a,(LD347)
 	in	 a,($13)		; Check for Free Play - Active HIGH ???
-					; Bit 6: Free Play
+					; Bit 6: Free Play              
 					; Off=No Free Play, On=Free Play
 	bit	 6,a
 	ret	 z
@@ -2770,55 +2856,55 @@ L168D:	ld	 a,(de)
 	out	 ($0F),a
 	ld	 hl,L0109
 	ld	 (LD1BF),hl
-	ret
-ld	 a,$CC
+	ret	
+L16C7:	ld	 a,$CC
 L16C9:	out	 ($0F),a
 	ld	 hl,L0109
 	ld	 (LD1C1),hl
-	ret
+	ret	
 
 ;
 ;*****************************************************************************
 ; Called this routine from L007E routine
-; Check dip switch for free play
+; Check dip switch for free play 
 ;*****************************************************************************
 ;
-ld	 a,(LD347)
+L16D2:	ld	 a,(LD347)
 	in	 a,($13)
-	cpl
+	cpl	
 	and	 $40
 	ld	 (LD348),a
-	ret
+	ret	
 ;
 ;*****************************************************************************
 ; This routine looks like it will check for any activity on player1 and
 ; player 2 controls and stores the result in $D1DE. Since P1 and P2
 ; control 'bits' are identical, I assume the result saved will tell the program
 ; if a certain control has been used by either P1 or P2. ???
-;
+; 
 ;*****************************************************************************
 ;
 	in	 a,($11)		; Check P2 controls - all active LOW
 	cpl				; Convert to active HIGH
-	ld	 b,a			;
-	in	 a,($12)		; Now check P1 Controls - all active LOW
+	ld	 b,a			; 
+	in	 a,($12)		; Now check P1 Controls - all active LOW	
 	cpl				; Make active HIGH
 	or	 b			; Combine with P2 controls
-	and	 00111111b		; Mask unused input bits (see port description)
+	and	 00111111b		; Mask unused input bits (see port description)	
 	ld	 (LD1DE),a		; Save it ..
 	ret
 ;
 ;*****************************************************************************
-;
-;
+; 
+; 
 ;*****************************************************************************
 ;
 	ld	 a,(iy+$00)
 	inc	 iy
 	ld	 (LD240),a
 	ld	 (LD244),a		; Dip switch - Bit 7 - "Sounds in Attract Mode"
-	ret
-	in	 a,($10)
+	ret	
+	in	 a,($10)		
 	bit	 7,a			; Check to see if <function> is active
 	ret	 nz
 ;
@@ -2827,8 +2913,8 @@ ld	 a,(LD347)
 	ret
 ;
 ;*****************************************************************************
-;
-;
+; 
+; 
 ;*****************************************************************************
 ;
 	ld	 a,(LD03C)
@@ -2846,12 +2932,12 @@ L1712:	ld	 (hl),a
 	add	 a,$10
 L171C:	dec	 hl
 	ld	 (hl),a
-	ret
+	ret	
 	ld	 a,(LD302)
 	ld	 b,a
 	xor	 a
 L1724:	inc	 a
-	daa
+	daa	
 	djnz	 L1724
 	push	 af
 	and	 $0F
@@ -2859,10 +2945,10 @@ L1724:	inc	 a
 	ld	 hl,LD1CC
 	ld	 (hl),a
 	pop	 af
-	rrca
-	rrca
-	rrca
-	rrca
+	rrca	
+	rrca	
+	rrca	
+	rrca	
 	and	 $0F
 	ld	 b,$01
 	jr	 z,L1741
@@ -2881,7 +2967,7 @@ L1741:	dec	 de
 	inc	 de
 L174D:	ld	 a,$0C
 	jp	 L045C
-ld	 b,(iy+$00)
+L1752:	ld	 b,(iy+$00)
 	inc	 iy
 	call	 L0F39
 	and	 (iy+$00)
@@ -2903,7 +2989,7 @@ L176D:	ld	 (LD1C4),a
 ; Called this routine from L007E routine
 ; ???
 ;*****************************************************************************
-;
+;	
 ;L1779:
 	ld	 hl,LD03A
 	ld	 c,$00
@@ -2918,7 +3004,7 @@ L176D:	ld	 (LD1C4),a
 	in	 a,($13)
 	and	 $80		; Check bit 7 - Demo Sounds active high ???
 	ld	 (LD244),a	; Save demo sound status, A=$80 if active, $00 if not
-	ret
+	ret	
 ;
 ;*****************************************************************************
 ; ???
@@ -2928,7 +3014,7 @@ L176D:	ld	 (LD1C4),a
 	ld	 a,$08
 	ld	 (LD243),a
 	ret
-
+	
 ;
 ;*****************************************************************************
 ; Called this routine from L007E routine
@@ -2937,9 +3023,9 @@ L176D:	ld	 (LD1C4),a
 ;L1792:
 	ld	 a,(LD347)	; Why load this? The next command wipes it out ???
 	in	 a,($13)
-	cpl
+	cpl	
 	and	 $10		; Normally active HIGH, but complemented is active LOW
-	ld	 (LD34F),a	; $10=3/7 lives, $00=2/5
+	ld	 (LD34F),a	; $10=3/7 lives, $00=2/5 
 	ret
 ;
 ;*****************************************************************************
@@ -2952,23 +3038,41 @@ L179E:	ld	 hl,LD350
 L17A4:	ld	 (hl),c
 	inc	 hl
 	djnz	 L17A4
-	ret
+	ret	
 ;
 
-	nop
-	call	 L17C5
+	nop	
+
+;*****************************************************************************
+; MAZE DISPLAY
+;
+; MazeDraw renders the already-expanded maze in MazeExpandedCells. The core is
+; 11 columns x 6 rows. Each logical cell occupies 24 x 24 pixels: six packed
+; 2-bpp bytes wide by 24 scanlines high on WoW's 80-byte-wide screen.
+;
+; Drawing starts at Magic-RAM address $0007 (visible VRAM $4007).
+; MazeDrawCellAndAdvance moves six bytes after every cell. At the end of eleven
+; cells, $073E completes the row displacement:
+;
+;     (11 * 6) + $073E = $0780 = 24 * 80 bytes
+;
+; The first six cell draws create fixed corridor pieces in the left and right
+; margins. They are screen furniture around the 11 x 6 maze core, not extra
+; cells encoded in the compressed maze record.
+;*****************************************************************************
+	call	 MazeDraw
 	ld	 a,$0C
 	out	 ($19),a
 	ld	 a,$18
 	out	 ($0C),a
 	ld	 hl,L0F07
 	ld	 a,$0B
-	call	 L185F
+	call	 MazeDrawCellAtHL
 	ld	 hl,L0F43
 	ld	 a,$07
-	jp	 L185F
-L17C5:	call	 L181D
-	ld	 hl,L0781
+	jp	 MazeDrawCellAtHL
+MazeDraw:	call	 MazeConfigureVideo
+	ld	 hl,L0781		; fixed side-corridor piece
 	call	 L1855
 	ld	 hl,L07C9
 	call	 L1855
@@ -2980,36 +3084,39 @@ L17C5:	call	 L181D
 	call	 L185D
 	ld	 hl,L16C9
 	call	 L185D
-	ld	 c,$17
-	ld	 hl,L0007
-	exx
-	ld	 hl,LD178
+	ld	 c,$17			; vertical transfer count: 24 scanlines
+	ld	 hl,L0007		; Magic address (visible VRAM $4007)
+	exx	
+	ld	 hl,MazeExpandedCells	; 66 cell masks: 11 columns x 6 rows
 	ld	 c,$06
 L17F7:	ld	 b,$0B
 L17F9:	ld	 a,(hl)
 	inc	 hl
-	exx
-	call	 L1813
-	exx
+	exx	
+	call	 MazeDrawCellAndAdvance ; draw cell A at HL, advance 6 bytes
+	exx	
 	djnz	 L17F9
-	exx
-	ld	 de,L073E
+	exx	
+	ld	 de,L073E		; remaining bytes to next 24-line row
 	add	 hl,de
-	exx
+	exx	
 	dec	 c
 	jr	 nz,L17F7
-	exx
-	call	 L1812
+	exx	
+	call	 L1812			; closed lower-left boundary cell
 	ld	 hl,L2D43
-L1812:	xor	 a
-L1813:	push	 hl
-	call	 L185F
+L1812:	xor	 a			; closed lower-right boundary cell
+MazeDrawCellAndAdvance:	push	 hl
+	call	 MazeDrawCellAtHL
 	pop	 hl
 	ld	 de,L0006
 	add	 hl,de
 	ret
 ;
-L181D:	di
+; Select the maze color in the XPAND register and enable Magic-RAM EXPAND+OR
+; mode ($18). Cell nibbles describe topology, not pixel color. LD1EB selects
+; the original $04 or $0C wall-color value.
+MazeConfigureVideo:	di	
 	ld	 a,(LD1EB)
 	and	 a
 	ld	 a,$0C
@@ -3018,58 +3125,69 @@ L181D:	di
 L1828:	out	 ($19),a
 	ld	 a,$18
 	out	 ($0C),a
-	ret
-	call	 L181D
+	ret	
+	call	 MazeConfigureVideo
 	ld	 hl,L30DD
 	ld	 de,L18D0
 	ld	 c,$2F
-	call	 L18A8
+	call	 PatternBoardDrawVertical
 	ld	 hl,L30F4
-	call	 L18A8
+	call	 PatternBoardDrawVertical
 	ld	 hl,L30DD
 	call	 L184C
-	ld	 hl,$3F8D
+	ld	 hl,L3F8D
 L184C:	ld	 a,$FF
 	ld	 b,$17
 L1850:	ld	 (hl),a
 	inc	 hl
 	djnz	 L1850
-	ret
+	ret	
 L1855:	ld	 a,$0D
-	jr	 L185F
+	jr	 MazeDrawCellAtHL
 L1859:	ld	 a,$0C
-	jr	 L185F
+	jr	 MazeDrawCellAtHL
 L185D:	ld	 a,$0E
-L185F:	bit	 2,a
+; Draw one 24 x 24 maze cell at Magic-RAM address HL.
+;
+; A is a four-bit OPENING mask; a set bit means no wall on that edge:
+;     bit 0 = top open       bit 1 = bottom open
+;     bit 2 = left open      bit 3 = right open
+;
+; A clear bit therefore draws a wall. Shared edges can be emitted by both
+; adjacent cells; Magic OR mode makes the duplicate draw harmless.
+MazeDrawCellAtHL:	bit	 2,a		; clear bit 2: draw left wall
 	jr	 nz,L186B
 	ex	 af,af'
 	ld	 de,L18D2
-	call	 L18A8
+	call	 PatternBoardDrawVertical
 	ex	 af,af'
-L186B:	bit	 3,a
+L186B:	bit	 3,a		; clear bit 3: draw right wall at HL+5
 	jr	 nz,L187D
 	ex	 af,af'
 	push	 hl
 	ld	 de,L0005
 	add	 hl,de
 	ld	 de,L18D3
-	call	 L18A8
+	call	 PatternBoardDrawVertical
 	pop	 hl
 	ex	 af,af'
-L187D:	bit	 0,a
-	call	 z,L1889
-	bit	 1,a
+L187D:	bit	 0,a		; clear bit 0: draw top wall
+	call	 z,MazeDrawHorizontalWall
+	bit	 1,a		; clear bit 1: draw bottom wall
 	ret	 nz
-	ld	 de,L06E0
+	ld	 de,L06E0		; 22 scanlines * 80 bytes
 	add	 hl,de
-L1889:	push	 hl
-	call	 L1896
+; Draw the two horizontal edge passes used by the original renderer. Each pass
+; writes six $FF bytes through Magic EXPAND. After the first six writes, adding
+; $004B positions the second pass on the following scanline.
+MazeDrawHorizontalWall:	push	 hl
+	call	 MazeWriteHorizontalPass
 	ld	 de,L004B
 	add	 hl,de
-	call	 L1896
+	call	 MazeWriteHorizontalPass
 	pop	 hl
-	ret
-L1896:	ld	 (hl),$FF
+	ret	
+MazeWriteHorizontalPass:	ld	 (hl),$FF
 	inc	 hl
 	ld	 (hl),$FF
 	inc	 hl
@@ -3080,17 +3198,19 @@ L1896:	ld	 (hl),$FF
 	ld	 (hl),$FF
 	inc	 hl
 	ld	 (hl),$FF
-	ret
+	ret	
 ;
 ;*****************************************************************************
-; This routine seems to be used to draw vertical lines on the screen
-; First used in drawing the radar box in the demo screens.
-; Also called when drawing the maze... more details as they are available ???
-; Uses DE, HL, C for parameters for source, dest and height.
+; Pattern-board vertical transfer used by both the radar and maze renderer.
+;   DE = source pattern byte ($18D2 left edge, $18D3 right edge for maze)
+;   HL = Magic-RAM destination
+;   C  = transfer count minus one ($17 produces 24 scanlines)
+; PBCTL $22 selects the expanded-source path. XMOD $4F supplies the vertical
+; stride (80 bytes minus the one-byte output width). Writing PBXR starts it.
 ;*****************************************************************************
 ;
 
-L18A8:	ld	 a,$22
+PatternBoardDrawVertical:	ld	 a,$22
 	out	 ($7A),a
 	ld	 a,e
 	out	 ($78),a
@@ -3111,7 +3231,7 @@ L18A8:	ld	 a,$22
 L18C4:	ld	 a,h
 	ld	 (hl),c
 	call	 m,L7C73
-	halt
+	halt	
 	call	 m,L7C78
 	ld	 a,e
 	call	 m,L807D
@@ -3125,7 +3245,7 @@ L18D3:	jr	 nc,L18D5
 ;*****************************************************************************
 ;
 
-L18D5:	di
+L18D5:	di	
 	ld	 a,$08
 	out	 ($0C),a
 	ld	 de,L1937
@@ -3134,7 +3254,7 @@ L18D5:	di
 	ld	 bc,L1107
 	ld	 hl,L3522
 	call	 L191B
-	ld	 hl,$3D42
+	ld	 hl,L3D42
 	call	 L191B
 	ld	 bc,L0111
 	ld	 hl,L37A2
@@ -3150,7 +3270,7 @@ L1903:	ld	 hl,L37DC
 	ld	 bc,L1107
 	ld	 hl,L355C
 	call	 L191B
-	ld	 hl,$3D7C
+	ld	 hl,L3D7C
 L191B:	ld	 a,$22
 	out	 ($7A),a
 	ld	 a,e
@@ -3171,7 +3291,7 @@ L191B:	ld	 a,$22
 	ret
 ;
 L1937:	rst	 38H
-	nop
+	nop	
 L1939:	ld	 hl,(LD31B)
 	push	 hl
 	ld	 de,LD319
@@ -3200,9 +3320,9 @@ L195A:	ld	 a,(de)
 	jr	 z,L1967
 	ld	 hl,LD30E
 L1967:	push	 de
-	exx
+	exx	
 	ld	 bc,$0500
-L196C:	exx
+L196C:	exx	
 	ld	 e,(hl)
 	inc	 hl
 	ld	 d,(hl)
@@ -3219,20 +3339,20 @@ L196C:	exx
 	ld	 (hl),c
 	ld	 c,a
 	inc	 hl
-	exx
+	exx	
 	ld	 a,c
 	and	 a
 	jr	 nz,L1985
 	ld	 c,b
-L1985:	exx
+L1985:	exx	
 L1986:	inc	 hl
-	exx
+	exx	
 	djnz	 L196C
 	pop	 hl
 	ld	 a,c
 	or	 (hl)
 	ld	 (hl),a
-	ret
+	ret	
 	ld	 de,L32EE
 	jr	 L1997
 	ld	 de,L3138
@@ -3297,8 +3417,8 @@ L19ED:	push	 bc
 L1A05:	add	 hl,bc
 	pop	 bc
 	djnz	 L19ED
-	ret
-	nop
+	ret	
+	nop	
 L1A0B:	ld	 hl,LD1E1
 	bit	 2,(hl)
 	res	 2,(hl)
@@ -3348,25 +3468,41 @@ L1A61:	pop	 hl
 	ld	 b,$06
 	pop	 de
 	jp	 L045C
-L1A69:	rrca
-	rrca
-	rrca
-	rrca
+L1A69:	rrca	
+	rrca	
+	rrca	
+	rrca	
 L1A6D:	and	 $0F
 	add	 a,$90
-	daa
+	daa	
 	adc	 a,$40
-	daa
+	daa	
 	ld	 (hl),a
 	dec	 hl
-	ret
-	nop
+	ret	
+	nop	
+
+;*****************************************************************************
+; MAZE DATA EXPANSION
+;
+; MazeIndex selects one of the 24 words in MazePointerTable. Each selected maze
+; record is 18 bytes: 6 rows * 3 bytes. Each byte contains two cell nibbles,
+; high nibble first, so one stored row supplies columns 0..5.
+;
+; MazeReadHighNibble/MazeReadLowNibble write columns 0..4 forward and their
+; reflected partners backward into columns 10..6. The final low nibble is the
+; unpaired center column 5. The completed 11 x 6 table is MazeExpandedCells.
+;
+; Horizontal reflection swaps opening bits 2 and 3 (left/right). The parity
+; test detects whether exactly one of those bits is set; only then does XOR $0C
+; exchange them. Top and bottom opening bits remain unchanged.
+;*****************************************************************************
 	ld	 hl,LD302
 	inc	 (hl)
-	ld	 a,(LD318)
+	ld	 a,(MazeIndex)
 	ld	 c,a
 	ld	 b,$00
-	ld	 hl,L1AED
+	ld	 hl,MazePointerTable
 	add	 hl,bc
 	add	 hl,bc
 	ld	 c,(hl)
@@ -3383,11 +3519,11 @@ L1A90:	ex	 af,af'
 	ex	 de,hl
 	dec	 de
 	pop	 hl
-	call	 L1AB4
-	call	 L1ABB
-	call	 L1AB4
-	call	 L1ABB
-	call	 L1AB4
+	call	 MazeReadHighNibble
+	call	 MazeReadLowNibble
+	call	 MazeReadHighNibble
+	call	 MazeReadLowNibble
+	call	 MazeReadHighNibble
 	ld	 a,(bc)
 	inc	 bc
 	and	 $0F
@@ -3395,26 +3531,30 @@ L1A90:	ex	 af,af'
 	ex	 af,af'
 	dec	 a
 	jr	 nz,L1A90
-	ret
-L1AB4:	ld	 a,(bc)
-	rrca
-	rrca
-	rrca
-	rrca
-	jr	 L1ABD
-L1ABB:	ld	 a,(bc)
+	ret	
+MazeReadHighNibble:	ld	 a,(bc)		; high nibble, BC unchanged
+	rrca	
+	rrca	
+	rrca	
+	rrca	
+	jr	 MazeStoreAndMirrorNibble
+MazeReadLowNibble:	ld	 a,(bc)		; low nibble, then advance BC
 	inc	 bc
-L1ABD:	and	 $0F
+MazeStoreAndMirrorNibble:	and	 $0F
 	ld	 (hl),a
 	and	 $0C
 	ld	 a,(hl)
 	inc	 hl
-	jp	 pe,L1AC9
-	xor	 $0C
-L1AC9:	dec	 de
+	jp	 pe,MazeStoreMirroredNibble ; both/neither L-R bits: unchanged
+	xor	 $0C			; exactly one: exchange left and right
+MazeStoreMirroredNibble:	dec	 de
 	ld	 (de),a
-	ret
-L1ACC:	ld	 a,e
+	ret	
+; Convert a maze-relative pixel coordinate to an expanded cell address.
+; Input: D = Y, E = X. Repeated subtraction by $18 obtains the 24-pixel row
+; and column indices. Return: HL = MazeExpandedCells + row*11 + column.
+; Rendering, movement and collision therefore share one topology table.
+MazeCellAddressFromPixel:	ld	 a,e
 	ld	 e,$FF
 L1ACF:	inc	 e
 	sub	 $18
@@ -3432,14 +3572,25 @@ L1AE0:	add	 a,l
 	add	 a,e
 	ld	 e,a
 	ld	 d,$00
-	ld	 hl,LD178
+	ld	 hl,MazeExpandedCells
 	add	 hl,de
-	ret
-L1AED:	dec	 e
+	ret	
+;*****************************************************************************
+; Maze pointer table: 24 little-endian addresses. This disassembly displays
+; the raw pointer bytes as Z80 instructions; logically the words are:
+;
+;   1B1D, 1C19, 1B2F, 1B41, 1B53, 1B65, 1B77, 1B89,
+;   1B9B, 1BAD, 1BBF, 1BD1, 1BE3, 1BF5, 1C07, 1C2B,
+;   1C3D, 1C4F, 1C61, 1C73, 1C85, 1C97, 1CA9, 1CBB
+;
+; Entry 0 points to MAZE 00 at $1B1D. Every maze occupies 18 bytes. Entry 1
+; deliberately selects $1C19; the later sequential entries skip that record.
+;*****************************************************************************
+MazePointerTable:	dec	 e
 	dec	 de
 	add	 hl,de
 	inc	 e
-	cpl
+	cpl	
 	dec	 de
 	ld	 b,c
 	dec	 de
@@ -3461,9 +3612,9 @@ L1AED:	dec	 e
 	dec	 de
 	ex	 (sp),hl
 	dec	 de
-push	 af
+L1B07:	push	 af
 	dec	 de
-	rlca
+	rlca	
 	inc	 e
 	dec	 hl
 	inc	 e
@@ -3483,6 +3634,12 @@ push	 af
 	inc	 e
 	cp	 e
 	inc	 e
+
+; MAZE 00 begins here at $1B1D. Its 18 packed bytes are:
+;   AC EC CE  BC 5A EF  BC EF FF  B6 9F DD  3B EF EC  95 95 9C
+; Read as six rows of three bytes. Each row yields stored columns 0..5; the
+; expansion routine reflects columns 4..0 to produce columns 6..10.
+MazeData00:
 	xor	 h
 	call	 pe,LBCCE
 	ld	 e,d
@@ -3492,20 +3649,20 @@ push	 af
 	rst	 38H
 	or	 (hl)
 	sbc	 a,a
-L1B28:	DB	  $dd,$3b
+L1B28:	.db	  $dd,$3b
 	rst	 28H
 	call	 pe,L9595
 	sbc	 a,h
 	xor	 h
 	xor	 $CE
-	ld	 a,($ADD7)
+	ld	 a,(LADD7)
 	sub	 a
 	xor	 a
 	call	 m,L73AD
 	sbc	 a,(hl)
 	cp	 h
 	ld	 a,e
-	DB	  $ed,$9c
+	.db	  $ed,$9c
 	push	 de
 	sbc	 a,h
 	xor	 h
@@ -3537,7 +3694,7 @@ L1B28:	DB	  $dd,$3b
 	push	 af
 	cp	 a
 	sbc	 a,h
-	call	 c,$AC51
+	call	 c,LAC51
 	add	 a,$AE
 	ld	 a,(L73CD)
 	sub	 a
@@ -3560,7 +3717,7 @@ L1B28:	DB	  $dd,$3b
 	ld	 d,e
 	cp	 h
 	ld	 a,e
-	DB	  $ed,$9c
+	.db	  $ed,$9c
 	push	 de
 	sbc	 a,h
 	and	 (hl)
@@ -3626,7 +3783,7 @@ L1B28:	DB	  $dd,$3b
 	sbc	 a,(hl)
 	sub	 (hl)
 	cp	 a
-	DB	  $ed,$ad
+	.db	  $ed,$ad
 	ld	 d,e
 	cp	 h
 	cp	 h
@@ -3647,7 +3804,7 @@ L1B28:	DB	  $dd,$3b
 	ld	 e,c
 	call	 L6AAC
 	adc	 a,$3A
-	DB	  $fd,$cf
+	.db	  $fd,$cf
 	or	 a
 	cp	 h
 	ld	 h,e
@@ -3685,7 +3842,7 @@ L1C14:	xor	 $FD
 	rst	 38H
 	rst	 38H
 	sbc	 a,l
-	DB	  $dd,$dd
+	.db	  $dd,$dd
 L1C2B:	xor	 h
 	xor	 $EE
 	or	 (hl)
@@ -3699,7 +3856,7 @@ L1C32:	ld	 a,(LBEEF)
 	xor	 (hl)
 	rst	 38H
 	sbc	 a,l
-	DB	  $dd,$dd
+	.db	  $dd,$dd
 	xor	 (hl)
 L1C3E:	xor	 $CE
 	cp	 a
@@ -3715,7 +3872,9 @@ L1C3E:	xor	 $CE
 	push	 af
 	xor	 a
 	sbc	 a,l
-	call	 c,$AEDD
+	nop
+	nop
+	nop
 	xor	 $EE
 	dec	 sp
 	ld	 (hl),e
@@ -3730,7 +3889,7 @@ L1C3E:	xor	 $CE
 	ld	 (hl),e
 	cp	 a
 	sbc	 a,l
-	DB	  $dd,$dd
+	.db	  $dd,$dd
 	xor	 (hl)
 	xor	 $EE
 	add	 hl,sp
@@ -3744,7 +3903,7 @@ L1C3E:	xor	 $CE
 	ld	 (hl),e
 	ld	 a,(LBFF6)
 	sbc	 a,l
-	DB	  $dd,$dd
+	.db	  $dd,$dd
 	xor	 (hl)
 	xor	 $CE
 	add	 hl,sp
@@ -3760,7 +3919,9 @@ L1C3E:	xor	 $CE
 	push	 af
 	xor	 a
 	sbc	 a,l
-	call	 c,$AEDD
+	nop
+	nop
+	nop
 	xor	 $CE
 	or	 l
 	sbc	 a,a
@@ -3774,7 +3935,7 @@ L1C3E:	xor	 $CE
 	sbc	 a,l
 	rst	 38H
 	sbc	 a,l
-	call	 z,$ACDD
+	call	 z,LACDD
 	xor	 $EE
 	or	 (hl)
 	sbc	 a,a
@@ -3789,12 +3950,12 @@ L1C3E:	xor	 $CE
 	xor	 a
 	ld	 h,e
 	sbc	 a,h
-	DB	  $dd,$dd
+	.db	  $dd,$dd
 	xor	 h
 	xor	 $CE
 	or	 (hl)
 	sbc	 a,a
-	DB	  $ed,$bf
+	.db	  $ed,$bf
 	ld	 l,c
 	cp	 $BF
 	or	 $9F
@@ -3802,22 +3963,22 @@ L1C3E:	xor	 $CE
 	cp	 a
 	ld	 h,e
 	sbc	 a,l
-	DB	  $dd,$dd
+	.db	  $dd,$dd
 	xor	 h
 	xor	 $EC
 	cp	 (hl)
 	rst	 10H
 	cp	 h
 	dec	 sp
-	DB	  $ed,$fe
+	.db	  $ed,$fe
 	dec	 sp
 	sbc	 a,$FD
 	cp	 l
 	rst	 20H
 	cp	 h
 	sbc	 a,h
-	DB	  $dd,$dc
-	nop
+	.db	  $dd,$dc
+	nop	
 	call	 L1D12
 	ld	 a,(LD300)
 	call	 L1CDD
@@ -3832,7 +3993,7 @@ L1CE5:	ld	 b,a
 L1CE6:	call	 L0B92
 	inc	 hl
 	djnz	 L1CE6
-	ret
+	ret	
 	ld	 hl,L1DB3
 	ld	 de,L1DD6
 	call	 L1D20
@@ -3855,7 +4016,7 @@ L1D20:	in	 a,($10)
 	bit	 7,a
 	ret	 nz
 	ex	 de,hl
-L1D26:	ret
+L1D26:	ret	
 L1D27:	ld	 h,d
 	sbc	 a,h
 	jr	 c,L1D27
@@ -3873,7 +4034,7 @@ L1D30:	dec	 l
 	ld	 e,$62
 	sbc	 a,h
 	jr	 c,L1DB5
-L1D3F:	rla
+L1D3F:	rla	
 	ld	 h,d
 	sbc	 a,h
 	jr	 c,L1DBA
@@ -3881,7 +4042,7 @@ L1D3F:	rla
 	ld	 h,d
 	sbc	 a,h
 	jr	 c,L1D3F
-	nop
+	nop	
 L1D4A:	jp	 po,L389C
 	ld	 c,h
 	inc	 sp
@@ -3911,10 +4072,10 @@ L1D7A:	cp	 c
 	ld	 h,$22
 	or	 $38
 	add	 hl,sp
-	rra
+	rra	
 L1D81:	ld	 (L38F6),hl
 	cp	 c
-	rla
+	rla	
 	ld	 (L38F6),hl
 	cp	 c
 	ex	 af,af'
@@ -3949,29 +4110,29 @@ L1D81:	ld	 (L38F6),hl
 	xor	 (hl)
 L1DB5:	sbc	 a,(hl)
 	inc	 h
-	nop
-	ld	 ($9600),hl
+	nop	
+	ld	 (GARWOR1),hl
 	call	 po,L2208
-	cpl
+	cpl	
 	dec	 a
 	and	 h
-	ld	 de,$9C22
+	ld	 de,L9C22
 	jr	 c,L1E2A
 	ld	 a,(de)
 	ld	 (L38F6),hl
 	inc	 h
 	inc	 hl
-	ld	 ($A39A),hl
+	ld	 (LA39A),hl
 	call	 po,L222B
 	djnz	 L1D7A
 L1DD4:	and	 h
 	add	 hl,sp
-L1DD6:	jp	 po,$9EAE
+L1DD6:	jp	 po,L9EAE
 	sbc	 a,e
-	ccf
-	jp	 po,$9600
+	ccf	
+	jp	 po,GARWOR1
 	in	 a,($36)
-	jp	 po,$3D2F
+	jp	 po,L3D2F
 	dec	 de
 	ld	 l,$E2
 	sbc	 a,h
@@ -3980,9 +4141,9 @@ L1DD6:	jp	 po,$9EAE
 	jp	 po,L38F6
 	sbc	 a,e
 	inc	 e
-	jp	 po,$A39A
+	jp	 po,LA39A
 	in	 a,($13)
-	jp	 po,$A610
+	jp	 po,LA610
 	dec	 de
 	ld	 b,$60
 	sbc	 a,h
@@ -4047,7 +4208,7 @@ L1E62:	push	 de
 	add	 hl,de
 	ld	 (LD1CE),hl
 	djnz	 L1E62
-	ret
+	ret	
 L1E74:	ld	 (L38F6),hl
 	ld	 c,d
 	ld	 e,$FB
@@ -4067,12 +4228,12 @@ L1E90:	jp	 po,L389C
 	and	 (hl)
 	ld	 a,(bc)
 	dec	 b
-	nop
+	nop	
 L1E97:	and	 d
 	or	 $38
 	jp	 pe,LFB0A
 	rst	 38H
-	nop
+	nop	
 L1E9F:	ld	 a,(LD1D7)
 	and	 a
 	ret	 z
@@ -4152,7 +4313,7 @@ L1F1F:	ld	 a,b
 	ld	 hl,L2CA3
 L1F27:	ld	 de,L004B
 L1F2A:	ld	 b,$04
-	di
+	di	
 	ld	 a,$20
 	out	 ($0C),a
 	ld	 a,(LD1EB)
@@ -4177,7 +4338,7 @@ L1F3E:	ld	 (hl),a
 	ld	 (hl),a
 	add	 hl,de
 	djnz	 L1F3B
-	ret
+	ret	
 L1F50:	ld	 hl,L2C67
 	jr	 L1F27
 L1F55:	ld	 a,(Game_Mode)
@@ -4186,11 +4347,11 @@ L1F55:	ld	 a,(Game_Mode)
 	ld	 a,$01
 	ret	 z
 	ld	 a,$0A
-	ret
-	nop
-dec	 iy
+	ret	
+	nop	
+L1F61:	dec	 iy
 	dec	 iy
-	ei
+	ei	
 	call	 L2081
 	call	 L2BFD
 	call	 L203B
@@ -4207,7 +4368,7 @@ dec	 iy
 	call	 L2D9A
 	ld	 a,(LD1DF)
 	and	 a
-L1F90:	call	 z,L231F
+L1F90:	call	 z,Player1FireService
 	pop	 hl
 L1F94:	bit	 1,(hl)
 	jr	 z,L1FBC
@@ -4224,10 +4385,10 @@ L1F94:	bit	 1,(hl)
 	ld	 (LD1DA),a
 	ld	 a,(LD1DF)
 	and	 a
-	call	 z,L2327
+	call	 z,Player2FireService
 	pop	 hl
 L1FBC:	push	 hl
-	call	 L0BF7
+	call	 ResolveEnemyProjectileCollisions
 L1FC0:	ld	 hl,LD1E0
 	dec	 (hl)
 	pop	 hl
@@ -4277,7 +4438,7 @@ L2014:	ld	 a,$04
 	call	 L0F39
 	call	 L2B8B
 	call	 L2A38
-	call	 L22FD
+	call	 EnemyFireService
 	call	 L2740
 	call	 L1E9F
 	call	 L8003
@@ -4285,7 +4446,7 @@ L2014:	ld	 a,$04
 	call	 L2C15
 	call	 L1A0B
 	jp	 L22A8
-	nop
+	nop	
 L203B:	ld	 a,(LD1DB)
 	and	 a
 	ret	 z
@@ -4316,34 +4477,34 @@ L2070:	bit	 0,c
 	res	 2,(ix+$00)
 	ld	 hl,LD241
 	set	 6,(hl)
-	ret
-L2080:	nop
+	ret	
+L2080:	nop	
 L2081:	ld	 hl,LD040
 	ld	 a,(hl)
 	and	 a
 	jr	 z,L20AE
 	ld	 (hl),$00
-	rra
+	rra	
 	push	 af
 	call	 c,L283D
 	pop	 af
-	rra
+	rra	
 	push	 af
 	call	 c,L27C0
 	pop	 af
-	rra
+	rra	
 	push	 af
 	call	 c,L284D
 	pop	 af
-	rra
+	rra	
 	push	 af
 	call	 c,L27F3
 	pop	 af
-	rra
+	rra	
 	push	 af
 	call	 c,L27DF
 	pop	 af
-	rra
+	rra	
 	push	 af
 	call	 c,L20E8
 	pop	 af
@@ -4352,53 +4513,53 @@ L20AE:	ld	 hl,LD041
 	and	 a
 	jr	 z,L20E7
 	ld	 (hl),$00
-	rra
+	rra	
 	push	 af
 	call	 c,L2113
 	pop	 af
-	rra
+	rra	
 	push	 af
 	call	 c,L28CD
 	pop	 af
-	rra
+	rra	
 	push	 af
 	call	 c,L2100
 	pop	 af
-	rra
+	rra	
 	push	 af
 	call	 c,L1E0D
 	pop	 af
-	rra
+	rra	
 	push	 af
 	call	 c,L20E7
 	pop	 af
-	rra
+	rra	
 	push	 af
 	call	 c,L20E7
 	pop	 af
-	rra
+	rra	
 	push	 af
 	call	 c,L20E7
 	pop	 af
-	rra
+	rra	
 	push	 af
 	call	 c,L20F6
 	pop	 af
-L20E7:	ret
+L20E7:	ret	
 L20E8:	ld	 a,(LD053)
 	and	 a
 	ret	 nz
 	inc	 a
 	ld	 (LD050),a
 	ld	 iy,(LD051)
-	ret
+	ret	
 L20F6:	ld	 a,(LD050)
 	and	 a
 	ret	 nz
 	inc	 iy
 	inc	 iy
 	ret
-
+	
 
 L2100:	xor	 a
 	ld	 (LD1E8),a
@@ -4410,20 +4571,20 @@ L210C:	inc	 hl
 	ld	 a,(hl)
 	and	 $FC
 	ld	 (hl),a
-	ret
+	ret	
 L2113:	ld	 ix,LD094
 	ld	 hl,LD04F
 	bit	 7,(ix+$13)
 	jr	 z,L2123
 L2120:	ld	 (hl),$01
-	ret
+	ret	
 L2123:	ld	 a,(ix+$00)
 	and	 $88
 	cp	 $80
 	jr	 nz,L2120
 	ld	 (hl),$14
-	jp	 L2342
-	nop
+	jp	 SpawnProjectileFromActor
+	nop	
 L2132:	push	 iy
 	ld	 a,$06
 L2136:	push	 af
@@ -4433,7 +4594,7 @@ L2136:	push	 af
 	dec	 a
 	jr	 nz,L2136
 	pop	 iy
-	ret
+	ret	
 L2144:	ld	 a,(ix+$00)
 	and	 $98
 	cp	 $80
@@ -4466,11 +4627,11 @@ L2174:	ld	 a,h
 	ld	 h,$FF
 	jr	 z,L2181
 	inc	 h
-	cpl
+	cpl	
 L2181:	cp	 $0E
 	jp	 c,L0D4C
 	ld	 a,b
-	cpl
+	cpl	
 	ld	 b,a
 L2189:	ld	 a,h
 	and	 a
@@ -4493,14 +4654,14 @@ L21A4:	ld	 a,(ix+$06)
 	jr	 nc,L21B2
 	ld	 (ix+$06),a
 L21B2:	set	 5,(ix+$00)
-	ret
-	nop
+	ret	
+	nop	
 L21B8:	ld	 a,(Game_Mode)
 	dec	 a
 	ret	 nz
 	ld	 a,(LD074)
 	ld	 b,a
-	rla
+	rla	
 	jr	 c,L21D0
 	ld	 a,(LD301)
 	and	 a
@@ -4537,8 +4698,8 @@ L2208:	sub	 (iy+$04)
 	ld	 l,$04
 	jr	 nc,L2213
 L220F:	ld	 l,$08
-	neg
-L2213:	rra
+	neg	
+L2213:	rra	
 	and	 $7F
 	ld	 b,a
 	ld	 a,(ix+$06)
@@ -4546,8 +4707,8 @@ L2213:	rra
 	ld	 h,$01
 	jr	 nc,L2225
 	ld	 h,$02
-	neg
-L2225:	rra
+	neg	
+L2225:	rra	
 	and	 $7F
 	add	 a,b
 L2229:	cp	 e
@@ -4571,13 +4732,13 @@ L2244:	call	 L0F2C
 	ld	 a,(iy+$00)
 	and	 $8A
 	cp	 $80
-	call	 z,L24B8
+	call	 z,EnemyLineOfSightFire
 	pop	 af
 	dec	 a
 	jr	 nz,L2243
 	pop	 iy
-	ret
-	nop
+	ret	
+	nop	
 L2259:	ld	 a,(LD1ED)
 	ld	 d,a
 	ld	 a,(Game_Mode)
@@ -4589,7 +4750,7 @@ L2259:	ld	 a,(LD1ED)
 	call	 c,L289D
 L226F:	ld	 a,d
 	ld	 (LD1DC),a
-	ret
+	ret	
 L2274:	ld	 a,(LD1EE)
 	ld	 d,a
 	ld	 a,(Game_Mode)
@@ -4601,8 +4762,8 @@ L2274:	ld	 a,(LD1EE)
 	call	 c,L289D
 L2289:	ld	 a,d
 	ld	 (LD1DD),a
-	ret
-L228E:	cpl
+	ret	
+L228E:	cpl	
 	and	 $3F
 	ld	 d,a
 	bit	 3,(ix+$00)
@@ -4614,11 +4775,11 @@ L228E:	cpl
 	and	 a
 	jr	 z,L22A5
 	dec	 (hl)
-	ret
+	ret	
 L22A3:	ld	 (hl),$02
-L22A5:	scf
-	ret
-	nop
+L22A5:	scf	
+	ret	
+	nop	
 L22A8:	ld	 hl,LD1E5
 	bit	 1,(hl)
 	res	 1,(hl)
@@ -4630,7 +4791,7 @@ L22A8:	ld	 hl,LD1E5
 	res	 0,(hl)
 	ld	 a,$00
 	call	 nz,L22C0
-	ret
+	ret	
 L22C0:	ld	 hl,L22FA
 	ld	 de,$1132
 	push	 af
@@ -4640,7 +4801,7 @@ L22C0:	ld	 hl,L22FA
 	call	 L22F4
 	ld	 c,$F0
 	ld	 de,L0050
-	di
+	di	
 	ld	 a,$20
 	out	 ($0C),a
 	ld	 hl,L0F57
@@ -4654,39 +4815,56 @@ L22E6:	ld	 (hl),c
 	add	 hl,de
 	djnz	 L22E6
 	ld	 a,c
-	rrca
-	rrca
-	rrca
-	rrca
+	rrca	
+	rrca	
+	rrca	
+	rrca	
 	ld	 c,a
-	ret
+	ret	
 L22F4:	ld	 bc,L01FF
 	jp	 L0460
 L22FA:	ld	 e,h
 	ld	 h,c
-	nop
-L22FD:	ld	 a,(LD1C6)
+	nop	
+;******************************************************************************
+; EnemyFireService
+;
+; Once per eligible field, visit all six reusable enemy actor records.  Each
+; active enemy is tested against P1 and P2.  Burwor/Garwor/Thorwor/Wizard are
+; actor subtypes in these same slots, so they share this firing path and the
+; monster projectile patterns.  EnemyTryFireAtTarget suppresses the Worluk
+; phase through LD1E8.
+;******************************************************************************
+EnemyFireService:	ld	 a,(LD1C6)
 L2300:	and	 a
 	ret	 nz
 	ld	 a,$06
 	push	 iy
 L2306:	push	 af
-call	 L0F1F
+L2307:	call	 L0F1F
 	ld	 iy,LD054
-	call	 L2498
+	call	 EnemyTryFireAtTarget
 	ld	 iy,LD074
-	call	 L2498
+	call	 EnemyTryFireAtTarget
 L2318:	pop	 af
 	dec	 a
 	jr	 nz,L2306
 	pop	 iy
-	ret
-L231F:	ld	 a,(LD1DC)
+	ret	
+;******************************************************************************
+; Player fire-button services
+;
+; LD1E6/LD1E7 retain the previous internal control snapshots.  A projectile is
+; spawned only on a newly active fire bit and only when actor+$13 does not
+; already contain an active projectile.  
+; WoW permits one in-flight bolt per shooter.
+;******************************************************************************
+Player1FireService:	ld	 a,(LD1DC)
 	ld	 hl,LD1E6
-	jr	 L232D
-L2327:	ld	 a,(LD1DD)
+	jr	 PlayerFireEdgeAndSpawn
+Player2FireService:	ld	 a,(LD1DD)
 	ld	 hl,LD1E7
-L232D:	bit	 5,(hl)
+PlayerFireEdgeAndSpawn:	bit	 5,(hl)
 	ld	 (hl),a
 	ret	 nz
 	bit	 5,a
@@ -4698,16 +4876,27 @@ L232D:	bit	 5,(hl)
 	ret	 nz
 	bit	 7,(ix+$13)
 	ret	 nz
-L2342:	ld	 e,(ix+$04)
+;******************************************************************************
+; SpawnProjectileFromActor
+;
+; IX = shooter actor.  Actor +4/+6 are X/Y and +7 contains facing in bits 1..0
+; plus the player/monster class in bit 2:
+;   0 up, 1 down, 2 left, 3 right; add 4 for a monster shooter.
+;
+; The four branches scan the maze data immediately in front of the muzzle,
+; choose signed X/Y velocity, align the starting coordinate, and fill the
+; seven-byte projectile record at actor+$13.  All shooters converge at L23D2.
+;******************************************************************************
+SpawnProjectileFromActor:	ld	 e,(ix+$04)
 	ld	 d,(ix+$06)
 	ld	 bc,$0000
 	ld	 a,(ix+$07)
 	bit	 1,a
-	rra
+	rra	
 	jp	 z,L239B
 	jr	 nc,L236D
 	call	 L254C
-L2359:	call	 L2463
+L2359:	call	 MazeScanRight
 L235C:	ret	 m
 	cp	 b
 	ret	 c
@@ -4718,7 +4907,7 @@ L235C:	ret	 m
 	ld	 a,$FF
 	jr	 L2382
 L236D:	call	 L2547
-L2370:	call	 L246D
+L2370:	call	 MazeScanLeft
 	ret	 m
 	cp	 b
 	ret	 c
@@ -4741,7 +4930,7 @@ L2396:	ld	 h,a
 	jr	 L23D2
 L239B:	jr	 nc,L23B1
 	call	 L2542
-L23A0:	call	 L2477
+L23A0:	call	 MazeScanDown
 	ret	 m
 	cp	 b
 	ret	 c
@@ -4751,7 +4940,7 @@ L23AC:	ld	 l,c
 	add	 a,$16
 	jr	 L23C7
 L23B1:	call	 L253D
-L23B4:	call	 L2481
+L23B4:	call	 MazeScanUp
 	ret	 m
 	cp	 b
 	ret	 c
@@ -4779,7 +4968,7 @@ L23D2:	ld	 (ix+$14),c
 	ld	 hl,LD241
 	jr	 nz,L23F3
 	set	 1,(hl)
-	ret
+	ret	
 L23F3:	inc	 hl
 	ld	 a,(LD1EB)
 	and	 a
@@ -4792,11 +4981,11 @@ L23FD:	ld	 a,(LD1C6)
 	jr	 z,L240A
 	ld	 hl,LD243
 	set	 2,(hl)
-	ret
-L240A:	rrca
+	ret	
+L240A:	rrca	
 	or	 (hl)
 	ld	 (hl),a
-	ret
+	ret	
 L240E:	ld	 c,$F8
 	ld	 a,(LD1C6)
 	and	 a
@@ -4818,20 +5007,20 @@ L2434:	set	 1,(ix+$08)
 	ld	 (ix+$1a),$03
 	ld	 (ix+$1b),$01
 	set	 5,(ix+$00)
-	ret
+	ret	
 L2445:	ld	 hl,L2458
 L2448:	cp	 (hl)
 	inc	 hl
 	jr	 c,L2448
-	ret
-L244D:	exx
+	ret	
+L244D:	exx	
 	ld	 hl,L2457
 L2451:	inc	 hl
 	cp	 (hl)
 	jr	 c,L2451
 	ld	 a,(hl)
-	exx
-L2457:	ret
+	exx	
+L2457:	ret	
 L2458:	ret	 p
 	ret	 c
 	ret	 nz
@@ -4841,34 +5030,59 @@ L2458:	ret	 p
 	ld	 h,b
 	ld	 c,b
 	jr	 nc,L247A
-	nop
-L2463:	call	 L1ACC
+	nop	
+
+;*****************************************************************************
+; MAZE PASSAGE SCANS / WALL QUERY
+;
+; These four entries convert the supplied point with MazeCellAddressFromPixel,
+; then count consecutive cells open in the requested direction. A set opening
+; bit permits a step to the neighbor; the first clear bit is a wall.
+;
+;   MazeScanRight: bit $08, table step +1
+;   MazeScanLeft:  bit $04, table step -1
+;   MazeScanDown:  bit $02, table step +11
+;   MazeScanUp:    bit $01, table step -11
+;
+; C increments for every traversable cell. This is topology-based collision
+; and path probing: it tests MazeExpandedCells, not video-memory pixels.
+;*****************************************************************************
+MazeScanRight:	call	 MazeCellAddressFromPixel
 	ld	 de,$0001
 	ld	 a,$08
-	jr	 L2489
-L246D:	call	 L1ACC
+	jr	 MazeScanOpenCells
+MazeScanLeft:	call	 MazeCellAddressFromPixel
 	ld	 de,LFFFF
 	ld	 a,$04
-	jr	 L2489
-L2477:	call	 L1ACC
+	jr	 MazeScanOpenCells
+MazeScanDown:	call	 MazeCellAddressFromPixel
 L247A:	ld	 de,L000B
 	ld	 a,$02
-	jr	 L2489
-L2481:	call	 L1ACC
+	jr	 MazeScanOpenCells
+MazeScanUp:	call	 MazeCellAddressFromPixel
 	ld	 de,LFFF5
 	ld	 a,$01
-L2489:	and	 (hl)
+MazeScanOpenCells:	and	 (hl)
 	jr	 z,L2490
 	add	 hl,de
 	inc	 c
-	jr	 L2489
+	jr	 MazeScanOpenCells
 L2490:	ld	 a,c
 	and	 a
 	ld	 d,$80
 	ret	 nz
 	ld	 d,$A0
-	ret
-L2498:	ld	 a,(ix+$00)
+	ret	
+;******************************************************************************
+; EnemyTryFireAtTarget
+;
+; IX = potential enemy shooter, IY = player target.  Require an active/normal
+; enemy, no current projectile, a fire-capable speed/state, Worluk suppression
+; flag LD1E8 clear, and an active target.  EnemyLineOfSightFire then requires
+; the target to be ahead in the same maze corridor before entering the common
+; projectile-spawn branches.
+;******************************************************************************
+EnemyTryFireAtTarget:	ld	 a,(ix+$00)
 	and	 $8A
 	cp	 $80
 	ret	 nz
@@ -4884,7 +5098,7 @@ L2498:	ld	 a,(ix+$00)
 	and	 $98
 	cp	 $80
 	ret	 nz
-L24B8:	ld	 a,(ix+$1c)
+EnemyLineOfSightFire:	ld	 a,(ix+$1c)
 	and	 a
 	ret	 nz
 	ld	 d,(ix+$06)
@@ -4893,7 +5107,7 @@ L24B8:	ld	 a,(ix+$1c)
 	ld	 l,(iy+$04)
 	ld	 a,(ix+$07)
 	bit	 1,a
-	rra
+	rra	
 	jr	 z,L24FD
 	jr	 nc,L24E8
 	ld	 a,h
@@ -4960,26 +5174,26 @@ L2535:	inc	 b
 	sub	 $18
 	jr	 nc,L2535
 	ld	 c,$00
-	ret
+	ret	
 L253D:	ld	 a,d
 	add	 a,$02
 	ld	 d,a
-	ret
+	ret	
 L2542:	ld	 a,d
 	add	 a,$14
 	ld	 d,a
-	ret
+	ret	
 L2547:	ld	 a,e
 	add	 a,$02
 	ld	 e,a
-	ret
+	ret	
 L254C:	ld	 a,e
 	add	 a,$14
 	jr	 nc,L2553
 	ld	 a,$FF
 L2553:	ld	 e,a
-	ret
-	nop
+	ret	
+	nop	
 L2556:	ld	 a,(ix+$06)
 	cp	 $30
 	ld	 b,$01
@@ -5056,7 +5270,7 @@ L25E5:	jr	 L2609
 L25E7:	ex	 de,hl
 	call	 L25ED
 	ex	 de,hl
-	ret
+	ret	
 L25ED:	push	 hl
 	ld	 bc,$0004
 	add	 hl,bc
@@ -5093,8 +5307,8 @@ L2614:	ld	 a,(ix+$02)
 L262B:	ld	 a,r
 	and	 b
 	ld	 (ix+$23),a
-	ret
-	nop
+	ret	
+	nop	
 L2633:	bit	 3,(ix+$00)
 	ret	 z
 	bit	 7,(ix+$08)
@@ -5137,7 +5351,7 @@ L2667:	and	 $3F
 	inc	 d
 	inc	 e
 	inc	 e
-	call	 L0938
+	call	 CalcMagicAddressFromPixelXY
 	ld	 bc,$0000
 	bit	 7,(ix+$01)
 	jr	 z,L2692
@@ -5156,7 +5370,7 @@ L269C:	ex	 de,hl
 	ld	 (hl),d
 	set	 5,(ix+$08)
 L26A7:	set	 7,(ix+$08)
-	ret
+	ret	
 L26AC:	ld	 (ix+$00),$00
 	bit	 7,(ix+$07)
 	ret	 z
@@ -5231,7 +5445,7 @@ L272D:	ld	 a,c
 L2735:	ld	 (LD1EA),a
 	ld	 (ix+$24),$1E
 	jp	 L2A0B
-	nop
+	nop	
 L2740:	ld	 a,(LD1C9)
 	and	 a
 	ret	 nz
@@ -5242,8 +5456,8 @@ L2747:	push	 af
 	pop	 af
 	dec	 a
 	jr	 nz,L2747
-	ei
-	ret
+	ei	
+	ret	
 L2754:	bit	 7,(ix+$20)
 	res	 7,(ix+$20)
 	ld	 l,(ix+$21)
@@ -5295,15 +5509,15 @@ L27B5:	ld	 de,L0050
 L27BA:	ld	 (hl),c
 	add	 hl,de
 	djnz	 L27BA
-	ret
-	nop
+	ret	
+	nop	
 L27C0:	ld	 a,$02
 	ld	 (LD046),a
 	call	 L27D0
 	ld	 l,h
 	call	 L27D0
 	ld	 (LD1ED),hl
-	ret
+	ret	
 L27D0:	ld	 a,r
 	bit	 2,a
 	ld	 h,$05
@@ -5312,10 +5526,10 @@ L27D0:	ld	 a,r
 L27DA:	bit	 3,a
 	ret	 z
 	inc	 h
-	ret
+	ret	
 L27DF:	ld	 hl,LD043
 	ld	 de,L2F90
-	exx
+	exx	
 	ld	 hl,LD054
 	ld	 de,LD1EF
 	ld	 bc,LD1DC
@@ -5323,7 +5537,7 @@ L27DF:	ld	 hl,LD043
 	jr	 L2805
 L27F3:	ld	 hl,LD044
 	ld	 de,L2FBE
-	exx
+	exx	
 	ld	 hl,LD074
 	ld	 de,LD1F0
 	ld	 bc,LD1DD
@@ -5344,12 +5558,12 @@ L280B:	bit	 7,(hl)
 	ld	 l,c
 	ld	 (hl),$01
 	jr	 L2825
-L281F:	exx
+L281F:	exx	
 	inc	 (hl)
-	exx
+	exx	
 	ld	 a,(hl)
 	or	 $30
-L2825:	exx
+L2825:	exx	
 	ld	 hl,LD1CB
 	ld	 (hl),a
 L282A:	in	 a,($10)
@@ -5369,7 +5583,7 @@ L283D:	ld	 hl,LD18E
 	set	 3,(hl)
 	ld	 hl,LD1E5
 	set	 1,(hl)
-	ret
+	ret	
 L284D:	ld	 a,$07
 	ld	 (LD045),a		;
 	ld	 a,(LD302)
@@ -5398,7 +5612,7 @@ L2876:	push	 af
 	pop	 af
 	dec	 a
 	jr	 nz,L2876
-	ret
+	ret	
 L2882:	dec	 b
 	ld	 b,$04
 	inc	 bc
@@ -5427,14 +5641,14 @@ L28AB:	ld	 a,(ix+$04)
 	ld	 a,(ix+$06)
 	and	 b
 	ld	 (ix+$06),a
-	ret
+	ret	
 L28BA:	ld	 a,$2D
 	ld	 (hl),a
 	ld	 (LD04E),a
 L28C0:	ld	 ix,LD094
 	ld	 (ix+$00),$00
 	set	 7,(ix+$08)
-	ret
+	ret	
 L28CD:	ld	 hl,LD1C7
 	ld	 a,(hl)
 	and	 a
@@ -5551,8 +5765,8 @@ L29AB:	ld	 b,(hl)
 	xor	 a
 L29AD:	add	 a,$18
 	djnz	 L29AD
-	ret
-	nop
+	ret	
+	nop	
 	ld	 a,(LD302)
 	and	 a
 	jr	 z,L29C5
@@ -5571,7 +5785,7 @@ L29C9:	push	 af
 	inc	 d
 	dec	 a
 	jr	 nz,L29C9
-	ret
+	ret	
 L29D3:	ld	 d,$20
 	cp	 $07
 	jr	 c,L29DB
@@ -5582,7 +5796,7 @@ L29DD:	push	 af
 	pop	 af
 	dec	 a
 	jr	 nz,L29DD
-	ret
+	ret	
 L29E6:	ld	 e,$04
 	ld	 h,a
 	call	 L0F1F
@@ -5625,14 +5839,14 @@ L2A0B:	push	 ix
 	ld	 (hl),e
 	ld	 (ix+$1f),$E0
 	ld	 (ix+$00),$80
-	ret
+	ret	
 	jr	 L2A2D
 L2A2D:	ld	 c,b
-	nop
+	nop	
 	sub	 b
-	nop
+	nop	
 	ret	 nz
-	nop
+	nop	
 	ld	 c,b
 	jr	 nc,L29C6
 	jr	 nc,L2A38
@@ -5712,12 +5926,12 @@ L2AE3:	pop	 af
 	dec	 a
 	jp	 nz,L2A3C
 	pop	 iy
-	ret
+	ret	
 L2AEB:	ld	 a,(LD1EB)
 	and	 a
 	ld	 a,$08
 	jr	 z,L2AB5
-	rrca
+	rrca	
 	jr	 L2AB5
 L2AF6:	ld	 a,(ix+$00)
 	and	 $88
@@ -5743,7 +5957,7 @@ L2B15:	call	 L244D
 L2B1D:	sub	 h
 	jr	 nc,L2B23
 	ld	 h,d
-	neg
+	neg	
 L2B23:	ld	 c,$02
 L2B25:	dec	 c
 	sub	 $18
@@ -5757,13 +5971,13 @@ L2B25:	dec	 c
 	jr	 nc,L2B35
 	ld	 a,$FF
 L2B35:	ld	 e,a
-	call	 L2477
+	call	 MazeScanDown
 	pop	 af
 	pop	 de
 	dec	 c
 	ret	 p
 	ld	 c,a
-	call	 L2477
+	call	 MazeScanDown
 	dec	 c
 	ret	 p
 	ld	 c,$FF
@@ -5783,7 +5997,7 @@ L2B52:	ld	 a,l
 	sub	 l
 	jr	 nc,L2B61
 	ld	 l,e
-	neg
+	neg	
 L2B61:	ld	 c,$02
 L2B63:	dec	 c
 	sub	 $18
@@ -5795,21 +6009,21 @@ L2B63:	dec	 c
 	ld	 a,d
 	add	 a,$11
 	ld	 d,a
-	call	 L2463
+	call	 MazeScanRight
 	pop	 af
 	pop	 de
 	dec	 c
 	ret	 p
 	ld	 c,a
-	call	 L2463
+	call	 MazeScanRight
 	dec	 c
-	ret
+	ret	
 L2B7D:	ld	 d,(ix+$06)
 	ld	 e,(ix+$04)
 	ld	 h,(iy+$06)
 	ld	 l,(iy+$04)
-	ret
-	nop
+	ret	
+	nop	
 L2B8B:	ld	 d,$00
 	ld	 ix,LD054
 	bit	 4,(ix+$00)
@@ -5856,8 +6070,8 @@ L2BF3:	res	 1,(ix+$00)
 L2BF7:	pop	 af
 	dec	 a
 	jr	 nz,L2BAF
-	ret
-	nop
+	ret	
+	nop	
 L2BFD:	ld	 hl,LD340
 	ld	 a,(hl)
 	and	 a
@@ -5870,7 +6084,7 @@ L2BFD:	ld	 hl,LD340
 	inc	 a
 L2C0E:	ld	 (LD050),a
 	ld	 (LD053),a
-	ret
+	ret	
 L2C15:	ld	 a,(Game_Mode)
 	and	 a
 	ret	 z
@@ -5913,6 +6127,9 @@ L2C28:	push	 af
 	ld	 a,$20
 	ld	 (LD04D),a
 	ld	 hl,LD1E8
+	; All six normal enemy slots are now inactive.  The special Worluk phase
+	; reuses enemy slot 1 (IX=$D094 after the loop above).  A nonzero LD1E8 is
+	; tested by EnemyTryFireAtTarget and prevents Worluk from firing.
 	inc	 (hl)
 	ld	 de,$010C
 	jp	 L26EB
@@ -5951,8 +6168,8 @@ L2CA3:	ld	 d,$FF
 	sla	 c
 L2CB7:	ld	 a,c
 	add	 a,b
-	rrca
-	rrca
+	rrca	
+	rrca	
 	and	 $3F
 	jr	 z,L2CC4
 L2CBF:	srl	 d
@@ -5982,7 +6199,7 @@ L2CF0:	ld	 a,$0A
 	in	 a,($15)
 	ld	 a,$52
 	out	 ($07),a
-	ret
+	ret	
 L2CF9:	ld	 a,$01
 	ld	 (LD1DF),a
 	ld	 hl,LD067
@@ -6046,11 +6263,11 @@ L2D4F:	call	 L0F39
 	ld	 a,c
 	inc	 a
 	inc	 a
-L2D67:	ld	 (LD318),a
+L2D67:	ld	 (MazeIndex),a
 	ret
 ;
 L2D6B:	ld	 a,(Game_Mode)
-and	 a
+L2D6E:	and	 a
 	ret	 z
 	ld	 a,(LD1D7)
 	and	 a
@@ -6072,8 +6289,8 @@ and	 a
 	inc	 a
 	ld	 (LD048),a
 	ld	 (LD1D9),a
-	ret
-	nop
+	ret	
+	nop	
 L2D9A:	ld	 a,(LD1DB)
 	and	 a
 	ret	 z
@@ -6112,7 +6329,7 @@ L2DBB:	ld	 a,(ix+$01)
 	res	 5,(ix+$00)
 	ld	 a,(ix+$07)
 	inc	 c
-	exx
+	exx	
 	jp	 L2FE2
 L2DF2:	ld	 bc,$0402
 	ex	 af,af'
@@ -6146,7 +6363,9 @@ L2E1B:	sub	 $18
 	ld	 a,e
 	add	 a,$0C
 	ld	 e,a
-L2E2D:	call	 L1ACC
+L2E2D:	call	 MazeCellAddressFromPixel
+	; B is the candidate opening/direction mask. A nonzero result means the
+	; requested edge is open; zero falls through to select another direction.
 	ld	 a,b
 	and	 (hl)
 	jr	 nz,L2E41
@@ -6164,7 +6383,7 @@ L2E41:	call	 L2E4C
 	jr	 L2E4F
 L2E4C:	ld	 (ix+$01),c
 L2E4F:	ld	 c,$00
-	exx
+	exx	
 	call	 L30D6
 	ld	 a,(ix+$01)
 	ld	 b,a
@@ -6173,10 +6392,10 @@ L2E4F:	ld	 c,$00
 	ld	 c,a
 	ld	 (ix+$01),a
 	ld	 a,b
-	rrca
-	rrca
-	rrca
-	rrca
+	rrca	
+	rrca	
+	rrca	
+	rrca	
 	and	 $0F
 	ld	 b,a
 	and	 c
@@ -6195,8 +6414,8 @@ L2E7B:	res	 0,(ix+$00)
 	ret	 nz
 	bit	 1,c
 	jr	 z,L2E94
-	call	 L1ACC
-	bit	 1,(hl)
+	call	 MazeCellAddressFromPixel
+	bit	 1,(hl)		; require bottom opening
 	ret	 z
 	ld	 b,$01
 	set	 5,c
@@ -6206,8 +6425,8 @@ L2E94:	bit	 0,c
 	ld	 a,$17
 	add	 a,d
 	ld	 d,a
-	call	 L1ACC
-	bit	 0,(hl)
+	call	 MazeCellAddressFromPixel
+	bit	 0,(hl)		; require top opening
 	ret	 z
 	ld	 b,$00
 	set	 4,c
@@ -6218,8 +6437,8 @@ L2EA7:	set	 0,(ix+$00)
 	ret	 nz
 	bit	 3,c
 	jr	 z,L2EC0
-	call	 L1ACC
-	bit	 3,(hl)
+	call	 MazeCellAddressFromPixel
+	bit	 3,(hl)		; require right opening
 	ret	 z
 	ld	 b,$03
 	set	 7,c
@@ -6231,8 +6450,8 @@ L2EC0:	bit	 2,c
 	jr	 nc,L2ECA
 	ld	 a,$FF
 L2ECA:	ld	 e,a
-	call	 L1ACC
-	bit	 2,(hl)
+	call	 MazeCellAddressFromPixel
+	bit	 2,(hl)		; require left opening
 	ret	 z
 	ld	 b,$02
 	set	 6,c
@@ -6241,14 +6460,14 @@ L2ED5:	ld	 (ix+$01),c
 	and	 $50
 	ld	 a,(ix+$02)
 	jr	 z,L2EE2
-	neg
+	neg	
 L2EE2:	and	 a
 	jr	 nz,L2EE9
-	exx
+	exx	
 	set	 0,c
-	exx
+	exx	
 L2EE9:	ld	 l,a
-	rla
+	rla	
 	ld	 h,$00
 	jr	 nc,L2EF0
 	dec	 h
@@ -6293,13 +6512,13 @@ L2F1B:	jr	 z,L2F42
 	jp	 L30BA
 L2F42:	ld	 a,$0A
 	ld	 (LD047),a
-	exx
+	exx	
 	ld	 hl,LD1E5
 	set	 0,(hl)
 	call	 L3125
 	ld	 hl,LD242
 	set	 4,(hl)
-	exx
+	exx	
 	jr	 L2F65
 L2F58:	ld	 e,(ix+$05)
 	ld	 d,(ix+$06)
@@ -6311,9 +6530,9 @@ L2F65:	ld	 a,h
 	ld	 c,$FF
 	jr	 z,L2F70
 	inc	 c
-	exx
+	exx	
 	set	 0,c
-	exx
+	exx	
 L2F70:	bit	 2,(ix+$07)
 	jr	 z,L2F82
 	ld	 hl,LD1E8
@@ -6321,9 +6540,9 @@ L2F70:	bit	 2,(ix+$07)
 	dec	 a
 	jr	 nz,L2F82
 	inc	 (hl)
-	exx
+	exx	
 	set	 0,c
-	exx
+	exx	
 L2F82:	ld	 a,(ix+$02)
 	and	 a
 	jr	 z,L2F89
@@ -6339,9 +6558,9 @@ L2F90:	cp	 $01
 	ld	 a,(LD1E8)
 	and	 a
 L2F9C:	jr	 nz,L2FA2
-L2F9E:	exx
+L2F9E:	exx	
 	set	 0,c
-	exx
+	exx	
 L2FA2:	ld	 a,(ix+$08)
 	and	 $0C
 	bit	 2,d
@@ -6381,7 +6600,7 @@ L2FE2:	ld	 de,L0008
 	bit	 2,a
 	ld	 hl,L385C
 	jr	 z,L2FEF
-	ld	 hl,$3F4C
+	ld	 hl,L3F4C
 L2FEF:	bit	 1,(ix+$08)
 	jr	 z,L2FF6
 	add	 hl,de
@@ -6413,8 +6632,8 @@ L301A:	in	 a,($10)
 	ld	 c,a
 L3026:	ld	 a,e
 	push	 bc
-	rlca
-	rlca
+	rlca	
+	rlca	
 	bit	 1,(ix+$08)
 	jr	 z,L3033
 L3030:	ld	 a,(ix+$1a)
@@ -6466,7 +6685,7 @@ L3078:	ex	 (sp),hl
 	ld	 (hl),c
 	inc	 hl
 	ld	 (hl),b
-	call	 L0938
+	call	 CalcMagicAddressFromPixelXY
 	ex	 de,hl
 	pop	 bc
 	add	 hl,bc
@@ -6477,7 +6696,7 @@ L3078:	ex	 (sp),hl
 	ld	 (hl),d
 	bit	 1,(ix+$00)
 	ret	 nz
-	exx
+	exx	
 	bit	 0,c
 	ret	 z
 	bit	 1,(ix+$08)
@@ -6495,7 +6714,7 @@ L30AA:	ld	 (ix+$1b),a
 	res	 1,(ix+$08)
 L30B6:	set	 5,(ix+$08)
 L30BA:	set	 7,(ix+$08)
-	ret
+	ret	
 L30BF:	jr	 nz,L30E1
 	jr	 nz,L30D3
 	jr	 nz,L30E5
@@ -6511,9 +6730,9 @@ L30C7:	push	 ix
 L30D5:	inc	 hl
 L30D6:	ld	 e,(ix+$04)
 	ld	 d,(ix+$06)
-	ret
+	ret	
 L30DD:	ld	 c,$01
-	exx
+	exx	
 	ld	 a,(ix+$06)
 	cp	 $79
 L30E5:	jr	 c,L30F5
@@ -6548,522 +6767,85 @@ L3125:	ld	 hl,LD18E
 	res	 2,(hl)
 	ld	 hl,LD198
 	res	 3,(hl)
-	ret
+	ret	
+
+	nop	
+
+;*******************************************************************************
+;
+; Text string table
+;
+; String format:
+;
+;   +0  Length byte
+;   +1  Character data (not null terminated)
+;
+; Example:
+;
+;   .db $0B,"INSERT@COIN"
+;
+; Length byte counts only the character data and does not include itself.
+;
+; Special characters:
+;
+;   @ = space
+;   [ = copyright symbol
+;
+; Some Labels are in middle of strings to preserve code refs
+;
+;*******************************************************************************
+
+L3131:  .db $0B,"INSERT"
+L3138:  .db     "@COIN"
+
+L313D:  .db $0B,"HIGH@SCORES"
+L3149:  .db $17,"PRESS@ONE@PLAYER@BUTTON"
+L3161:  .db $17,"PRESS@TWO@PLAYER@BUTTON"
+L3179:  .db $02,"OR"
+L317C:  .db $17,"DEPOSIT@ADDITIONAL@COIN"
+L3194:  .db $13,"FOR@TWO@PLAYER@GAME"
+L31A8:  .db $06,"POINTS"
+
+L31AF:  .db $0C,"BONUS@PLAYER"
+L31BC:  .db $15,"WAIT@FOR@INSTRUCTIONS"
+L31D2:  .db $1E,"INVISIBLE@MONSTERS@IN@THE@MAZE"
+
+L31F1:  .db $22,"ARE@LOCATED@USING"
+L3203:  .db     "@THE@RADAR@SCREEN"
+
+L3214:  .db $25,"MONSTERS"
+L321D:  .db     "@BECOME@VISIBLE@WHEN@ENTERI"
+L3238:  .db     "NG"
+
+L323A:  .db $24,"THE@SAME@MAZE@CORRIDOR@AS@THE@PLAYER"
+
+L325F:  .db $0B,"@GET@READY@"
+L326B:  .db $05,"RADAR"
+L3271:  .db $07,"ESCAPED"
+L3279:  .db $07,"CREDITS"
+L3281:  .db $09,"DUNGEON@@"
+L328B:  .db $0F,"WORLORD@DUNGEON"
+L329B:  .db $09,"THE@ARENA"
+L32A5:  .db $07,"THE@PIT"
+L32AD:  .db $15,"OR@FOR@EXTRA@WORRIORS"
 
 ;
-; Strings here. Definatly starting at $3132 to $3335 or so...
+; these don't have length bytes, not sure why not
 ;
-	nop
-L3131:	dec	 bc
-	ld	 c,c
-	ld	 c,(hl)
-	ld	 d,e
-	ld	 b,l
-	ld	 d,d
-	ld	 d,h
-L3138:	ld	 b,b
-	ld	 b,e
-	ld	 c,a
-	ld	 c,c
-	ld	 c,(hl)
-	dec	 bc
-	ld	 c,b
-	ld	 c,c
-	ld	 b,a
-	ld	 c,b
-	ld	 b,b
-	ld	 d,e
-	ld	 b,e
-	ld	 c,a
-	ld	 d,d
-	ld	 b,l
-	ld	 d,e
-	rla
-	ld	 d,b
-	ld	 d,d
-	ld	 b,l
-	ld	 d,e
-	ld	 d,e
-	ld	 b,b
-	ld	 c,a
-	ld	 c,(hl)
-	ld	 b,l
-	ld	 b,b
-	ld	 d,b
-	ld	 c,h
-	ld	 b,c
-	ld	 e,c
-	ld	 b,l
-	ld	 d,d
-	ld	 b,b
-	ld	 b,d
-	ld	 d,l
-	ld	 d,h
-	ld	 d,h
-	ld	 c,a
-	ld	 c,(hl)
-	rla
-	ld	 d,b
-	ld	 d,d
-	ld	 b,l
-	ld	 d,e
-	ld	 d,e
-	ld	 b,b
-	ld	 d,h
-	ld	 d,a
-	ld	 c,a
-	ld	 b,b
-	ld	 d,b
-	ld	 c,h
-	ld	 b,c
-	ld	 e,c
-	ld	 b,l
-	ld	 d,d
-	ld	 b,b
-	ld	 b,d
-	ld	 d,l
-	ld	 d,h
-	ld	 d,h
-	ld	 c,a
-	ld	 c,(hl)
-	ld	 (bc),a
-	ld	 c,a
-	ld	 d,d
-	rla
-	ld	 b,h
-	ld	 b,l
-	ld	 d,b
-	ld	 c,a
-	ld	 d,e
-	ld	 c,c
-	ld	 d,h
-	ld	 b,b
-	ld	 b,c
-	ld	 b,h
-	ld	 b,h
-	ld	 c,c
-	ld	 d,h
-	ld	 c,c
-	ld	 c,a
-	ld	 c,(hl)
-	ld	 b,c
-	ld	 c,h
-	ld	 b,b
-	ld	 b,e
-	ld	 c,a
-	ld	 c,c
-	ld	 c,(hl)
-	inc	 de
-	ld	 b,(hl)
-	ld	 c,a
-	ld	 d,d
-	ld	 b,b
-	ld	 d,h
-	ld	 d,a
-	ld	 c,a
-	ld	 b,b
-	ld	 d,b
-	ld	 c,h
-	ld	 b,c
-	ld	 e,c
-	ld	 b,l
-	ld	 d,d
-	ld	 b,b
-	ld	 b,a
-	ld	 b,c
-	ld	 c,l
-	ld	 b,l
-	ld	 b,$50
-	ld	 c,a
-	ld	 c,c
-	ld	 c,(hl)
-	ld	 d,h
-	ld	 d,e
-	inc	 c
-	ld	 b,d
-	ld	 c,a
-	ld	 c,(hl)
-	ld	 d,l
-	ld	 d,e
-	ld	 b,b
-	ld	 d,b
-	ld	 c,h
-	ld	 b,c
-	ld	 e,c
-	ld	 b,l
-	ld	 d,d
-	dec	 d
-	ld	 d,a
-	ld	 b,c
-	ld	 c,c
-	ld	 d,h
-	ld	 b,b
-	ld	 b,(hl)
-	ld	 c,a
-	ld	 d,d
-	ld	 b,b
-	ld	 c,c
-	ld	 c,(hl)
-	ld	 d,e
-	ld	 d,h
-	ld	 d,d
-	ld	 d,l
-	ld	 b,e
-	ld	 d,h
-	ld	 c,c
-	ld	 c,a
-	ld	 c,(hl)
-	ld	 d,e
-	ld	 e,$49
-	ld	 c,(hl)
-	ld	 d,(hl)
-	ld	 c,c
-	ld	 d,e
-	ld	 c,c
-	ld	 b,d
-	ld	 c,h
-	ld	 b,l
-	ld	 b,b
-	ld	 c,l
-	ld	 c,a
-	ld	 c,(hl)
-	ld	 d,e
-	ld	 d,h
-	ld	 b,l
-	ld	 d,d
-	ld	 d,e
-	ld	 b,b
-	ld	 c,c
-	ld	 c,(hl)
-	ld	 b,b
-	ld	 d,h
-	ld	 c,b
-	ld	 b,l
-	ld	 b,b
-	ld	 c,l
-	ld	 b,c
-	ld	 e,d
-	ld	 b,l
-	ld	 (L5241),hl
-	ld	 b,l
-	ld	 b,b
-	ld	 c,h
-	ld	 c,a
-	ld	 b,e
-	ld	 b,c
-	ld	 d,h
-	ld	 b,l
-	ld	 b,h
-	ld	 b,b
-	ld	 d,l
-	ld	 d,e
-	ld	 c,c
-	ld	 c,(hl)
-	ld	 b,a
-L3203:	ld	 b,b
-	ld	 d,h
-	ld	 c,b
-	ld	 b,l
-	ld	 b,b
-	ld	 d,d
-	ld	 b,c
-	ld	 b,h
-	ld	 b,c
-	ld	 d,d
-	ld	 b,b
-	ld	 d,e
-	ld	 b,e
-	ld	 d,d
-	ld	 b,l
-	ld	 b,l
-	ld	 c,(hl)
-	dec	 h
-	ld	 c,l
-	ld	 c,a
-	ld	 c,(hl)
-	ld	 d,e
-	ld	 d,h
-	ld	 b,l
-	ld	 d,d
-	ld	 d,e
-L321D:	ld	 b,b
-	ld	 b,d
-	ld	 b,l
-	ld	 b,e
-	ld	 c,a
-	ld	 c,l
-	ld	 b,l
-	ld	 b,b
-	ld	 d,(hl)
-	ld	 c,c
-	ld	 d,e
-	ld	 c,c
-	ld	 b,d
-	ld	 c,h
-	ld	 b,l
-	ld	 b,b
-	ld	 d,a
-	ld	 c,b
-	ld	 b,l
-	ld	 c,(hl)
-	ld	 b,b
-	ld	 b,l
-	ld	 c,(hl)
-	ld	 d,h
-	ld	 b,l
-	ld	 d,d
-	ld	 c,c
-L3238:	ld	 c,(hl)
-	ld	 b,a
-	inc	 h
-	ld	 d,h
-	ld	 c,b
-	ld	 b,l
-	ld	 b,b
-	ld	 d,e
-	ld	 b,c
-	ld	 c,l
-	ld	 b,l
-	ld	 b,b
-	ld	 c,l
-	ld	 b,c
-	ld	 e,d
-	ld	 b,l
-	ld	 b,b
-	ld	 b,e
-	ld	 c,a
-	ld	 d,d
-	ld	 d,d
-	ld	 c,c
-	ld	 b,h
-	ld	 c,a
-	ld	 d,d
-	ld	 b,b
-	ld	 b,c
-	ld	 d,e
-	ld	 b,b
-	ld	 d,h
-	ld	 c,b
-	ld	 b,l
-	ld	 b,b
-	ld	 d,b
-	ld	 c,h
-	ld	 b,c
-	ld	 e,c
-	ld	 b,l
-	ld	 d,d
-	dec	 bc
-	ld	 b,b
-	ld	 b,a
-	ld	 b,l
-	ld	 d,h
-	ld	 b,b
-	ld	 d,d
-	ld	 b,l
-	ld	 b,c
-	ld	 b,h
-	ld	 e,c
-	ld	 b,b
-	dec	 b
-	ld	 d,d
-	ld	 b,c
-	ld	 b,h
-	ld	 b,c
-	ld	 d,d
-	rlca
-	ld	 b,l
-	ld	 d,e
-	ld	 b,e
-	ld	 b,c
-	ld	 d,b
-	ld	 b,l
-	ld	 b,h
-	rlca
-	ld	 b,e
-	ld	 d,d
-	ld	 b,l
-	ld	 b,h
-	ld	 c,c
-	ld	 d,h
-	ld	 d,e
-	add	 hl,bc
-	ld	 b,h
-	ld	 d,l
-	ld	 c,(hl)
-	ld	 b,a
-	ld	 b,l
-	ld	 c,a
-	ld	 c,(hl)
-	ld	 b,b
-	ld	 b,b
-	rrca
-	ld	 d,a
-	ld	 c,a
-	ld	 d,d
-	ld	 c,h
-	ld	 c,a
-	ld	 d,d
-	ld	 b,h
-	ld	 b,b
-	ld	 b,h
-	ld	 d,l
-	ld	 c,(hl)
-	ld	 b,a
-	ld	 b,l
-	ld	 c,a
-	ld	 c,(hl)
-	add	 hl,bc
-	ld	 d,h
-	ld	 c,b
-	ld	 b,l
-	ld	 b,b
-	ld	 b,c
-	ld	 d,d
-	ld	 b,l
-	ld	 c,(hl)
-	ld	 b,c
-	rlca
-	ld	 d,h
-	ld	 c,b
-	ld	 b,l
-	ld	 b,b
-	ld	 d,b
-	ld	 c,c
-	ld	 d,h
-	dec	 d
-	ld	 c,a
-	ld	 d,d
-	ld	 b,b
-	ld	 b,(hl)
-	ld	 c,a
-	ld	 d,d
-	ld	 b,b
-	ld	 b,l
-	ld	 e,b
-	ld	 d,h
-	ld	 d,d
-	ld	 b,c
-	ld	 b,b
-	ld	 d,a
-	ld	 c,a
-	ld	 d,d
-	ld	 d,d
-	ld	 c,c
-	ld	 c,a
-	ld	 d,d
-	ld	 d,e
-	ld	 b,a
-	ld	 c,a
-	ld	 b,h
-	ld	 c,a
-	ld	 d,l
-	ld	 b,d
-	ld	 c,h
-	ld	 b,l
-	ld	 b,b
-	ld	 d,e
-	ld	 b,e
-	ld	 c,a
-	ld	 d,d
-	ld	 b,l
-ld	 b,a
-	ld	 b,c
-	ld	 c,l
-	ld	 b,l
-	ld	 b,b
-	ld	 c,a
-	ld	 d,(hl)
-	ld	 b,l
-	ld	 d,d
-	ld	 e,e
-	ld	 b,b
-	ld	 sp,L3839
-	jr	 nc,L3321
-	ld	 c,l
-	ld	 c,c
-	ld	 b,h
-	ld	 d,a
-	ld	 b,c
-	ld	 e,c
-	ld	 b,b
-	ld	 c,l
-	ld	 b,(hl)
-	ld	 b,a
-	ld	 b,b
-	ld	 b,e
-	ld	 c,a
-L32EE:	ld	 e,h
-	ld	 e,l
-	ld	 e,(hl)
-	ld	 b,h
-	ld	 d,l
-	ld	 c,(hl)
-	ld	 b,a
-	ld	 b,l
-	ld	 c,a
-	ld	 c,(hl)
-	ld	 b,d
-	ld	 d,l
-	ld	 d,d
-	ld	 d,a
-	ld	 c,a
-	ld	 d,d
-	ld	 b,a
-	ld	 b,c
-	ld	 d,d
-	ld	 d,a
-	ld	 c,a
-	ld	 d,d
-	ld	 d,h
-	ld	 c,b
-	ld	 c,a
-	ld	 d,d
-	ld	 d,a
-	ld	 c,a
-	ld	 d,d
-	ld	 d,a
-	ld	 c,a
-	ld	 d,d
-	ld	 c,h
-	ld	 d,l
-	ld	 c,e
-	ld	 d,a
-	ld	 c,c
-	ld	 e,d
-	ld	 b,c
-	ld	 d,d
-	ld	 b,h
-	ld	 b,b
-	ld	 c,a
-	ld	 b,(hl)
-L331A:	ld	 b,b
-	ld	 d,a
-	ld	 c,a
-	ld	 d,d
-	ld	 d,d
-	ld	 c,c
-	ld	 c,a
-L3321:	ld	 d,d
-	ld	 d,e
-	ld	 b,c
-	ld	 c,h
-	ld	 c,h
-	ld	 b,b
-	ld	 d,d
-	ld	 c,c
-	ld	 b,a
-	ld	 c,b
-	ld	 d,h
-	ld	 d,e
-	ld	 b,b
-	ld	 d,d
-	ld	 b,l
-	ld	 d,e
-	ld	 b,l
-ld	 d,d
-	ld	 d,(hl)
-	ld	 b,l
-	ld	 b,h
+
+L32C3:  .db "GODOUBLE@SCORE"
+
+L32D1:  .db "GAME@OVER"
+        .db "[@1980@MIDWAY@MFG@CO"
+
+;
+; these aren't length codes, maybe some kind of control markings?
+;
+L32EE:  .db $5C,$5D,$5E
+        .db "DUNGEONBURWORGARWORTHORWORWORLUKWIZARD@OF"
+
+L331A:  .db "@WORRIORSALL@RIGHTS@RESERVED"	
+
 	ld	 sp,L3030
 	ld	 (L3030),a
 	dec	 (hl)
@@ -7072,7 +6854,7 @@ ld	 d,d
 	jr	 nc,L3376
 	dec	 (hl)
 	jr	 nc,L3377
-L3347:	nop
+L3347:	nop	
 L3348:	adc	 a,$33
 	jr	 z,L3380
 	add	 a,d
@@ -7082,31 +6864,31 @@ L3348:	adc	 a,$33
 L3352:	ld	 (de),a
 	dec	 sp
 	ld	 c,l
-	scf
+	scf	
 	ld	 (de),a
 	dec	 sp
 	ld	 c,l
-	scf
+	scf	
 	ld	 (de),a
 	dec	 sp
 	ld	 c,l
-	scf
+	scf	
 	ld	 (de),a
 	dec	 sp
 	ld	 c,l
-	scf
+	scf	
 	ld	 (de),a
 	dec	 sp
 	ld	 c,l
-	scf
+	scf	
 	ld	 bc,L0138
 	jr	 c,L3347
 	inc	 (hl)
 L336C:	ld	 (hl),$35
-	nop
-L336F:	nop
-L3370:	nop
-	nop
+	nop	
+L336F:	nop	
+L3370:	nop	
+	nop	
 	sbc	 a,h
 	jr	 c,L3368
 	ld	 (hl),$9C
@@ -7118,15 +6900,15 @@ L3377:	jr	 c,L336C
 	ld	 (hl),$9C
 	jr	 c,L3378
 	ld	 (hl),$A7
-	scf
+	scf	
 	and	 a
-	scf
+	scf	
 	call	 c,L3634
 	dec	 (hl)
-	nop
-	nop
-	nop
-	nop
+	nop	
+	nop	
+	nop	
+	nop	
 	cp	 b
 	ld	 a,(L35EA)
 	cp	 b
@@ -7142,10 +6924,10 @@ L3377:	jr	 c,L336C
 	ld	 (hl),$DC
 	inc	 (hl)
 	ld	 (hl),$35
-	nop
-	nop
-	nop
-	nop
+	nop	
+	nop	
+	nop	
+	nop	
 	or	 $38
 	sub	 b
 	dec	 (hl)
@@ -7166,131 +6948,131 @@ L3377:	jr	 c,L336C
 	ld	 (hl),$DC
 	inc	 (hl)
 	ld	 (hl),$35
-	nop
-	nop
-	nop
-	nop
-	nop
-	nop
-	nop
-	nop
-	nop
-	nop
-	nop
-	nop
-	nop
-	nop
-	nop
-	nop
+	nop	
+	nop	
+	nop	
+	nop	
+	nop	
+	nop	
+	nop	
+	nop	
+	nop	
+	nop	
+	nop	
+	nop	
+	nop	
+	nop	
+	nop	
+	nop	
 	ret	 nz
 	inc	 b
-	nop
-	nop
+	nop	
+	nop	
 	ret	 nz
-	di
-	nop
-	nop
-	nop
-	ccf
+	di	
+	nop	
+	nop	
+	nop	
+	ccf	
 	rst	 38H
 	inc	 c
-	nop
-	nop
-	rrca
+	nop	
+	nop	
+	rrca	
 	rst	 38H
 	call	 m,$0000
-	rrca
+	rrca	
 	rst	 18H
 	ld	 a,a
-	nop
-	nop
+	nop	
+	nop	
 	rst	 38H
 	ld	 d,l
 	ld	 a,h
-	nop
-	nop
-	DB	 $fd,$55
+	nop	
+	nop	
+	.db	 $fd,$55
 	ld	 a,h
-	nop
-	nop
-	ccf
+	nop	
+	nop	
+	ccf	
 L3401:	push	 af
 	ld	 a,h
-	nop
-	nop
-	rrca
-	ccf
+	nop	
+	nop	
+	rrca	
+	ccf	
 	ret	 p
-	nop
-	nop
+	nop	
+	nop	
 	ld	 c,h
-	rrca
+	rrca	
 	pop	 bc
-	nop
-	nop
-	nop
-	rrca
+	nop	
+	nop	
+	nop	
+	rrca	
 	ret	 nz
-	nop
-	nop
-	nop
+	nop	
+	nop	
+	nop	
 	inc	 bc
-	nop
-	nop
-	nop
-	nop
-	nop
-	nop
-	nop
-	nop
-	nop
-	nop
-	nop
-	nop
-	nop
-	nop
-	nop
-	nop
-	nop
-	nop
+	nop	
+	nop	
+	nop	
+	nop	
+	nop	
+	nop	
+	nop	
+	nop	
+	nop	
+	nop	
+	nop	
+	nop	
+	nop	
+	nop	
+	nop	
+	nop	
+	nop	
+	nop	
 	ld	 bc,$0000
-	nop
-	nop
-	nop
+	nop	
+	nop	
+	nop	
 	ld	 b,b
-	nop
-	nop
-	nop
-	nop
+	nop	
+	nop	
+	nop	
+	nop	
 	ld	 d,h
-L3434:	nop
-	nop
-	nop
-	nop
+L3434:	nop	
+	nop	
+	nop	
+	nop	
 	inc	 d
 	inc	 b
-	nop
-	nop
-	nop
+	nop	
+	nop	
+	nop	
 	dec	 d
 	ld	 d,h
-	nop
+	nop	
 	ret	 nz
-	nop
+	nop	
 	dec	 e
 	ld	 d,h
 	inc	 d
-	nop
-	nop
+	nop	
+	nop	
 	ld	 e,a
 	push	 de
 	ld	 d,l
-	nop
-	nop
+	nop	
+	nop	
 	ld	 e,a
 	rst	 38H
 	push	 af
-	nop
+	nop	
 	pop	 bc
 	ld	 a,a
 	rst	 38H
@@ -7304,66 +7086,66 @@ L3434:	nop
 	rst	 38H
 	rst	 38H
 	push	 af
-	nop
+	nop	
 	dec	 b
 	push	 af
-	DB	  $fd,$f4
-	nop
-	nop
+	.db	  $fd,$f4
+	nop	
+	nop	
 	ld	 d,l
 	ld	 d,l
 	ld	 d,h
-	nop
+	nop	
 	dec	 b
 	inc	 d
 	inc	 d
 	ld	 b,l
 	ld	 b,b
 	inc	 b
-	nop
-	nop
+	nop	
+	nop	
 	ld	 b,b
 	ld	 b,b
 	ld	 d,b
-	nop
-L347A:	nop
+	nop	
+L347A:	nop	
 	ld	 b,b
-	nop
-	nop
-	nop
-	nop
-	nop
-	nop
-	nop
-	nop
+	nop	
+	nop	
+	nop	
+	nop	
+	nop	
+	nop	
+	nop	
+	nop	
 	jr	 nz,L3486
-L3486:	nop
+L3486:	nop	
 	add	 a,b
-	nop
+	nop	
 	add	 a,b
-	nop
+	nop	
 	add	 a,b
 	jr	 nz,L3490
-	nop
+	nop	
 	ld	 (bc),a
-L3490:	nop
+L3490:	nop	
 	ex	 af,af'
 L3492:	ld	 (bc),a
-	nop
+	nop	
 	ex	 af,af'
-	nop
+	nop	
 	ld	 (bc),a
 	adc	 a,d
 	adc	 a,d
 	ex	 af,af'
-	nop
-	nop
+	nop	
+	nop	
 	xor	 a
 	jp	 m,L0088
 	ld	 (bc),a
 	cp	 a
 	cp	 $A0
-	nop
+	nop	
 	ld	 (bc),a
 	cp	 a
 	rst	 38H
@@ -7372,98 +7154,98 @@ L3492:	ld	 (bc),a
 	rst	 38H
 	rst	 38H
 	and	 b
-	nop
+	nop	
 	ld	 a,(bc)
 	rst	 38H
 	rst	 38H
 	and	 b
-	nop
+	nop	
 	ld	 a,(bc)
 L34B5:	rst	 38H
 	rst	 38H
 	and	 b
-	nop
+	nop	
 	ld	 a,(bc)
 	cp	 a
 	rst	 38H
 	ret	 pe
-	nop
+	nop	
 	jr	 nz,L347A
 	cp	 a
 	ret	 po
-	nop
+	nop	
 	add	 a,b
 	and	 b
 	xor	 a
 	xor	 b
-	nop
-	nop
-	nop
+	nop	
+	nop	
+	nop	
 	ld	 hl,(L808A)
-	nop
-	nop
+	nop	
+	nop	
 	jr	 nz,L34D1
 L34D1:	add	 a,b
-	nop
-	nop
+	nop	
+	nop	
 	add	 a,b
-	nop
-	nop
-	nop
+	nop	
+	nop	
+	nop	
 	ld	 (bc),a
-	nop
-	nop
-	nop
-	nop
+	nop	
+	nop	
+	nop	
+	nop	
 	ex	 af,af'
 	djnz	 L34E0
-L34E0:	nop
+L34E0:	nop	
 	inc	 de
 	ld	 (bc),a
 	ld	 (bc),a
 	djnz	 L34E6
-L34E6:	nop
+L34E6:	nop	
 	add	 a,h
 	ret	 nz
 	jr	 nc,L34EB
-L34EB:	nop
+L34EB:	nop	
 	pop	 bc
 	inc	 b
-	nop
-	nop
+	nop	
+	nop	
 	ex	 af,af'
-	nop
-	nop
+	nop	
+	nop	
 	inc	 c
-	nop
-	nop
+	nop	
+	nop	
 	ld	 b,b
 	ld	 b,$00
-	nop
+	nop	
 	ret	 nz
 	ld	 c,$03
 	inc	 de
-	nop
+	nop	
 	inc	 bc
-	nop
+	nop	
 	ld	 c,b
-L3502:	nop
-	nop
+L3502:	nop	
+	nop	
 	ld	 (bc),a
 	ld	 bc,L2001
-	nop
+	nop	
 	ld	 b,b
 	inc	 b
 	djnz	 L350E
-	nop
-L350E:	nop
-	nop
+	nop	
+L350E:	nop	
+	nop	
 	jr	 nz,L3492
-	nop
+	nop	
 	jr	 nc,L3538
-	nop
+	nop	
 	inc	 c
-	nop
+	nop	
 	ld	 bc,L2004
 	call	 nz,L2300
 	ld	 (bc),a
@@ -7473,125 +7255,125 @@ L350E:	nop
 	ld	 sp,$0000
 	jr	 nc,L34AA
 	ld	 b,h
-L352B:	nop
-	nop
+L352B:	nop	
+	nop	
 	inc	 b
 	ex	 af,af'
-	nop
-	nop
-	nop
-	nop
-	nop
-	nop
-	nop
-	nop
-	nop
+	nop	
+	nop	
+	nop	
+	nop	
+	nop	
+	nop	
+	nop	
+	nop	
+	nop	
 L3538:	jr	 nc,L355A
-	nop
-	nop
+	nop	
+	nop	
 	jr	 nz,L353E
 L353E:	ld	 b,b
-	nop
+	nop	
 	jr	 nz,L3502
 	djnz	 L354C
-	nop
-	nop
+	nop	
+	nop	
 	inc	 b
-	nop
+	nop	
 	add	 a,b
 	ld	 b,b
-	nop
+	nop	
 	ld	 b,b
-L354C:	nop
+L354C:	nop	
 	jr	 nz,L354F
 L354F:	jr	 nc,L3551
 L3551:	djnz	 L3583
-	nop
-	nop
+	nop	
+	nop	
 L3555:	add	 a,b
 	ld	 (bc),a
-	nop
+	nop	
 	djnz	 L359A
 L355A:	inc	 b
 	jr	 nc,L3560
-	nop
+	nop	
 	inc	 bc
-	nop
-L3560:	nop
+	nop	
+L3560:	nop	
 	ld	 (bc),a
-	nop
-	nop
-	nop
+	nop	
+	nop	
+	nop	
 	add	 a,b
-	nop
-	nop
+	nop	
+	nop	
 	jr	 nc,L358A
 	jr	 nc,L356D
-	nop
+	nop	
 L356D:	ld	 bc,$0002
 	inc	 c
 	djnz	 L3574
-	nop
+	nop	
 L3574:	add	 a,c
-	nop
+	nop	
 	add	 a,b
 	ld	 b,b
 	inc	 c
-	nop
+	nop	
 	inc	 c
-	nop
+	nop	
 	ld	 (bc),a
 	djnz	 L358F
 	inc	 bc
-	nop
-	nop
+	nop	
+	nop	
 	inc	 bc
-L3583:	nop
+L3583:	nop	
 	ex	 af,af'
-	nop
-	nop
+	nop	
+	nop	
 	ld	 b,b
 	ld	 bc,$0000
-	nop
+	nop	
 	inc	 bc
-	nop
-	nop
-L358F:	nop
-	nop
-	nop
+	nop	
+	nop	
+L358F:	nop	
+	nop	
+	nop	
 	dec	 a
 	ld	 e,a
-	nop
-	nop
-	nop
+	nop	
+	nop	
+	nop	
 	dec	 sp
 	ld	 d,a
-	nop
-L359A:	nop
-	nop
+	nop	
+L359A:	nop	
+	nop	
 	rst	 38H
 	ld	 d,a
-	nop
-	nop
-	nop
+	nop	
+	nop	
+	nop	
 	push	 de
 	ld	 e,a
 	ret	 p
-	nop
-	nop
-	DB	 $fd,$5d
+	nop	
+	nop	
+	.db	 $fd,$5d
 	ld	 (hl),b
-	nop
-	nop
+	nop	
+	nop	
 	dec	 c
 	ld	 d,l
 	ld	 d,b
 	inc	 sp
-	nop
+	nop	
 	dec	 (hl)
 	and	 (hl)
 	ld	 d,b
-	DB	  $dd,$ff
+	.db	  $dd,$ff
 	push	 de
 	and	 (hl)
 	ld	 (hl),b
@@ -7600,69 +7382,69 @@ L359A:	nop
 	xor	 d
 	and	 l
 	ld	 (hl),b
-	DB	  $dd,$fe
+	.db	  $dd,$fe
 	xor	 d
 	sub	 l
 	ld	 (hl),b
 	inc	 sp
-	rrca
+	rrca	
 	push	 de
 	ld	 e,l
 	ld	 (hl),b
-	nop
-	nop
+	nop	
+	nop	
 	dec	 (hl)
 	ld	 e,a
 	ret	 p
-	nop
-	nop
+	nop	
+	nop	
 	dec	 (hl)
 	ld	 d,a
-	nop
-	nop
-	nop
+	nop	
+	nop	
+	nop	
 	push	 de
 	ld	 d,a
-	nop
-	nop
+	nop	
+	nop	
 	inc	 bc
 	ld	 d,a
 	rst	 10H
-	nop
-	nop
+	nop	
+	nop	
 	dec	 c
 	ld	 e,h
 	push	 de
 	ret	 nz
-	nop
+	nop	
 	ld	 (iy-$0b),b
 	ret	 nz
-	nop
+	nop	
 	push	 de
 	ld	 (hl),e
 	ld	 d,l
 	ret	 nz
-L35EA:	nop
-	nop
+L35EA:	nop	
+	nop	
 	call	 pe,$0000
-	nop
+	nop	
 	inc	 bc
 	ld	 d,a
-	nop
-	nop
-	nop
-	nop
+	nop	
+	nop	
+	nop	
+	nop	
 	call	 pe,$0000
-	nop
+	nop	
 	inc	 bc
 	ld	 d,a
-	nop
-	nop
+	nop	
+	nop	
 	ret	 p
-	nop
+	nop	
 	call	 pe,$0000
 	ld	 (hl),b
-	nop
+	nop	
 	call	 pe,$0000
 	ld	 a,h
 L3609:	inc	 bc
@@ -7670,22 +7452,22 @@ L3609:	inc	 bc
 	ld	 d,a
 	inc	 bc
 	xor	 h
-	nop
-	nop
+	nop	
+	nop	
 	ld	 d,l
-	jp	 $3FAC
-	nop
+	jp	 L3FAC
+	nop	
 	push	 af
 	ld	 a,l
 	and	 a
-	scf
+	scf	
 	ret	 p
 	dec	 c
 	ld	 d,l
 	and	 l
 	rst	 30H
 	or	 b
-	jp	 $A555
+	jp	 LA555
 	ld	 d,a
 	ret	 nc
 	ld	 a,a
@@ -7704,26 +7486,26 @@ L362A:	ld	 d,b
 	ld	 a,l
 L3634:	ld	 (hl),b
 	ld	 d,a
-	DB	  $fd,$5a
+	.db	  $fd,$5a
 	ld	 e,a
 	ret	 p
 	call	 m,L550D
 	ld	 e,h
-	nop
-	nop
-	rrca
-	DB	 $fd,$7c
-	nop
-	nop
-	nop
-	nop
+	nop	
+	nop	
+	rrca	
+	.db	 $fd,$7c
+	nop	
+	nop	
+	nop	
+	nop	
 	inc	 b
-	nop
+	nop	
 	ld	 b,h
-	nop
-	nop
+	nop	
+	nop	
 	inc	 d
-	nop
+	nop	
 	ld	 h,(hl)
 	xor	 d
 	add	 a,b
@@ -7734,117 +7516,117 @@ L3634:	ld	 (hl),b
 	add	 a,b
 	dec	 d
 	ld	 d,b
-	nop
-	nop
+	nop	
+	nop	
 	ld	 bc,L4001
-	nop
-	nop
+	nop	
+	nop	
 	add	 a,b
 	add	 a,e
-	nop
-	nop
+	nop	
+	nop	
 	inc	 bc
 	ld	 d,d
 	ld	 bc,$0000
-	nop
-	nop
+	nop	
+	nop	
 	ld	 ($0000),a
-	nop
+	nop	
 	ld	 de,L4004
-	nop
-	nop
+	nop	
+	nop	
 	ld	 c,(hl)
 	ld	 (bc),a
-	nop
-	nop
+	nop	
+	nop	
 	inc	 d
 	jr	 nz,L369E
 	ret	 nz
-	nop
+	nop	
 	ld	 d,h
 	ld	 bc,$0000
 	ld	 bc,L0050
 	ld	 bc,L0150
 	ld	 b,b
-	nop
+	nop	
 	dec	 b
 	ld	 d,b
 	dec	 d
 	ld	 b,b
-	nop
+	nop	
 	dec	 b
 	djnz	 L3690
-L3690:	nop
-	nop
-	nop
+L3690:	nop	
+	nop	
+	nop	
 	djnz	 L3695
-L3695:	nop
-	nop
-	nop
-	nop
-	nop
-	nop
-	nop
+L3695:	nop	
+	nop	
+	nop	
+	nop	
+	nop	
+	nop	
+	nop	
 	dec	 b
 	ld	 b,b
 L369E:	inc	 b
-	nop
-	nop
+	nop	
+	nop	
 	ld	 (bc),a
-	nop
+	nop	
 	inc	 b
-	nop
-	nop
+	nop	
+	nop	
 	dec	 b
 	ld	 b,b
 	dec	 b
 	ld	 b,b
-	nop
+	nop	
 	ld	 (bc),a
-	nop
+	nop	
 	dec	 b
 	ld	 d,b
-	nop
+	nop	
 	ld	 (bc),a
-	nop
-	nop
+	nop	
+	nop	
 	ld	 d,h
-	nop
+	nop	
 	ld	 (bc),a
-	nop
-	nop
+	nop	
+	nop	
 	inc	 d
-	nop
+	nop	
 	ld	 a,(bc)
-	nop
-	nop
-	nop
+	nop	
+	nop	
+	nop	
 	inc	 c
 	ld	 a,(bc)
-	nop
-	nop
+	nop	
+	nop	
 	ld	 bc,L0A06
-	nop
-	nop
+	nop	
+	nop	
 	ex	 af,af'
 	ld	 b,h
 	djnz	 L36CB
-L36CB:	nop
+L36CB:	nop	
 	inc	 bc
-	nop
-	nop
-	nop
-	nop
+	nop	
+	nop	
+	nop	
+	nop	
 	ld	 (de),a
 	ld	 c,b
 	ld	 b,b
-	nop
-	nop
-	nop
+	nop	
+	nop	
+	nop	
 	ld	 (bc),a
-	nop
-	nop
-	nop
+	nop	
+	nop	
+	nop	
 	ex	 af,af'
 	jr	 nc,L36E3
 	ld	 b,b
@@ -7855,44 +7637,44 @@ L36CB:	nop
 L36E3:	ld	 d,b
 	dec	 b
 	ld	 b,d
-	daa
+	daa	
 	ld	 d,h
-	nop
+	nop	
 	ld	 bc,L404C
 	ld	 d,(hl)
-	nop
+	nop	
 	dec	 d
 	ld	 b,b
-	nop
+	nop	
 	inc	 d
-	nop
-	nop
-	nop
+	nop	
+	nop	
+	nop	
 	ld	 a,$AF
-	nop
-	nop
-	nop
-	scf
+	nop	
+	nop	
+	nop	
+	scf	
 	xor	 e
-	nop
-	nop
-	nop
+	nop	
+	nop	
+	nop	
 	rst	 38H
 	xor	 e
-	nop
-	nop
-	nop
+	nop	
+	nop	
+	nop	
 	jp	 pe,LF0AF
-	nop
-	nop
+	nop	
+	nop	
 L3709:	cp	 $AE
 	or	 b
-	nop
-	nop
+	nop	
+	nop	
 	ld	 c,$AA
 	and	 b
 	inc	 sp
-	nop
+	nop	
 	ld	 a,(LA059)
 	xor	 $FF
 	jp	 pe,LB059
@@ -7906,50 +7688,50 @@ L3709:	cp	 $AE
 	ld	 l,d
 	or	 b
 	inc	 sp
-	rrca
+	rrca	
 	jp	 pe,LB0AE
-	nop
-	nop
+	nop	
+	nop	
 	ld	 a,(LF0AF)
-	nop
-	nop
+	nop	
+	nop	
 	ld	 a,(L00AB)
-	nop
-	nop
+	nop	
+	nop	
 L3736:	jp	 pe,L00AB
-	nop
+	nop	
 	inc	 bc
 	xor	 e
 	ex	 de,hl
-	nop
-	nop
+	nop	
+	nop	
 	ld	 c,$AC
 	jp	 pe,L00C0
 	cp	 $B0
 	jp	 m,L00C0
-	jp	 pe,$AAB3
+	jp	 pe,LAAB3
 	ret	 nz
-	nop
-	nop
+	nop	
+	nop	
 	call	 c,$0000
-	nop
+	nop	
 	inc	 bc
 	xor	 e
-	nop
-	nop
-	nop
-	nop
+	nop	
+	nop	
+	nop	
+	nop	
 	call	 c,$0000
-	nop
+	nop	
 	inc	 bc
 	xor	 e
-	nop
-	nop
+	nop	
+	nop	
 	ret	 p
-	nop
+	nop	
 	call	 c,$0000
 	or	 b
-	nop
+	nop	
 	call	 c,$0000
 	cp	 h
 	inc	 bc
@@ -7957,17 +7739,17 @@ L3736:	jp	 pe,L00AB
 	xor	 e
 	inc	 bc
 	ld	 e,h
-	nop
-	nop
+	nop	
+	nop	
 	xor	 d
-	jp	 $3F5C
-	nop
+	jp	 L3F5C
+	nop	
 	jp	 m,L5BBE
 	dec	 sp
 	ret	 p
 	ld	 c,$AA
 	ld	 e,d
-	ei
+	ei	
 	ld	 (hl),b
 	jp	 L5AAA
 	xor	 e
@@ -7991,21 +7773,21 @@ L3736:	jp	 pe,L00AB
 	cp	 $A5
 	xor	 a
 	ret	 p
-	call	 m,$AA0E
+	call	 m,LAA0E
 	xor	 h
-	nop
-L37A2:	nop
-L37A3:	rrca
+	nop	
+L37A2:	nop	
+L37A3:	rrca	
 	cp	 $BC
-	nop
-	nop
-	nop
-	nop
+	nop	
+	nop	
+	nop	
+	nop	
 	ex	 af,af'
-	nop
+	nop	
 	adc	 a,b
-	nop
-	nop
+	nop	
+	nop	
 	jr	 z,L37B1
 L37B1:	sbc	 a,c
 L37B2:	ld	 d,l
@@ -8015,114 +7797,114 @@ L37B2:	ld	 d,l
 	dec	 b
 	ld	 b,b
 	ld	 hl,(L00A0)
-	nop
+	nop	
 	jr	 nz,L37C9
 	and	 b
-	nop
-	nop
+	nop	
+	nop	
 	ld	 (bc),a
 	ld	 (bc),a
 	add	 a,b
-	nop
-	nop
+	nop	
+	nop	
 	ld	 b,b
 	ld	 b,e
-L37C9:	nop
-	nop
+L37C9:	nop	
+	nop	
 	inc	 bc
 	and	 c
 	ld	 (bc),a
-	nop
-	nop
-	nop
-	nop
+	nop	
+	nop	
+	nop	
+	nop	
 	ld	 sp,$0000
-	nop
+	nop	
 	ld	 (L8008),hl
-	nop
-	nop
+	nop	
+	nop	
 	adc	 a,l
 L37DC:	ld	 bc,$0000
 	jr	 z,L37F1
 	jr	 L37A3
-	nop
+	nop	
 	xor	 b
 	ld	 (bc),a
-	nop
-	nop
+	nop	
+	nop	
 	ld	 (bc),a
 	and	 b
-	nop
+	nop	
 	ld	 (bc),a
 L37EC:	and	 b
 	ld	 (bc),a
 	add	 a,b
-	nop
+	nop	
 	ld	 a,(bc)
 L37F1:	and	 b
 	ld	 hl,(L0080)
 	ld	 a,(bc)
 L37F6:	jr	 nz,L37F8
-L37F8:	nop
-	nop
-	nop
+L37F8:	nop	
+	nop	
+	nop	
 	jr	 nz,L37FD
-L37FD:	nop
-	nop
-	nop
-	nop
-	nop
-	nop
-	nop
+L37FD:	nop	
+	nop	
+	nop	
+	nop	
+	nop	
+	nop	
+	nop	
 	ld	 a,(bc)
 	add	 a,b
 	ex	 af,af'
-	nop
-	nop
+	nop	
+	nop	
 	ld	 bc,L0800
-	nop
-	nop
+	nop	
+	nop	
 	ld	 a,(bc)
 	add	 a,b
 L3810:	ld	 a,(bc)
 	add	 a,b
-	nop
+	nop	
 	ld	 bc,L0A00
 	and	 b
-	nop
+	nop	
 	ld	 bc,$0000
 	xor	 b
-	nop
+	nop	
 	ld	 bc,$0000
 	jr	 z,L3822
 L3822:	dec	 b
-	nop
-	nop
-	nop
+	nop	
+	nop	
+	nop	
 	inc	 c
 	dec	 b
-	nop
-	nop
+	nop	
+	nop	
 	ld	 (bc),a
 	add	 hl,bc
 	dec	 b
-	nop
-	nop
+	nop	
+	nop	
 	inc	 b
 	adc	 a,b
 	jr	 nz,L3833
-L3833:	nop
+L3833:	nop	
 	inc	 bc
-	nop
-	nop
-	nop
-	nop
+	nop	
+	nop	
+	nop	
+	nop	
 L3839:	ld	 hl,L8084
-	nop
-	nop
-	nop
+	nop	
+	nop	
+	nop	
 	ld	 bc,$0000
-	nop
+	nop	
 	inc	 b
 	jr	 nc,L3850
 	add	 a,b
@@ -8133,22 +7915,22 @@ L3839:	ld	 hl,L8084
 	add	 a,c
 	dec	 de
 	xor	 b
-L3850:	nop
+L3850:	nop	
 	ld	 (bc),a
 	adc	 a,h
 	add	 a,b
 	xor	 c
-	nop
+	nop	
 	ld	 hl,(L0080)
 	jr	 z,L385B
-L385B:	nop
+L385B:	nop	
 L385C:	ld	 (de),a
 	dec	 sp
 	add	 a,$3B
 	ld	 a,d
 	inc	 a
 	add	 a,$3B
-	nop
+	nop	
 	sbc	 a,b
 	ld	 e,d
 	sbc	 a,b
@@ -8164,7 +7946,7 @@ L385C:	ld	 (de),a
 	sbc	 a,c
 	jp	 nz,L1C99
 	sbc	 a,d
-	halt
+	halt	
 	sbc	 a,d
 	cp	 b
 	ld	 a,(L3B6C)
@@ -8189,83 +7971,83 @@ L385C:	ld	 (de),a
 ;
 ; At $389C starts pattern of Blue Worrior (demo screen) ???
 ;
-L389C:	nop
-	nop
-	nop
+L389C:	nop	
+	nop	
+	nop	
 	ld	 d,h
-	nop
-	nop
-	nop
+	nop	
+	nop	
+	nop	
 	inc	 bc
 	dec	 d
-	nop
-L38A6:	nop
-	nop
-	nop
+	nop	
+L38A6:	nop	
+	nop	
+	nop	
 	dec	 d
 	inc	 b
-	nop
-	nop
+	nop	
+	nop	
 	dec	 b
 	ld	 d,h
-	nop
-	nop
-	nop
-	nop
+	nop	
+	nop	
+	nop	
+	nop	
 	ld	 d,h
 	ld	 d,b
-	nop
-	nop
-	nop
+	nop	
+	nop	
+	nop	
 	ld	 d,l
 	ld	 d,h
-	nop
-	nop
+	nop	
+	nop	
 	ld	 bc,LD47D
 L38BF:	inc	 b
 	ld	 b,b
 	dec	 b
 	ld	 a,l
 	ret	 nc
-	scf
+	scf	
 	ld	 a,a
 	rst	 38H
-	DB	  $fd,$d0
+	.db	  $fd,$d0
 	inc	 b
 	ld	 b,b
 	rst	 38H
 	push	 af
 	ld	 d,b
-	nop
-	nop
+	nop	
+	nop	
 	dec	 b
 	ld	 d,h
 	ld	 d,b
-	nop
-	nop
-	nop
+	nop	
+	nop	
+	nop	
 	ld	 d,l
-	nop
-	nop
-	nop
+	nop	
+	nop	
+	nop	
 	ld	 bc,L0055
-	nop
-	nop
+	nop	
+	nop	
 	dec	 b
 	ld	 d,l
-	nop
-	nop
-	nop
+	nop	
+	nop	
+	nop	
 	dec	 d
 L38E5:	dec	 b
-	nop
-	nop
-	nop
+	nop	
+	nop	
+	nop	
 	ld	 d,h
 	dec	 b
 	ld	 b,b
-	nop
-	nop
+	nop	
+	nop	
 	ld	 d,b
 	ld	 bc,L0040
 	dec	 b
@@ -8275,34 +8057,34 @@ L38E5:	dec	 b
 ;
 ; At $38F6 starts pattern of Yellow Worrior (demo screen) ???
 ;
-L38F6:	nop
-	nop
-	nop
+L38F6:	nop	
+	nop	
+	nop	
 	xor	 b
-	nop
-	nop
-	nop
+	nop	
+	nop	
+	nop	
 	inc	 bc
 	ld	 hl,($0000)
-	nop
-	nop
+	nop	
+	nop	
 L3903:	ld	 hl,(L0008)
-	nop
-ld	 a,(bc)
+	nop	
+L3907:	ld	 a,(bc)
 	xor	 b
-	nop
-	nop
-	nop
-	nop
+	nop	
+	nop	
+	nop	
+	nop	
 	xor	 b
 	and	 b
-	nop
-	nop
-	nop
+	nop	
+	nop	
+	nop	
 	xor	 d
 	xor	 b
-	nop
-	nop
+	nop	
+	nop	
 	ld	 (bc),a
 	cp	 (hl)
 	ret	 pe
@@ -8319,154 +8101,154 @@ L391F:	cp	 a
 	add	 a,b
 	rst	 38H
 	jp	 m,L00A0
-	nop
+	nop	
 	ld	 a,(bc)
 	xor	 b
 	and	 b
-	nop
-	nop
-	nop
+	nop	
+	nop	
+	nop	
 	xor	 d
-	nop
-	nop
-	nop
+	nop	
+	nop	
+	nop	
 	ld	 (bc),a
 	xor	 d
-	nop
-	nop
-	nop
+	nop	
+	nop	
+	nop	
 	ld	 a,(bc)
 	xor	 d
-	nop
-	nop
-	nop
+	nop	
+	nop	
+	nop	
 	ld	 hl,(L000A)
-	nop
-	nop
+	nop	
+	nop	
 	xor	 b
 	ld	 a,(bc)
 	add	 a,b
-	nop
-	nop
+	nop	
+	nop	
 	and	 b
 	ld	 (bc),a
 	add	 a,b
-	nop
+	nop	
 	ld	 a,(bc)
 	and	 b
 	ld	 hl,(L0080)
-	nop
-	nop
+	nop	
+	nop	
 	ld	 d,h
-	nop
-	nop
-	nop
+	nop	
+	nop	
+	nop	
 	inc	 bc
 	dec	 d
-	nop
-	nop
-	nop
-	nop
+	nop	
+	nop	
+	nop	
+	nop	
 	dec	 d
 	inc	 b
-	nop
-	nop
+	nop	
+	nop	
 	dec	 b
 	ld	 d,h
-	nop
-	nop
-	nop
-	nop
+	nop	
+	nop	
+	nop	
+	nop	
 	ld	 d,h
 	ld	 d,b
-	nop
-	nop
-	nop
+	nop	
+	nop	
+	nop	
 	ld	 d,l
 	ld	 d,h
-	nop
-	nop
+	nop	
+	nop	
 	ld	 bc,LD47D
 	inc	 b
 	ld	 b,b
 	dec	 b
 	ld	 a,l
 	ret	 nc
-	scf
+	scf	
 	ld	 a,a
 	rst	 38H
-	DB	  $fd,$d0
+	.db	  $fd,$d0
 	inc	 b
 	ld	 b,b
 	rst	 38H
 	push	 af
 	ld	 d,b
-	nop
-	nop
+	nop	
+	nop	
 	dec	 b
 	ld	 d,h
 	ld	 d,b
-	nop
-	nop
+	nop	
+	nop	
 	ld	 bc,L0054
-	nop
-	nop
-	nop
+	nop	
+	nop	
+	nop	
 	ld	 d,b
-	nop
-	nop
-	nop
-	nop
+	nop	
+	nop	
+	nop	
+	nop	
 	ld	 d,b
-	nop
-	nop
-	nop
-	nop
+	nop	
+	nop	
+	nop	
+	nop	
 	ld	 d,b
-	nop
-	nop
-	nop
-	nop
+	nop	
+	nop	
+	nop	
+	nop	
 	ld	 d,b
-	nop
-	nop
-	nop
-	nop
+	nop	
+	nop	
+	nop	
+	nop	
 	ld	 d,b
-	nop
-	nop
-	nop
+	nop	
+	nop	
+	nop	
 	dec	 b
 	ld	 d,b
-	nop
-L39AA:	nop
-	nop
-	nop
+	nop	
+L39AA:	nop	
+	nop	
+	nop	
 	xor	 b
-	nop
-	nop
-	nop
+	nop	
+	nop	
+	nop	
 	inc	 bc
 	ld	 hl,($0000)
-	nop
-	nop
+	nop	
+	nop	
 	ld	 hl,(L0008)
-	nop
+	nop	
 	ld	 a,(bc)
 	xor	 b
-	nop
-	nop
-	nop
-	nop
+	nop	
+	nop	
+	nop	
+	nop	
 	xor	 b
 	and	 b
-	nop
-	nop
-	nop
+	nop	
+	nop	
+	nop	
 	xor	 d
 	xor	 b
-	nop
-	nop
+	nop	
+	nop	
 	ld	 (bc),a
 	cp	 (hl)
 	ret	 pe
@@ -8483,152 +8265,152 @@ L39AA:	nop
 	add	 a,b
 	rst	 38H
 	jp	 m,L00A0
-	nop
+	nop	
 	ld	 a,(bc)
 	xor	 b
 	and	 b
-	nop
-	nop
+	nop	
+	nop	
 	ld	 (bc),a
 	xor	 b
-	nop
-	nop
-	nop
-	nop
+	nop	
+	nop	
+	nop	
+	nop	
 	and	 b
-	nop
-	nop
-	nop
-	nop
+	nop	
+	nop	
+	nop	
+	nop	
 	and	 b
-	nop
-	nop
-	nop
-	nop
+	nop	
+	nop	
+	nop	
+	nop	
 	and	 b
-	nop
-	nop
-	nop
-	nop
+	nop	
+	nop	
+	nop	
+	nop	
 	and	 b
-	nop
-	nop
-	nop
-	nop
+	nop	
+	nop	
+	nop	
+	nop	
 	and	 b
-	nop
-	nop
-	nop
+	nop	
+	nop	
+	nop	
 	ld	 a,(bc)
 	and	 b
-	nop
-	nop
-	nop
-	nop
+	nop	
+	nop	
+	nop	
+	nop	
 	ld	 d,h
-	nop
-	nop
-	nop
+	nop	
+	nop	
+	nop	
 	inc	 bc
 	dec	 d
-	nop
-	nop
-	nop
-L3A10:	nop
+	nop	
+	nop	
+	nop	
+L3A10:	nop	
 	dec	 d
 	inc	 b
-	nop
-	nop
+	nop	
+	nop	
 	dec	 b
 	ld	 d,h
-	nop
-	nop
-	nop
-	nop
+	nop	
+	nop	
+	nop	
+	nop	
 	ld	 d,h
 	ld	 d,b
-	nop
-	nop
-	nop
+	nop	
+	nop	
+	nop	
 	ld	 d,l
 	ld	 d,h
-	nop
-	nop
+	nop	
+	nop	
 	ld	 bc,LD47D
 	inc	 b
 	ld	 b,b
 	dec	 b
 	ld	 a,l
 	ret	 nc
-	scf
+	scf	
 	ld	 a,a
 	rst	 38H
-	DB	  $fd,$d0
+	.db	  $fd,$d0
 	inc	 b
 	ld	 b,b
 	rst	 38H
 	push	 af
 	ld	 d,b
-	nop
-	nop
+	nop	
+	nop	
 L3A38:	dec	 b
 	ld	 d,h
 	ld	 d,b
-	nop
-	nop
+	nop	
+	nop	
 	ld	 bc,L0054
-	nop
-	nop
-	nop
+	nop	
+	nop	
+	nop	
 	ld	 d,l
-	nop
-	nop
-	nop
-	nop
+	nop	
+	nop	
+	nop	
+	nop	
 	ld	 d,l
 	ld	 b,b
-	nop
-	nop
+	nop	
+	nop	
 	ld	 bc,L4045
-	nop
-	nop
+	nop	
+	nop	
 	ld	 bc,L5041
-	nop
-	nop
+	nop	
+	nop	
 	ld	 bc,$1040
-	nop
-	nop
+	nop	
+	nop	
 	dec	 d
 L3A5C:	ld	 b,c
 	ld	 d,b
-	nop
-	nop
-	nop
+	nop	
+	nop	
+	nop	
 	xor	 b
-	nop
-	nop
-	nop
+	nop	
+	nop	
+	nop	
 	inc	 bc
 	ld	 hl,($0000)
-	nop
-	nop
+	nop	
+	nop	
 	ld	 hl,(L0008)
-	nop
+	nop	
 	ld	 a,(bc)
 	xor	 b
-	nop
-	nop
-	nop
-	nop
+	nop	
+	nop	
+	nop	
+	nop	
 	xor	 b
 	and	 b
-	nop
-	nop
-	nop
+	nop	
+	nop	
+	nop	
 	xor	 d
 	xor	 b
-	nop
-	nop
+	nop	
+	nop	
 	ld	 (bc),a
 	cp	 (hl)
 	ret	 pe
@@ -8645,88 +8427,88 @@ L3A5C:	ld	 b,c
 	add	 a,b
 	rst	 38H
 	jp	 m,L00A0
-	nop
+	nop	
 	ld	 a,(bc)
 	xor	 b
 	and	 b
-	nop
-	nop
+	nop	
+	nop	
 	ld	 (bc),a
 	xor	 b
-	nop
-	nop
-	nop
-	nop
+	nop	
+	nop	
+	nop	
+	nop	
 	xor	 d
-	nop
-	nop
-	nop
-	nop
+	nop	
+	nop	
+	nop	
+	nop	
 	xor	 d
 	add	 a,b
-	nop
-	nop
+	nop	
+	nop	
 	ld	 (bc),a
 	adc	 a,d
 	add	 a,b
-	nop
-	nop
+	nop	
+	nop	
 	ld	 (bc),a
 L3AAC:	add	 a,d
 	and	 b
-	nop
-	nop
+	nop	
+	nop	
 	ld	 (bc),a
 	add	 a,b
 	jr	 nz,L3AB4
-L3AB4:	nop
+L3AB4:	nop	
 	ld	 hl,(LA082)
-	nop
-	nop
+	nop	
+	nop	
 	inc	 c
-	nop
-	nop
-	nop
-	nop
+	nop	
+	nop	
+	nop	
+	nop	
 	ld	 hl,($0000)
-	nop
-	nop
+	nop	
+	nop	
 	inc	 c
-	nop
-	nop
-	nop
-	nop
+	nop	
+	nop	
+	nop	
+	nop	
 	ld	 hl,($0000)
-	nop
-	nop
+	nop	
+	nop	
 	inc	 c
-	nop
-	nop
+	nop	
+	nop	
 	jr	 nz,L3AD3
 L3AD3:	inc	 c
-	nop
-	nop
+	nop	
+	nop	
 	jr	 nz,L3AD8
 L3AD8:	inc	 c
-	nop
-	nop
+	nop	
+	nop	
 	ld	 hl,(L3C00)
-	nop
-L3ADF:	nop
+	nop	
+L3ADF:	nop	
 	ld	 hl,(L3C80)
-	nop
-	nop
+	nop	
+	nop	
 	ld	 (bc),a
 	and	 b
 	cp	 (hl)
 	ld	 (bc),a
-	nop
-	nop
+	nop	
+	nop	
 	xor	 d
 	cp	 (hl)
 	add	 a,d
 	jr	 nc,L3AF0
-L3AF0:	ld	 hl,($AAAA)
+L3AF0:	ld	 hl,(LAAAA)
 	ex	 af,af'
 	jr	 nz,L3B20
 	cp	 a
@@ -8736,62 +8518,62 @@ L3AF0:	ld	 hl,($AAAA)
 	jp	 pe,L2AA8
 	xor	 b
 	ld	 hl,(LA0A0)
-	ld	 hl,($AF00)
+	ld	 hl,(THORWOR8)
 	ret	 pe
-	nop
-	nop
-	nop
+	nop	
+	nop	
+	nop	
 	xor	 d
 	xor	 b
-	nop
-	nop
-L3B0E:	nop
-	nop
+	nop	
+	nop	
+L3B0E:	nop	
+	nop	
 	and	 b
 	add	 a,b
-	nop
-	nop
+	nop	
+	nop	
 	inc	 c
-	nop
-	nop
-	nop
-	nop
+	nop	
+	nop	
+	nop	
+	nop	
 	dec	 d
-	nop
-	nop
-	nop
-	nop
+	nop	
+	nop	
+	nop	
+	nop	
 	inc	 c
-	nop
-L3B20:	nop
-	nop
-	nop
+	nop	
+L3B20:	nop	
+	nop	
+	nop	
 	dec	 d
-	nop
-	nop
-	nop
-	nop
+	nop	
+	nop	
+	nop	
+	nop	
 	inc	 c
-	nop
-	nop
+	nop	
+	nop	
 L3B2B:	djnz	 L3B2D
 L3B2D:	inc	 c
-	nop
-	nop
+	nop	
+	nop	
 	djnz	 L3B32
 L3B32:	inc	 c
-	nop
-	nop
+	nop	
+	nop	
 	dec	 d
-	nop
+	nop	
 	inc	 a
-	nop
-	nop
+	nop	
+	nop	
 	dec	 d
 	ld	 b,b
 	inc	 a
-	nop
-L3B3E:	nop
+	nop	
+L3B3E:	nop	
 	ld	 bc,L7D50
 	ld	 bc,$0000
 	ld	 d,l
@@ -8815,63 +8597,63 @@ L3B4A:	dec	 d
 	ld	 d,b
 	ld	 d,b
 	dec	 d
-	nop
+	nop	
 	ld	 e,a
 	call	 nc,$0000
-	nop
+	nop	
 	ld	 d,l
 L3B65:	ld	 d,h
-	nop
-	nop
-	nop
-	nop
+	nop	
+	nop	
+	nop	
+	nop	
 	ld	 d,b
 	ld	 b,b
-L3B6C:	nop
-	nop
+L3B6C:	nop	
+	nop	
 	inc	 c
-	nop
-	nop
-	nop
-	nop
+	nop	
+	nop	
+	nop	
+	nop	
 L3B73:	ld	 hl,($0000)
-	nop
-	nop
+	nop	
+	nop	
 	inc	 c
-	nop
-	nop
-	nop
-	nop
+	nop	
+	nop	
+	nop	
+	nop	
 	ld	 hl,($0000)
-	nop
-	nop
+	nop	
+	nop	
 	inc	 c
-	nop
-	nop
-	nop
-	nop
+	nop	
+	nop	
+	nop	
+	nop	
 	inc	 c
-	nop
-	nop
-	nop
-	nop
+	nop	
+	nop	
+	nop	
+	nop	
 	inc	 c
-	nop
-	nop
-	nop
-	nop
+	nop	
+	nop	
+	nop	
+	nop	
 	inc	 a
-	nop
-	nop
-	nop
-	nop
+	nop	
+	nop	
+	nop	
+	nop	
 	inc	 a
-	nop
-	nop
+	nop	
+	nop	
 	jr	 nz,L3B9B
 L3B9B:	cp	 (hl)
 	ld	 (bc),a
-	nop
+	nop	
 	jr	 nz,L3BA2
 	cp	 (hl)
 	add	 a,d
@@ -8885,68 +8667,68 @@ L3BA2:	jr	 nc,L3BCE
 	ld	 (bc),a
 	xor	 a
 	jp	 pe,L00A8
-	nop
+	nop	
 	ld	 hl,(LA0A0)
-	nop
-	nop
+	nop	
+	nop	
 	xor	 a
 	ret	 pe
-	nop
-	nop
-	nop
+	nop	
+	nop	
+	nop	
 	xor	 d
 	xor	 b
-	nop
-	nop
-	nop
-	nop
+	nop	
+	nop	
+	nop	
+	nop	
 	and	 b
-	nop
-	nop
-	nop
+	nop	
+	nop	
+	nop	
 	inc	 c
-	nop
-	nop
-	nop
-	nop
+	nop	
+	nop	
+	nop	
+	nop	
 	dec	 d
-L3BCE:	nop
-	nop
-	nop
-	nop
+L3BCE:	nop	
+	nop	
+	nop	
+	nop	
 	inc	 c
-	nop
-	nop
-	nop
-	nop
+	nop	
+	nop	
+	nop	
+	nop	
 	dec	 d
-	nop
-	nop
-	nop
-	nop
+	nop	
+	nop	
+	nop	
+	nop	
 	inc	 c
-	nop
-	nop
-	nop
-	nop
+	nop	
+	nop	
+	nop	
+	nop	
 	inc	 c
-	nop
-	nop
-	nop
-	nop
+	nop	
+	nop	
+	nop	
+	nop	
 	inc	 c
-	nop
-	nop
-	nop
-	nop
+	nop	
+	nop	
+	nop	
+	nop	
 	inc	 a
-	nop
-	nop
-	nop
-	nop
+	nop	
+	nop	
+	nop	
+	nop	
 	inc	 a
-	nop
-	nop
+	nop	
+	nop	
 	djnz	 L3BF5
 L3BF5:	ld	 a,l
 	ld	 bc,$1000
@@ -8961,71 +8743,71 @@ L3C03:	ld	 d,l
 	ld	 a,a
 	push	 de
 	ld	 d,h
-nop
+L3C07:	nop	
 	ld	 bc,LD55F
 	ld	 d,h
-	nop
-	nop
+	nop	
+	nop	
 	dec	 d
 L3C0F:	ld	 d,b
 	ld	 d,b
-	nop
-	nop
+	nop	
+	nop	
 L3C13:	ld	 e,a
 	call	 nc,$0000
-	nop
+	nop	
 L3C18:	ld	 d,l
 	ld	 d,h
-	nop
-	nop
-	nop
-	nop
+	nop	
+	nop	
+	nop	
+	nop	
 L3C1E:	ld	 d,b
-	nop
-	nop
-	nop
+	nop	
+	nop	
+	nop	
 	inc	 c
-	nop
-	nop
-	nop
-	nop
+	nop	
+	nop	
+	nop	
+	nop	
 	ld	 hl,($0000)
-	nop
-	nop
+	nop	
+	nop	
 	inc	 c
-	nop
-	nop
-	nop
-	nop
+	nop	
+	nop	
+	nop	
+	nop	
 	ld	 hl,($0000)
-	nop
-	nop
+	nop	
+	nop	
 	inc	 c
-	nop
-	nop
-	nop
-	nop
+	nop	
+	nop	
+	nop	
+	nop	
 	inc	 c
-L3C3C:	nop
-	nop
-	nop
-	nop
+L3C3C:	nop	
+	nop	
+	nop	
+	nop	
 	inc	 c
-	nop
-	nop
-	nop
-	nop
+	nop	
+	nop	
+	nop	
+	nop	
 	inc	 a
-	nop
-	nop
+	nop	
+	nop	
 	jr	 nz,L3C4A
 L3C4A:	inc	 a
-	nop
-	nop
+	nop	
+	nop	
 	jr	 nz,L3C4F
 L3C4F:	cp	 (hl)
 	ld	 (bc),a
-	nop
+	nop	
 	ld	 hl,(LBE82)
 	add	 a,d
 	jr	 nc,L3C82
@@ -9033,70 +8815,70 @@ L3C4F:	cp	 (hl)
 	cp	 (hl)
 	xor	 d
 	ex	 af,af'
-	nop
+	nop	
 	ld	 hl,(LEABF)
 	xor	 b
-	nop
+	nop	
 	xor	 d
 	xor	 a
 	jp	 pe,L22A8
 	xor	 b
 	ld	 hl,(LA0A0)
-	ld	 ($AFA0),hl
+	ld	 (LAFA0),hl
 	ret	 pe
-	nop
-	ld	 hl,($AA00)
+	nop	
+	ld	 hl,(LAA00)
 	xor	 b
-	nop
-	nop
-	nop
-	nop
+	nop	
+	nop	
+	nop	
+	nop	
 	and	 b
 	add	 a,b
-	nop
-	nop
+	nop	
+	nop	
 	inc	 c
-	nop
-	nop
-	nop
-L3C80:	nop
+	nop	
+	nop	
+	nop	
+L3C80:	nop	
 	dec	 d
-L3C82:	nop
-	nop
-	nop
-	nop
+L3C82:	nop	
+	nop	
+	nop	
+	nop	
 	inc	 c
-	nop
-	nop
-	nop
-	nop
+	nop	
+	nop	
+	nop	
+	nop	
 	dec	 d
-	nop
-	nop
-	nop
-	nop
+	nop	
+	nop	
+	nop	
+	nop	
 	inc	 c
-	nop
-	nop
-	nop
-	nop
+	nop	
+	nop	
+	nop	
+	nop	
 	inc	 c
-	nop
-	nop
-	nop
-	nop
+	nop	
+	nop	
+	nop	
+	nop	
 	inc	 c
-	nop
-	nop
-	nop
-	nop
+	nop	
+	nop	
+	nop	
+	nop	
 	inc	 a
-	nop
-	nop
+	nop	
+	nop	
 	djnz	 L3CA4
 L3CA4:	inc	 a
-	nop
-	nop
+	nop	
+	nop	
 	djnz	 L3CA9
 L3CA9:	ld	 a,l
 	ld	 bc,$1500
@@ -9108,12 +8890,12 @@ L3CA9:	ld	 a,l
 	ld	 a,l
 	ld	 d,l
 	inc	 b
-	nop
+	nop	
 	dec	 d
 	ld	 a,a
 	push	 de
 	ld	 d,h
-	nop
+	nop	
 	ld	 d,l
 	ld	 e,a
 	push	 de
@@ -9123,35 +8905,35 @@ L3CA9:	ld	 a,l
 	ld	 d,b
 	ld	 de,L5F50
 	call	 nc,$1500
-	nop
+	nop	
 	ld	 d,l
 	ld	 d,h
-	nop
-	nop
-	nop
-	nop
+	nop	
+	nop	
+	nop	
+	nop	
 	ld	 d,b
 	ld	 b,b
-	nop
-	nop
-	nop
+	nop	
+	nop	
+	nop	
 	inc	 bc
-	nop
-	nop
-	nop
-	nop
-	nop
+	nop	
+	nop	
+	nop	
+	nop	
+	nop	
 	jp	 z,$0000
-	nop
+	nop	
 	ld	 (bc),a
 	jp	 z,$0000
-	nop
+	nop	
 	dec	 bc
 	jp	 pe,L0080
-	nop
+	nop	
 	ld	 a,(bc)
 	jp	 m,L0080
-	nop
+	nop	
 	dec	 bc
 	jp	 pe,L00A0
 	ld	 (bc),a
@@ -9160,35 +8942,35 @@ L3CA9:	ld	 a,l
 	ld	 (bc),a
 	xor	 e
 	jp	 (hl)
-L3CFC:	jr	 z,$3D08
+L3CFC:	jr	 z,L3D08
 	adc	 a,d
 	xor	 d
-ret	 m
-	jr	 z,$3D2B
+L3D00:	ret	 m
+	jr	 z,L3D2B
 	xor	 d
 	xor	 d
 	xor	 d
 	xor	 b
-	nop
-xor	 d
+	nop	
+L3D08:	xor	 d
 	xor	 d
 	xor	 d
 	xor	 b
-	ld	 ($AAAA),hl
+	ld	 (LAAAA),hl
 	xor	 d
 	add	 a,b
-	ld	 hl,($AAAA)
+	ld	 hl,(LAAAA)
 	xor	 d
-	nop
-	nop
+	nop	
+	nop	
 	xor	 d
 	xor	 d
 	and	 b
-	nop
-	nop
+	nop	
+	nop	
 	ld	 hl,(L00AA)
 	ret	 p
-	nop
+	nop	
 	ld	 hl,(L0AA0)
 	call	 m,L0A00
 	add	 a,b
@@ -9200,48 +8982,48 @@ xor	 d
 ;
 ; At $3D2F starts pattern of Thorwor (demo screen) ???
 ;
-nop
-	nop
-	nop
-	nop
+L3D2F:	nop	
+	nop	
+	nop	
+	nop	
 	ret	 p
-	nop
-ld	 a,(bc)
-	nop
+	nop	
+L3D35:	ld	 a,(bc)
+	nop	
 	inc	 bc
 	ret	 nz
-	nop
-jr	 nz,L3CFC
-	rrca
+	nop	
+L3D3A:	jr	 nz,L3CFC
+	rrca	
 	ret	 nz
-	nop
+	nop	
 	add	 a,e
 	ret	 p
 	inc	 c
-nop
-	nop
-	rrca
+L3D42:	nop	
+	nop	
+	rrca	
 	call	 m,L000F
-	nop
+	nop	
 	inc	 a
 	rst	 38H
 	inc	 bc
-	nop
-	nop
+	nop	
+	nop	
 	ret	 p
 	rst	 38H
 	inc	 bc
 	ret	 p
-	nop
+	nop	
 	pop	 af
 	rst	 38H
 	ret	 nz
-jr	 nc,$3D67
+L3D56:	jr	 nc,L3D67
 	rst	 38H
 	rst	 38H
 	ret	 p
 	inc	 a
-	ccf
+	ccf	
 	rst	 38H
 	rst	 38H
 	rst	 38H
@@ -9250,86 +9032,86 @@ jr	 nc,$3D67
 	rst	 38H
 	ret	 p
 	inc	 a
-inc	 bc
+L3D67:	inc	 bc
 	rst	 38H
 	rst	 38H
 	ret	 p
-	ccf
+	ccf	
 	rst	 38H
 	rst	 38H
 	rst	 38H
 	ret	 nz
-	nop
+	nop	
 	rst	 38H
 	inc	 c
-	jr	 nc,$3D35
-	nop
-	nop
+	jr	 nc,L3D35
+	nop	
+	nop	
 	inc	 c
-	jr	 nc,$3D3A
-	nop
-	nop
-inc	 a
-	di
+	jr	 nc,L3D3A
+	nop	
+	nop	
+L3D7C:	inc	 a
+	di	
 	ret	 nz
-	nop
-	nop
-	jr	 nc,$3D46
-	nop
-	nop
-	nop
+	nop	
+	nop	
+	jr	 nc,L3D46
+	nop	
+	nop	
+	nop	
 	ld	 d,c
 	ld	 b,l
-	nop
-	nop
-	nop
-	nop
-	nop
+	nop	
+	nop	
+	nop	
+	nop	
+	nop	
 	ret	 p
-	nop
+	nop	
 	ld	 a,(bc)
-	nop
-	nop
+	nop	
+	nop	
 	ret	 nz
-	nop
-	jr	 nz,$3D56
-	nop
+	nop	
+	jr	 nz,L3D56
+	nop	
 	ret	 nz
-	nop
-add	 a,e
+	nop	
+L3D99:	add	 a,e
 	ret	 p
-	nop
+	nop	
 	ret	 p
-	nop
-rrca
+	nop	
+L3D9E:	rrca	
 	call	 m,L3000
-	nop
+	nop	
 	inc	 a
 	rst	 38H
-	nop
-	jr	 nc,$3DA8
-ret	 p
+	nop	
+	jr	 nc,L3DA8
+L3DA8:	ret	 p
 	rst	 38H
-	nop
-	jr	 nc,$3DB0
+	nop	
+	jr	 nc,L3DB0
 	pop	 af
 	rst	 38H
 	ret	 nz
-inc	 a
-	ccf
+L3DB0:	inc	 a
+	ccf	
 	rst	 38H
 	rst	 38H
 	ret	 p
 	inc	 a
 	inc	 a
-	ccf
+	ccf	
 	rst	 38H
 	rst	 38H
 	call	 m,L0F01
 	rst	 38H
 	rst	 38H
 	ret	 p
-	nop
+	nop	
 	inc	 bc
 	rst	 38H
 	rst	 38H
@@ -9337,231 +9119,231 @@ inc	 a
 	ld	 sp,LFF3F
 	rst	 38H
 	ret	 nz
-	ccf
+	ccf	
 	rst	 38H
 	call	 z,LC030
 	inc	 bc
 	call	 m,L300C
 	ret	 nz
-	nop
-	nop
+	nop	
+	nop	
 	inc	 c
-	jr	 nc,$3D99
-	nop
-	nop
+	jr	 nc,L3D99
+	nop	
+	nop	
 	inc	 c
-	jr	 nc,$3D9E
-	nop
-	nop
+	jr	 nc,L3D9E
+	nop	
+	nop	
 	inc	 d
 	ld	 d,c
 	ld	 b,b
-	nop
+	nop	
 	adc	 a,b
 	inc	 bc
 	call	 m,$0000
-ld	 (bc),a
-	nop
-	rrca
+L3DE9:	ld	 (bc),a
+	nop	
+	rrca	
 	ret	 nz
-	nop
-nop
+	nop	
+L3DEE:	nop	
 	ret	 nz
-	nop
+	nop	
 	ret	 nz
-	nop
+	nop	
 	inc	 bc
 	ret	 p
-	nop
+	nop	
 	ret	 nz
-	nop
+	nop	
 	rst	 38H
 	call	 m,LC000
-	nop
+	nop	
 	inc	 a
 	rst	 38H
-	nop
+	nop	
 	ret	 p
-	nop
+	nop	
 	ret	 p
 	rst	 38H
-	nop
-	jr	 nc,$3E16
+	nop	
+	jr	 nc,L3E16
 	pop	 af
 	rst	 38H
 	ret	 nz
 	inc	 a
 	inc	 a
-	ccf
-rst	 38H
+	ccf	
+L3E0D:	rst	 38H
 	ret	 p
 	inc	 a
-ld	 sp,LFF0F
+L3E10:	ld	 sp,LFF0F
 	rst	 38H
 	call	 m,L0301
 	rst	 38H
 	rst	 38H
 	ret	 p
-	nop
+	nop	
 	inc	 bc
 	rst	 38H
 	rst	 38H
-ret	 p
-nop
-	rrca
+L3E1E:	ret	 p
+L3E1F:	nop	
+	rrca	
 	rst	 38H
 	rst	 38H
 	ret	 nz
 	ld	 sp,LCC0F
-	jr	 nc,$3DE9
+	jr	 nc,L3DE9
 	inc	 a
-	ccf
-inc	 c
-	jr	 nc,$3DEE
-	rrca
+	ccf	
+L3E2B:	inc	 c
+	jr	 nc,L3DEE
+	rrca	
 	call	 m,L3C0F
 	ret	 p
-	nop
-	nop
+	nop	
+	nop	
 	inc	 bc
 	inc	 c
-	jr	 nc,$3E39
-nop
-dec	 b
+	jr	 nc,L3E39
+L3E39:	nop	
+L3E3A:	dec	 b
 	inc	 d
 	ld	 d,b
-	nop
-rrca
-	jr	 nc,$3E41
-nop
-	nop
-	rrca
+	nop	
+L3E3E:	rrca	
+	jr	 nc,L3E41
+L3E41:	nop	
+	nop	
+	rrca	
 	inc	 a
-	nop
-	nop
-nop
+	nop	
+	nop	
+L3E47:	nop	
 	inc	 c
 	inc	 a
-	nop
-	nop
-	nop
+	nop	
+	nop	
+	nop	
 	inc	 a
 	rst	 38H
 	jp	 nz,$0000
 	inc	 a
 	rst	 38H
-ret	 p
+L3E54:	ret	 p
 	add	 a,b
-	nop
+	nop	
 	inc	 a
 	call	 m,L203C
-	nop
-	ccf
-	DB	  $fd,$0f
-	jr	 nz,$3E71
-	rrca
+	nop	
+	ccf	
+	.db	  $fd,$0f
+	jr	 nz,L3E71
+	rrca	
 	rst	 38H
 	rst	 38H
 	ret	 nz
-	rra
-	rrca
+	rra	
+	rrca	
 	rst	 38H
 	rst	 38H
-nop
+L3E69:	nop	
 	inc	 bc
 	rst	 38H
 	rst	 38H
 	call	 m,$1000
-	rrca
-rst	 38H
+	rrca	
+L3E71:	rst	 38H
 	ret	 p
-	nop
-	rra
-	rrca
+	nop	
+	rra	
+	rrca	
 	rst	 38H
-	nop
-	nop
+	nop	
+	nop	
 	inc	 bc
 	rst	 38H
 	call	 m,$0000
-	djnz	 $3E8F
+	djnz	 L3E8F
 	ret	 p
-	rrca
+	rrca	
 	ret	 nz
-	rra
-	rrca
+	rra	
+	rrca	
 	ret	 p
 	call	 m,L03F0
 	rst	 38H
 	ret	 p
 	ret	 nz
 	call	 m,L0300
-rst	 38H
+L3E8F:	rst	 38H
 	ret	 nz
 	inc	 c
-	nop
-	nop
+	nop	
+	nop	
 	inc	 a
-	nop
-	nop
-	nop
+	nop	
+	nop	
+	nop	
 	inc	 a
 	inc	 a
-	nop
-	nop
-	nop
-	jr	 nc,$3EDB
-	nop
-	nop
-	nop
+	nop	
+	nop	
+	nop	
+	jr	 nc,L3EDB
+	nop	
+	nop	
+	nop	
 	call	 p,L004F
-	nop
-	nop
+	nop	
+	nop	
 	ret	 p
-	rrca
+	rrca	
 	jp	 nz,$0000
 	call	 m,LF03F
 	add	 a,b
-	nop
+	nop	
 	call	 m,L3CFC
-	jr	 nz,$3EB6
-ccf
-	DB	  $fd,$0f
-	jr	 nz,$3EBB
-ccf
+	jr	 nz,L3EB6
+L3EB6:	ccf	
+	.db	  $fd,$0f
+	jr	 nz,L3EBB
+L3EBB:	ccf	
 	rst	 38H
 	rst	 38H
 	ret	 nz
-	djnz	 $3ED0
+	djnz	 L3ED0
 	rst	 38H
 	rst	 38H
-	nop
-	rra
+	nop	
+	rra	
 	rst	 38H
 	rst	 38H
 	call	 m,$0000
-	rrca
+	rrca	
 	rst	 38H
 	ret	 p
-	nop
-	nop
-	rrca
-rst	 38H
+	nop	
+	nop	
+	rrca	
+L3ED0:	rst	 38H
 	ret	 p
-	nop
-	rra
+	nop	
+	rra	
 	rst	 38H
 	call	 m,$0000
-	nop
-	rrca
+	nop	
+	rrca	
 	ret	 p
-nop
-	nop
-	djnz	 $3EEE
+L3EDB:	nop	
+	nop	
+	djnz	 L3EEE
 	ret	 p
-	nop
-	nop
-	rra
+	nop	
+	nop	
+	rra	
 	rst	 38H
 	ret	 p
 	inc	 bc
@@ -9569,104 +9351,106 @@ nop
 	rst	 38H
 	rst	 38H
 	inc	 c
-	nop
-	nop
-ccf
-	nop
-	nop
-	nop
+	nop	
+	nop	
+L3EEE:	ccf	
+	nop	
+	nop	
+	nop	
 	ret	 p
 	inc	 a
-	nop
-	nop
+	nop	
+	nop	
 	inc	 bc
 	ret	 nz
-	rrca
-	nop
-	nop
+	rrca	
+	nop	
+	nop	
 	inc	 bc
-	djnz	 $3F51
-	nop
-	nop
+	djnz	 L3F51
+	nop	
+	nop	
 	inc	 bc
-	nop
+	nop	
 	inc	 bc
 	ret	 nz
 	ex	 af,af'
 	inc	 bc
 	ret	 nz
-rrca
+L3F07:	rrca	
 	ret	 p
-	nop
+	nop	
 	inc	 bc
 	call	 m,L3C3C
 	ex	 af,af'
-nop
+L3F0F:	nop	
 	rst	 38H
-	DB	  $fd,$0f
-	jr	 nz,$3F15
-ccf
+	.db	  $fd,$0f
+	jr	 nz,L3F15
+L3F15:	ccf	
 	rst	 38H
-rst	 38H
+L3F17:	rst	 38H
 	ret	 nz
-	nop
-	rrca
+	nop	
+	rrca	
 	rst	 38H
 	rst	 38H
-	nop
+	nop	
 	inc	 de
 	rst	 38H
 	rst	 38H
 	call	 m,L1F00
-	rrca
+	rrca	
 	rst	 38H
 	ret	 p
 	inc	 c
-	nop
-	rrca
+	nop	
+	rrca	
 	rst	 38H
-	nop
+	nop	
 	inc	 c
 	inc	 de
 	rst	 38H
 	call	 m,L0C00
-	rra
-	rrca
+	rra	
+	rrca	
 	ret	 p
-	nop
+	nop	
 	inc	 a
-	nop
-	rrca
+	nop	
+	rrca	
 	ret	 p
-	nop
-	jr	 nc,$3F50
+	nop	
+	jr	 nc,L3F50
 	rst	 38H
 	ret	 p
-	ccf
+	ccf	
 	ret	 p
-	rra
+	rra	
 	inc	 bc
 	rst	 38H
 	ret	 p
-	nop
-	nop
-nop
-	ccf
-	nop
-	nop
-	nop
-and	 b
+	nop	
+	nop	
+L3F47:	nop	
+	ccf	
+	nop	
+	nop	
+	nop	
+L3F4C:	and	 b
 	sbc	 a,l
 	and	 b
 	sbc	 a,l
-jp	 m,L549D
+L3F50:	jp	 m,L549D
 	sbc	 a,(hl)
 	cp	 h
 	sbc	 a,a
 	ld	 d,$A0
 	ld	 (hl),b
 	and	 b
-	jp	 z,$AEA0
+	nop
+	nop
+	nop
 	sbc	 a,(hl)
 	xor	 (hl)
 	sbc	 a,(hl)
@@ -9695,7 +9479,7 @@ jp	 m,L549D
 	xor	 d
 	and	 d
 	xor	 d
-	nop
+	nop	
 	sub	 (hl)
 	ld	 e,d
 	sub	 (hl)
@@ -9709,18 +9493,18 @@ jp	 m,L549D
 	xor	 e
 	ld	 a,(bc)
 	xor	 h
-dec	 a
-ld	 a,$97
+L3F8C:	dec	 a
+L3F8D:	ld	 a,$97
 	ld	 a,$F1
 	ld	 a,$97
 	ld	 a,$64
 	xor	 h
 	cp	 (hl)
 	xor	 h
-	jr	 $3F47
+	jr	 L3F47
 	ld	 (hl),d
 	xor	 l
-	cpl
+	cpl	
 	dec	 a
 	adc	 a,c
 	dec	 a
@@ -9739,34 +9523,34 @@ ld	 a,$97
 	and	 $A2
 	ld	 b,b
 	and	 e
-	nop
-	nop
-	nop
-	nop
-	nop
-	nop
-	nop
-	nop
+	nop	
+	nop	
+	nop	
+	nop	
+	nop	
+	nop	
+	nop	
+	nop	
 	sbc	 a,d
 	and	 e
 	sbc	 a,d
 	and	 e
 	call	 p,L4EA3
 	and	 h
-	nop
-	nop
-	nop
-	nop
-	nop
-	nop
-	nop
-	nop
+	nop	
+	nop	
+	nop	
+	nop	
+	nop	
+	nop	
+	nop	
+	nop	
 	xor	 b
 	and	 h
 	ld	 (bc),a
 	and	 l
 	ld	 e,h
-and	 l
+L3FD1:	and	 l
 	or	 (hl)
 	and	 l
 	ld	 a,b
@@ -9785,7 +9569,7 @@ and	 l
 	xor	 b
 	ld	 a,(LE0A9)
 	xor	 b
-	nop
+	nop	
 	rst	 38H
 	rst	 38H
 	rst	 38H
@@ -9804,11 +9588,11 @@ and	 l
 	rst	 38H
 	rst	 38H
 	rst	 38H
-rst	 38H
+L3FFF:	rst	 38H
 ;
 ;
 ;
-	ORG	 $8000
+	.org	 $8000
 
 L8000:	jp	 L84F2
 L8003:	jp	 L86C1
@@ -9817,12 +9601,12 @@ L8009:	jp	 L827D
 	jp	 L8253
 L800F:	bit	 7,a
 	jp	 p,L8018
-	neg
+	neg	
 	res	 7,a
 L8018:	ret
 ;
 ;**********************************************************
-; Purpose:	???
+; Purpose:	??? 
 ;		Set up 8 music ports
 ;
 ; Input:	DE
@@ -9832,61 +9616,61 @@ L8018:	ret
 ;		out (DE) <- (DE+3) to (DE+11) (8 bytes)
 ;		(DE-1) to (DE-42) = 0 (42 bytes)
 ;		Switch main registers
-;
+;		
 ;**********************************************************
 ;
-L8019:	ld	 hl,L0011
-	add	 hl,de
-	ld	 (hl),$01	; (DE+17) = 1
-
-	push	 de
-	ld	 hl,$0000
-	add	 hl,de
+L8019:	ld	 hl,L0011	                           
+	add	 hl,de		                            
+	ld	 (hl),$01	; (DE+17) = 1	 
+	
+	push	 de		                    
+	ld	 hl,$0000	                            
+	add	 hl,de		                      
 	ld	 c,(hl)		; c=(DE)
-
-	ld	 b,$08
-	push	 bc
-
-	ld	 hl,L0003
-	add	 hl,de
-
-	ld	 bc,L000D
-	push	 hl
-	push	 hl
-	pop	 de
-
-ld	 (hl),$00
-	inc	 de
+	
+	ld	 b,$08		                             
+	push	 bc		
+	
+	ld	 hl,L0003	                          
+	add	 hl,de		
+	
+	ld	 bc,L000D	                                
+	push	 hl		               
+	push	 hl		                          
+	pop	 de		
+	
+L8032:	ld	 (hl),$00	                    
+	inc	 de		             
 	ldir			; (DE+3) to (DE+16) = 0 (14 bytes)
-
-
+				
+	
 	;Output 8 bytes to music ports
-	pop	 hl
-	pop	 bc
+	pop	 hl		
+	pop	 bc		
 	otir			; out (DE) <- (DE+3) to (DE+11) (8 bytes)
-
-
-	pop	 hl
-	dec	 hl
-	push	 hl
-	pop	 de
-	dec	 de
-	ld	 bc,L0029
-	ld	 (hl),$00
+				
+	
+	pop	 hl		
+	dec	 hl		
+	push	 hl		  
+	pop	 de		
+	dec	 de		
+	ld	 bc,L0029	
+	ld	 (hl),$00	
 	lddr			; (DE-1) to (DE-42) = 0 (42 bytes)
-
-
+				
+	
 	exx			; Switch registers
-
-	ret
-
+	
+	ret			
+				
 ;
 ;**********************************************************
 ;
 
 
 
-L8049:	push	 iy
+L8049:	push	 iy		
 	pop	 hl
 	add	 hl,de
 	dec	 (hl)
@@ -9924,7 +9708,7 @@ L8049:	push	 iy
 L8085:	inc	 hl
 	inc	 hl
 	ld	 (hl),c
-	ret
+	ret	
 L8089:	dec	 hl
 L808A:	dec	 hl
 	dec	 hl
@@ -9943,7 +9727,7 @@ L8099:	dec	 hl
 	jp	 z,L80A3
 	inc	 hl
 L80A3:	ld	 b,(hl)
-	ret
+	ret	
 L80A5:	ld	 a,b
 	add	 a,(hl)
 	ld	 b,a
@@ -9966,14 +9750,14 @@ L80C7:	dec	 hl
 L80C8:	dec	 hl
 	dec	 hl
 	ld	 (hl),c
-	ret
+	ret	
 	jp	 L80DE
 L80CF:	inc	 hl
 	push	 hl
 	ld	 a,(hl)
 	inc	 hl
 	sub	 (hl)
-	neg
+	neg	
 	ld	 e,a
 	ld	 d,$00
 	ld	 a,r
@@ -9984,8 +9768,8 @@ L80DE:	jp	 L80E4
 L80E1:	inc	 hl
 	inc	 hl
 	ld	 c,(hl)
-L80E4:	ret
-	nop
+L80E4:	ret	
+	nop	
 L80E6:	xor	 a
 	cp	 (iy+$11)
 	jp	 nz,L81C5
@@ -10015,7 +9799,7 @@ L8116:	cp	 (iy-$1c)
 	ld	 b,(iy-$04)
 	bit	 7,b
 	jr	 z,L8132
-	neg
+	neg	
 L8132:	ld	 (iy-$04),a
 	xor	 a
 L8136:	cp	 (iy-$23)
@@ -10034,19 +9818,19 @@ L8148:	cp	 (iy-$07)
 	or	 a
 	jr	 z,L817E
 	ld	 a,(iy-$06)
-	rlca
-	rlca
-	rlca
-	rlca
+	rlca	
+	rlca	
+	rlca	
+	rlca	
 	and	 $0F
 	inc	 a
 	ld	 (iy-$0d),a
 	ld	 a,(iy-$09)
 	ld	 e,a
-	rrca
-	rrca
-	rrca
-	rrca
+	rrca	
+	rrca	
+	rrca	
+	rrca	
 	or	 e
 	ld	 (iy+$05),a
 	ld	 (iy-$08),$01
@@ -10065,10 +9849,10 @@ L818B:	cp	 (iy-$0e)
 	ld	 de,LFFF2
 	call	 L8049
 	ld	 a,b
-	rrca
-	rrca
-	rrca
-	rrca
+	rrca	
+	rrca	
+	rrca	
+	rrca	
 	or	 b
 	ld	 (iy+$05),a
 	ld	 a,(iy+$06)
@@ -10094,7 +9878,7 @@ L81C5:	ld	 c,(iy+$00)
 	ld	 de,$0004
 	add	 hl,de
 	ld	 b,$08
-	otir
+	otir	
 L81D8:	ret
 ;
 ; Speech Routines ???
@@ -10104,8 +9888,8 @@ L81D9:	in	 a,($12)		; Check to see if phoneme is complete
 	jr	 z,L81F7		; Not ready for new phoneme, so return
 	ld	 hl,Num_Phonemes_Left		; Get length of phoneme left to go...
 	dec	 (hl)			; ... and decrement the count
-	inc	 hl			; $D2D1 holds inflection bit 7 ???
-	ld	 a,(hl)			;
+	inc	 hl			; $D2D1 holds inflection bit 7 ???	
+	ld	 a,(hl)			; 
 	ld	 hl,(LD2CE)		; $D2CE holds the address to the next phoneme
 	xor	 (hl)			; ... moves phoneme into A ???
 	inc	 hl			; Next phoneme address
@@ -10119,7 +9903,7 @@ L81F7:	ret				; ... and we are done with that phoneme, go back
 ;
 ;
 ;
-L81F8:	ld	 a,(Num_Phonemes_Left)		; Load A with length of phoneme left to go
+L81F8:	ld	 a,(Num_Phonemes_Left)		; Load A with length of phoneme left to go		
 	or	 a			; if no more phonemes...
 	jr	 z,L8201		; ... then skip the phoneme output routine
 	jp	 L81D9			; Otherwise, call speech phoneme output routine
@@ -10128,7 +9912,7 @@ L8201:	xor	 a			; Zero A
 	ld	 de,(LD2D4)		; DE = ???
 	sbc	 hl,de			; HL = HL - DE
 	jr	 z,L8234		; If HL = 0, then skip to STOP phoneme
-	ex	 de,hl
+	ex	 de,hl			
 	ld	 e,(hl)
 	inc	 hl
 L8210:	ld	 d,(hl)
@@ -10150,8 +9934,8 @@ L822D:	ld	 (LD2D4),de
 	jp	 L81D9
 L8234:	xor	 a
 	ld	 (Is_Speech_Active),a	; Mark speech inactive
-	ld	 bc,$3F17		; Write a STOP phoneme... (end of string?)
-	in	 a,(c)			;
+	ld	 bc,L3F17		; Write a STOP phoneme... (end of string?)
+	in	 a,(c)			; 
 	ret
 ;
 ;******************************************************************************
@@ -10162,16 +9946,16 @@ L8234:	xor	 a
 L823E:	ld	 hl,LD2BD
 	or	 a			; a = 0? or is it clear C flag?
 					; It seems to serve no purpose ???
-	sbc	 hl,de
+	sbc	 hl,de			
 	jr	 c,L8248		; Jump if HL - DE is negative
 	ld	 a,$01
-L8248:	ld	 hl,LD2CC
+L8248:	ld	 hl,LD2CC		
 	or	 a			; a = 0? or is it clear C flag?
 					; It seems to serve no purpose ???
 	sbc	 hl,de
 	jr	 nc,L8252		; Jump if HL - DE is positive
 	ld	 a,$01
-L8252:	ret
+L8252:	ret	
 
 ;
 ;******************************************************************************
@@ -10179,25 +9963,25 @@ L8252:	ret
 ;******************************************************************************
 ;
 
-L8253:	exx
+L8253:	exx	
 	ld	 de,(LD2D2)
 	xor	 a
 	call	 L823E
 	ld	 de,(LD2D4)
 	call	 L823E
 	or	 a
-	jr	 z,L827B
+	jr	 z,L827B		
 	xor	 a
 	ld	 (Is_Speech_Active),a		; Set speech to inactive
 	ld	 hl,LD2BE
 	ld	 (LD2D2),hl
 	ld	 (LD2D4),hl
 	ld	 (Num_Phonemes_Left),a		; Set number of phonemes left to zero
-	ld	 bc,$3F17			; Write a STOP phoneme (stop speech)
-	in	 a,(c)
-L827B:	exx
+	ld	 bc,L3F17			; Write a STOP phoneme (stop speech)
+	in	 a,(c)		
+L827B:	exx	
 	ret
-
+	
 ;
 ;******************************************************************************
 ;
@@ -10225,7 +10009,7 @@ L8298:	inc	 hl
 	and	 $7F
 	jr	 z,L82F4
 	ld	 c,a
-	di
+	di	
 L82A3:	inc	 hl
 	ld	 a,(LD350)
 	or	 a
@@ -10237,8 +10021,8 @@ L82A3:	inc	 hl
 L82B1:	cp	 $37
 	jr	 nz,L82B7
 	ld	 a,$41
-L82B7:	exx
-	rlca
+L82B7:	exx	
+	rlca	
 	ld	 hl,L9476
 	ld	 e,a
 	ld	 a,(LD347)
@@ -10266,12 +10050,12 @@ L82C9:	ld	 d,$00
 	jr	 nc,L82E6
 	ld	 de,LD2BE
 L82E6:	ld	 (LD2D2),de
-L82EA:	exx
+L82EA:	exx	
 	dec	 c
 	jr	 nz,L82A3
 	ld	 a,$01
 	ld	 (Is_Speech_Active),a	; Mark speech as active
-	ei
+	ei	
 L82F4:	ret
 ;
 ;**********************************************************
@@ -10283,21 +10067,21 @@ L82F4:	ret
 ; Output:	(DE)=A
 ;		(DE+1)=$40
 ;		(DE+2)=$87
-;
+; 
 ;**********************************************************
 ;
-L82F5:	ld	 hl,$0000
-	add	 hl,de
-
-	ld	 (hl),a
-	ld	 hl,$0001
-	add	 hl,de
-
-	ld	 (hl),$40	;
-	inc	 hl
+L82F5:	ld	 hl,$0000	                          
+	add	 hl,de		
+	
+	ld	 (hl),a		                          
+	ld	 hl,$0001	                          
+	add	 hl,de		
+	
+	ld	 (hl),$40	; 
+	inc	 hl		
 	ld	 (hl),$87	;
-
-L8303:	jp	 L8019
+	
+L8303:	jp	 L8019		
 
 ;
 ;**********************************************************
@@ -10307,20 +10091,20 @@ L8303:	jp	 L8019
 ;**********************************************************
 ;
 
-L8306:	ld	 a,$18
-L8308:	exx			;Change other reg's to prime set
-	ld	 de,LD270	;de=$d270 (static RAM)
-	jr	 L82F5		;Call continues through $82f5
+L8306:	ld	 a,$18		                                 
+L8308:	exx			;Change other reg's to prime set        
+	ld	 de,LD270	;de=$d270 (static RAM)                  
+	jr	 L82F5		;Call continues through $82f5           
 				;then through $8019 which does a return
 ;
 ;**********************************************************
-;
+; 
 ;**********************************************************
 ;
-L830E:	ld	 a,$58
-	exx
+L830E:	ld	 a,$58			 
+	exx	
 	ld	 de,LD2AC	; ???
-	jr	 L82F5		;Call continues through $82f5
+	jr	 L82F5		;Call continues through $82f5          
 				;then through $8019 which does a return
 ;
 ;**********************************************************
@@ -10328,8 +10112,8 @@ L830E:	ld	 a,$58
 ; ???
 ;**********************************************************
 ;
-L8316:	call	 L8306		;
-	call	 L830E		; ... and another ???
+L8316:	call	 L8306		;  
+	call	 L830E		; ... and another ???           
 	jp	 L8253		; ... Oh, and now jump away! ???
 ;
 ;**********************************************************
@@ -10343,13 +10127,13 @@ L8316:	call	 L8306		;
 	ret
 ;
 ;**********************************************************
-; Purpose: ???
+; Purpose: ??? 
 ;
-; Input:
+; Input:	
 ;
-; Output:
-;
-;
+; Output:	
+;		
+;		
 ;**********************************************************
 ;
 L8325:	push	 iy
@@ -10366,76 +10150,76 @@ L8325:	push	 iy
 	pop	 hl
 	add	 hl,de
 	ld	 (hl),b
-	exx
+	exx	
 	xor	 a
 	ret
 ;
 	ld	 a,(hl)
 	inc	 hl
-	exx
+	exx	
 	ld	 b,$08
 	ld	 hl,L000B
 	jr	 L8325
 ;
 	ld	 a,(hl)
 	inc	 hl
-	exx
+	exx	
 	ld	 b,$01
 	ld	 hl,$0004
 	jr	 L8325
 ;
 	ld	 a,(hl)
 	inc	 hl
-	exx
+	exx	
 	ld	 b,$02
 	ld	 hl,L0005
 	jp	 L8325
 ;
 	ld	 a,(hl)
 	inc	 hl
-	exx
+	exx	
 	ld	 b,$03
 	ld	 hl,L0006
 	jp	 L8325
 ;
 	ld	 a,(hl)
 	inc	 hl
-	exx
+	exx	
 	ld	 b,$04
 	ld	 hl,L0007
 	jp	 L8325
 ;
 	ld	 a,(hl)
 	inc	 hl
-	exx
+	exx	
 	ld	 b,$07
 	ld	 hl,L000A
 	jp	 L8325
 ;
 	ld	 a,(hl)
 	inc	 hl
-	exx
+	exx	
 	ld	 b,$06
 	ld	 hl,L0009
 	jp	 L8325
 ;
 ;**********************************************************
-; Purpose: ???
+; Purpose: ??? 
 ;
 ; Input:	HL
+;		
 ;
-;
-; Output:
-;
+; Output:	
+;		
 ;**********************************************************
 ;
 	ld	 a,(hl)
 	inc	 hl
-	exx
+	exx	
 	ld	 b,$05
 	ld	 hl,L0008
 	jp	 L8325
-	exx
+	exx	
 	push	 iy
 	pop	 de
 	jp	 L8019
@@ -10443,31 +10227,31 @@ L8325:	push	 iy
 	ret
 ;
 ;**********************************************************
-; Purpose: ???
+; Purpose: ??? 
 ;
-; Input:
+; Input:	
 ;
-; Output:
+; Output:	
 ;
 ;**********************************************************
-;
+;	
 	ld	 a,(hl)
 	inc	 hl
 	ld	 (iy+$0d),a
 	ld	 a,$01
-	ret
+	ret	
 ;
 ;**********************************************************
-; Purpose: ???
+; Purpose: ??? 
 ;
-; Input:
+; Input:	
 ;
-; Output:
-;
-;
-;
-;
-;
+; Output:	
+;		
+;		
+;		
+;		
+;		
 ;**********************************************************
 ;
 	ld	 (iy+$03),$01
@@ -10475,13 +10259,13 @@ L8325:	push	 iy
 	ret
 ;
 ;**********************************************************
-; Purpose: ???
+; Purpose: ??? 
 ;
-; Input:
+; Input:	
 ;
-; Output:
-;
-;
+; Output:	
+;		
+;		
 ;**********************************************************
 ;
 	ld	 (iy+$03),$00
@@ -10489,13 +10273,13 @@ L8325:	push	 iy
 	ret
 ;
 ;**********************************************************
-; Purpose: ???
+; Purpose: ??? 
 ;
-; Input:
+; Input:	
 ;
-; Output:
-;
-;
+; Output:	
+;		
+;		
 ;**********************************************************
 ;
 
@@ -10516,13 +10300,13 @@ L8325:	push	 iy
 	ret
 ;
 ;**********************************************************
-; Purpose: ???
+; Purpose: ??? 
 ;
-; Input:
+; Input:	
 ;
-; Output:
-;
-;
+; Output:	
+;		
+;		
 ;**********************************************************
 ;
 	ld	 e,(hl)
@@ -10541,16 +10325,16 @@ L8325:	push	 iy
 	set	 0,(hl)
 	xor	 a
 	pop	 hl
-	ret
+	ret	
 ;
 ;**********************************************************
-; Purpose: ???
+; Purpose: ??? 
 ;
-; Input:
+; Input:	
 ;
-; Output:
-;
-;
+; Output:	
+;		
+;		
 ;**********************************************************
 ;
 	ld	 e,(hl)
@@ -10574,7 +10358,7 @@ L83E3:	ex	 de,hl
 	dec	 a
 	jr	 nz,L83E3
 	ex	 de,hl
-	ret
+	ret	
 	ld	 e,(hl)
 	inc	 hl
 	ld	 d,(hl)
@@ -10590,15 +10374,15 @@ L83E3:	ex	 de,hl
 	ld	 (hl),a
 	pop	 hl
 	xor	 a
-	ret
+	ret	
 	ld	 (iy+$0c),$01
 	xor	 a
-	ret
+	ret	
 L8407:	sub	 a
 	add	 a,e
 	sbc	 a,d
 	add	 a,e
-	rra
+	rra	
 	add	 a,e
 	sub	 b
 	add	 a,e
@@ -10645,11 +10429,11 @@ L8443:	ld	 a,(hl)
 	inc	 hl
 	cp	 $18
 	jr	 nc,L845E
-	exx
+	exx	
 	ld	 hl,L8462
 	push	 hl
 	ld	 hl,L8407
-	rlca
+	rlca	
 	ld	 e,a
 	ld	 d,$00
 	add	 hl,de
@@ -10657,8 +10441,8 @@ L8443:	ld	 a,(hl)
 	inc	 hl
 	ld	 d,(hl)
 	push	 de
-	exx
-	ret
+	exx	
+	ret	
 	jr	 L8462
 L845E:	ld	 hl,L8740
 	xor	 a
@@ -10667,7 +10451,7 @@ L8462:	or	 a
 	ld	 (iy+$01),l
 	ld	 (iy+$02),h
 	ld	 (iy+$11),$00
-L846F:	ret
+L846F:	ret	
 L8470:	xor	 $FF
 	ld	 b,a
 	xor	 a
@@ -10676,10 +10460,10 @@ L8477:	rl	 b
 	adc	 a,d
 	dec	 e
 	jr	 nz,L8477
-	rla
-	rla
-	rla
-	ret
+	rla	
+	rla	
+	rla	
+	ret	
 L8481:	ld	 bc,L3010
 	out	 (c),b
 	ld	 c,$50
@@ -10740,7 +10524,7 @@ L84F2:	ld	 a,(Game_Mode)
 	bit	 3,a		; Is service switch on?
 	jr	 nz,L8501	; no, skip down
 	jp	 L8481		; Otherwise, go here ???
-L8501:	ld	 a,(LD244)
+L8501:	ld	 a,(LD244)	
 	or	 a
 	jr	 z,L851C
 	push	 iy
@@ -10750,59 +10534,59 @@ L8501:	ld	 a,(LD244)
 	call	 L80E6
 	call	 L81F8
 	pop	 iy
-L851C:	ret
+L851C:	ret	
 L851D:	ld	 a,d
 	cp	 (iy+$03)
 	jr	 c,L8537
 	push	 iy
-	exx
+	exx	
 	pop	 de
 	call	 L8019
 	ld	 (iy+$11),$01
 	ld	 (iy+$03),d
 	ld	 (iy+$01),l
 	ld	 (iy+$02),h
-L8537:	ret
+L8537:	ret	
 L8538:	ld	 hl,LD241
 	ld	 a,(hl)
 	or	 a
 	jr	 z,L8582
 	ld	 (hl),$00
 	ld	 iy,LD2AC
-	rra
+	rra	
 	ld	 d,$01
 	ld	 hl,L8928
 	jr	 c,L851D
-	rra
+	rra	
 	ld	 d,$00
 	ld	 hl,L887B
 	jr	 c,L851D
-	rra
+	rra	
 	ld	 d,$01
 	ld	 hl,L87EA
 	jr	 c,L851D
-	rra
+	rra	
 	ld	 d,$00
 	ld	 hl,L883B
 	jp	 c,L851D
-	rra
+	rra	
 	ld	 hl,L8825
 	jp	 c,L851D
-	rra
-	rra
+	rra	
+	rra	
 	ld	 hl,L8988
 	jp	 c,L851D
 	ld	 iy,LD270
-	rra
+	rra	
 	ld	 d,$01
 	ld	 hl,L8741
 	jp	 c,L851D
-L8582:	ret
+L8582:	ret	
 L8583:	ld	 hl,LD242
 	ld	 a,(hl)
 	ld	 (hl),$00
 	ld	 iy,LD270
-	rra
+	rra	
 	ld	 d,$01
 	ld	 hl,L8AA1
 	jr	 nc,L85A2
@@ -10811,20 +10595,20 @@ L8583:	ld	 hl,LD242
 	ld	 hl,L8ADD
 	jp	 L851D
 L85A2:	ld	 iy,LD2AC
-	rra
+	rra	
 	ld	 d,$00
 	ld	 hl,L890E
 	jp	 c,L851D
-	rra
+	rra	
 	ld	 hl,L8851
 	jp	 c,L851D
-	rra
+	rra	
 	ld	 hl,L8851
 	jp	 c,L851D
-	rra
+	rra	
 	ld	 hl,L8A42
 	jp	 c,L851D
-	rra
+	rra	
 	jr	 nc,L85D9
 	ld	 d,$01
 	ld	 hl,L8A6C
@@ -10832,18 +10616,18 @@ L85A2:	ld	 iy,LD2AC
 	ld	 iy,LD270
 	ld	 hl,L8A81
 	jp	 L851D
-L85D9:	rra
+L85D9:	rra	
 	ld	 iy,LD270
 	ld	 d,$01
-	rra
+	rra	
 	ld	 hl,L877B
 	jp	 c,L851D
-	ret
+	ret	
 L85E8:	ld	 hl,LD243
 	ld	 a,(hl)
 	ld	 (hl),$00
 	ld	 iy,LD270
-	rra
+	rra	
 	ld	 d,$02
 	ld	 hl,L88E2
 	jr	 nc,L8607
@@ -10851,7 +10635,7 @@ L85E8:	ld	 hl,LD243
 	ld	 iy,LD2AC
 	ld	 hl,L8905
 	jp	 L851D
-L8607:	rra
+L8607:	rra	
 	ld	 d,$01
 	ld	 hl,L8AF6
 	jr	 nc,L861C
@@ -10860,21 +10644,21 @@ L8607:	rra
 	ld	 iy,LD2AC
 	jp	 L851D
 L861C:	ld	 iy,LD2AC
-	rra
+	rra	
 	ld	 hl,L8AF3
 	jp	 c,L851D
-	rra
+	rra	
 	ld	 hl,L8B5D
 	jr	 nc,L863A
 	call	 L851D
 	ld	 hl,L8B2E
 	ld	 iy,LD270
 	jp	 L851D
-L863A:	ret
+L863A:	ret	
 	ld	 d,$02
 	call	 L851D
 	ld	 d,$00
-	ret
+	ret	
 L8643:	call	 L8316
 	ld	 iy,LD270
 	ld	 d,$00
@@ -10907,7 +10691,7 @@ L8698:	call	 L8316
 	ld	 d,$00
 	ld	 hl,L8981
 	call	 L851D
-	ret
+	ret	
 L86A8:	call	 L8316
 	ld	 iy,LD2AC
 	ld	 hl,L8772
@@ -10952,8 +10736,8 @@ L8707:	ld	 iy,LD270
 	ld	 iy,LD2AC
 	call	 L8437
 	pop	 iy
-L8717:	ret
-	nop
+L8717:	ret	
+	nop	
 	rst	 38H
 	rst	 38H
 	rst	 38H
@@ -11018,7 +10802,7 @@ L8741:	inc	 de
 	sub	 $FF
 	ld	 bc,LFF16
 	dec	 d
-	rrca
+	rrca	
 	inc	 b
 	jp	 p,L0FFF
 	inc	 bc
@@ -11027,7 +10811,7 @@ L8741:	inc	 de
 	dec	 b
 	ld	 bc,$0508
 	jp	 p,L01FF
-	nop
+	nop	
 L8772:	inc	 de
 	ld	 l,d
 	ld	 (de),a
@@ -11056,7 +10840,7 @@ L878D:	add	 a,c
 	dec	 d
 	ld	 c,$00
 	inc	 d
-	nop
+	nop	
 	djnz	 L87F5
 	inc	 de
 	ld	 d,h
@@ -11098,7 +10882,7 @@ L878D:	add	 a,c
 	djnz	 L881F
 	inc	 de
 	ld	 d,h
-ld	 (de),a
+L87D1:	ld	 (de),a
 	ld	 l,d
 	ld	 de,L017E
 	ex	 af,af'
@@ -11138,13 +10922,13 @@ L87F5:	inc	 de
 	ld	 d,$CC
 	dec	 d
 	inc	 c
-	nop
+	nop	
 	inc	 bc
 	djnz	 L8829
 	dec	 d
 L880A:	dec	 de
 L880B:	ld	 d,$AA
-	nop
+	nop	
 	inc	 bc
 	inc	 b
 	ld	 sp,hl
@@ -11158,7 +10942,7 @@ L881A:	rst	 38H
 	ld	 (de),a
 L881F:	dec	 de
 	ld	 de,L0217
-	rlca
+	rlca	
 	adc	 a,b
 L8825:	inc	 b
 	ld	 sp,hl
@@ -11174,7 +10958,7 @@ L8825:	inc	 b
 	ld	 (de),a
 	dec	 c
 	ld	 de,L020B
-	rlca
+	rlca	
 	adc	 a,b
 L883B:	inc	 b
 	ld	 sp,hl
@@ -11190,7 +10974,7 @@ L8842:	ld	 bc,$0501
 	ld	 (de),a
 	ex	 af,af'
 	ld	 de,L0206
-	rlca
+	rlca	
 	adc	 a,b
 L8851:	inc	 de
 	inc	 l
@@ -11207,14 +10991,14 @@ L885F:	rst	 38H
 	and	 b
 	djnz	 L8867
 	ld	 hl,L0101
-	rla
+	rla	
 L8867:	djnz	 L886D
-	DB	  $dd,$ff
+	.db	  $dd,$ff
 	ld	 (hl),b
 	djnz	 L8872
 	inc	 bc
 	ld	 bc,$0501
-L8872:	DB	  $dd,$ff
+L8872:	.db	  $dd,$ff
 	ld	 bc,L8816
 	dec	 d
 	jr	 L887A
@@ -11226,7 +11010,7 @@ L887B:	djnz	 L8895
 	jr	 L8884
 	cp	 $21
 L8884:	ld	 bc,L1301
-	daa
+	daa	
 	ld	 (de),a
 	ld	 b,(hl)
 	ld	 de,$057E
@@ -11234,16 +11018,16 @@ L8884:	ld	 bc,L1301
 	rst	 38H
 	ld	 bc,L7716
 	dec	 d
-	rla
-	rla
+	rla	
+	rla	
 L8895:	ld	 a,(bc)
 	inc	 b
-	DB	  $dd,$ff
+	.db	  $dd,$ff
 	ld	 a,(bc)
 	ld	 (bc),a
 	cp	 $03
 	ld	 bc,$0501
-	DB	  $dd,$ff
+	.db	  $dd,$ff
 	ld	 bc,L0400
 	ld	 sp,hl
 	rst	 38H
@@ -11262,7 +11046,7 @@ L88AA:	inc	 hl
 	ld	 (hl),d
 	ld	 b,$05
 L88BB:	ld	 hl,L0101
-	rla
+	rla	
 	ld	 (LDD04),hl
 	rst	 38H
 	ld	 h,h
@@ -11270,7 +11054,7 @@ L88BB:	ld	 hl,L0101
 	inc	 bc
 	ld	 hl,L0101
 	dec	 b
-	DB	  $dd,$ff
+	.db	  $dd,$ff
 	inc	 b
 	inc	 de
 	ld	 de,L1712
@@ -11278,7 +11062,7 @@ L88BB:	ld	 hl,L0101
 	sbc	 a,d
 	dec	 d
 	ld	 a,(de)
-	nop
+	nop	
 	dec	 b
 	ld	 sp,hl
 	rst	 38H
@@ -11295,14 +11079,14 @@ L88E2:	ld	 bc,$1302
 L88F1:	call	 m,L0101
 	ld	 bc,L0017
 	inc	 b
-	DB	  $dd,$ff
+	.db	  $dd,$ff
 	jr	 nz,L88FC
 L88FC:	ld	 (bc),a
 	ld	 bc,$0404
 	ld	 d,$FF
 	dec	 d
-	rra
-	nop
+	rra	
+	nop	
 L8905:	inc	 de
 	ld	 h,h
 	ld	 (de),a
@@ -11317,7 +11101,7 @@ L8911:	inc	 de
 	djnz	 L892F
 	ld	 h,a
 	dec	 d
-	rla
+	rla	
 	inc	 b
 	ld	 sp,hl
 	rst	 38H
@@ -11326,10 +11110,10 @@ L8911:	inc	 de
 	ld	 bc,L0202
 	ld	 bc,L0328
 L8928:	djnz	 L8952
-	rla
+	rla	
 	add	 a,h
 	inc	 b
-	DB	  $dd,$ff
+	.db	  $dd,$ff
 L892F:	add	 a,h
 	ld	 a,(bc)
 	rst	 38H
@@ -11372,7 +11156,7 @@ L8969:	ld	 bc,L0960
 	ld	 bc,$1600
 	rst	 38H
 	dec	 d
-	rra
+	rra	
 	inc	 b
 	jp	 p,L0FFF
 	ld	 (bc),a
@@ -11428,7 +11212,7 @@ L89AF:	djnz	 L89E1
 L89BE:	djnz	 L89F0
 	ld	 d,$FE
 	dec	 d
-	rrca
+	rrca	
 	inc	 d
 	add	 a,c
 	inc	 de
@@ -11437,7 +11221,7 @@ L89BE:	djnz	 L89F0
 	ld	 de,L016A
 	ld	 b,d
 	inc	 de
-	scf
+	scf	
 	ld	 (de),a
 	ld	 (hl),b
 L89D2:	ld	 de,L015E
@@ -11456,7 +11240,7 @@ L89E5:	djnz	 L8A17
 	add	 a,c
 	ld	 d,$EE
 	dec	 d
-	rrca
+	rrca	
 	inc	 de
 	ld	 d,h
 	ld	 (de),a
@@ -11481,7 +11265,7 @@ L89F0:	ld	 l,d
 L8A0C:	djnz	 L8A3E
 	ld	 d,$EF
 	dec	 d
-	rrca
+	rrca	
 	inc	 d
 	add	 a,c
 	inc	 de
@@ -11503,7 +11287,7 @@ L8A27:	djnz	 L8A59
 	add	 a,c
 	ld	 d,$EF
 	dec	 d
-	rrca
+	rrca	
 	inc	 de
 	ld	 c,a
 	ld	 (de),a
@@ -11513,7 +11297,7 @@ L8A27:	djnz	 L8A59
 	inc	 de
 	ld	 d,h
 	ld	 (de),a
-	scf
+	scf	
 	ld	 de,L015E
 L8A3E:	ld	 e,b
 	ld	 (bc),a
@@ -11534,7 +11318,7 @@ L8A42:	djnz	 L8A58
 	dec	 d
 	jr	 z,L8A69
 	jr	 nz,L8A58
-	DB	  $dd,$ff
+	.db	  $dd,$ff
 	ld	 d,h
 	jr	 nz,L8A5D
 L8A59:	inc	 bc
@@ -11545,10 +11329,10 @@ L8A5D:	ld	 sp,hl
 	rst	 38H
 	ld	 bc,L8816
 	inc	 de
-	DB	  $fd,$12
+	.db	  $fd,$12
 	cp	 $11
 	rst	 38H
-	nop
+	nop	
 L8A69:	ld	 bc,L0306
 L8A6C:	inc	 de
 	ret	 po
@@ -11587,9 +11371,9 @@ L8A92:	ld	 sp,hl
 	ld	 bc,L6202
 	adc	 a,d
 L8AA1:	inc	 b
-	DB	  $dd,$ff
+	.db	  $dd,$ff
 	add	 a,b
-	nop
+	nop	
 	cp	 $21
 	ld	 bc,L1701
 	add	 a,b
@@ -11599,12 +11383,12 @@ L8AA1:	inc	 b
 	ld	 (de),a
 	ld	 b,h
 	ld	 de,$0521
-	DB	  $dd,$ff
+	.db	  $dd,$ff
 	ld	 bc,L1F15
 	ld	 d,$EE
-	nop
+	nop	
 	dec	 d
-	cpl
+	cpl	
 	dec	 b
 	ld	 sp,hl
 	rst	 38H
@@ -11626,7 +11410,7 @@ L8AA1:	inc	 b
 	add	 a,b
 	ld	 bc,L0201
 	ld	 (bc),a
-	nop
+	nop	
 	inc	 bc
 L8ADD:	inc	 de
 	inc	 sp
@@ -11634,13 +11418,13 @@ L8ADD:	inc	 de
 	jr	 nc,L8AF3
 	ld	 (bc),a
 	ld	 bc,$0404
-	DB	  $dd,$ff
+	.db	  $dd,$ff
 	add	 a,b
-	nop
+	nop	
 	ld	 (bc),a
 	ld	 hl,L0101
-L8AEE:	rla
-	nop
+L8AEE:	rla	
+	nop	
 	ld	 (bc),a
 	xor	 h
 	adc	 a,d
@@ -11651,16 +11435,16 @@ L8AF6:	djnz	 L8B0C
 	inc	 d
 	adc	 a,b
 	inc	 de
-	scf
+	scf	
 	ld	 (de),a
 	add	 a,l
 	ld	 de,L178D
-	nop
+	nop	
 	ld	 d,$AA
 	dec	 d
 	ld	 hl,(L2801)
 	inc	 d
-	nop
+	nop	
 	inc	 b
 	ld	 sp,hl
 L8B0C:	rst	 38H
@@ -11669,13 +11453,13 @@ L8B0C:	rst	 38H
 	ld	 b,$01
 	inc	 b
 	inc	 b
-	rla
+	rla	
 	jr	 z,L8B1A
 	sub	 $FF
 	inc	 b
 	ld	 bc,L01FF
 	jr	 nc,L8B4E
-	nop
+	nop	
 L8B1F:	djnz	 L8B31
 	inc	 d
 	add	 a,(hl)
@@ -11687,16 +11471,16 @@ L8B1F:	djnz	 L8B31
 	sbc	 a,c
 	dec	 d
 	add	 hl,hl
-	nop
+	nop	
 L8B2E:	inc	 de
 	xor	 b
 	ld	 (de),a
 L8B31:	ld	 a,(de)
 	ld	 de,L167E
-	DB	  $dd,$15
+	.db	  $dd,$15
 	dec	 l
 	djnz	 L8B58
-	rla
+	rla	
 	jr	 L8B51
 	ld	 bc,LEB05
 	rst	 38H
@@ -11708,7 +11492,7 @@ L8B31:	ld	 a,(de)
 	ld	 bc,L2303
 	ld	 (bc),a
 	ld	 (bc),a
-	nop
+	nop	
 	dec	 b
 	ex	 de,hl
 L8B4E:	rst	 38H
@@ -11718,9 +11502,9 @@ L8B4E:	rst	 38H
 	rst	 38H
 	inc	 e
 	ld	 bc,L23FD
-	rlca
-	rlca
-	nop
+	rlca	
+	rlca	
+	nop	
 	inc	 bc
 L8B5D:	inc	 de
 	ld	 d,h
@@ -11732,7 +11516,7 @@ L8B5D:	inc	 de
 	dec	 e
 	add	 a,e
 	add	 hl,de
-	daa
+	daa	
 	add	 hl,bc
 	jr	 L8B70
 	dec	 l
@@ -11755,9 +11539,9 @@ L8B70:	dec	 hl
 	ld	 (L3609),hl
 	jr	 z,L8BA8
 	dec	 sp
-	nop
+	nop	
 	ld	 hl,(L282A)
-	scf
+	scf	
 	dec	 h
 	dec	 d
 	dec	 l
@@ -11765,7 +11549,7 @@ L8B70:	dec	 hl
 	jr	 L8BD8
 	add	 a,e
 	dec	 d
-	nop
+	nop	
 L8B9D:	add	 hl,bc
 	add	 hl,hl
 	jr	 L8BCB
@@ -11780,7 +11564,7 @@ L8BA6:	ld	 (L220F),a
 	dec	 d
 	add	 hl,bc
 	add	 hl,hl
-	rra
+	rra	
 	dec	 sp
 	jr	 L8BD1
 	ld	 a,$83
@@ -11789,7 +11573,7 @@ L8BA6:	ld	 (L220F),a
 	ld	 (L2836),hl
 	inc	 sp
 L8BBC:	dec	 hl
-	daa
+	daa	
 	dec	 c
 	ld	 a,$83
 	inc	 d
@@ -11803,7 +11587,7 @@ L8BBC:	dec	 hl
 L8BCB:	dec	 c
 	ld	 (de),a
 	inc	 sp
-	rrca
+	rrca	
 	dec	 l
 	ld	 h,$35
 	dec	 hl
@@ -11814,8 +11598,8 @@ L8BCB:	dec	 c
 L8BD8:	inc	 hl
 	add	 hl,bc
 	add	 hl,hl
-	cpl
-	nop
+	cpl	
+	nop	
 	inc	 c
 	ld	 a,$11
 	ld	 a,$38
@@ -11844,34 +11628,34 @@ L8BF8:	add	 hl,hl
 	dec	 d
 	add	 hl,bc
 	ld	 (L2B25),hl
-	daa
+	daa	
 	ld	 hl,(L2229)
-	rra
+	rra	
 	ld	 a,$3E
-	cpl
-	nop
+	cpl	
+	nop	
 	dec	 c
 	ld	 e,$22
 	ld	 (hl),$28
 	jr	 L8C4F
 	add	 hl,de
 	inc	 bc
-	rra
+	rra	
 	dec	 h
 	jr	 L8C40
-	scf
+	scf	
 	ld	 e,$3E
 	inc	 e
 	inc	 c
 	dec	 d
-	nop
+	nop	
 	add	 hl,bc
 	add	 hl,hl
 	add	 hl,de
 	dec	 hl
 	inc	 a
 	ld	 hl,(L3A10)
-	rra
+	rra	
 	inc	 h
 	inc	 hl
 	dec	 hl
@@ -11879,9 +11663,9 @@ L8BF8:	add	 hl,hl
 	ld	 b,$1E
 	add	 hl,hl
 	dec	 (hl)
-	scf
-	cpl
-	nop
+	scf	
+	cpl	
+	nop	
 	add	 hl,de
 	ld	 hl,(L0F0B)
 	ld	 a,$1E
@@ -11891,10 +11675,10 @@ L8BF8:	add	 hl,hl
 L8C40:	add	 hl,de
 	inc	 bc
 	dec	 l
-	daa
+	daa	
 	jr	 L8C49
 	dec	 sp
-	rra
+	rra	
 	inc	 bc
 L8C49:	add	 hl,de
 	ld	 b,$09
@@ -11912,12 +11696,12 @@ L8C4F:	jr	 c,L8C7C
 	dec	 c
 	ld	 hl,(L6F1B)
 	ld	 a,(bc)
-	rrca
+	rrca	
 	inc	 bc
 	ld	 b,$2A
 	djnz	 L8CD8
 	dec	 c
-	rra
+	rra	
 	inc	 bc
 	dec	 e
 	inc	 (hl)
@@ -11927,7 +11711,7 @@ L8C4F:	jr	 c,L8C7C
 	dec	 hl
 L8C73:	ld	 e,$6E
 	dec	 c
-	rra
+	rra	
 	ld	 a,$1F
 	add	 a,e
 	dec	 hl
@@ -11937,37 +11721,37 @@ L8C7C:	inc	 c
 	inc	 c
 	ld	 c,$3A
 	ld	 a,$55
-	nop
+	nop	
 	add	 hl,bc
 	add	 hl,hl
 	inc	 c
 	jr	 c,L8CBC
 	dec	 l
-	daa
+	daa	
 L8C8B:	ld	 (de),a
-	ld	 a,($3E1E)
+	ld	 a,(L3E1E)
 	dec	 c
 	dec	 d
 	ld	 hl,(L3629)
-	scf
-	scf
+	scf	
+	scf	
 	ld	 a,$83
 	inc	 l
 	ld	 c,e
 	ld	 e,l
 	add	 hl,hl
 	add	 hl,bc
-	scf
+	scf	
 	add	 hl,de
-	cpl
-	nop
+	cpl	
+	nop	
 	dec	 c
 	ld	 hl,(L0E3E)
 	ld	 a,h
 	ld	 hl,(L3238)
 	dec	 hl
 	dec	 sp
-	rra
+	rra	
 	ld	 hl,(LB83E)
 	ld	 b,d
 	dec	 c
@@ -11975,12 +11759,12 @@ L8C8B:	ld	 (de),a
 	ld	 (hl),$37
 	jr	 L8CC3
 	ld	 (bc),a
-	rrca
+	rrca	
 	ld	 a,(L1C3E)
 	ld	 b,d
 L8CBC:	ld	 hl,(L3238)
 	ld	 c,$3B
-	rra
+	rra	
 	ld	 hl,(L8303)
 	ld	 sp,L2783
 	dec	 e
@@ -11988,18 +11772,18 @@ L8CBC:	ld	 hl,(L3238)
 	add	 hl,bc
 	jr	 z,L8CEB
 	inc	 a
-	rra
+	rra	
 	ld	 hl,(L352B)
 	inc	 hl
 	add	 hl,bc
 	ld	 hl,L080C
 	ex	 af,af'
-L8CD8:	nop
+L8CD8:	nop	
 	add	 hl,bc
 	add	 hl,hl
 	ld	 c,$60
 	ld	 c,$29
-	ld	 ($3E1F),hl
+	ld	 (L3E1F),hl
 	dec	 d
 	add	 hl,bc
 	ld	 (L2518),hl
@@ -12019,9 +11803,9 @@ L8CD8:	nop
 	dec	 c
 	ld	 d,l
 	inc	 hl
-	scf
+	scf	
 	dec	 d
-	nop
+	nop	
 	add	 hl,bc
 	add	 hl,hl
 	inc	 c
@@ -12036,21 +11820,21 @@ L8CD8:	nop
 	add	 a,e
 	ld	 (L2836),hl
 	dec	 l
-	daa
+	daa	
 	jr	 L8D23
 	ld	 a,e
-	rrca
+	rrca	
 	ld	 a,(L3C18)
 	inc	 a
-	rrca
+	rrca	
 	dec	 l
 	ld	 h,(hl)
 	ld	 (hl),l
 	dec	 hl
 	ld	 (L5518),a
-	nop
+	nop	
 	add	 hl,hl
-	rrca
+	rrca	
 	ld	 a,$83
 	dec	 d
 	add	 a,e
@@ -12064,7 +11848,7 @@ L8CD8:	nop
 	dec	 (hl)
 	dec	 (hl)
 	ld	 l,a
-	nop
+	nop	
 	dec	 e
 	ld	 hl,(L383A)
 	dec	 sp
@@ -12091,14 +11875,14 @@ L8CD8:	nop
 	ld	 h,e
 	ld	 (hl),a
 	ld	 (L3736),hl
-	scf
+	scf	
 	inc	 e
 	dec	 sp
 	ld	 hl,(L3903)
 	ld	 (L5B03),a
 	ld	 b,d
 L8D68:	ld	 c,c
-	rrca
+	rrca	
 	inc	 a
 	dec	 l
 	ld	 b,l
@@ -12111,10 +11895,10 @@ L8D68:	ld	 c,c
 	inc	 (hl)
 	dec	 hl
 	ld	 l,a
-	nop
+	nop	
 	ld	 e,a
 	ld	 e,c
-	daa
+	daa	
 	inc	 d
 	dec	 e
 	ld	 h,$2B
@@ -12127,7 +11911,7 @@ L8D68:	ld	 c,c
 	add	 hl,hl
 	ld	 (hl),$28
 	ld	 hl,($152B)
-	nop
+	nop	
 	add	 hl,bc
 	add	 hl,hl
 	ld	 l,a
@@ -12151,7 +11935,7 @@ L8D68:	ld	 c,c
 	jr	 z,L8DDA
 	inc	 c
 	ld	 a,$83
-	daa
+	daa	
 	add	 a,e
 	ld	 c,$7A
 	ld	 l,e
@@ -12163,7 +11947,7 @@ L8D68:	ld	 c,c
 	dec	 l
 	ld	 h,$2B
 	ld	 a,$2F
-	nop
+	nop	
 L8DC7:	dec	 c
 	ld	 e,$39
 	ld	 h,(hl)
@@ -12171,16 +11955,16 @@ L8DC7:	dec	 c
 	dec	 l
 	ld	 h,$2B
 	ld	 a,$2D
-L8DD1:	daa
+L8DD1:	daa	
 	jr	 L8DF2
 	ld	 (hl),$68
 	ld	 (L2836),hl
-	daa
+	daa	
 L8DDA:	dec	 c
 	ld	 a,$83
 	ld	 (L0C83),hl
 	dec	 d
-	nop
+	nop	
 	add	 hl,bc
 	add	 hl,hl
 	dec	 l
@@ -12188,16 +11972,16 @@ L8DDA:	dec	 c
 	ld	 l,e
 	jr	 L8E10
 	inc	 d
-	rra
+	rra	
 	dec	 d
 	inc	 hl
 	dec	 hl
-	rrca
+	rrca	
 	ld	 a,e
 	ld	 b,b
 	dec	 hl
 L8DF2:	add	 hl,hl
-	rrca
+	rrca	
 	ld	 a,e
 	ld	 b,b
 	dec	 hl
@@ -12220,15 +12004,15 @@ L8DF2:	add	 hl,hl
 	ld	 e,$1A
 	dec	 bc
 	add	 hl,de
-	daa
+	daa	
 	ld	 (de),a
-	rra
+	rra	
 	ld	 hl,(L7D2B)
 	dec	 c
 	inc	 e
 	dec	 hl
 	jr	 c,L8E46
-	nop
+	nop	
 	dec	 c
 	add	 hl,hl
 L8E1A:	inc	 (hl)
@@ -12247,14 +12031,14 @@ L8E1A:	inc	 (hl)
 	ld	 c,(hl)
 	ld	 h,$34
 	ld	 c,l
-	rra
+	rra	
 	dec	 l
-	daa
+	daa	
 	jr	 L8E36
 	jr	 L8E4A
-	nop
+	nop	
 L8E36:	add	 hl,hl
-	daa
+	daa	
 	dec	 c
 	jr	 c,L8E6E
 	ld	 e,$73
@@ -12262,9 +12046,9 @@ L8E36:	add	 hl,hl
 	ld	 a,(de)
 	ld	 (bc),a
 	dec	 c
-	rra
+	rra	
 	inc	 sp
-	rrca
+	rrca	
 	dec	 l
 	ld	 h,$35
 	dec	 hl
@@ -12273,39 +12057,39 @@ L8E36:	add	 hl,hl
 	dec	 hl
 	dec	 l
 	dec	 d
-	nop
+	nop	
 	add	 hl,bc
 	jr	 L8E74
-	halt
+	halt	
 	ld	 l,b
 	ld	 e,$3C
-	rrca
+	rrca	
 	ld	 (bc),a
 	jr	 L8E7D
 	dec	 h
 	ld	 hl,(L151F)
 	add	 hl,bc
 	ld	 hl,L0D3B
-	rra
+	rra	
 	ld	 a,$2D
 	inc	 a
 	add	 hl,hl
 	ld	 e,$3C
-	rrca
+	rrca	
 	ld	 (bc),a
 	jr	 L8E90
 	dec	 h
 L8E6E:	ld	 hl,(L2F0C)
-	nop
+	nop	
 	ld	 e,$1A
 L8E74:	dec	 bc
 	add	 hl,de
 	ld	 a,$13
 
-;Speech string "Hey, Insert coin!" for $13 ($19) bytes
+;Speech string "Hey, Insert coin!" for $13 ($19) bytes 
 
-DB	$1B,$60,$4B,$62,$3E,$3E,$27,$0D,$1F,$7A,$6A,$3E,$59,$75,$34,$09,$22,$0D,$3E,$0A
-;	DB
+L8E78:	.db	$1B,$60,$4B,$62,$3E,$3E,$27,$0D,$1F,$7A,$6A,$3E,$59,$75,$34,$09,$22,$0D,$3E,$0A
+;	.db	
 
 	dec	 e
 	ld	 d,l
@@ -12323,10 +12107,10 @@ L8E90:	dec	 c
 	inc	 bc
 	ex	 af,af'
 	dec	 (hl)
-	scf
+	scf	
 	ld	 e,$15
 	inc	 bc
-	rra
+	rra	
 	dec	 h
 	ex	 af,af'
 	ld	 c,e
@@ -12369,10 +12153,10 @@ L8E90:	dec	 c
 	ld	 c,c
 	ld	 h,d
 	ld	 hl,(L022B)
-	rlca
+	rlca	
 	ld	 a,($102A)
 	dec	 sp
-	rra
+	rra	
 	ld	 hl,(L0A3E)
 	ld	 a,$1B
 	ld	 d,l
@@ -12387,8 +12171,8 @@ L8E90:	dec	 c
 	ex	 af,af'
 	inc	 bc
 	ld	 e,h
-	halt
-	halt
+	halt	
+	halt	
 	ld	 (hl),$36
 	ld	 e,$3E
 	inc	 c
@@ -12413,7 +12197,7 @@ L8E90:	dec	 c
 	ld	 (L2836),hl
 	jr	 L8F43
 	dec	 sp
-	ld	 hl,($3E3E)
+	ld	 hl,(L3E3E)
 	jr	 c,L8F59
 	inc	 bc
 	ld	 c,b
@@ -12450,13 +12234,13 @@ L8F43:	dec	 c
 	add	 hl,hl
 	ld	 c,$22
 L8F59:	add	 hl,hl
-	rra
+	rra	
 	ld	 hl,(L1E28)
 	inc	 l
-	rrca
+	rrca	
 	dec	 d
 	inc	 (hl)
-	scf
+	scf	
 	dec	 hl
 	ld	 a,$1D
 	add	 hl,de
@@ -12470,7 +12254,7 @@ L8F59:	add	 hl,hl
 	ld	 e,$29
 	ld	 (hl),$28
 	dec	 l
-	daa
+	daa	
 	jr	 L8F97
 	ld	 d,l
 	dec	 bc
@@ -12490,7 +12274,7 @@ L8F59:	add	 hl,hl
 	ld	 a,(de)
 	ld	 (bc),a
 	dec	 c
-	rra
+	rra	
 	ld	 a,$15
 	dec	 c
 	ld	 e,$29
@@ -12529,9 +12313,9 @@ L8FB1:	dec	 hl
 	dec	 hl
 	ld	 a,$3E
 	dec	 l
-	daa
+	daa	
 	add	 hl,sp
-	daa
+	daa	
 	add	 a,e
 	jr	 c,L8FFF
 	ld	 e,$73
@@ -12539,10 +12323,10 @@ L8FB1:	dec	 hl
 	ld	 a,(de)
 	dec	 sp
 	dec	 c
-	rra
+	rra	
 	inc	 bc
 	inc	 sp
-	rrca
+	rrca	
 	inc	 bc
 L8FD7:	dec	 l
 	ld	 h,$35
@@ -12567,7 +12351,7 @@ L8FD7:	dec	 l
 	ld	 e,$6C
 	inc	 a
 	dec	 h
-	daa
+	daa	
 	dec	 c
 	jr	 c,L902D
 	inc	 bc
@@ -12576,7 +12360,7 @@ L8FD7:	dec	 l
 	ld	 a,(L1F0D)
 	inc	 bc
 	inc	 sp
-	rrca
+	rrca	
 	dec	 l
 	ld	 h,(hl)
 	ld	 (hl),l
@@ -12584,9 +12368,9 @@ L8FD7:	dec	 l
 	dec	 hl
 	ld	 a,$3E
 	ld	 (L2836),hl
-	scf
+	scf	
 	dec	 l
-	daa
+	daa	
 	jr	 L901F
 	ld	 l,h
 	ld	 a,h
@@ -12598,15 +12382,15 @@ L8FD7:	dec	 l
 	ld	 c,$3E
 	add	 hl,sp
 L901F:	add	 hl,sp
-	cpl
-	nop
+	cpl	
+	nop	
 	inc	 d
 	add	 hl,de
-	rra
+	rra	
 	inc	 bc
 	add	 hl,hl
 	ld	 (hl),$28
-	scf
+	scf	
 	ld	 a,$18
 	add	 a,e
 L902D:	ld	 (L2836),hl
@@ -12616,35 +12400,35 @@ L902D:	ld	 (L2836),hl
 	dec	 (hl)
 	ld	 (L2836),hl
 	add	 hl,de
-	cpl
-	nop
+	cpl	
+	nop	
 	dec	 c
 	ld	 e,$36
 	jr	 z,L904D
 	ld	 a,e
-	ld	 hl,($3E3A)
+	ld	 hl,(L3E3A)
 	add	 a,e
 	ld	 h,$1B
 	ld	 a,d
 	ld	 l,e
 	add	 hl,hl
 	ld	 c,$2F
-	nop
+	nop	
 	add	 hl,de
 L904D:	ld	 a,$3E
 	dec	 d
-	nop
+	nop	
 	add	 hl,bc
 	add	 hl,hl
 	add	 hl,de
-	cpl
-	nop
+	cpl	
+	nop	
 	dec	 c
 	ld	 hl,(L462D)
 	ld	 h,c
 	add	 hl,hl
 	ld	 hl,(L362A)
-	scf
+	scf	
 	ld	 e,$76
 	jr	 z,L908B
 	ld	 hl,(L1C32)
@@ -12654,14 +12438,14 @@ L904D:	ld	 a,$3E
 	ld	 a,$27
 	ld	 (L2836),hl
 	add	 hl,de
-	cpl
-	nop
+	cpl	
+	nop	
 	dec	 c
-	rra
+	rra	
 	ld	 hl,(L2B55)
 	ld	 hl,(L0D15)
-	halt
-	scf
+	halt	
+	scf	
 	dec	 l
 	ld	 a,$BE
 	ld	 c,$33
@@ -12678,7 +12462,7 @@ L908B:	inc	 (hl)
 	add	 hl,sp
 	dec	 hl
 	ld	 (hl),a
-	scf
+	scf	
 	ld	 a,$BE
 	ld	 (L6C1B),hl
 	dec	 de
@@ -12698,7 +12482,7 @@ L90A4:	dec	 de
 	dec	 d
 	ld	 a,$38
 	ld	 l,(hl)
-	nop
+	nop	
 	ld	 hl,(L0303)
 	dec	 l
 	inc	 sp
@@ -12713,7 +12497,7 @@ L90A4:	dec	 de
 	inc	 sp
 	inc	 c
 	ld	 a,$2A
-	scf
+	scf	
 	inc	 c
 	dec	 d
 	dec	 bc
@@ -12723,16 +12507,16 @@ L90A4:	dec	 de
 	ld	 a,d
 	ld	 e,b
 	ld	 e,$33
-	rrca
+	rrca	
 	dec	 l
 	ld	 h,$35
 	dec	 hl
 	ld	 a,$21
-	rra
+	rra	
 	ld	 h,(hl)
 	add	 hl,hl
 L90D4:	ld	 (hl),$37
-	rrca
+	rrca	
 	add	 hl,de
 	ld	 (hl),e
 	ld	 c,h
@@ -12748,7 +12532,7 @@ L90D4:	ld	 (hl),$37
 	ld	 a,d
 	jr	 L9109
 	inc	 sp
-	rrca
+	rrca	
 	dec	 l
 	ld	 h,(hl)
 	dec	 (hl)
@@ -12766,21 +12550,21 @@ L90D4:	ld	 (hl),$37
 	add	 hl,hl
 	jr	 c,L9134
 	xor	 l
-	daa
+	daa	
 	ld	 (de),a
-	ld	 a,($3E1E)
+	ld	 a,(L3E1E)
 	jr	 c,L913C
 L9109:	inc	 c
-	cpl
-	nop
+	cpl	
+	nop	
 	ld	 e,$1A
 	dec	 bc
 	add	 hl,de
-	ld	 ($AD18),a
-	daa
+	ld	 (LAD18),a
+	daa	
 	ld	 (de),a
 	ld	 a,(LB31E)
-L9118:	rrca
+L9118:	rrca	
 	dec	 l
 	dec	 (hl)
 	inc	 (hl)
@@ -12810,7 +12594,7 @@ L9134:	inc	 sp
 	inc	 sp
 	dec	 c
 L913C:	add	 hl,sp
-	rra
+	rra	
 	ld	 a,$83
 	ld	 d,$0C
 	dec	 d
@@ -12825,11 +12609,11 @@ L913C:	add	 hl,sp
 	add	 hl,sp
 	dec	 e
 	ld	 d,l
-	nop
-	ld	 hl,$3E2B
+	nop	
+	ld	 hl,L3E2B
 	ld	 h,$83
 	dec	 d
-	nop
+	nop	
 	add	 hl,bc
 	add	 hl,hl
 	jr	 L917C
@@ -12844,7 +12628,7 @@ L913C:	add	 hl,sp
 	add	 hl,sp
 	inc	 c
 	dec	 d
-	nop
+	nop	
 	add	 hl,bc
 	add	 hl,hl
 	jr	 L9194
@@ -12854,14 +12638,14 @@ L913C:	add	 hl,sp
 	inc	 d
 	ld	 c,$26
 	jr	 L91A5
-	rra
+	rra	
 L917C:	ld	 a,$83
 	ld	 ($151C),hl
 	dec	 hl
 	dec	 l
 	ld	 h,$2B
-	cpl
-	nop
+	cpl	
+	nop	
 	dec	 c
 	ld	 e,$39
 	ld	 h,$2B
@@ -12873,9 +12657,9 @@ L917C:	ld	 a,$83
 	inc	 sp
 L9194:	inc	 c
 	ld	 a,$BE
-	daa
+	daa	
 	dec	 c
-	rrca
+	rrca	
 	ld	 c,e
 	ld	 d,d
 	dec	 bc
@@ -12894,9 +12678,9 @@ L9194:	inc	 c
 	ld	 e,$3E
 	inc	 c
 	inc	 a
-	ld	 hl,$3E0D
-	cpl
-	nop
+	ld	 hl,L3E0D
+	cpl	
+	nop	
 	dec	 c
 	ld	 e,$1B
 	ld	 (hl),e
@@ -12906,14 +12690,14 @@ L9194:	inc	 c
 	add	 hl,hl
 	dec	 e
 	ld	 h,$2B
-	rra
+	rra	
 	dec	 h
 	ld	 b,$09
 	add	 hl,hl
-	rra
+	rra	
 	dec	 e
-	scf
-	scf
+	scf	
+	scf	
 	ld	 e,$3E
 	add	 a,e
 	jr	 z,L91FD
@@ -12923,7 +12707,7 @@ L9194:	inc	 c
 	ld	 a,(bc)
 	dec	 hl
 	ld	 a,$15
-	nop
+	nop	
 	add	 hl,bc
 	add	 hl,hl
 	ld	 e,$2B
@@ -12935,7 +12719,7 @@ L9194:	inc	 c
 	dec	 d
 	add	 hl,bc
 	ld	 ($150C),hl
-	nop
+	nop	
 	add	 hl,bc
 	add	 hl,hl
 	ld	 (L6125),a
@@ -12946,21 +12730,21 @@ L9194:	inc	 c
 	ld	 h,$2B
 	add	 hl,hl
 	ld	 a,(L833E)
-	rla
+	rla	
 	add	 hl,hl
 	ld	 (hl),$37
-	rrca
+	rrca	
 	inc	 bc
 	ld	 a,(de)
 	inc	 sp
-	rra
+	rra	
 	ld	 hl,(L3B0E)
 	dec	 c
 	dec	 e
 	dec	 hl
 	dec	 d
 	dec	 bc
-	ld	 ($3E1E),hl
+	ld	 (L3E1E),hl
 	ld	 c,$15
 	ld	 a,(bc)
 	ld	 (L830F),hl
@@ -12975,7 +12759,7 @@ L9194:	inc	 c
 	dec	 e
 	dec	 l
 	inc	 sp
-	rra
+	rra	
 	dec	 c
 	ld	 hl,(L2F38)
 	ld	 hl,(L2318)
@@ -13001,45 +12785,45 @@ L924C:	dec	 d
 	dec	 h
 	ld	 h,$2B
 	ld	 hl,($140B)
-	rra
+	rra	
 	dec	 h
 	dec	 sp
 	jr	 L9261
 	add	 hl,de
-	cpl
+	cpl	
 	dec	 c
 L9261:	ld	 c,$2C
 	inc	 bc
 	inc	 bc
 	inc	 a
-L9266:	rrca
+L9266:	rrca	
 	dec	 sp
 	dec	 c
 	dec	 e
 	ld	 l,$1F
-	ld	 hl,($3E3A)
+	ld	 hl,(L3E3A)
 	add	 a,e
 	inc	 hl
 	add	 a,e
 	dec	 c
 	ld	 d,l
 	inc	 hl
-	scf
+	scf	
 	add	 hl,hl
 	ld	 (hl),$37
-	scf
+	scf	
 	dec	 c
 	ld	 h,$26
 	jr	 c,L92B2
 	ld	 hl,($0520)
-	rra
+	rra	
 	ld	 hl,(L3203)
-	rrca
+	rrca	
 	inc	 c
 	dec	 d
 	ld	 a,(bc)
 	ld	 (L2F0C),hl
-	nop
+	nop	
 	ld	 e,$1A
 	dec	 bc
 	add	 hl,de
@@ -13069,7 +12853,7 @@ L9266:	rrca
 L92B2:	ld	 e,a
 	dec	 h
 	jr	 L931C
-	rlca
+	rlca	
 	inc	 sp
 	dec	 c
 	inc	 bc
@@ -13077,8 +12861,8 @@ L92B2:	ld	 e,a
 	ld	 (L0C1F),a
 L92BE:	ld	 h,d
 	ld	 l,b
-	rra
-L92C1:	daa
+	rra	
+L92C1:	daa	
 	add	 hl,de
 	ld	 hl,(L0C28)
 	dec	 d
@@ -13087,12 +12871,12 @@ L92C1:	daa
 	ld	 a,(L1F2B)
 	ld	 a,$10
 	dec	 d
-	nop
+	nop	
 	add	 hl,bc
 	add	 hl,hl
 	jr	 L92F5
 	jr	 nz,L92FA
-	daa
+	daa	
 	ld	 hl,(L1C33)
 	ld	 b,$01
 	dec	 c
@@ -13109,15 +12893,15 @@ L92C1:	daa
 	ld	 e,$3E
 	add	 hl,hl
 	ld	 (hl),$28
-	scf
+	scf	
 	ld	 a,$32
 L92F5:	dec	 h
 	dec	 hl
 	ld	 h,$35
-	ld	 hl,($3E10)
+	ld	 hl,(L3E10)
 	jr	 c,L9331
 	dec	 h
-	daa
+	daa	
 	ld	 hl,(L833E)
 	ld	 (L2983),hl
 	inc	 (hl)
@@ -13138,20 +12922,20 @@ L92F5:	dec	 h
 	ld	 a,$3E
 	jr	 c,L9354
 	dec	 h
-	daa
+	daa	
 	ld	 hl,(L833E)
 	ld	 d,$83
 	ld	 e,$3C
 	inc	 l
 	dec	 h
 	ld	 a,(L3B3E)
-	rrca
+	rrca	
 	ld	 a,(L3C1E)
 	inc	 l
 	dec	 h
 	ld	 a,(L273E)
 	dec	 c
-	ld	 hl,($3E28)
+	ld	 hl,(L3E28)
 	add	 a,e
 	ld	 hl,L0E83
 	add	 hl,hl
@@ -13162,7 +12946,7 @@ L92F5:	dec	 h
 	ld	 (hl),$28
 	dec	 d
 	dec	 hl
-	daa
+	daa	
 	dec	 c
 	jr	 c,L9381
 	dec	 l
@@ -13177,7 +12961,7 @@ L9354:	ld	 e,$03
 	dec	 c
 	ld	 (de),a
 	ld	 a,$83
-	cpl
+	cpl	
 	add	 a,e
 	inc	 h
 	dec	 d
@@ -13187,11 +12971,11 @@ L9354:	ld	 e,$03
 	dec	 a
 	ld	 hl,(L3629)
 	jr	 z,L9387
-	rla
+	rla	
 	ld	 e,$1B
 	dec	 d
 	ld	 a,(bc)
-	ld	 ($3E1E),hl
+	ld	 (L3E1E),hl
 	ld	 c,$33
 	ld	 hl,(L0015)
 	add	 hl,bc
@@ -13206,7 +12990,7 @@ L9354:	ld	 e,$03
 L9387:	dec	 c
 	inc	 c
 	ld	 l,$1F
-	ld	 hl,($3E3A)
+	ld	 hl,(L3E3A)
 	add	 a,e
 	dec	 de
 	add	 a,e
@@ -13229,7 +13013,7 @@ L9387:	dec	 c
 	add	 hl,bc
 	ld	 e,$29
 	ld	 a,$83
-	rra
+	rra	
 	dec	 de
 	ld	 h,b
 	ld	 c,e
@@ -13239,28 +13023,28 @@ L9387:	dec	 c
 	inc	 (hl)
 	inc	 (hl)
 L93B5:	dec	 hl
-	rra
+	rra	
 	dec	 h
 	ld	 b,$21
 	add	 hl,hl
-	rra
+	rra	
 	inc	 bc
 	ld	 c,$28
-	scf
+	scf	
 	ld	 hl,(L031F)
 	inc	 sp
 	dec	 c
 	ld	 hl,(L0A15)
-	ld	 ($3E1E),hl
+	ld	 (L3E1E),hl
 	inc	 l
 	add	 a,e
 	inc	 c
 	dec	 d
-	nop
+	nop	
 	add	 hl,bc
 	ld	 (L2C0E),hl
 	inc	 a
-	rra
+	rra	
 	ld	 hl,(L031F)
 	dec	 hl
 	inc	 sp
@@ -13297,16 +13081,16 @@ L93B5:	dec	 hl
 	jr	 L942E
 	ld	 hl,(L2E10)
 	dec	 c
-	rra
+	rra	
 L940A:	dec	 bc
-	rra
+	rra	
 	add	 hl,hl
 	inc	 (hl)
 	inc	 (hl)
 	dec	 hl
 	ld	 e,$2E
 L9412:	dec	 c
-	rra
+	rra	
 	ld	 a,$24
 	add	 a,e
 	inc	 h
@@ -13317,11 +13101,11 @@ L941A:	inc	 bc
 	inc	 bc
 	add	 a,e
 	dec	 e
-	daa
+	daa	
 	ld	 hl,(L0303)
 	ld	 hl,(L0328)
 	add	 a,e
-	rra
+	rra	
 	ld	 a,(L080F)
 	ld	 a,(bc)
 L942E:	ld	 (L030F),hl
@@ -13330,10 +13114,10 @@ L942E:	ld	 (L030F),hl
 	inc	 bc
 	add	 a,e
 	dec	 h
-	daa
+	daa	
 	ld	 hl,(L1F3E)
 	jr	 z,L9462
-	rra
+	rra	
 	ld	 a,$3E
 	dec	 d
 	inc	 hl
@@ -13341,9 +13125,9 @@ L942E:	ld	 (L030F),hl
 	add	 hl,hl
 	inc	 c
 	inc	 sp
-	rra
+	rra	
 	ld	 hl,(L2F1B)
-	rrca
+	rrca	
 	dec	 e
 	ld	 h,$2B
 	inc	 e
@@ -13356,7 +13140,7 @@ L942E:	ld	 (L030F),hl
 	ld	 a,$1B
 	add	 a,e
 	dec	 l
-	cpl
+	cpl	
 	ld	 a,(L2B15)
 	ld	 (L2836),hl
 	inc	 e
@@ -13384,7 +13168,7 @@ L9478:	add	 a,h
 	adc	 a,e
 	dec	 e
 	adc	 a,h
-	ld	 a,($3F8C)
+	ld	 a,(L3F8C)
 	adc	 a,l
 L9488:	ld	 c,(hl)
 	adc	 a,l
@@ -13424,8 +13208,8 @@ L94AB:	adc	 a,l
 	adc	 a,l
 	or	 l
 	adc	 a,l
-	DB	 $dd,$8d
-	nop
+	.db	 $dd,$8d
+	nop	
 	adc	 a,(hl)
 	ld	 c,e
 	adc	 a,(hl)
@@ -13474,9 +13258,9 @@ L94CB:	sub	 b
 	sub	 c
 	rst	 38H
 	sub	 c
-	rla
+	rla	
 	sub	 d
-	daa
+	daa	
 	sub	 d
 	ld	 b,l
 	sub	 d
@@ -13538,7 +13322,7 @@ L951D:	djnz	 L94A0
 	add	 a,d
 	ld	 c,$04
 	add	 a,c
-	rrca
+	rrca	
 	add	 a,d
 	ld	 de,L8210
 	ld	 e,$36
@@ -13547,9 +13331,9 @@ L951D:	djnz	 L94A0
 	add	 a,d
 	ld	 l,$10
 	add	 a,d
-	cpl
+	cpl	
 	djnz	 L94C0
-	nop
+	nop	
 	add	 a,d
 	ld	 c,(hl)
 	ld	 (bc),a
@@ -13560,10 +13344,10 @@ L951D:	djnz	 L94A0
 	dec	 b
 	djnz	 L94CB
 	ld	 b,$81
-L954C:	rlca
+L954C:	rlca	
 	add	 a,d
 	ex	 af,af'
-	scf
+	scf	
 	add	 a,d
 	inc	 sp
 	ld	 (hl),$81
@@ -13571,7 +13355,7 @@ L954C:	rlca
 	add	 a,d
 	inc	 h
 	ld	 (hl),$82
-	daa
+	daa	
 	ld	 (hl),$82
 	dec	 h
 	ld	 (hl),$82
@@ -13589,14 +13373,14 @@ L956E:	inc	 d
 	dec	 d
 	ld	 b,b
 	add	 a,d
-	scf
+	scf	
 L9574:	ld	 h,$82
 	inc	 (hl)
 	djnz	 L94FC
 	add	 hl,bc
 L957A:	ld	 (L8210),hl
 	dec	 (hl)
-	scf
+	scf	
 	add	 a,d
 	ld	 a,(de)
 	ld	 (hl),$81
@@ -13605,7 +13389,7 @@ L957A:	ld	 (L8210),hl
 	inc	 e
 	ld	 (hl),$82
 	ld	 bc,L8236
-	rra
+	rra	
 	add	 hl,bc
 	add	 a,d
 	add	 hl,bc
@@ -13615,8 +13399,8 @@ L957A:	ld	 (L8210),hl
 	add	 a,e
 L9597:	ld	 d,$04
 	djnz	 L951D
-	rla
-	scf
+	rla	
+	scf	
 	add	 a,d
 	jr	 L95D7
 	add	 a,d
@@ -13624,7 +13408,7 @@ L9597:	ld	 d,$04
 	add	 hl,de
 	add	 a,d
 	add	 hl,hl
-	scf
+	scf	
 	add	 a,c
 	ld	 hl,(L2B82)
 	ld	 (hl),$81
@@ -13633,20 +13417,20 @@ L9597:	ld	 d,$04
 	jr	 c,L95B4
 	djnz	 L9535
 	add	 hl,sp
-	scf
+	scf	
 L95B4:	ld	 (hl),$82
 	ld	 a,(L8210)
 	dec	 sp
 	ld	 (hl),$82
 	inc	 a
-	scf
+	scf	
 	add	 a,d
 	add	 hl,bc
 	dec	 a
 	add	 a,d
 	ld	 a,$10
 	add	 a,e
-	ccf
+	ccf	
 	inc	 (hl)
 	djnz	 L954C
 	ld	 b,c
@@ -13685,394 +13469,179 @@ L95D7:	ld	 b,(hl)
 	ld	 c,l
 	ld	 (hl),$00
 
-	DB	$ff,$ff,$ff,$ff,$ff
+	.db	$ff,$ff,$ff,$ff,$ff
 
-;******************************************************************************
-; At $9600 starts pattern of Garwor (demo screen) ???
-;******************************************************************************
+;*******************************************************************************
+GARWOR1:.DB      $00,$00,$00,$03,$C0 ; . . . . . . . . . . . . . . . 3 3 . . .
+        .DB      $00,$02,$AA,$00,$FC ; . . . . . . . 2 2 2 2 2 . . . . 3 3 3 .
+        .DB      $00,$0A,$AA,$80,$3C ; . . . . . . 2 2 2 2 2 2 2 . . . . 3 3 .
+        .DB      $00,$AA,$0A,$A0,$08 ; . . . . 2 2 2 2 . . 2 2 2 2 . . . . 2 .
+        .DB      $0A,$AA,$4A,$A8,$08 ; . . 2 2 2 2 2 2 1 . 2 2 2 2 2 . . . 2 .
+        .DB      $0A,$AA,$AA,$AA,$08 ; . . 2 2 2 2 2 2 2 2 2 2 2 2 2 2 . . 2 .
+        .DB      $00,$BB,$AA,$AA,$08 ; . . . . 2 3 2 3 2 2 2 2 2 2 2 2 . . 2 .
+        .DB      $0F,$FF,$AA,$AA,$88 ; . . 3 3 3 3 3 3 2 2 2 2 2 2 2 2 2 . 2 .
+        .DB      $32,$EE,$8A,$AA,$88 ; . 3 . 2 3 2 3 2 2 . 2 2 2 2 2 2 2 . 2 .
+        .DB      $00,$AA,$2A,$AA,$88 ; . . . . 2 2 2 2 . 2 2 2 2 2 2 2 2 . 2 .
+        .DB      $00,$00,$2A,$AA,$A8 ; . . . . . . . . . 2 2 2 2 2 2 2 2 2 2 .
+        .DB      $00,$00,$AA,$AA,$A8 ; . . . . . . . . 2 2 2 2 2 2 2 2 2 2 2 .
+        .DB      $00,$0A,$AA,$AA,$A0 ; . . . . . . 2 2 2 2 2 2 2 2 2 2 2 2 . .
+        .DB      $00,$20,$2A,$AA,$80 ; . . . . . 2 . . . 2 2 2 2 2 2 2 2 . . .
+        .DB      $00,$00,$0A,$A8,$00 ; . . . . . . . . . . 2 2 2 2 2 . . . . .
+        .DB      $00,$00,$0A,$82,$00 ; . . . . . . . . . . 2 2 2 . . 2 . . . .
+        .DB      $00,$00,$0A,$02,$00 ; . . . . . . . . . . 2 2 . . . 2 . . . .
+        .DB      $00,$00,$A8,$0A,$00 ; . . . . . . . . 2 2 2 . . . 2 2 . . . .
+;*******************************************************************************
 
+;*******************************************************************************
+GARWOR2:.DB      $00,$0A,$A8,$00,$3C ; . . . . . . 2 2 2 2 2 . . . . . . 3 3 .
+        .DB      $00,$2A,$A8,$03,$F0 ; . . . . . 2 2 2 2 2 2 . . . . 3 3 3 . .
+        .DB      $02,$A8,$2A,$03,$C0 ; . . . 2 2 2 2 . . 2 2 2 . . . 3 3 . . .
+        .DB      $2A,$A9,$2A,$82,$00 ; . 2 2 2 2 2 2 1 . 2 2 2 2 . . 2 . . . .
+        .DB      $2A,$AA,$AA,$82,$00 ; . 2 2 2 2 2 2 2 2 2 2 2 2 . . 2 . . . .
+        .DB      $02,$EE,$EA,$A2,$A8 ; . . . 2 3 2 3 2 3 2 2 2 2 2 . 2 2 2 2 .
+        .DB      $03,$FF,$EA,$A0,$08 ; . . . 3 3 3 3 3 3 2 2 2 2 2 . . . . 2 .
+        .DB      $0B,$BB,$AA,$A8,$08 ; . . 2 3 2 3 2 3 2 2 2 2 2 2 2 . . . 2 .
+        .DB      $02,$AA,$AA,$AA,$28 ; . . . 2 2 2 2 2 2 2 2 2 2 2 2 2 . 2 2 .
+        .DB      $00,$02,$AA,$AA,$20 ; . . . . . . . 2 2 2 2 2 2 2 2 2 . 2 . .
+        .DB      $00,$02,$AA,$AA,$A0 ; . . . . . . . 2 2 2 2 2 2 2 2 2 2 2 . .
+        .DB      $00,$02,$AA,$AA,$A0 ; . . . . . . . 2 2 2 2 2 2 2 2 2 2 2 . .
+        .DB      $00,$08,$AA,$AA,$80 ; . . . . . . 2 . 2 2 2 2 2 2 2 2 2 . . .
+        .DB      $00,$20,$AA,$AA,$00 ; . . . . . 2 . . 2 2 2 2 2 2 2 2 . . . .
+        .DB      $00,$00,$2A,$A0,$00 ; . . . . . . . . . 2 2 2 2 2 . . . . . .
+        .DB      $00,$00,$0A,$0A,$80 ; . . . . . . . . . . 2 2 . . 2 2 2 . . .
+        .DB      $00,$00,$02,$00,$80 ; . . . . . . . . . . . 2 . . . . 2 . . .
+        .DB      $00,$00,$2A,$00,$00 ; . . . . . . . . . 2 2 2 . . . . . . . .
+;*******************************************************************************
 
-	DB	$00,$00,$00,$03,$C0	; . . . . . . . . . . . . . . . 3 3 . . .
-	DB	$00,$02,$AA,$00,$FC  	; . . . . . . . 2 2 2 2 2 . . . . 3 3 3 .
-	DB	$00,$0A,$AA,$80,$3C     ; . . . . . . 2 2 2 2 . . . . . . 3 3 3 .
-	DB	$00,$AA,$0A,$A0,$08	; . . . . 2 2 2 2 . . 2 2 2 2 . . . . 2 .
-	DB	$0A,$AA,$4A,$A8,$08	; . . 2 2 2 2 2 2 1 . 2 2 2 2 . . . . 2 .
-	DB	$0A,$AA,$AA,$AA,$08	; . . 2 2 2 2 2 2 2 2 2 2 2 2 2 2 . . 2 .
-	DB	$00,$BB,$AA,$AA,$08	; . . . . 2 3 2 3 2 2 2 2 2 2 2 2 . . 2 .
-	DB	$0F,$FF,$AA,$AA,$88	; . . 3 3 3 3 3 3 2 2 2 2 2 2 2 2 2 . 2 .
-	DB	$32,$EE,$8A,$AA,$88     ; . 3 . 2 3 2 3 2 2 . 2 2 2 2 2 2 2 . 2 .
-	DB	$00,$AA,$2A,$AA,$88    	; . . . . 2 2 2 2 . 2 2 2 2 2 2 2 2 . 2 .
-	DB	$00,$00,$2A,$AA,$A8    	; . . . . . . . . . 2 2 2 2 2 2 2 2 2 2 .
-	DB	$00,$00,$AA,$AA,$A8     ; . . . . . . . . 2 2 2 2 2 2 2 2 2 2 2 .
-	DB	$00,$0A,$AA,$AA,$A0     ; . . . . . . 2 2 2 2 2 2 2 2 2 2 2 2 . .
-	DB	$00,$20,$2A,$AA,$80     ; . . . . . 2 . . 2 . 2 2 2 2 2 2 2 . . .
-	DB	$00,$00,$0A,$A8,$00     ; . . . . . . . . . . 2 2 2 2 2 . . . . .
-	DB	$00,$00,$0A,$82,$00     ; . . . . . . . . . . 2 2 2 . . 2 . . . .
-	DB	$00,$00,$0A,$02,$00     ; . . . . . . . . . . 2 2 . . . 2 . . . .
-	DB	$00,$00,$A8,$0A,$00     ; . . . . . . . . 2 2 2 . . . 2 2 . . . .
+;*******************************************************************************
+GARWOR3:.DB      $00,$02,$AA,$00,$FC ; . . . . . . . 2 2 2 2 2 . . . . 3 3 3 .
+        .DB      $00,$0A,$AA,$03,$F0 ; . . . . . . 2 2 2 2 2 2 . . . 3 3 3 . .
+        .DB      $00,$AA,$0A,$83,$F0 ; . . . . 2 2 2 2 . . 2 2 2 . . 3 3 3 . .
+        .DB      $0A,$AA,$4A,$A0,$80 ; . . 2 2 2 2 2 2 1 . 2 2 2 2 . . 2 . . .
+        .DB      $0A,$AA,$AA,$A0,$A8 ; . . 2 2 2 2 2 2 2 2 2 2 2 2 . . 2 2 2 .
+        .DB      $00,$BB,$BA,$A8,$08 ; . . . . 2 3 2 3 2 3 2 2 2 2 2 . . . 2 .
+        .DB      $0F,$FF,$FA,$A8,$08 ; . . 3 3 3 3 3 3 3 3 2 2 2 2 2 . . . 2 .
+        .DB      $32,$EE,$EA,$AA,$08 ; . 3 . 2 3 2 3 2 3 2 2 2 2 2 2 2 . . 2 .
+        .DB      $00,$AA,$AA,$AA,$08 ; . . . . 2 2 2 2 2 2 2 2 2 2 2 2 . . 2 .
+        .DB      $00,$00,$AA,$AA,$88 ; . . . . . . . . 2 2 2 2 2 2 2 2 2 . 2 .
+        .DB      $00,$00,$AA,$AA,$A8 ; . . . . . . . . 2 2 2 2 2 2 2 2 2 2 2 .
+        .DB      $00,$02,$AA,$AA,$A8 ; . . . . . . . 2 2 2 2 2 2 2 2 2 2 2 2 .
+        .DB      $00,$00,$2A,$AA,$A0 ; . . . . . . . . . 2 2 2 2 2 2 2 2 2 . .
+        .DB      $00,$00,$0A,$AA,$80 ; . . . . . . . . . . 2 2 2 2 2 2 2 . . .
+        .DB      $00,$00,$2A,$A8,$00 ; . . . . . . . . . 2 2 2 2 2 2 . . . . .
+        .DB      $00,$00,$A0,$A0,$00 ; . . . . . . . . 2 2 . . 2 2 . . . . . .
+        .DB      $00,$00,$28,$20,$00 ; . . . . . . . . . 2 2 . . 2 . . . . . .
+        .DB      $00,$00,$08,$A0,$00 ; . . . . . . . . . . 2 . 2 2 . . . . . .
+;*******************************************************************************
 
-; ------------------------------------------------------------------------------------
+;*******************************************************************************
+GARWOR4:.DB      $00,$00,$0C,$00,$00 ; . . . . . . . . . . 3 . . . . . . . . .
+        .DB      $00,$00,$03,$28,$00 ; . . . . . . . . . . . 3 . 2 2 . . . . .
+        .DB      $00,$00,$0B,$28,$00 ; . . . . . . . . . . 2 3 . 2 2 . . . . .
+        .DB      $00,$00,$2F,$AA,$00 ; . . . . . . . . . 2 3 3 2 2 2 2 . . . .
+        .DB      $00,$20,$2B,$EA,$00 ; . . . . . 2 . . . 2 2 3 3 2 2 2 . . . .
+        .DB      $00,$08,$2F,$AA,$80 ; . . . . . . 2 . . 2 3 3 2 2 2 2 2 . . .
+        .DB      $00,$08,$2B,$EA,$A0 ; . . . . . . 2 . . 2 2 3 3 2 2 2 2 2 . .
+        .DB      $20,$0A,$0A,$A4,$A0 ; . 2 . . . . 2 2 . . 2 2 2 2 1 . 2 2 . .
+        .DB      $20,$2A,$A2,$A0,$A0 ; . 2 . . . 2 2 2 2 2 . 2 2 2 . . 2 2 . .
+        .DB      $2A,$AA,$AA,$AA,$A0 ; . 2 2 2 2 2 2 2 2 2 2 2 2 2 2 2 2 2 . .
+        .DB      $0A,$AA,$AA,$AA,$A0 ; . . 2 2 2 2 2 2 2 2 2 2 2 2 2 2 2 2 . .
+        .DB      $02,$AA,$AA,$AA,$80 ; . . . 2 2 2 2 2 2 2 2 2 2 2 2 2 2 . . .
+        .DB      $00,$AA,$AA,$AA,$00 ; . . . . 2 2 2 2 2 2 2 2 2 2 2 2 . . . .
+        .DB      $20,$AA,$AA,$A8,$00 ; . 2 . . 2 2 2 2 2 2 2 2 2 2 2 . . . . .
+        .DB      $2A,$2A,$AA,$A0,$0C ; . 2 2 2 . 2 2 2 2 2 2 2 2 2 . . . . 3 .
+        .DB      $00,$2A,$AA,$00,$3C ; . . . . . 2 2 2 2 2 2 2 . . . . . 3 3 .
+        .DB      $00,$0A,$80,$00,$F0 ; . . . . . . 2 2 2 . . . . . . . 3 3 . .
+        .DB      $00,$02,$AA,$AA,$F0 ; . . . . . . . 2 2 2 2 2 2 2 2 2 3 3 . .
+;*******************************************************************************
 
-	nop
-	ld	 a,(bc)
-	xor	 b
-	nop
-	inc	 a
-	nop
-	ld	 hl,(L03A8)
-	ret	 p
-	ld	 (bc),a
-	xor	 b
-	ld	 hl,(LC003)
-	ld	 hl,(L2AA9)
-	add	 a,d
-	nop
-ld	 hl,($AAAA)
-	add	 a,d
-	nop
-	ld	 (bc),a
-	xor	 $EA
-	and	 d
-	xor	 b
-	inc	 bc
-	rst	 38H
-	jp	 pe,L08A0
-	dec	 bc
-	cp	 e
-	xor	 d
-	xor	 b
-	ex	 af,af'
-	ld	 (bc),a
-	xor	 d
-	xor	 d
-	xor	 d
-	jr	 z,$9688
-ld	 (bc),a
-	xor	 d
-	xor	 d
-	jr	 nz,$968D
-ld	 (bc),a
-	xor	 d
-	xor	 d
-	and	 b
-	nop
-	ld	 (bc),a
-	xor	 d
-	xor	 d
-	and	 b
-	nop
-	ex	 af,af'
-	xor	 d
-	xor	 d
-	add	 a,b
-	nop
-	jr	 nz,$9648
-	xor	 d
-	nop
-	nop
-	nop
-	ld	 hl,(L00A0)
-	nop
-	nop
-	ld	 a,(bc)
-	ld	 a,(bc)
-	add	 a,b
-	nop
-	nop
-	ld	 (bc),a
-	nop
-	add	 a,b
-	nop
-	nop
-	ld	 hl,($0000)
-	nop
-	ld	 (bc),a
-	xor	 d
-	nop
-	call	 m,L0A00
-	xor	 d
-	inc	 bc
-	ret	 p
-	nop
-	xor	 d
-	ld	 a,(bc)
-	add	 a,e
-	ret	 p
-	ld	 a,(bc)
-	xor	 d
-	ld	 c,d
-	and	 b
-	add	 a,b
-	ld	 a,(bc)
-	xor	 d
-	xor	 d
-	and	 b
-	xor	 b
-	nop
-	cp	 e
-	cp	 d
-	xor	 b
-	ex	 af,af'
-	rrca
-	rst	 38H
-	jp	 m,L08A8
-	ld	 (LEAEE),a
-	xor	 d
-	ex	 af,af'
-	nop
-	xor	 d
-	xor	 d
-	xor	 d
-	ex	 af,af'
-	nop
-	nop
-	xor	 d
-	xor	 d
-	adc	 a,b
-	nop
-	nop
-	xor	 d
-	xor	 d
-	xor	 b
-	nop
-	ld	 (bc),a
-	xor	 d
-	xor	 d
-	xor	 b
-	nop
-	nop
-	ld	 hl,(LA0AA)
-	nop
-	nop
-	ld	 a,(bc)
-	xor	 d
-	add	 a,b
-	nop
-nop
-	ld	 hl,(L00A8)
-	nop
-	nop
-	and	 b
-	and	 b
-	nop
-	nop
-	nop
-	jr	 z,$9728
-	nop
-	nop
-	nop
-	ex	 af,af'
-	and	 b
-	nop
-	nop
-	nop
-	inc	 c
-	nop
-	nop
-	nop
-	nop
-	inc	 bc
-	jr	 z,$9718
-nop
-	nop
-	dec	 bc
-	jr	 z,$971D
-nop
-	nop
-	cpl
-	xor	 d
-	nop
-	nop
-	jr	 nz,$9750
-	jp	 pe,$0000
-ex	 af,af'
-	cpl
-	xor	 d
-	add	 a,b
-	nop
-	ex	 af,af'
-	dec	 hl
-	jp	 pe,L20A0
-	ld	 a,(bc)
-	ld	 a,(bc)
-	and	 h
-	and	 b
-	jr	 nz,$9762
-	and	 d
-	and	 b
-	and	 b
-	ld	 hl,($AAAA)
-	xor	 d
-	and	 b
-	ld	 a,(bc)
-	xor	 d
-	xor	 d
-	xor	 d
-	and	 b
-	ld	 (bc),a
-	xor	 d
-	xor	 d
-	xor	 d
-	add	 a,b
-	nop
-	xor	 d
-	xor	 d
-	xor	 d
-	nop
-	jr	 nz,$96FB
-	xor	 d
-	xor	 b
-	nop
-	ld	 hl,($AA2A)
-	and	 b
-	inc	 c
-	nop
-	ld	 hl,(L00AA)
-	inc	 a
-	nop
-	ld	 a,(bc)
-	add	 a,b
-	nop
-ret	 p
-	nop
-	ld	 (bc),a
-	xor	 d
-	xor	 d
-	ret	 p
-	nop
-	nop
-	nop
-	ld	 a,(bc)
-	nop
-	nop
-	nop
-	ld	 (bc),a
-	ld	 a,(bc)
-	nop
-	nop
-	nop
-	dec	 bc
-	jp	 pe,L0080
-	nop
-	ld	 a,(bc)
-	jp	 m,L0080
-	jr	 nz,$978A
-	jp	 pe,L00A0
-	ex	 af,af'
-	ld	 a,(bc)
-	jp	 m,L00A8
-	ld	 (bc),a
-	xor	 e
-	jp	 (hl)
-jr	 z,$978C
-ld	 hl,(LF8AA)
-	jr	 z,$97B1
-	xor	 d
-	xor	 d
-	xor	 d
-	xor	 b
-	ld	 ($AAAA),hl
-	xor	 d
-	xor	 b
-	ld	 hl,($AAAA)
-	xor	 d
-	add	 a,b
-	nop
-	xor	 d
-	xor	 d
-	xor	 d
-	nop
-	nop
-	xor	 d
-	xor	 d
-	and	 b
-nop
-	ld	 (bc),a
-	ld	 hl,(L00AA)
-	nop
-	ld	 (bc),a
-	ld	 hl,(L2AA8)
-	ret	 p
-	ld	 a,(bc)
-	ld	 a,(bc)
-	add	 a,b
-	jr	 nz,$97A8
-	nop
-	ld	 (bc),a
-	xor	 b
-	jr	 nz,$97F9
-	nop
-	nop
-	ld	 a,(bc)
-	and	 b
-	inc	 c
+;*******************************************************************************
+GARWOR5:.DB      $00,$00,$00,$0A,$00 ; . . . . . . . . . . . . . . 2 2 . . . .
+        .DB      $00,$00,$02,$0A,$00 ; . . . . . . . . . . . 2 . . 2 2 . . . .
+        .DB      $00,$00,$0B,$EA,$80 ; . . . . . . . . . . 2 3 3 2 2 2 2 . . .
+        .DB      $00,$00,$0A,$FA,$80 ; . . . . . . . . . . 2 2 3 3 2 2 2 . . .
+        .DB      $00,$20,$0B,$EA,$A0 ; . . . . . 2 . . . . 2 3 3 2 2 2 2 2 . .
+        .DB      $00,$08,$0A,$FA,$A8 ; . . . . . . 2 . . . 2 2 3 3 2 2 2 2 2 .
+        .DB      $00,$02,$AB,$E9,$28 ; . . . . . . . 2 2 2 2 3 3 2 2 1 . 2 2 .
+        .DB      $00,$2A,$AA,$F8,$28 ; . . . . . 2 2 2 2 2 2 2 3 3 2 . . 2 2 .
+        .DB      $20,$AA,$AA,$AA,$A8 ; . 2 . . 2 2 2 2 2 2 2 2 2 2 2 2 2 2 2 .
+        .DB      $22,$AA,$AA,$AA,$A8 ; . 2 . 2 2 2 2 2 2 2 2 2 2 2 2 2 2 2 2 .
+        .DB      $2A,$AA,$AA,$AA,$80 ; . 2 2 2 2 2 2 2 2 2 2 2 2 2 2 2 2 . . .
+        .DB      $00,$AA,$AA,$AA,$00 ; . . . . 2 2 2 2 2 2 2 2 2 2 2 2 . . . .
+        .DB      $00,$AA,$AA,$A0,$00 ; . . . . 2 2 2 2 2 2 2 2 2 2 . . . . . .
+        .DB      $02,$2A,$AA,$00,$00 ; . . . 2 . 2 2 2 2 2 2 2 . . . . . . . .
+        .DB      $02,$2A,$A8,$2A,$F0 ; . . . 2 . 2 2 2 2 2 2 . . 2 2 2 3 3 . .
+        .DB      $0A,$0A,$80,$20,$F0 ; . . 2 2 . . 2 2 2 . . . . 2 . . 3 3 . .
+        .DB      $00,$02,$A8,$20,$3C ; . . . . . . . 2 2 2 2 . . 2 . . . 3 3 .
+        .DB      $00,$00,$0A,$A0,$0C ; . . . . . . . . . . 2 2 2 2 . . . . 3 .
+;*******************************************************************************
 
 ; ----> Block of 62 $ff
 
-	DB	$ff,$ff,$ff,$ff,$ff,$ff,$ff,$ff,$ff,$ff
-	DB	$ff,$ff,$ff,$ff,$ff,$ff,$ff,$ff,$ff,$ff
-	DB	$ff,$ff,$ff,$ff,$ff,$ff,$ff,$ff,$ff,$ff
-	DB	$ff,$ff,$ff,$ff,$ff,$ff,$ff,$ff,$ff,$ff
-	DB	$ff,$ff,$ff,$ff,$ff,$ff,$ff,$ff,$ff,$ff
-	DB	$ff,$ff,$ff,$ff,$ff,$ff,$ff,$ff,$ff,$ff
-	DB	$ff,$ff
+	.db	$ff,$ff,$ff,$ff,$ff,$ff,$ff,$ff,$ff,$ff	
+	.db	$ff,$ff,$ff,$ff,$ff,$ff,$ff,$ff,$ff,$ff
+	.db	$ff,$ff,$ff,$ff,$ff,$ff,$ff,$ff,$ff,$ff
+	.db	$ff,$ff,$ff,$ff,$ff,$ff,$ff,$ff,$ff,$ff
+	.db	$ff,$ff,$ff,$ff,$ff,$ff,$ff,$ff,$ff,$ff
+	.db	$ff,$ff,$ff,$ff,$ff,$ff,$ff,$ff,$ff,$ff
+	.db	$ff,$ff
 
 ; ----> Begin character data again
 
-	nop
-	nop
+	nop	
+	nop	
 	ld	 c,$30
-	nop
-	nop
-	nop
+	nop	
+	nop	
+	nop	
 	ld	 a,(bc)
 	or	 b
-	nop
-	nop
-	nop
+	nop	
+	nop	
+	nop	
 	ld	 a,(bc)
 	adc	 a,b
-	nop
-	nop
-	nop
+	nop	
+	nop	
+	nop	
 	ld	 (bc),a
-	nop
-	nop
-	nop
-	djnz	 $981A
-	nop
-	nop
+	nop	
+	nop	
+	nop	
+	djnz	 L981A
+	nop	
+	nop	
 	ld	 bc,$0540
 	ld	 b,b
-	nop
+	nop	
 	dec	 b
-	nop
+	nop	
 	inc	 bc
-	nop
-	nop
+	nop	
+	nop	
 	dec	 b
 	ld	 b,b
 	dec	 b
 	ld	 b,b
-	nop
+	nop	
 	dec	 b
 	ld	 d,b
 	inc	 bc
-	nop
-	nop
-	nop
+	nop	
+	nop	
+	nop	
 	ld	 d,h
 	inc	 bc
-	nop
-	nop
-	nop
+	nop	
+	nop	
+	nop	
 	dec	 d
-	rrca
+	rrca	
 	ld	 bc,$0000
 	dec	 b
-ld	 e,a
+L9839:	ld	 e,a
 	ld	 b,c
-	jr	 nc,$984D
+	jr	 nc,L984D
 	ld	 d,l
 	ld	 e,a
 	ld	 d,l
@@ -14087,73 +13656,73 @@ ld	 e,a
 	ld	 d,h
 	dec	 d
 	dec	 b
-ld	 d,a
+L984D:	ld	 d,a
 	ret	 nc
 	ld	 d,b
-	nop
-	nop
+	nop	
+	nop	
 	ld	 d,l
 	ld	 d,h
-	nop
-	nop
-	nop
+	nop	
+	nop	
+	nop	
 	ld	 d,l
 	ld	 d,h
-	jr	 nc,$985B
-nop
-	nop
+	jr	 nc,L985B
+L985B:	nop	
+	nop	
 	inc	 c
 	call	 z,$0000
 	inc	 c
 	ld	 (bc),a
 	or	 b
-	nop
-	nop
-	nop
+	nop	
+	nop	
+	nop	
 	ld	 (bc),a
 	xor	 h
-	nop
+	nop	
 	ld	 bc,L8200
 	and	 b
-	nop
+	nop	
 	inc	 d
-	nop
+	nop	
 	ld	 (bc),a
 	add	 a,b
-	nop
+	nop	
 	ld	 d,b
-	nop
+	nop	
 	inc	 e
-	nop
-	nop
+	nop	
+	nop	
 	ld	 d,b
-	nop
+	nop	
 	ld	 (hl),h
-	nop
-	nop
+	nop	
+	nop	
 	inc	 d
-	nop
+	nop	
 	ret	 nc
-	nop
-	nop
+	nop	
+	nop	
 	dec	 d
 	inc	 bc
 	ret	 nz
-	nop
-	nop
+	nop	
+	nop	
 	dec	 b
-	rrca
-	nop
-	nop
-	djnz	 $9893
-	rrca
-	nop
-	nop
-	djnz	 $9898
-ld	 a,h
+	rrca	
+	nop	
+	nop	
+	djnz	 L9893
+	rrca	
+	nop	
+	nop	
+	djnz	 L9898
+L9893:	ld	 a,h
 	ld	 bc,$1000
 	dec	 b
-ld	 a,l
+L9898:	ld	 a,l
 	ld	 bc,$1530
 	dec	 b
 	ld	 a,l
@@ -14169,64 +13738,64 @@ ld	 a,l
 	ld	 e,a
 	push	 de
 	ld	 d,h
-	nop
+	nop	
 	ld	 d,l
 	ld	 d,a
 	ld	 d,h
 	ld	 d,b
-	nop
-	nop
+	nop	
+	nop	
 	ld	 d,l
 	ld	 d,b
-	jr	 nc,$98B5
-nop
-	nop
-	jr	 nc,$9839
-	nop
-	nop
-	nop
+	jr	 nc,L98B5
+L98B5:	nop	
+	nop	
+	jr	 nc,L9839
+	nop	
+	nop	
+	nop	
 	ret	 z
 	inc	 c
-	nop
-	nop
-	nop
+	nop	
+	nop	
+	nop	
 	ld	 hl,(L00C0)
-	nop
-	nop
+	nop	
+	nop	
 	ld	 hl,($0000)
 	inc	 b
-	nop
-	jr	 z,$98CD
-nop
+	nop	
+	jr	 z,L98CD
+L98CD:	nop	
 	ld	 d,b
 	ld	 bc,L08C0
 	ld	 bc,L0340
 	ld	 b,e
-	nop
+	nop	
 	ld	 bc,L0F50
 	ret	 nz
-	nop
-	nop
+	nop	
+	nop	
 	ld	 d,h
-	rrca
-	nop
-	nop
-	nop
+	rrca	
+	nop	
+	nop	
+	nop	
 	dec	 d
-	rrca
-	nop
-	nop
-	djnz	 $98ED
-	ccf
-	nop
-	nop
-	djnz	 $98F2
-ld	 a,h
+	rrca	
+	nop	
+	nop	
+	djnz	 L98ED
+	ccf	
+	nop	
+	nop	
+	djnz	 L98F2
+L98ED:	ld	 a,h
 	ld	 bc,$1000
 	dec	 b
-ld	 a,l
+L98F2:	ld	 a,l
 	ld	 b,c
-	jr	 nc,$990B
+	jr	 nc,L990B
 	ld	 d,l
 	ld	 a,l
 	ld	 d,l
@@ -14236,79 +13805,79 @@ ld	 a,l
 	ld	 a,a
 	ld	 d,l
 	ld	 d,h
-	nop
+	nop	
 	ld	 d,l
 	ld	 e,a
 	push	 de
 	ld	 d,h
-	nop
-	nop
+	nop	
+	nop	
 	ld	 d,a
 	ld	 d,b
 	ld	 d,b
-	nop
-	nop
-ld	 d,l
+	nop	
+	nop	
+L990B:	ld	 d,l
 	ld	 d,h
-	jr	 nc,$990F
-nop
+	jr	 nc,L990F
+L990F:	nop	
 	ld	 c,$30
-	nop
-	nop
-	nop
+	nop	
+	nop	
+	nop	
 	ld	 a,(bc)
 	or	 b
-	nop
-	nop
-	nop
+	nop	
+	nop	
+	nop	
 	ld	 a,(bc)
 	adc	 a,b
-	jr	 nz,$991E
-nop
+	jr	 nz,L991E
+L991E:	nop	
 	ld	 (bc),a
-	nop
-	nop
-	nop
-	nop
+	nop	
+	nop	
+	nop	
+	nop	
 	inc	 bc
-	nop
+	nop	
 	ret	 nz
-	nop
+	nop	
 	ld	 b,b
 	dec	 b
 	ld	 b,b
-	nop
+	nop	
 	ld	 bc,L0340
-	nop
-	nop
+	nop	
+	nop	
 	dec	 b
-	nop
+	nop	
 	dec	 b
 	ld	 b,b
-	nop
+	nop	
 	dec	 b
 	ld	 d,b
 	inc	 bc
-	nop
-	nop
-	nop
+	nop	
+	nop	
+	nop	
 	ld	 d,l
 	inc	 bc
-	nop
-	nop
-	nop
+	nop	
+	nop	
+	nop	
 	dec	 d
-	rrca
+	rrca	
 	ld	 bc,$0000
 	dec	 b
 	ld	 e,a
 	ld	 b,c
-	jr	 nc,$995B
+	jr	 nc,L995B
 	dec	 b
 	ld	 e,a
 	ld	 d,l
 	inc	 b
-	djnz	 $99A6
+	djnz	 L99A6
 	ld	 e,a
 	ld	 (hl),l
 	ld	 d,h
@@ -14319,45 +13888,45 @@ nop
 	ld	 d,h
 	dec	 d
 	ld	 d,l
-ld	 d,a
+L995B:	ld	 d,a
 	ret	 nc
 	ld	 d,b
-	nop
-	nop
+	nop	
+	nop	
 	ld	 d,l
 	ld	 d,h
-	nop
-	nop
-	nop
+	nop	
+	nop	
+	nop	
 	ld	 d,l
 	ld	 d,h
-	jr	 nc,$9969
-nop
-	nop
+	jr	 nc,L9969
+L9969:	nop	
+	nop	
 	dec	 d
-	nop
-	nop
-	nop
-	nop
+	nop	
+	nop	
+	nop	
+	nop	
 	push	 bc
 	ld	 c,h
-	nop
-	nop
-	nop
+	nop	
+	nop	
+	nop	
 	dec	 b
 	ld	 b,b
-	nop
-	nop
+	nop	
+	nop	
 	ld	 bc,L0055
 	ld	 (bc),a
-	nop
-	nop
+	nop	
+	nop	
 	dec	 d
 	inc	 d
 	inc	 a
-	nop
-	nop
-	rra
+	nop	
+	nop	
+	rra	
 	ld	 d,h
 	ld	 a,(bc)
 	inc	 b
@@ -14370,134 +13939,134 @@ nop
 	ld	 b,e
 	rst	 38H
 	ld	 d,h
-	nop
-	nop
-	nop
+	nop	
+	nop	
+	nop	
 	ld	 d,l
 	ld	 d,h
-	nop
-	nop
-	nop
+	nop	
+	nop	
+	nop	
 	ld	 d,l
 	ld	 d,h
-	nop
-	nop
+	nop	
+	nop	
 	ld	 bc,L4055
-	nop
-	nop
-dec	 b
+	nop	
+	nop	
+L99A6:	dec	 b
 	ld	 d,l
 	ld	 b,b
-	nop
-	djnz	 $99C1
+	nop	
+	djnz	 L99C1
 	dec	 d
-	nop
-	nop
+	nop	
+	nop	
 	inc	 b
 	ld	 d,h
 	dec	 d
-	nop
-	nop
+	nop	
+	nop	
 	dec	 b
 	ld	 d,b
 	dec	 b
 	ld	 b,b
-	nop
+	nop	
 	ld	 bc,L0140
 	ld	 b,b
-	nop
-	nop
-	nop
+	nop	
+	nop	
+	nop	
 	dec	 d
-ld	 b,b
+L99C1:	ld	 b,b
 	inc	 sp
-	nop
-	nop
+	nop	
+	nop	
 	dec	 b
 	ld	 b,b
 	ld	 c,$80
-	nop
+	nop	
 	ld	 sp,L3A5C
 	and	 b
-	nop
+	nop	
 	ld	 bc,L0A50
 	and	 b
-	nop
+	nop	
 	ld	 d,l
 	ld	 b,b
-	jr	 nc,$99E5
-	nop
+	jr	 nc,L99E5
+	nop	
 	dec	 b
 	ld	 d,b
-	nop
-	rlca
+	nop	
+	rlca	
 	ld	 b,b
 	ld	 bc,L0054
 	add	 a,c
 	ret	 p
 	dec	 b
 	call	 nc,$0000
-	ccf
-	rla
+	ccf	
+	rla	
 	call	 p,L000C
-	rrca
+	rrca	
 	rst	 38H
 	call	 nc,$0000
-	nop
+	nop	
 	rst	 38H
 	ld	 d,h
-	nop
-	nop
-	nop
+	nop	
+	nop	
+	nop	
 	ld	 d,l
 	ld	 d,h
-	nop
+	nop	
 	ld	 b,b
 	dec	 d
 	ld	 d,l
 	ld	 d,b
-	nop
-	djnz	 $9A56
+	nop	
+	djnz	 L9A56
 	ld	 d,l
 	ld	 d,b
-	nop
+	nop	
 	dec	 d
 	ld	 d,b
 	ld	 bc,L0050
 	dec	 b
-	nop
+	nop	
 	ld	 bc,L0050
-	nop
-	nop
+	nop	
+	nop	
 	dec	 b
 	ld	 b,b
-	nop
-	nop
-	nop
+	nop	
+	nop	
+	nop	
 	dec	 b
 	ld	 b,b
-	nop
-	nop
+	nop	
+	nop	
 	ld	 bc,L0055
 	inc	 c
 	ex	 af,af'
-	nop
+	nop	
 	dec	 b
 	ld	 b,b
-	nop
-	nop
-	nop
+	nop	
+	nop	
+	nop	
 	ld	 sp,L235C
-	nop
-	nop
+	nop	
+	nop	
 	ld	 bc,L0250
 	add	 a,e
-	nop
+	nop	
 	ld	 d,l
 	ld	 b,b
 	ld	 a,(bc)
 	and	 b
-	nop
+	nop	
 	dec	 b
 	ld	 b,h
 	ld	 (L00A0),a
@@ -14509,7 +14078,7 @@ ld	 b,b
 	dec	 d
 	call	 nc,L0700
 	rst	 38H
-	rla
+	rla	
 	call	 p,$0000
 	rst	 38H
 	rst	 38H
@@ -14517,67 +14086,67 @@ ld	 b,b
 	inc	 bc
 	rst	 38H
 	ld	 d,h
-	nop
-	nop
-	nop
+	nop	
+	nop	
+	nop	
 	ld	 d,l
 	ld	 d,h
-	nop
-	nop
+	nop	
+	nop	
 	dec	 b
-ld	 d,l
+L9A56:	ld	 d,l
 	ld	 b,b
-	nop
-	djnz	 $9A70
+	nop	
+	djnz	 L9A70
 	ld	 d,l
 	ld	 b,b
-	nop
+	nop	
 	inc	 b
 	ld	 d,h
 	dec	 b
 	ld	 b,b
-	nop
+	nop	
 	dec	 b
 	ld	 d,b
 	dec	 b
 	ld	 b,b
-	nop
+	nop	
 	ld	 bc,$0540
-	nop
-	nop
-	nop
-	nop
+	nop	
+	nop	
+	nop	
+	nop	
 	dec	 b
-nop
-	nop
-	nop
+L9A70:	nop	
+	nop	
+	nop	
 	ld	 bc,L0055
-	nop
-	nop
-	nop
+	nop	
+	nop	
+	nop	
 	dec	 d
-	nop
+	nop	
 	ld	 (bc),a
-	nop
-	nop
+	nop	
+	nop	
 	push	 bc
 	ld	 c,h
-	nop
-	jr	 nc,$9A83
-dec	 b
+	nop	
+	jr	 nc,L9A83
+L9A83:	dec	 b
 	ld	 b,b
-	nop
-	nop
+	nop	
+	nop	
 	ld	 bc,L0055
 	ld	 (bc),a
-	nop
-	nop
+	nop	
+	nop	
 	dec	 d
 	inc	 d
 	inc	 a
-	nop
-nop
-	rra
+	nop	
+L9A91:	nop	
+	rra	
 	ld	 d,h
 	ld	 a,(bc)
 	inc	 b
@@ -14590,183 +14159,183 @@ nop
 	ld	 b,e
 	rst	 38H
 	ld	 d,h
-	nop
-	nop
-	nop
+	nop	
+	nop	
+	nop	
 	ld	 d,l
 	ld	 d,h
-	nop
-	nop
-	nop
+	nop	
+	nop	
+	nop	
 	ld	 d,l
 	ld	 d,h
-	nop
-	nop
+	nop	
+	nop	
 	dec	 b
 	ld	 d,l
 	ld	 b,b
-	nop
-	nop
+	nop	
+	nop	
 	dec	 b
 	ld	 d,l
 	ld	 b,b
-	nop
-	nop
+	nop	
+	nop	
 	dec	 d
 	dec	 b
 	ld	 b,b
-	nop
+	nop	
 	dec	 b
 	inc	 d
 	dec	 b
 	ld	 b,b
-	nop
+	nop	
 	ld	 bc,L0150
 	ld	 b,b
-	nop
-	nop
+	nop	
+	nop	
 	ld	 d,b
 	ld	 bc,L0040
-	nop
-	nop
+	nop	
+	nop	
 	dec	 d
 	ld	 b,b
-	nop
-	nop
+	nop	
+	nop	
 	ld	 c,$30
-	nop
-	nop
-	nop
+	nop	
+	nop	
+	nop	
 	ld	 a,(bc)
 	or	 b
-	nop
-	nop
-	nop
+	nop	
+	nop	
+	nop	
 	ld	 a,(bc)
 	adc	 a,b
-	nop
-	nop
-	nop
+	nop	
+	nop	
+	nop	
 	ld	 (bc),a
-	nop
-	nop
-	nop
-	jr	 nz,$9AEA
-	nop
-	nop
+	nop	
+	nop	
+	nop	
+	jr	 nz,L9AEA
+	nop	
+	nop	
 	ld	 (bc),a
-add	 a,b
+L9AEA:	add	 a,b
 	ld	 a,(bc)
 	add	 a,b
-	nop
+	nop	
 	ld	 a,(bc)
-	nop
+	nop	
 	inc	 bc
-	nop
-	nop
+	nop	
+	nop	
 	ld	 a,(bc)
 	add	 a,b
 	ld	 a,(bc)
 	add	 a,b
-	nop
+	nop	
 	ld	 a,(bc)
 	and	 b
 	inc	 bc
-	nop
-	nop
-	nop
+	nop	
+	nop	
+	nop	
 	xor	 b
 	inc	 bc
-	nop
-	nop
-	nop
+	nop	
+	nop	
+	nop	
 	ld	 hl,(L020F)
-	nop
-	nop
+	nop	
+	nop	
 	ld	 a,(bc)
-xor	 a
+L9B09:	xor	 a
 	add	 a,d
-	jr	 nc,$9B2D
+	jr	 nc,L9B2D
 	xor	 d
 	xor	 a
 	xor	 d
 	ex	 af,af'
-	ld	 ($AFAA),hl
+	ld	 (LAFAA),hl
 	cp	 d
 	xor	 b
-	ld	 hl,($AFAA)
+	ld	 hl,(LAFAA)
 	jp	 m,L2AA8
 	ld	 a,(bc)
 	xor	 e
 	ret	 po
 	and	 b
-	nop
-	nop
+	nop	
+	nop	
 	xor	 d
 	xor	 b
-	nop
-	nop
-	nop
+	nop	
+	nop	
+	nop	
 	xor	 d
 	xor	 b
-	jr	 nc,$9B2B
-nop
-	nop
-inc	 c
+	jr	 nc,L9B2B
+L9B2B:	nop	
+	nop	
+L9B2D:	inc	 c
 	call	 z,$0000
 	inc	 c
 	ld	 (bc),a
 	or	 b
-	nop
-	nop
-	nop
+	nop	
+	nop	
+	nop	
 	ld	 (bc),a
 	xor	 h
-	nop
+	nop	
 	ld	 (bc),a
-	nop
+	nop	
 	ld	 b,d
 	and	 b
-	nop
-	jr	 z,$9B41
-ld	 (bc),a
+	nop	
+	jr	 z,L9B41
+L9B41:	ld	 (bc),a
 	add	 a,b
-	nop
+	nop	
 	and	 b
-	nop
+	nop	
 	inc	 l
-	nop
-	nop
+	nop	
+	nop	
 	and	 b
-	nop
+	nop	
 	cp	 b
 	inc	 b
-	nop
-	jr	 z,$9B50
-ret	 po
-	nop
-	nop
+	nop	
+	jr	 z,L9B50
+L9B50:	ret	 po
+	nop	
+	nop	
 	ld	 hl,(LC003)
-	nop
-	nop
+	nop	
+	nop	
 	ld	 a,(bc)
-	rrca
-	nop
-	nop
-	jr	 nz,$9B68
-	rrca
-	nop
-	nop
-	jr	 nz,$9B6D
+	rrca	
+	nop	
+	nop	
+	jr	 nz,L9B68
+	rrca	
+	nop	
+	nop	
+	jr	 nz,L9B6D
 	cp	 h
 	ld	 (bc),a
-	nop
-	jr	 nz,$9B72
-cp	 (hl)
+	nop	
+	jr	 nz,L9B72
+L9B68:	cp	 (hl)
 	ld	 (bc),a
-	jr	 nc,$9B96
+	jr	 nc,L9B96
 	ld	 a,(bc)
-cp	 (hl)
+L9B6D:	cp	 (hl)
 	adc	 a,d
 	ex	 af,af'
 	ld	 hl,(LBFAA)
@@ -14780,30 +14349,30 @@ cp	 (hl)
 	xor	 e
 	xor	 b
 	and	 b
-	nop
-	nop
+	nop	
+	nop	
 	xor	 d
 	and	 b
-	jr	 nc,$9B85
-nop
-	nop
-	jr	 nc,$9B09
-	nop
-	nop
-	nop
+	jr	 nc,L9B85
+L9B85:	nop	
+	nop	
+	jr	 nc,L9B09
+	nop	
+	nop	
+	nop	
 	ld	 c,b
 	inc	 b
-	nop
-	nop
-	nop
+	nop	
+	nop	
+	nop	
 	ld	 hl,(L00C0)
-	nop
-	nop
-ld	 hl,($0000)
+	nop	
+	nop	
+L9B96:	ld	 hl,($0000)
 	ex	 af,af'
-	nop
-	jr	 z,$9B9D
-nop
+	nop	
+	jr	 z,L9B9D
+L9B9D:	nop	
 	and	 b
 	ld	 (bc),a
 	ret	 nz
@@ -14812,157 +14381,157 @@ nop
 	add	 a,b
 	inc	 bc
 	add	 a,e
-	nop
+	nop	
 	ld	 (bc),a
 	and	 b
-	rrca
+	rrca	
 	ret	 nz
-	nop
-	nop
+	nop	
+	nop	
 	xor	 b
-	rrca
-	nop
-	nop
-	nop
+	rrca	
+	nop	
+	nop	
+	nop	
 	ld	 hl,(L000F)
-	nop
-	jr	 nz,$9BC2
-	ccf
-	nop
-	nop
-	jr	 nz,$9BC7
+	nop	
+	jr	 nz,L9BC2
+	ccf	
+	nop	
+	nop	
+	jr	 nz,L9BC7
 	cp	 h
 	ld	 (bc),a
-	nop
-	jr	 nz,$9BCC
-cp	 (hl)
+	nop	
+	jr	 nz,L9BCC
+L9BC2:	cp	 (hl)
 	add	 a,d
-	jr	 nc,$9BF0
+	jr	 nc,L9BF0
 	xor	 d
-cp	 (hl)
+L9BC7:	cp	 (hl)
 	xor	 d
 	ex	 af,af'
 	ld	 hl,(LBFAA)
 	xor	 d
 	xor	 b
-	nop
+	nop	
 	xor	 d
 	xor	 a
 	jp	 pe,L00A8
-	nop
+	nop	
 	xor	 e
 	and	 b
 	and	 b
-	nop
-	nop
+	nop	
+	nop	
 	xor	 d
 	xor	 b
-	jr	 nc,$9BDF
-nop
+	jr	 nc,L9BDF
+L9BDF:	nop	
 	ld	 c,$30
-	nop
-	nop
-	nop
+	nop	
+	nop	
+	nop	
 	ld	 c,d
 	or	 b
-	nop
-	nop
-	nop
+	nop	
+	nop	
+	nop	
 	ld	 a,(bc)
 	adc	 a,b
-	jr	 nz,$9BEE
-nop
+	jr	 nz,L9BEE
+L9BEE:	nop	
 	ld	 (bc),a
-nop
-	nop
-	nop
-	nop
+L9BF0:	nop	
+	nop	
+	nop	
+	nop	
 	inc	 bc
-	nop
+	nop	
 	ret	 nz
-	nop
+	nop	
 	add	 a,b
 	ld	 a,(bc)
 	add	 a,b
-	nop
+	nop	
 	ld	 (bc),a
 	add	 a,b
 	inc	 bc
-	nop
-	nop
+	nop	
+	nop	
 	ld	 a,(bc)
-	nop
+	nop	
 	ld	 a,(bc)
 	add	 a,b
-	nop
+	nop	
 	ld	 a,(bc)
 	and	 b
 	inc	 bc
-	nop
-	nop
-	nop
+	nop	
+	nop	
+	nop	
 	xor	 d
 	inc	 bc
-	nop
-	nop
-	nop
+	nop	
+	nop	
+	nop	
 	ld	 hl,(L020F)
-	nop
-	nop
+	nop	
+	nop	
 	ld	 a,(bc)
 	xor	 a
 	add	 a,d
-	jr	 nc,$9C3B
+	jr	 nc,L9C3B
 	ld	 a,(bc)
 	xor	 a
 	xor	 d
 	ex	 af,af'
-	jr	 nz,$9BCB
+	jr	 nz,L9BCB
 	xor	 a
-cp	 d
+L9C22:	cp	 d
 	xor	 b
-	ld	 hl,($AFAA)
+	ld	 hl,(LAFAA)
 	jp	 m,L2AA8
 	xor	 d
 	xor	 e
 	ret	 po
 	and	 b
-	nop
-	nop
+	nop	
+	nop	
 	xor	 d
 	xor	 b
-	nop
-	nop
-	nop
+	nop	
+	nop	
+	nop	
 	xor	 d
 	xor	 b
 ;
 ; At $9C38, it is the pattern for the blue player (demo screen)!
 ; Need to change to data and find start and end ???
 ;
-	jr	 nc,$9C39
-nop
-	nop
-ld	 hl,($0000)
-	nop
-	nop
+	jr	 nc,L9C39
+L9C39:	nop	
+	nop	
+L9C3B:	ld	 hl,($0000)
+	nop	
+	nop	
 	jp	 z,L008C
-	nop
-	nop
+	nop	
+	nop	
 	ld	 a,(bc)
 	add	 a,b
-	nop
-	nop
+	nop	
+	nop	
 	ld	 (bc),a
 	xor	 d
-	nop
+	nop	
 	ld	 (bc),a
-	nop
-	nop
+	nop	
+	nop	
 	ld	 hl,(L3C28)
-	nop
-	nop
-	cpl
+	nop	
+	nop	
+	cpl	
 	xor	 b
 	ld	 a,(bc)
 	ex	 af,af'
@@ -14975,28 +14544,28 @@ ld	 hl,($0000)
 	ld	 a,(L8308)
 	rst	 38H
 	xor	 b
-	nop
-	nop
-	nop
+	nop	
+	nop	
+	nop	
 	xor	 d
 	xor	 b
-	nop
-	nop
-	nop
+	nop	
+	nop	
+	nop	
 	xor	 d
 	xor	 b
-	nop
-	nop
+	nop	
+	nop	
 	ld	 (bc),a
 	xor	 d
 	add	 a,b
-	nop
-	nop
+	nop	
+	nop	
 	ld	 a,(bc)
 	xor	 d
 	add	 a,b
-	nop
-	jr	 nz,$9CA6
+	nop	
+	jr	 nz,L9CA6
 	ld	 hl,($0000)
 	ex	 af,af'
 	xor	 b
@@ -15005,114 +14574,114 @@ ld	 hl,($0000)
 	and	 b
 	ld	 a,(bc)
 	add	 a,b
-	nop
+	nop	
 	ld	 (bc),a
 	add	 a,b
 	ld	 (bc),a
 	add	 a,b
-	nop
-	nop
-	nop
+	nop	
+	nop	
+	nop	
 	ld	 hl,(L3380)
 	ld	 bc,L0A00
 	add	 a,b
 	ld	 c,$80
-	nop
+	nop	
 	ld	 (L3AAC),a
 	and	 b
-	nop
+	nop	
 	ld	 (bc),a
 	and	 b
 	ld	 a,(bc)
 	and	 b
-	nop
+	nop	
 	xor	 d
 	add	 a,b
-jr	 nc,$9CB6
-	nop
+L9CA6:	jr	 nc,L9CB6
+	nop	
 	ld	 a,(bc)
 	and	 b
-	nop
+	nop	
 	dec	 bc
 	add	 a,b
 	ld	 (bc),a
 	xor	 b
-	nop
+	nop	
 	ld	 b,d
 	ret	 p
 	ld	 a,(bc)
 	ret	 pe
-	nop
-nop
-	ccf
+	nop	
+L9CB6:	nop	
+	ccf	
 	dec	 hl
 	ret	 m
 	inc	 c
-	nop
-	rrca
+	nop	
+	rrca	
 	rst	 38H
 	ret	 pe
-	nop
-	nop
-	nop
+	nop	
+	nop	
+	nop	
 	rst	 38H
 	xor	 b
-	nop
-	nop
-	nop
+	nop	
+	nop	
+	nop	
 	xor	 d
 	xor	 b
-	nop
+	nop	
 	add	 a,b
 	ld	 hl,(LA0AA)
-	nop
-	jr	 nz,$9C7B
+	nop	
+	jr	 nz,L9C7B
 	xor	 d
 	and	 b
-	nop
+	nop	
 	ld	 hl,(L02A0)
 	and	 b
-	nop
+	nop	
 	ld	 a,(bc)
-	nop
+	nop	
 	ld	 (bc),a
 	and	 b
-	nop
-	nop
-	nop
+	nop	
+	nop	
+	nop	
 	ld	 a,(bc)
 	add	 a,b
-	nop
-	nop
-	nop
+	nop	
+	nop	
+	nop	
 	ld	 a,(bc)
 	add	 a,b
-	nop
-	nop
+	nop	
+	nop	
 	ld	 (bc),a
 	xor	 d
-	nop
+	nop	
 	inc	 b
 	ex	 af,af'
-	nop
+	nop	
 	ld	 a,(bc)
 	add	 a,b
-	nop
-	nop
-	nop
+	nop	
+	nop	
+	nop	
 	ld	 (L23AC),a
-	nop
-	nop
+	nop	
+	nop	
 	ld	 (bc),a
 	and	 b
 	ld	 (bc),a
 	add	 a,e
-	nop
+	nop	
 	xor	 d
 	add	 a,b
 	ld	 a,(bc)
 	and	 b
-	nop
+	nop	
 	ld	 a,(bc)
 	adc	 a,b
 	ld	 (L00A0),a
@@ -15125,77 +14694,77 @@ nop
 	rst	 38H
 	dec	 hl
 	ret	 m
-	nop
-	nop
+	nop	
+	nop	
 	rst	 38H
 	rst	 38H
 	ret	 pe
-	nop
-	nop
+	nop	
+	nop	
 	inc	 bc
 	rst	 38H
 	xor	 b
-	nop
-	nop
-	nop
+	nop	
+	nop	
+	nop	
 	xor	 d
 	xor	 b
-	nop
-	nop
+	nop	
+	nop	
 	ld	 a,(bc)
 	xor	 d
 	add	 a,b
-	nop
-	jr	 nz,$9D55
+	nop	
+	jr	 nz,L9D55
 	xor	 d
 	add	 a,b
-	nop
+	nop	
 	ex	 af,af'
 	xor	 b
 	ld	 a,(bc)
 	add	 a,b
-	nop
+	nop	
 	ld	 a,(bc)
 	and	 b
 	ld	 a,(bc)
 	add	 a,b
-	nop
+	nop	
 	ld	 (bc),a
 	add	 a,b
 	ld	 a,(bc)
-	nop
-	nop
-	nop
-	nop
+	nop	
+	nop	
+	nop	
+	nop	
 	ld	 a,(bc)
-	nop
-	nop
-	nop
+	nop	
+	nop	
+	nop	
 	ld	 (bc),a
 	xor	 d
-	nop
-	nop
-	nop
-	nop
+	nop	
+	nop	
+	nop	
+	nop	
 	ld	 hl,(L0200)
-	nop
-	nop
+	nop	
+	nop	
 	jp	 z,L008C
-	jr	 nc,$9D53
-ld	 a,(bc)
+	jr	 nc,L9D53
+L9D53:	ld	 a,(bc)
 	add	 a,b
-nop
-	nop
+L9D55:	nop	
+	nop	
 	ld	 (bc),a
 	xor	 d
-	nop
+	nop	
 	ld	 (bc),a
-	nop
-	nop
+	nop	
+	nop	
 	ld	 hl,(L3C28)
-	nop
-	nop
-	cpl
+	nop	
+	nop	
+	cpl	
 	xor	 b
 	ld	 a,(bc)
 	ex	 af,af'
@@ -15208,257 +14777,134 @@ nop
 	ld	 a,(L8308)
 	rst	 38H
 	xor	 b
-	nop
-	nop
-	nop
+	nop	
+	nop	
+	nop	
 	xor	 d
 	xor	 b
 	inc	 b
-	nop
-	nop
+	nop	
+	nop	
 	xor	 d
 	xor	 b
-	nop
-	nop
+	nop	
+	nop	
 	ld	 a,(bc)
 	xor	 d
 	add	 a,b
-	nop
-	nop
+	nop	
+	nop	
 	ld	 a,(bc)
 	xor	 d
 	add	 a,b
-	nop
-	nop
+	nop	
+	nop	
 	ld	 hl,(L800A)
-	nop
+	nop	
 	ld	 a,(bc)
-	jr	 z,$9D9A
+	jr	 z,L9D9A
 	add	 a,b
-	nop
+	nop	
 	ld	 (bc),a
 	and	 b
 	ld	 (bc),a
 	add	 a,b
-	nop
-	nop
+	nop	
+	nop	
 	and	 b
 	ld	 (bc),a
-add	 a,b
-	nop
-	nop
-	nop
-	ld	 hl,(L0080)
-	nop
-	dec	 b
-	ld	 b,b
-	nop
-	nop
-	nop
-	dec	 d
-	ld	 b,b
-	nop
-	djnz	 $9DB1
-	dec	 d
-	ld	 b,b
-	nop
-	djnz	 $9E06
-dec	 d
-	ld	 d,b
-	nop
-	ld	 de,$1555
-	call	 nc,$1500
-	ld	 d,h
-	dec	 b
-	call	 p,L1400
-	djnz	 $9DC6
-	call	 p,$1000
-	ld	 d,b
-	ld	 d,l
-ld	 d,h
-	nop
-	ld	 bc,L5555
-	ld	 d,h
-	nop
-	ld	 bc,L5555
-	ld	 d,h
-	nop
-	ld	 bc,L0155
-	ld	 b,c
-	nop
-	ld	 bc,L0155
-	djnz	 $9DDC
-ld	 bc,L4054
-	nop
-	nop
-	djnz	 $9DF3
-	djnz	 $9DE5
-nop
-	dec	 d
-	ld	 d,h
-	dec	 b
-	ld	 d,l
-	ld	 d,b
-	ld	 de,L0154
-	ld	 d,l
-	ld	 d,h
-	djnz	 $9E47
-	nop
-ld	 d,l
-	ld	 d,b
-	djnz	 $9DFC
-	nop
-	dec	 b
-	nop
-	nop
-	nop
-nop
-	ld	 b,l
-	nop
-	ld	 bc,L0101
-	ld	 d,l
-	nop
-	ld	 bc,L4105
-	ld	 b,l
-	nop
-	ld	 bc,L4115
-	ld	 d,l
-	ld	 b,b
-	ld	 bc,L4155
-	ld	 b,a
-	ld	 d,b
-	ld	 bc,L4041
-	ld	 d,a
-	ret	 nc
-	ld	 bc,L4001
-	ld	 d,a
-	ret	 nc
-	nop
-	dec	 b
-	ld	 d,l
-	ld	 d,l
-	ld	 d,b
-	nop
-	dec	 b
-	ld	 d,l
-	ld	 d,l
-	ld	 d,b
-	nop
-	dec	 b
-	ld	 d,l
-	ld	 d,l
-	ld	 d,b
-	nop
-	dec	 b
-	ld	 d,c
-	dec	 d
-	djnz	 $9E32
-dec	 b
-	ld	 b,b
-	ld	 de,$0000
-	dec	 d
-	ld	 d,b
-	nop
-	nop
+L9D9A:	add	 a,b
+
+;*******************************************************************************
+; BURWOR1
+; 5 bytes/row = 20 pixels wide, 18 rows
+; Sprite size: 90 bytes ($5A)
+; Pixel values: . = 0, 1 = color 1, 2 = color 2, 3 = color 3
+;
+;*******************************************************************************
+BURWOR1:.DB      $00,$00,$00,$2A,$80 ; . . . . . . . . . . . . . 2 2 2 2 . . .
+        .DB      $00,$00,$05,$40,$00 ; . . . . . . . . . . 1 1 1 . . . . . . .
+        .DB      $00,$00,$15,$40,$00 ; . . . . . . . . . 1 1 1 1 . . . . . . .
+        .DB      $10,$05,$15,$40,$00 ; . 1 . . . . 1 1 . 1 1 1 1 . . . . . . .
+        .DB      $10,$55,$15,$50,$00 ; . 1 . . 1 1 1 1 . 1 1 1 1 1 . . . . . .
+        .DB      $11,$55,$15,$D4,$00 ; . 1 . 1 1 1 1 1 . 1 1 1 3 1 1 . . . . .
+        .DB      $15,$54,$05,$F4,$00 ; . 1 1 1 1 1 1 . . . 1 1 3 3 1 . . . . .
+        .DB      $14,$10,$05,$F4,$00 ; . 1 1 . . 1 . . . . 1 1 3 3 1 . . . . .
+        .DB      $10,$50,$55,$54,$00 ; . 1 . . 1 1 . . 1 1 1 1 1 1 1 . . . . .
+        .DB      $01,$55,$55,$54,$00 ; . . . 1 1 1 1 1 1 1 1 1 1 1 1 . . . . .
+        .DB      $01,$55,$55,$54,$00 ; . . . 1 1 1 1 1 1 1 1 1 1 1 1 . . . . .
+        .DB      $01,$55,$01,$41,$00 ; . . . 1 1 1 1 1 . . . 1 1 . . 1 . . . .
+        .DB      $01,$55,$01,$10,$00 ; . . . 1 1 1 1 1 . . . 1 . 1 . . . . . .
+        .DB      $01,$54,$40,$00,$00 ; . . . 1 1 1 1 . 1 . . . . . . . . . . .
+        .DB      $10,$10,$10,$00,$00 ; . 1 . . . 1 . . . 1 . . . . . . . . . .
+        .DB      $15,$54,$05,$55,$50 ; . 1 1 1 1 1 1 . . . 1 1 1 1 1 1 1 1 . .
+        .DB      $11,$54,$01,$55,$54 ; . 1 . 1 1 1 1 . . . . 1 1 1 1 1 1 1 1 .
+        .DB      $10,$55,$00,$55,$50 ; . 1 . . 1 1 1 1 . . . . 1 1 1 1 1 1 . .
+
+;*******************************************************************************
+
+;*******************************************************************************
+;BURWOR2
+; 5 bytes/row = 20 pixels wide, 18 rows
+; Sprite size: 90 bytes ($5A)
+; Pixel values: . = 0, 1 = color 1, 2 = color 2, 3 = color 3
+;
+;*******************************************************************************
+BURWOR2:.DB      $10,$05,$00,$05,$00 ; . 1 . . . . 1 1 . . . . . . 1 1 . . . .
+        .DB      $00,$00,$00,$45,$00 ; . . . . . . . . . . . . 1 . 1 1 . . . .
+        .DB      $01,$01,$01,$55,$00 ; . . . 1 . . . 1 . . . 1 1 1 1 1 . . . .
+        .DB      $01,$05,$41,$45,$00 ; . . . 1 . . 1 1 1 . . 1 1 . 1 1 . . . .
+        .DB      $01,$15,$41,$55,$40 ; . . . 1 . 1 1 1 1 . . 1 1 1 1 1 1 . . .
+        .DB      $01,$55,$41,$47,$50 ; . . . 1 1 1 1 1 1 . . 1 1 . 1 3 1 1 . .
+        .DB      $01,$41,$40,$57,$D0 ; . . . 1 1 . . 1 1 . . . 1 1 1 3 3 1 . .
+        .DB      $01,$01,$40,$57,$D0 ; . . . 1 . . . 1 1 . . . 1 1 1 3 3 1 . .
+        .DB      $00,$05,$55,$55,$50 ; . . . . . . 1 1 1 1 1 1 1 1 1 1 1 1 . .
+        .DB      $00,$05,$55,$55,$50 ; . . . . . . 1 1 1 1 1 1 1 1 1 1 1 1 . .
+        .DB      $00,$05,$55,$55,$50 ; . . . . . . 1 1 1 1 1 1 1 1 1 1 1 1 . .
+        .DB      $00,$05,$51,$15,$10 ; . . . . . . 1 1 1 1 . 1 . 1 1 1 . 1 . .
+        .DB      $00,$05,$40,$11,$00 ; . . . . . . 1 1 1 . . . . 1 . 1 . . . .
+        .DB      $00,$15,$50,$00,$00 ; . . . . . 1 1 1 1 1 . . . . . . . . . .
+        .DB      $04,$55,$45,$00,$00 ; . . 1 . 1 1 1 1 1 . 1 1 . . . . . . . .
+        .DB      $05,$55,$01,$51,$40 ; . . 1 1 1 1 1 1 . . . 1 1 1 . 1 1 . . .
+        .DB      $04,$14,$00,$55,$50 ; . . 1 . . 1 1 . . . . . 1 1 1 1 1 1 . .
+        .DB      $10,$00,$00,$15,$54 ; . 1 . . . . . . . . . . . 1 1 1 1 1 1 .
+
+;*******************************************************************************
+
+;*******************************************************************************
+; BURWOR3
+; Decoded 2bpp sprite from listing line 14731 at $9E4F
+; 5 bytes/row = 20 pixels wide, 18 rows
+; Sprite size: 90 bytes ($5A)
+; Pixel values: . = 0, 1 = color 1, 2 = color 2, 3 = color 3
+;
+;*******************************************************************************
+BURWOR3:.DB      $10,$00,$00,$05,$44 ; . 1 . . . . . . . . . . . . 1 1 1 . 1 .
+        .DB      $04,$00,$00,$01,$40 ; . . 1 . . . . . . . . . . . . 1 1 . . .
+        .DB      $01,$01,$00,$45,$40 ; . . . 1 . . . 1 . . . . 1 . 1 1 1 . . .
+        .DB      $00,$45,$40,$41,$40 ; . . . . 1 . 1 1 1 . . . 1 . . 1 1 . . .
+        .DB      $00,$55,$40,$45,$50 ; . . . . 1 1 1 1 1 . . . 1 . 1 1 1 1 . .
+        .DB      $00,$51,$50,$41,$D4 ; . . . . 1 1 . 1 1 1 . . 1 . . 1 3 1 1 .
+        .DB      $00,$40,$50,$15,$F4 ; . . . . 1 . . . 1 1 . . . 1 1 1 3 3 1 .
+        .DB      $00,$00,$54,$15,$F4 ; . . . . . . . . 1 1 1 . . 1 1 1 3 3 1 .
+        .DB      $00,$00,$55,$55,$54 ; . . . . . . . . 1 1 1 1 1 1 1 1 1 1 1 .
+        .DB      $00,$00,$55,$55,$54 ; . . . . . . . . 1 1 1 1 1 1 1 1 1 1 1 .
+        .DB      $00,$00,$55,$55,$54 ; . . . . . . . . 1 1 1 1 1 1 1 1 1 1 1 .
+        .DB      $00,$00,$54,$45,$44 ; . . . . . . . . 1 1 1 . 1 . 1 1 1 . 1 .
+        .DB      $00,$00,$50,$04,$40 ; . . . . . . . . 1 1 . . . . 1 . 1 . . .
+        .DB      $00,$40,$54,$00,$00 ; . . . . 1 . . . 1 1 1 . . . . . . . . .
+        .DB      $00,$51,$51,$05,$50 ; . . . . 1 1 . 1 1 1 . 1 . . 1 1 1 1 . .
+        .DB      $00,$55,$40,$55,$54 ; . . . . 1 1 1 1 1 . . . 1 1 1 1 1 1 1 .
+        .DB      $00,$45,$40,$50,$54 ; . . . . 1 . 1 1 1 . . . 1 1 . . 1 1 1 .
+        .DB      $01,$01,$00,$00,$14 ; . . . 1 . . . 1 . . . . . . . . . 1 1 .
+
+;*******************************************************************************
+
 	inc	 b
-	ld	 d,l
-	ld	 b,l
+	nop	
+	nop	
 	nop
-	nop
-	dec	 b
-	ld	 d,l
-	ld	 bc,L4051
-	inc	 b
-	inc	 d
-nop
-	ld	 d,l
-	ld	 d,b
-	djnz	 $9E4C
-nop
-	dec	 d
-	ld	 d,h
-	djnz	 $9E51
-nop
-	dec	 b
-	ld	 b,h
-	inc	 b
-	nop
-	nop
-	ld	 bc,L0140
-	ld	 bc,L4500
-	ld	 b,b
-	nop
-	ld	 b,l
-	ld	 b,b
-	ld	 b,c
-	ld	 b,b
-	nop
-	ld	 d,l
-	ld	 b,b
-	ld	 b,l
-	ld	 d,b
-	nop
-	ld	 d,c
-	ld	 d,b
-	ld	 b,c
-	call	 nc,L4000
-	ld	 d,b
-	dec	 d
-	call	 p,$0000
-	ld	 d,h
-	dec	 d
-	call	 p,$0000
-	ld	 d,l
-	ld	 d,l
-	ld	 d,h
-	nop
-	nop
-	ld	 d,l
-	ld	 d,l
-	ld	 d,h
-	nop
-	nop
-	ld	 d,l
-	ld	 d,l
-	ld	 d,h
-	nop
-	nop
-	ld	 d,h
-	ld	 b,l
-	ld	 b,h
-	nop
-	nop
-	ld	 d,b
-	inc	 b
-	ld	 b,b
-	nop
-	ld	 b,b
-	ld	 d,h
-	nop
-	nop
-	nop
-	ld	 d,c
-	ld	 d,c
-	dec	 b
-	ld	 d,b
-	nop
-	ld	 d,l
-	ld	 b,b
-	ld	 d,l
-	ld	 d,h
-	nop
-	ld	 b,l
-	ld	 b,b
-	ld	 d,b
-	ld	 d,h
-	ld	 bc,$0001
-	nop
-	inc	 d
-	inc	 b
-	nop
-	nop
-	nop
-	DB	$10
+	.db	$10
 
 ;*******************************************************************************
 ;
@@ -15472,39 +14918,39 @@ nop
 ;
 ;*******************************************************************************
 
-DB      $00,$00,$00,$00,$40 ; . . . . . . . . . . . . . . . . 1 . . .
-        DB      $00,$00,$00,$01,$50 ; . . . . . . . . . . . . . . . 1 1 1 . .
-        DB      $00,$00,$00,$01,$50 ; . . . . . . . . . . . . . . . 1 1 1 . .
-        DB      $00,$00,$01,$01,$54 ; . . . . . . . . . . . 1 . . . 1 1 1 1 .
-        DB      $00,$15,$54,$01,$54 ; . . . . . 1 1 1 1 1 1 . . . . 1 1 1 1 .
-        DB      $00,$5F,$54,$41,$50 ; . . . . 1 1 3 3 1 1 1 . 1 . . 1 1 1 . .
-        DB      $15,$7F,$55,$01,$50 ; . 1 1 1 1 3 3 3 1 1 1 1 . . . 1 1 1 . .
-        DB      $15,$55,$55,$41,$40 ; . 1 1 1 1 1 1 1 1 1 1 1 1 . . 1 1 . . .
-        DB      $15,$55,$54,$01,$00 ; . 1 1 1 1 1 1 1 1 1 1 . . . . 1 . . . .
-        DB      $05,$50,$54,$04,$00 ; . . 1 1 1 1 . . 1 1 1 . . . 1 . . . . .
-        DB      $00,$00,$54,$10,$00 ; . . . . . . . . 1 1 1 . . 1 . . . . . .
-        DB      $01,$50,$15,$40,$14 ; . . . 1 1 1 . . . 1 1 1 1 . . . . 1 1 .
-        DB      $01,$54,$15,$51,$54 ; . . . 1 1 1 1 . . 1 1 1 1 1 . 1 1 1 1 .
-        DB      $00,$55,$55,$55,$50 ; . . . . 1 1 1 1 1 1 1 1 1 1 1 1 1 1 . .
-        DB      $00,$54,$55,$51,$50 ; . . . . 1 1 1 . 1 1 1 1 1 1 . 1 1 1 . .
-        DB      $00,$14,$15,$51,$40 ; . . . . . 1 1 . . 1 1 1 1 1 . 1 1 . . .
-        DB      $00,$05,$00,$01,$00 ; . . . . . . 1 1 . . . . . . . 1 . . . .
-        DB      $01,$55,$40,$05,$54 ; . . . 1 1 1 1 1 1 . . . . . 1 1 1 1 1 .
+L9EAE:  .DB      $00,$00,$00,$00,$40 ; . . . . . . . . . . . . . . . . 1 . . .
+        .DB      $00,$00,$00,$01,$50 ; . . . . . . . . . . . . . . . 1 1 1 . .
+        .DB      $00,$00,$00,$01,$50 ; . . . . . . . . . . . . . . . 1 1 1 . .
+        .DB      $00,$00,$01,$01,$54 ; . . . . . . . . . . . 1 . . . 1 1 1 1 .
+        .DB      $00,$15,$54,$01,$54 ; . . . . . 1 1 1 1 1 1 . . . . 1 1 1 1 .
+        .DB      $00,$5F,$54,$41,$50 ; . . . . 1 1 3 3 1 1 1 . 1 . . 1 1 1 . .
+        .DB      $15,$7F,$55,$01,$50 ; . 1 1 1 1 3 3 3 1 1 1 1 . . . 1 1 1 . .
+        .DB      $15,$55,$55,$41,$40 ; . 1 1 1 1 1 1 1 1 1 1 1 1 . . 1 1 . . .
+        .DB      $15,$55,$54,$01,$00 ; . 1 1 1 1 1 1 1 1 1 1 . . . . 1 . . . .
+        .DB      $05,$50,$54,$04,$00 ; . . 1 1 1 1 . . 1 1 1 . . . 1 . . . . .
+        .DB      $00,$00,$54,$10,$00 ; . . . . . . . . 1 1 1 . . 1 . . . . . .
+        .DB      $01,$50,$15,$40,$14 ; . . . 1 1 1 . . . 1 1 1 1 . . . . 1 1 .
+        .DB      $01,$54,$15,$51,$54 ; . . . 1 1 1 1 . . 1 1 1 1 1 . 1 1 1 1 .
+        .DB      $00,$55,$55,$55,$50 ; . . . . 1 1 1 1 1 1 1 1 1 1 1 1 1 1 . .
+        .DB      $00,$54,$55,$51,$50 ; . . . . 1 1 1 . 1 1 1 1 1 1 . 1 1 1 . .
+        .DB      $00,$14,$15,$51,$40 ; . . . . . 1 1 . . 1 1 1 1 1 . 1 1 . . .
+        .DB      $00,$05,$00,$01,$00 ; . . . . . . 1 1 . . . . . . . 1 . . . .
+        .DB      $01,$55,$40,$05,$54 ; . . . 1 1 1 1 1 1 . . . . . 1 1 1 1 1 .
 
-;*******************************************************************************
+;*******************************************************************************	
 
 
-	nop
-	nop
-	nop
-	nop
+	nop	
+	nop	
+	nop	
+	nop	
 	inc	 d
-	nop
+	nop	
 	dec	 d
 	ld	 d,l
-	nop
+	nop	
 	ld	 d,b
-	nop
+	nop	
 	ld	 e,a
 	ld	 d,h
 	ld	 bc,$1554
@@ -15515,7 +14961,7 @@ DB      $00,$00,$00,$00,$40 ; . . . . . . . . . . . . . . . . 1 . . .
 	dec	 d
 	ld	 d,l
 	ld	 d,l
-	nop
+	nop	
 	ld	 d,h
 	inc	 b
 	ld	 b,l
@@ -15529,51 +14975,51 @@ DB      $00,$00,$00,$00,$40 ; . . . . . . . . . . . . . . . . 1 . . .
 	ld	 d,b
 	ld	 d,l
 	dec	 b
-	nop
-	nop
-	nop
+	nop	
+	nop	
+	nop	
 	ld	 d,h
 	inc	 b
-	nop
-	nop
-	nop
+	nop	
+	nop	
+	nop	
 	ld	 d,l
-	djnz	 $9F3A
-ld	 bc,L5555
+	djnz	 L9F3A
+L9F3A:	ld	 bc,L5555
 	ld	 d,h
-	nop
+	nop	
 	dec	 b
 	ld	 d,l
 	ld	 d,l
 	ld	 d,l
-	nop
+	nop	
 	ld	 bc,L5550
 	ld	 d,l
 	ld	 b,b
-	nop
+	nop	
 	ld	 d,b
-	nop
+	nop	
 	dec	 d
 	ld	 b,b
-	nop
+	nop	
 	inc	 d
-	nop
+	nop	
 	dec	 b
-	nop
+	nop	
 	dec	 b
 	ld	 d,l
-	nop
+	nop	
 	ld	 bc,$0000
-	nop
-	nop
+	nop	
+	nop	
 	dec	 b
 	ld	 b,b
-	nop
-	nop
-	nop
-	nop
+	nop	
+	nop	
+	nop	
+	nop	
 	inc	 d
-	nop
+	nop	
 	dec	 d
 	ld	 d,l
 	ld	 bc,L0050
@@ -15590,113 +15036,113 @@ ld	 bc,L5555
 	ld	 d,l
 	ld	 d,l
 	dec	 b
-	nop
+	nop	
 	inc	 b
 	ld	 b,l
 	ld	 d,l
 	ld	 b,l
-	nop
-	nop
+	nop	
+	nop	
 	dec	 b
 	ld	 d,h
 	ld	 bc,$0540
 	ld	 d,b
 	ld	 d,l
 	ld	 bc,L0040
-	nop
+	nop	
 	ld	 d,h
 	inc	 b
-	nop
-	nop
+	nop	
+	nop	
 	ld	 bc,$1055
-	nop
-	nop
+	nop	
+	nop	
 	dec	 d
 	ld	 d,l
 	ld	 d,h
-	nop
+	nop	
 	ld	 bc,L5555
 	ld	 d,l
 	ld	 b,b
 	dec	 b
 	ld	 d,b
-	nop
+	nop	
 	dec	 b
 	ld	 d,b
 	ld	 bc,L0040
 	ld	 bc,L0040
 	ld	 d,b
-	nop
+	nop	
 	dec	 b
-	nop
+	nop	
 	ld	 bc,L0054
 	dec	 d
 	ld	 b,b
 	inc	 b
-	nop
-	nop
-	nop
-	djnz	 $9FC3
-	nop
-	nop
-	nop
+	nop	
+	nop	
+	nop	
+	djnz	 L9FC3
+	nop	
+	nop	
+	nop	
 	inc	 b
-	nop
-	nop
-	nop
-	nop
-	nop
-	nop
-	nop
+	nop	
+	nop	
+	nop	
+	nop	
+	nop	
+	nop	
+	nop	
 	call	 z,$0000
-	nop
-	nop
-rlca
+	nop	
+	nop	
+L9FC3:	rlca	
 	ld	 d,b
-	nop
-	djnz	 $9FCD
+	nop	
+	djnz	 L9FCD
 	dec	 d
 	ld	 d,b
-	nop
+	nop	
 	djnz	 LA022
-rla
+L9FCD:	rla	
 	ld	 d,b
-	nop
+	nop	
 	ld	 de,$1555
 	ld	 d,h
-	nop
+	nop	
 	dec	 d
 	ld	 d,h
-	rla
+	rla	
 	ld	 (hl),l
-	nop
+	nop	
 	inc	 d
-	djnz	 $9FE2
+	djnz	 L9FE2
 	ld	 a,l
-	nop
+	nop	
 	djnz	 LA031
 	dec	 b
-ld	 a,l
-	nop
+L9FE2:	ld	 a,l
+	nop	
 	ld	 bc,L5555
 	ld	 d,l
-	nop
+	nop	
 	ld	 bc,L5555
 	ld	 d,l
-	nop
+	nop	
 	ld	 bc,L5555
 	ld	 d,l
-	nop
+	nop	
 	ld	 bc,L4155
 	ld	 d,b
 	ld	 b,b
 	ld	 bc,L0155
 	inc	 b
-	nop
+	nop	
 	djnz	 LA00F
 	ld	 b,b
-	nop
-	nop
+	nop	
+	nop	
 	dec	 d
 	ld	 d,h
 	dec	 d
@@ -15708,59 +15154,59 @@ ld	 a,l
 	djnz	 LA063
 	ld	 bc,L5055
 	djnz	 LA018
-	nop
+	nop	
 	dec	 d
-	nop
+	nop	
 	jr	 nc,LA018
 LA018:	call	 z,$0000
-	nop
+	nop	
 	ret	 nz
-	rrca
+	rrca	
 	ld	 d,b
-	nop
+	nop	
 	djnz	 LA027
 LA022:	dec	 e
 	ld	 d,b
-	nop
+	nop	
 	djnz	 LA07C
-LA027:	rra
+LA027:	rra	
 	ld	 d,b
-	nop
+	nop	
 	ld	 de,L1D55
 	ld	 d,h
-	nop
+	nop	
 	dec	 d
 	ld	 d,h
 LA031:	dec	 e
 	ld	 (hl),l
-	nop
+	nop	
 	inc	 d
 	djnz	 LA03C
 	ld	 a,l
-	nop
+	nop	
 	djnz	 LA08B
 	dec	 b
 LA03C:	ld	 a,l
-	nop
+	nop	
 	ld	 bc,L5555
 	ld	 d,l
-	nop
+	nop	
 	ld	 bc,L5555
 	ld	 d,l
-	nop
+	nop	
 	ld	 bc,L5555
 	ld	 d,l
-	nop
+	nop	
 	ld	 bc,L4155
 	ld	 d,b
 	ld	 b,b
 	ld	 bc,L0155
 	inc	 b
-	nop
+	nop	
 	djnz	 LA069
 LA059:	ld	 b,b
-	nop
-	nop
+	nop	
+	nop	
 	dec	 d
 	ld	 d,h
 	dec	 d
@@ -15772,14 +15218,14 @@ LA059:	ld	 b,b
 	djnz	 LA0BD
 	ld	 bc,L4055
 	djnz	 LA072
-	nop
+	nop	
 	dec	 d
-	nop
-	nop
+	nop	
+	nop	
 	jr	 nz,LA0A3
 	call	 z,L0100
 	ld	 bc,LF002
-	nop
+	nop	
 	ld	 bc,L4005
 	or	 c
 	ld	 b,b
@@ -15787,13 +15233,13 @@ LA059:	ld	 b,b
 LA082:	push	 af
 	ld	 b,b
 	ld	 bc,L4155
-	DB	  $fd,$40
+	.db	  $fd,$40
 	ld	 sp,L4141
 	push	 af
 	ld	 d,b
 	ld	 bc,L5101
-	DB	  $fd,$d4
-	nop
+	.db	  $fd,$d4
+	nop	
 	dec	 b
 	ld	 d,b
 	ld	 (hl),l
@@ -15804,17 +15250,17 @@ LA082:	push	 af
 	ld	 d,l
 LA0A0:	ld	 d,l
 	ld	 d,h
-	nop
+	nop	
 LA0A3:	dec	 b
 	ld	 d,l
 	ld	 d,l
 	ld	 d,h
-	nop
+	nop	
 	dec	 b
 	ld	 d,h
 LA0AA:	ld	 b,l
 	ld	 b,h
-	nop
+	nop	
 	dec	 d
 	ld	 d,b
 	inc	 b
@@ -15822,8 +15268,8 @@ LA0AA:	ld	 b,l
 	inc	 b
 	ld	 d,l
 	ld	 d,h
-	nop
-	nop
+	nop	
+	nop	
 	dec	 b
 	ld	 d,l
 	dec	 b
@@ -15833,27 +15279,27 @@ LA0AA:	ld	 b,l
 	inc	 d
 LA0BD:	ld	 bc,L5055
 	djnz	 LA0C2
-LA0C2:	nop
+LA0C2:	nop	
 	ld	 d,l
 	ld	 d,h
 	djnz	 LA0C7
-LA0C7:	nop
+LA0C7:	nop	
 	dec	 d
 	ld	 d,b
-	nop
-	nop
-	nop
+	nop	
+	nop	
+	nop	
 	ret	 z
-	nop
+	nop	
 	inc	 b
-	nop
-	nop
+	nop	
+	nop	
 	ret	 p
-	nop
+	nop	
 	ld	 bc,L0201
 	ret	 p
-	nop
-	nop
+	nop	
+	nop	
 	ld	 b,l
 	ld	 b,b
 	or	 c
@@ -15863,19 +15309,19 @@ LA0C7:	nop
 	ld	 b,c
 	push	 af
 	ld	 b,b
-	nop
+	nop	
 	ld	 d,c
 	ld	 d,c
-	DB	  $fd,$40
-	nop
+	.db	  $fd,$40
+	nop	
 	ld	 b,c
 	ld	 d,c
 	push	 af
 	ld	 d,b
-	nop
-	nop
+	nop	
+	nop	
 	ld	 d,c
-	DB	  $fd,$d4
+	.db	  $fd,$d4
 	jr	 nc,LA0F4
 LA0F4:	ld	 d,b
 	ld	 (hl),l
@@ -15886,27 +15332,27 @@ LA0F4:	ld	 d,b
 	ld	 d,l
 	ld	 d,l
 	ld	 d,h
-	nop
-	nop
+	nop	
+	nop	
 	ld	 d,l
 	ld	 d,l
 	ld	 d,h
-	nop
+	nop	
 	ld	 b,b
 	ld	 d,h
 	ld	 b,l
 	ld	 b,h
-	nop
+	nop	
 	ld	 d,c
 	ld	 d,h
 	inc	 b
 	ld	 b,b
-	nop
+	nop	
 	ld	 d,l
 	ld	 b,l
-	nop
-	nop
-	nop
+	nop	
+	nop	
+	nop	
 	ld	 b,l
 	ld	 b,c
 	ld	 d,l
@@ -15915,28 +15361,28 @@ LA0F4:	ld	 d,b
 	ld	 d,l
 	ld	 d,b
 	inc	 b
-	nop
-	nop
+	nop	
+	nop	
 	dec	 d
 	ld	 d,h
-	nop
-	nop
-	nop
-	nop
+	nop	
+	nop	
+	nop	
+	nop	
 	ld	 b,b
-	nop
-	nop
-	nop
+	nop	
+	nop	
+	nop	
 	ld	 bc,L0050
-	nop
-	nop
+	nop	
+	nop	
 	ld	 b,c
 	ld	 d,b
-	nop
+	nop	
 	dec	 b
 	ld	 d,l
 	ld	 bc,L0054
-	rla
+	rla	
 	push	 de
 	ld	 de,$0554
 	ld	 e,a
@@ -15949,7 +15395,7 @@ LA0F4:	ld	 d,b
 	ld	 b,c
 	ld	 d,b
 	dec	 c
-	DB	 $dd,$55
+	.db	 $dd,$55
 	ld	 d,c
 	ld	 d,b
 	dec	 (hl)
@@ -15959,55 +15405,55 @@ LA0F4:	ld	 d,b
 	ld	 d,h
 	dec	 d
 	ld	 bc,L3000
-	nop
+	nop	
 	dec	 d
 	ld	 b,h
-	nop
+	nop	
 	ld	 bc,$1550
 	ld	 d,b
 	inc	 d
 	ld	 bc,$1554
 	ld	 d,c
 	ld	 d,h
-	nop
+	nop	
 	ld	 d,l
 	ld	 d,l
 	ld	 d,l
 	ld	 d,b
-	nop
+	nop	
 	ld	 d,h
 	ld	 d,l
 	ld	 d,c
 	ld	 d,b
-	nop
+	nop	
 	inc	 d
 	dec	 d
 	ld	 d,c
 	ld	 b,b
-	nop
+	nop	
 	dec	 b
-	nop
+	nop	
 	ld	 bc,L0100
 	ld	 d,l
 	ld	 b,b
 	dec	 b
 	ld	 d,h
-	nop
-	nop
-	nop
+	nop	
+	nop	
+	nop	
 	ld	 bc,$0000
-	nop
-	nop
+	nop	
+	nop	
 	ld	 bc,L0040
-	nop
-	nop
+	nop	
+	nop	
 	ld	 b,c
 	ld	 d,b
-	nop
+	nop	
 	dec	 b
 	ld	 d,l
 	ld	 bc,L0054
-	rla
+	rla	
 	push	 de
 	ld	 de,$0554
 	ld	 e,a
@@ -16024,23 +15470,23 @@ LA0F4:	ld	 d,b
 	ld	 d,l
 	ld	 d,c
 	ld	 d,b
-	ccf
-	DB	 $fd,$55
+	ccf	
+	.db	 $fd,$55
 	ld	 bc,L0140
 	ld	 d,h
 	dec	 d
 	ld	 bc,L3000
-	nop
+	nop	
 	dec	 d
 	ld	 b,h
-	nop
+	nop	
 	ld	 bc,$1550
 	ld	 d,b
 	inc	 d
 	ld	 bc,$1554
 	ld	 d,c
 	ld	 d,h
-	nop
+	nop	
 	ld	 d,l
 	ld	 d,l
 	ld	 d,l
@@ -16050,25 +15496,25 @@ LA0F4:	ld	 d,b
 	ld	 d,l
 	ld	 d,c
 	ld	 d,b
-	nop
+	nop	
 	inc	 d
 	dec	 d
 	ld	 d,c
 	ld	 b,b
-	nop
+	nop	
 	dec	 b
-	nop
+	nop	
 	ld	 bc,L3100
 	ld	 d,l
 	ld	 b,b
 	dec	 b
 	ld	 d,h
-	nop
+	nop	
 	ld	 bc,L4055
 	djnz	 LA1DE
 LA1DE:	dec	 b
 	push	 af
-	nop
+	nop	
 	ld	 d,h
 	ld	 bc,LF557
 	ld	 d,c
@@ -16080,10 +15526,10 @@ LA1DE:	dec	 b
 	ld	 d,l
 	ld	 d,c
 	ld	 d,h
-	rrca
+	rrca	
 	rst	 38H
 	push	 de
-	ld	 bc,$3E54
+	ld	 bc,L3E54
 	rst	 38H
 	ld	 d,l
 	ld	 b,c
@@ -16092,59 +15538,59 @@ LA1DE:	dec	 b
 	ld	 d,l
 	dec	 d
 	ld	 bc,L0040
-	nop
+	nop	
 	dec	 d
 	ld	 b,l
-	nop
+	nop	
 	jr	 nc,LA208
 	ld	 d,l
 LA208:	ld	 d,h
-	nop
+	nop	
 	ld	 bc,L5555
 	ld	 d,h
-	nop
+	nop	
 	dec	 b
 	ld	 d,l
 	ld	 d,l
 	ld	 d,l
-	nop
+	nop	
 	ld	 bc,L5550
 	ld	 d,l
 	ld	 b,b
 	jr	 nz,LA26B
-	nop
+	nop	
 	dec	 d
 	ld	 b,b
-	nop
+	nop	
 	inc	 d
-	nop
+	nop	
 	dec	 b
-	nop
+	nop	
 	dec	 b
 	ld	 d,l
-	nop
+	nop	
 	ld	 bc,$0000
-	nop
+	nop	
 	jr	 nc,LA231
 	ld	 b,b
-	nop
+	nop	
 	inc	 c
-	nop
-	nop
+	nop	
+	nop	
 LA231:	inc	 d
-	nop
-	nop
+	nop	
+	nop	
 	ld	 d,l
 	ld	 d,b
 	inc	 b
-	nop
+	nop	
 	ld	 bc,L407D
 	inc	 d
-	nop
+	nop	
 	ld	 d,l
-	DB	 $fd,$54
+	.db	 $fd,$54
 	ld	 d,h
-	nop
+	nop	
 	ld	 d,l
 	ld	 d,l
 	ld	 d,b
@@ -16153,12 +15599,12 @@ LA231:	inc	 d
 	push	 de
 	ld	 d,h
 	ld	 d,h
-	rrca
+	rrca	
 	rst	 38H
 	push	 af
 	ld	 b,b
 	ld	 d,h
-	ccf
+	ccf	
 	cp	 a
 	push	 de
 	ld	 d,b
@@ -16168,17 +15614,17 @@ LA231:	inc	 d
 	ld	 b,l
 	ld	 b,c
 	ld	 b,b
-	nop
-	nop
+	nop	
+	nop	
 	dec	 b
 	ld	 d,l
-	nop
-	nop
+	nop	
+	nop	
 	dec	 b
 	ld	 d,l
 	ld	 d,h
-	nop
-	nop
+	nop	
+	nop	
 LA265:	ld	 d,l
 	ld	 d,l
 	ld	 d,l
@@ -16186,36 +15632,36 @@ LA265:	ld	 d,l
 	ld	 bc,L0055
 	dec	 b
 	ld	 d,b
-	nop
+	nop	
 	ld	 d,b
-	nop
+	nop	
 	ld	 bc,L0040
 	inc	 d
-	nop
+	nop	
 	dec	 b
-	nop
-	nop
+	nop	
+	nop	
 	ld	 d,l
-	nop
+	nop	
 	dec	 d
 	ld	 b,b
 	ld	 bc,L0300
-	nop
+	nop	
 	djnz	 LA287
 	jr	 nz,LA285
-LA285:	nop
+LA285:	nop	
 	inc	 b
-LA287:	nop
-	nop
+LA287:	nop	
+	nop	
 	jr	 nc,LA28B
-LA28B:	nop
-	nop
-	nop
-	nop
+LA28B:	nop	
+	nop	
+	nop	
+	nop	
 	ld	 a,(de)
 	and	 b
-	nop
-	nop
+	nop	
+	nop	
 	dec	 b
 	ld	 e,d
 	and	 b
@@ -16226,24 +15672,24 @@ LA298:	ld	 (de),a
 	djnz	 LA29D
 LA29D:	ld	 b,c
 	xor	 d
-	nop
+	nop	
 	dec	 d
 	ld	 b,b
 	add	 hl,bc
 	xor	 b
-	nop
-	nop
+	nop	
+	nop	
 	djnz	 LA2AE
 	adc	 a,(hl)
 	inc	 b
-	nop
+	nop	
 	djnz	 LA2C7
-	cpl
+	cpl	
 LA2AE:	add	 a,h
-	nop
+	nop	
 	ld	 d,l
 	ld	 d,h
-	ccf
+	ccf	
 	ret	 nc
 	ld	 bc,L5555
 	xor	 a
@@ -16256,16 +15702,16 @@ LA2BA:	ld	 d,l
 	ld	 bc,L5555
 	xor	 a
 	add	 a,b
-	nop
+	nop	
 	ld	 d,l
 	ld	 d,h
-	ccf
+	ccf	
 LA2C7:	ret	 nc
-	nop
+	nop	
 	djnz	 LA2E5
-	cpl
+	cpl	
 	add	 a,h
-	nop
+	nop	
 	djnz	 LA2F6
 	xor	 (hl)
 	inc	 b
@@ -16273,46 +15719,46 @@ LA2C7:	ret	 nc
 	ld	 b,b
 	add	 hl,bc
 	xor	 d
-	nop
+	nop	
 	djnz	 LA2D9
 LA2D9:	ld	 bc,LA0AA
 	djnz	 LA2DE
 LA2DE:	ld	 b,b
 	ld	 l,d
 	xor	 b
-	nop
-	nop
+	nop	
+	nop	
 	dec	 d
 	ld	 e,d
 LA2E5:	xor	 b
-	nop
-	nop
+	nop	
+	nop	
 	ld	 hl,(L00A4)
-	nop
-	nop
+	nop	
+	nop	
 	and	 l
 	ld	 d,(hl)
-	nop
-	nop
+	nop	
+	nop	
 	ld	 (bc),a
 	sbc	 a,d
 	ld	 l,b
-	nop
-	djnz	 $A349
+	nop	
+	djnz	 LA349
 	ld	 l,c
 	and	 b
-LA2F9:	nop
-	ld	 de,$A612
+LA2F9:	nop	
+	ld	 de,LA612
 	adc	 a,(hl)
-	nop
+	nop	
 	inc	 d
 	djnz	 LA29C
-	cpl
+	cpl	
 	add	 a,b
-	nop
+	nop	
 	ld	 d,l
 	ld	 d,h
-	ccf
+	ccf	
 	call	 nc,L5501
 	ld	 d,l
 	xor	 a
@@ -16324,122 +15770,122 @@ LA2F9:	nop
 	add	 a,b
 	ld	 bc,L5555
 	xor	 a
-add	 a,b
-	nop
+LA317:	add	 a,b
+	nop	
 	ld	 d,l
 	ld	 d,h
-	ccf
+	ccf	
 	ret	 nc
-	nop
+	nop	
 	djnz	 LA2BA
-	cpl
+	cpl	
 	add	 a,h
-	nop
+	nop	
 	ld	 b,d
 	and	 (hl)
 	adc	 a,(hl)
-	nop
-	ld	 bc,$A902
+	nop	
+	ld	 bc,LA902
 	add	 a,b
-	nop
+	nop	
 	inc	 d
 	ld	 (bc),a
 	ld	 l,c
 	and	 b
-	nop
-	djnz	 $A335
+	nop	
+	djnz	 LA335
 	sub	 l
 	xor	 b
-nop
-	djnz	 $A338
-and	 l
+LA335:	nop	
+	djnz	 LA338
+LA338:	and	 l
 	ld	 l,b
-	nop
-	nop
-	nop
+	nop	
+	nop	
+	nop	
 	ld	 hl,(L0068)
 	ld	 (bc),a
 	xor	 b
 	inc	 b
-	nop
-	nop
+	nop	
+	nop	
 	ld	 (bc),a
 	xor	 d
 	sub	 h
-	nop
-nop
-	nop
+	nop	
+LA349:	nop	
+	nop	
 	xor	 d
 	ld	 h,h
-	nop
-	nop
-	nop
+	nop	
+	nop	
+	nop	
 	add	 hl,hl
 	and	 (hl)
-	nop
-	nop
-	djnz	 $A3B0
+	nop	
+	nop	
+	djnz	 LA3B0
 	and	 (hl)
-	nop
-	nop
-	ld	 de,$A612
-	jr	 c,$A35E
-inc	 d
+	nop	
+	nop	
+	ld	 de,LA612
+	jr	 c,LA35E
+LA35E:	inc	 d
 	djnz	 LA2F9
 	cp	 (hl)
-	nop
-	djnz	 $A3BA
+	nop	
+	djnz	 LA3BA
 	ld	 d,b
 	rst	 38H
 	ld	 b,b
 	ld	 bc,L5655
 	cp	 (hl)
-	djnz	 $A373
+	djnz	 LA373
 	ld	 d,l
 	ld	 e,d
 	xor	 d
-	nop
+	nop	
 	ld	 bc,L5655
 	cp	 (hl)
-	nop
-	djnz	 $A3CE
+	nop	
+	djnz	 LA3CE
 	ld	 d,b
 	rst	 38H
 	ld	 b,b
 	inc	 d
-	djnz	 $A317
+	djnz	 LA317
 	cp	 (hl)
-	djnz	 $A393
-ld	 de,L38A6
-	nop
-	djnz	 $A3E2
+	djnz	 LA393
+LA382:	ld	 de,L38A6
+	nop	
+	djnz	 LA3E2
 	ld	 h,(hl)
-	nop
-	nop
-	nop
+	nop	
+	nop	
+	nop	
 	xor	 d
 	sub	 (hl)
-	nop
-	nop
+	nop	
+	nop	
 	ld	 (bc),a
 	xor	 d
 	sub	 h
-nop
-	nop
+LA393:	nop	
+	nop	
 	ld	 (bc),a
 	xor	 d
 	add	 a,h
-	nop
-	nop
+	nop	
+	nop	
 ;
 ; At $A39A starts pattern of Worluk (demo screen) ???
 ;
-nop
+LA39A:	nop	
 	dec	 b
-	nop
+	nop	
 	inc	 d
-	jr	 z,$A3C8
-	nop
+	jr	 z,LA3C8
+	nop	
 	ld	 b,b
 	ld	 b,b
 	xor	 b
@@ -16449,13 +15895,13 @@ nop
 	ld	 hl,(LFB8B)
 	jp	 m,L2AA8
 	xor	 a
-ei
+LA3B0:	ei	
 	cp	 $A8
 	ld	 d,$A2
-	jp	 pe,$A4EA
+	jp	 pe,LA4EA
 	dec	 b
 	xor	 b
-ld	 hl,(L940A)
+LA3BA:	ld	 hl,(L940A)
 	ld	 b,$5A
 	add	 hl,de
 	add	 hl,hl
@@ -16467,52 +15913,52 @@ ld	 hl,(L940A)
 	ld	 bc,L5501
 	ld	 e,b
 	inc	 b
-	nop
+	nop	
 	ld	 b,b
-ld	 d,l
+LA3CE:	ld	 d,l
 	ld	 b,b
-	djnz	 $A3D2
-nop
+	djnz	 LA3D2
+LA3D2:	nop	
 	ld	 d,l
 	ld	 b,b
-	nop
-	nop
-	nop
+	nop	
+	nop	
+	nop	
 	ld	 d,l
 	ld	 b,b
-	nop
-	nop
+	nop	
+	nop	
 	dec	 b
 	ld	 d,l
 	ld	 d,h
-	nop
-	nop
-	djnz	 $A438
+	nop	
+	nop	
+	djnz	 LA438
 	ld	 b,c
-	nop
-	nop
-	djnz	 $A3FD
+	nop	
+	nop	
+	djnz	 LA3FD
 	ld	 bc,$0000
-	djnz	 $A3F1
+	djnz	 LA3F1
 	ld	 bc,L0100
 	ld	 d,b
-nop
+LA3F1:	nop	
 	ld	 bc,L0050
 	ld	 bc,L4000
-	nop
-	nop
+	nop	
+	nop	
 	ld	 bc,$0001
-nop
-	nop
+LA3FD:	nop	
+	nop	
 	dec	 bc
 	xor	 e
 	add	 a,b
-	nop
+	nop	
 	ex	 af,af'
-	cpl
+	cpl	
 	rst	 28H
 	ret	 po
-	nop
+	nop	
 	ld	 d,$3F
 	rst	 28H
 	ret	 p
@@ -16548,56 +15994,56 @@ nop
 	ld	 d,l
 	ld	 hl,(L0080)
 	ld	 bc,L0055
-	nop
-	nop
+	nop	
+	nop	
 	ld	 d,l
 	ld	 d,l
-ld	 b,b
-	nop
-	nop
+LA438:	ld	 b,b
+	nop	
+	nop	
 	ld	 b,c
 	ld	 d,l
-	djnz	 $A43F
-nop
-	djnz	 $A496
+	djnz	 LA43F
+LA43F:	nop	
+	djnz	 LA496
 	inc	 b
-	nop
-	nop
+	nop	
+	nop	
 	inc	 b
-	djnz	 $A449
-	nop
-nop
+	djnz	 LA449
+	nop	
+LA449:	nop	
 	ld	 d,h
-	nop
+	nop	
 	ld	 bc,L0050
-	nop
-	nop
-	nop
-	nop
-	nop
-	nop
-	djnz	 $A467
-	nop
-	nop
-	nop
+	nop	
+	nop	
+	nop	
+	nop	
+	nop	
+	nop	
+	djnz	 LA467
+	nop	
+	nop	
+	nop	
 	ld	 b,b
 	ld	 b,b
-	nop
-	nop
+	nop	
+	nop	
 	ld	 (bc),a
 	jp	 pe,L00E0
-	nop
+	nop	
 	dec	 bc
-	ei
+	ei	
 	ret	 m
-	nop
-nop
-	rrca
-	ei
+	nop	
+LA467:	nop	
+	rrca	
+	ei	
 	call	 m,$0000
 	ld	 (bc),a
 	jp	 pe,L00E0
-	nop
+	nop	
 	xor	 b
 	ld	 hl,(L800A)
 	dec	 d
@@ -16628,52 +16074,52 @@ nop
 	ld	 hl,(L5510)
 	ld	 b,c
 	xor	 b
-	jr	 z,$A49F
+	jr	 z,LA49F
 	dec	 d
 	inc	 b
-	jr	 z,$A49F
-ld	 bc,L1004
-	nop
-	nop
+	jr	 z,LA49F
+LA49F:	ld	 bc,L1004
+	nop	
+	nop	
 	dec	 d
 	ld	 b,b
 	ld	 d,l
-	nop
-	nop
-	nop
-	jr	 nc,$A4AC
-nop
-	nop
-	nop
-	jr	 nc,$A4B1
-nop
-	nop
-	nop
+	nop	
+	nop	
+	nop	
+	jr	 nc,LA4AC
+LA4AC:	nop	
+	nop	
+	nop	
+	jr	 nc,LA4B1
+LA4B1:	nop	
+	nop	
+	nop	
 	inc	 b
-	nop
-	nop
-	nop
-	nop
+	nop	
+	nop	
+	nop	
+	nop	
 	dec	 b
 	ld	 b,b
-	nop
-	nop
+	nop	
+	nop	
 	inc	 d
-	nop
+	nop	
 	ld	 d,b
-	nop
+	nop	
 	ld	 de,L0054
 	dec	 d
 	ld	 b,b
 	dec	 d
 	ld	 d,l
-	nop
+	nop	
 	ld	 d,$10
 	dec	 d
 	ld	 d,l
 	ld	 b,b
 	ld	 d,b
-	djnz	 $A4E6
+	djnz	 LA4E6
 	ld	 d,l
 	ld	 d,l
 	ld	 b,d
@@ -16695,58 +16141,58 @@ nop
 	inc	 b
 	dec	 d
 	ld	 d,l
-ld	 d,h
+LA4E6:	ld	 d,h
 	dec	 d
-	nop
+	nop	
 	dec	 d
-ld	 d,h
-	nop
+LA4EA:	ld	 d,h
+	nop	
 	inc	 d
-	nop
+	nop	
 	dec	 d
 	ld	 b,b
-	nop
-	djnz	 $A4F3
-dec	 d
-	nop
-	nop
+	nop	
+	djnz	 LA4F3
+LA4F3:	dec	 d
+	nop	
+	nop	
 	ld	 d,b
-	nop
+	nop	
 	inc	 d
-	nop
+	nop	
 	ld	 bc,L0040
-	nop
-	nop
+	nop	
+	nop	
 	dec	 a
-	nop
-	nop
-	nop
-	nop
-	nop
-	nop
-	nop
-	nop
-	nop
-	jr	 nc,$A50B
-nop
-	nop
-	nop
-	jr	 nc,$A510
-nop
-	nop
-	nop
+	nop	
+	nop	
+	nop	
+	nop	
+	nop	
+	nop	
+	nop	
+	nop	
+	nop	
+	jr	 nc,LA50B
+LA50B:	nop	
+	nop	
+	nop	
+	jr	 nc,LA510
+LA510:	nop	
+	nop	
+	nop	
 	inc	 b
-	nop
-	nop
-	nop
+	nop	
+	nop	
+	nop	
 	inc	 b
 	dec	 b
 	ld	 de,$1050
 	dec	 d
-	nop
+	nop	
 	ld	 d,l
 	add	 a,h
-	djnz	 $A577
+	djnz	 LA577
 	ld	 b,b
 	inc	 d
 	inc	 b
@@ -16769,67 +16215,67 @@ nop
 	ld	 d,l
 	ld	 d,l
 	ld	 d,l
-	nop
+	nop	
 	dec	 b
 	ld	 d,l
 	ld	 d,l
 	dec	 b
-	nop
+	nop	
 	dec	 b
 	ld	 d,h
 	ld	 d,h
 	inc	 d
-	nop
+	nop	
 	dec	 b
 	ld	 d,b
-	nop
+	nop	
 	ld	 d,b
-	nop
+	nop	
 	dec	 b
 	ld	 b,b
 	ld	 bc,L0040
-	ld	 bc,$3D00
-	nop
-	nop
-	nop
-	nop
-	nop
-nop
-	nop
-	nop
-	nop
-	nop
-	nop
-	nop
-	nop
-	nop
-	nop
-	nop
-	nop
-	nop
-	nop
-	nop
-	nop
-	nop
-	nop
-	nop
-	nop
-	nop
-	nop
-	nop
-	nop
+	ld	 bc,L3D00
+	nop	
+	nop	
+	nop	
+	nop	
+	nop	
+LA555:	nop	
+	nop	
+	nop	
+	nop	
+	nop	
+	nop	
+	nop	
+	nop	
+	nop	
+	nop	
+	nop	
+	nop	
+	nop	
+	nop	
+	nop	
+	nop	
+	nop	
+	nop	
+	nop	
+	nop	
+	nop	
+	nop	
+	nop	
+	nop	
 	ret	 nz
-	nop
-	nop
-	nop
-	nop
+	nop	
+	nop	
+	nop	
+	nop	
 	ret	 nz
 	dec	 b
 	ld	 b,b
 	inc	 d
 	inc	 d
-djnz	 $A5CF
-	djnz	 $A590
+LA577:	djnz	 LA5CF
+	djnz	 LA590
 	ld	 d,l
 	inc	 d
 	ld	 d,b
@@ -16851,64 +16297,64 @@ djnz	 $A5CF
 	ld	 d,h
 	dec	 d
 	ld	 d,l
-ld	 d,l
+LA590:	ld	 d,l
 	ld	 d,h
 	inc	 b
 	dec	 d
 	ld	 d,l
 	ld	 d,l
 	inc	 d
-	nop
+	nop	
 	inc	 d
 	dec	 d
 	call	 nc,L0050
-	nop
+	nop	
 	ld	 bc,L40F5
-	nop
-	nop
-	nop
+	nop	
+	nop	
+	nop	
 	dec	 b
-	nop
-	nop
-	nop
-	nop
-	nop
-	nop
-	nop
-	nop
-	nop
-	nop
-	nop
-	nop
-	nop
-	nop
-	nop
-	nop
-	nop
-	nop
-	nop
-	nop
-	nop
-	nop
-	nop
-	nop
-	nop
-	nop
-	nop
-	nop
-	nop
-	jr	 nc,$A5C4
-nop
-	nop
-	nop
-	jr	 nc,$A5C9
-nop
+	nop	
+	nop	
+	nop	
+	nop	
+	nop	
+	nop	
+	nop	
+	nop	
+	nop	
+	nop	
+	nop	
+	nop	
+	nop	
+	nop	
+	nop	
+	nop	
+	nop	
+	nop	
+	nop	
+	nop	
+	nop	
+	nop	
+	nop	
+	nop	
+	nop	
+	nop	
+	nop	
+	nop	
+	nop	
+	jr	 nc,LA5C4
+LA5C4:	nop	
+	nop	
+	nop	
+	jr	 nc,LA5C9
+LA5C9:	nop	
 	inc	 b
 	dec	 b
 	inc	 b
-	nop
-	nop
-inc	 b
+	nop	
+	nop	
+LA5CF:	inc	 b
 	ld	 d,l
 	ld	 b,l
 	ld	 bc,$0550
@@ -16940,67 +16386,67 @@ inc	 b
 	ld	 d,l
 	ld	 d,l
 	ld	 d,l
-	nop
+	nop	
 	dec	 d
 	ld	 bc,$1454
-	nop
-	nop
-	nop
-	nop
+	nop	
+	nop	
+	nop	
+	nop	
 	inc	 d
-	nop
-	nop
-	nop
-	nop
+	nop	
+	nop	
+	nop	
+	nop	
 	ld	 d,b
-	nop
-	nop
-	nop
+	nop	
+	nop	
+	nop	
 	dec	 b
 	ld	 b,b
-	nop
-	nop
-	nop
+	nop	
+	nop	
+	nop	
 	call	 p,$0000
-nop
-	nop
-	nop
-	nop
-	nop
+LA60B:	nop	
+	nop	
+	nop	
+	nop	
+	nop	
 ;
 ; At $A610 starts pattern of Wizard of Wor (demo screen) ???
 ;
-nop
-	nop
-dec	 d
+LA610:	nop	
+	nop	
+LA612:	dec	 d
 	ld	 b,b
-	nop
-	nop
+	nop	
+	nop	
 	ld	 bc,L0055
-	nop
-	nop
+	nop	
+	nop	
 	inc	 b
 	ld	 bc,$0000
-	nop
+	nop	
 	ld	 b,$21
 	ld	 d,b
-	nop
-	nop
+	nop	
+	nop	
 	dec	 b
 	dec	 b
 	ld	 d,h
-	nop
-	nop
+	nop	
+	nop	
 	dec	 d
 	ld	 b,l
 	ld	 d,l
 	ld	 b,b
-	nop
+	nop	
 	ld	 d,b
 	ld	 d,l
 	ld	 b,b
 	ld	 d,b
-	nop
+	nop	
 	ld	 b,b
 	dec	 d
 	ld	 b,b
@@ -17009,240 +16455,240 @@ dec	 d
 	ld	 d,b
 	inc	 c
 	inc	 a
-	nop
+	nop	
 	dec	 d
 	ld	 d,b
 	inc	 c
-	nop
-	nop
+	nop	
+	nop	
 	ld	 d,l
 	ld	 d,b
-	nop
-	nop
+	nop	
+	nop	
 	ld	 bc,L5055
-	nop
-	nop
+	nop	
+	nop	
 	dec	 d
 	ld	 d,l
 	ld	 d,h
-	nop
-	nop
+	nop	
+	nop	
 	dec	 d
 	ld	 d,l
 	ld	 d,h
-	nop
-	nop
+	nop	
+	nop	
 	dec	 b
 	ld	 d,l
 	ld	 d,l
-	nop
-	nop
+	nop	
+	nop	
 	dec	 b
 	ld	 d,l
 	ld	 d,l
 	ld	 b,b
-	nop
+	nop	
 	ld	 bc,L5555
 	ld	 d,b
-	nop
+	nop	
 	dec	 b
 	ld	 d,l
 	ld	 d,l
 	ld	 d,b
-	nop
+	nop	
 	dec	 b
 	ld	 d,b
-	nop
-	nop
-	nop
-	djnz	 $A6C6
-	nop
-	nop
-	nop
-	jr	 $A60B
-	nop
-	nop
-	nop
+	nop	
+	nop	
+	nop	
+	djnz	 LA6C6
+	nop	
+	nop	
+	nop	
+	jr	 LA60B
+	nop	
+	nop	
+	nop	
 	inc	 d
 	dec	 d
 	ld	 b,b
-	nop
-	nop
+	nop	
+	nop	
 	dec	 b
 	dec	 d
 	ld	 d,b
-	nop
-	nop
+	nop	
+	nop	
 	dec	 d
 	ld	 d,l
 	inc	 d
-	nop
-	nop
+	nop	
+	nop	
 	inc	 b
 	ld	 d,l
 	dec	 b
-	nop
-	nop
-	djnz	 $A6A5
+	nop	
+	nop	
+	djnz	 LA6A5
 	ld	 b,c
 	ld	 b,b
-	nop
+	nop	
 	ld	 d,b
 	dec	 d
 	ld	 d,b
 	ret	 nz
-	rrca
-	nop
+	rrca	
+	nop	
 	ld	 d,l
 	ld	 d,b
 	ret	 nz
-	nop
+	nop	
 	ld	 bc,L5055
-	nop
-	nop
+	nop	
+	nop	
 	dec	 b
 	ld	 d,l
 	ld	 b,b
-nop
-	nop
+LA6A5:	nop	
+	nop	
 	dec	 d
 	ld	 d,l
 	ld	 d,b
-	nop
-	nop
+	nop	
+	nop	
 	dec	 b
 	ld	 d,l
 	ld	 d,h
-	nop
-	nop
+	nop	
+	nop	
 	ld	 bc,L5555
-	nop
-	nop
-	nop
+	nop	
+	nop	
+	nop	
 	ld	 d,l
 	ld	 d,l
 	ld	 b,b
-	nop
-	nop
+	nop	
+	nop	
 	ld	 d,l
 	ld	 d,l
-	nop
-	nop
+	nop	
+	nop	
 	dec	 b
 	ld	 d,h
-	nop
-	nop
-	nop
-	nop
-dec	 d
-	nop
-	nop
-	nop
+	nop	
+	nop	
+	nop	
+	nop	
+LA6C6:	dec	 d
+	nop	
+	nop	
+	nop	
 	dec	 b
 	ld	 d,h
-	nop
-	nop
-	nop
+	nop	
+	nop	
+	nop	
 	ld	 de,L0054
-	nop
-	nop
-	jr	 $A72A
-	nop
-	nop
-	nop
+	nop	
+	nop	
+	jr	 LA72A
+	nop	
+	nop	
+	nop	
 	inc	 d
 	dec	 d
 	ld	 b,b
-	nop
-	nop
+	nop	
+	nop	
 	dec	 b
 	dec	 d
 	ld	 d,b
-	nop
-	nop
+	nop	
+	nop	
 	dec	 b
 	ld	 d,l
 	inc	 d
-	nop
-	nop
-	nop
+	nop	
+	nop	
+	nop	
 	ld	 d,l
 	ld	 b,l
-	nop
-	nop
+	nop	
+	nop	
 	ld	 bc,L5515
-	nop
-	nop
+	nop	
+	nop	
 	dec	 b
 	dec	 d
 	ld	 e,h
-	nop
-	nop
+	nop	
+	nop	
 	ret	 p
 	ld	 d,l
 	ld	 a,h
-	nop
-	nop
+	nop	
+	nop	
 	ld	 bc,L5455
-	nop
-	nop
+	nop	
+	nop	
 	dec	 b
 	ld	 d,l
 	ld	 d,b
-	nop
-	nop
+	nop	
+	nop	
 	dec	 b
 	ld	 d,l
 	ld	 d,b
-	nop
-	nop
+	nop	
+	nop	
 	ld	 bc,L4055
-	nop
-	nop
+	nop	
+	nop	
 	ld	 bc,L4055
-	nop
-	nop
+	nop	
+	nop	
 	dec	 b
 	ld	 d,l
 	ld	 d,b
-	nop
-	nop
+	nop	
+	nop	
 	dec	 b
 	ld	 d,l
 	ld	 d,b
-	nop
-	nop
+	nop	
+	nop	
 	ld	 bc,L0054
-	nop
-	nop
+	nop	
+	nop	
 	inc	 b
 	dec	 d
-	nop
-	nop
-	nop
+	nop	
+	nop	
+	nop	
 	ld	 b,$25
-	nop
-	nop
-	nop
+	nop	
+	nop	
+	nop	
 	dec	 b
 	dec	 b
 	ld	 b,b
-	nop
-	nop
+	nop	
+	nop	
 	ld	 bc,L5445
-	nop
-	nop
+	nop	
+	nop	
 	ld	 bc,L5555
-	nop
-	nop
+	nop	
+	nop	
 	ld	 bc,L4155
 	ld	 b,b
-	nop
+	nop	
 	dec	 b
 	dec	 d
 	ld	 b,b
 	ld	 b,b
-	nop
+	nop	
 	inc	 d
 	dec	 b
 	ld	 d,b
@@ -17251,62 +16697,62 @@ dec	 d
 	ret	 nz
 	ld	 d,l
 	ld	 d,b
-	jr	 nc,$A751
-dec	 b
+	jr	 nc,LA751
+LA751:	dec	 b
 	ld	 d,l
 	ld	 d,b
-	jr	 nc,$A756
-dec	 d
+	jr	 nc,LA756
+LA756:	dec	 d
 	ld	 d,l
 	ld	 d,b
-	nop
-	nop
+	nop	
+	nop	
 	dec	 d
 	ld	 d,l
 	ld	 b,b
-	nop
-	nop
+	nop	
+	nop	
 	dec	 b
 	ld	 d,l
 	ld	 b,b
-	nop
-	nop
+	nop	
+	nop	
 	dec	 b
 	ld	 d,l
 	ld	 b,b
-	nop
-	nop
+	nop	
+	nop	
 	ld	 bc,L5055
-	nop
-	nop
+	nop	
+	nop	
 	dec	 d
 	ld	 d,l
 	ld	 d,b
-	nop
-	nop
-	nop
+	nop	
+	nop	
+	nop	
 	dec	 d
 	ld	 d,b
-	nop
-	nop
-	nop
-	nop
+	nop	
+	nop	
+	nop	
+	nop	
 	inc	 bc
-	nop
-	nop
-	nop
-	nop
+	nop	
+	nop	
+	nop	
+	nop	
 	inc	 bc
-	nop
-	djnz	 $A784
-nop
+	nop	
+	djnz	 LA784
+LA784:	nop	
 	inc	 bc
 	ret	 nz
 	inc	 d
-	nop
-	nop
+	nop	
+	nop	
 	ld	 e,a
-	nop
+	nop	
 	dec	 d
 	ld	 d,b
 	ld	 bc,L0054
@@ -17343,70 +16789,70 @@ nop
 	ld	 d,h
 	dec	 d
 	ld	 d,l
-	nop
+	nop	
 	ld	 d,b
 	ld	 d,b
 	dec	 d
 	ld	 b,b
 	ld	 bc,L0050
-	djnz	 $A7C0
-dec	 b
+	djnz	 LA7C0
+LA7C0:	dec	 b
 	ld	 c,h
-	nop
-	nop
-	nop
+	nop	
+	nop	
+	nop	
 	dec	 b
 	call	 m,$0000
-	nop
+	nop	
 	ld	 bc,L007C
-	nop
-	nop
-	nop
+	nop	
+	nop	
+	nop	
 	ld	 e,h
-	nop
-	nop
-	nop
-	nop
+	nop	
+	nop	
+	nop	
+	nop	
 	inc	 c
-	nop
-	nop
-	nop
-	nop
+	nop	
+	nop	
+	nop	
+	nop	
 	inc	 c
-	nop
-	nop
-	nop
-	nop
+	nop	
+	nop	
+	nop	
+	nop	
 	inc	 c
-	nop
-	djnz	 $A7E3
-nop
+	nop	
+	djnz	 LA7E3
+LA7E3:	nop	
 	inc	 a
-	nop
-	djnz	 $A7E8
-inc	 bc
+	nop	
+	djnz	 LA7E8
+LA7E8:	inc	 bc
 	ret	 p
-	nop
+	nop	
 	dec	 d
-	nop
+	nop	
 	inc	 bc
 	ret	 nz
-	nop
+	nop	
 	dec	 d
 	ld	 d,h
-	nop
+	nop	
 	inc	 d
-	nop
+	nop	
 	dec	 d
 	ld	 d,l
-	nop
+	nop	
 	inc	 d
-	nop
+	nop	
 	dec	 d
 	ld	 d,l
 	ld	 b,b
 	inc	 d
-	nop
+	nop	
 	dec	 d
 	ld	 d,l
 	ld	 d,l
@@ -17428,78 +16874,78 @@ inc	 bc
 	ret	 nc
 	sub	 h
 	inc	 d
-	nop
+	nop	
 	ld	 bc,L50D5
-	djnz	 $A81A
-nop
+	djnz	 LA81A
+LA81A:	nop	
 	pop	 de
 	ld	 d,b
-	nop
-	nop
+	nop	
+	nop	
 	inc	 bc
 	ret	 nc
 	ld	 b,b
-	nop
-	nop
-	rrca
+	nop	
+	nop	
+	rrca	
 	ld	 b,b
-	nop
-	nop
-	nop
-	rrca
-	nop
-	nop
-	nop
-	nop
-	nop
+	nop	
+	nop	
+	nop	
+	rrca	
+	nop	
+	nop	
+	nop	
+	nop	
+	nop	
 	ld	 ($0000),hl
-	nop
-	nop
+	nop	
+	nop	
 	ld	 ($0000),hl
-	nop
-	nop
-	jr	 nz,$A83B
-nop
-	nop
-	nop
+	nop	
+	nop	
+	jr	 nz,LA83B
+LA83B:	nop	
+	nop	
+	nop	
 	inc	 c
 	ret	 nz
-	nop
-	nop
-	nop
+	nop	
+	nop	
+	nop	
 	inc	 a
 	ret	 nz
-	djnz	 $A847
-nop
-	di
+	djnz	 LA847
+LA847:	nop	
+	di	
 	ret	 nz
-	djnz	 $A84C
-ld	 bc,L4051
+	djnz	 LA84C
+LA84C:	ld	 bc,L4051
 	dec	 d
-	nop
-	nop
+	nop	
+	nop	
 	ld	 d,c
 	ld	 b,b
 	dec	 d
 	ld	 d,h
-	nop
+	nop	
 	dec	 d
-	nop
-	dec	 d
-	ld	 d,l
-	nop
-	dec	 d
-	nop
+	nop	
 	dec	 d
 	ld	 d,l
-	ld	 b,b
-	inc	 d
-	nop
+	nop	
+	dec	 d
+	nop	
 	dec	 d
 	ld	 d,l
 	ld	 b,b
 	inc	 d
-	djnz	 $A87E
+	nop	
+	dec	 d
+	ld	 d,l
+	ld	 b,b
+	inc	 d
+	djnz	 LA87E
 	ld	 d,l
 	ld	 d,b
 	ld	 d,h
@@ -17518,37 +16964,37 @@ ld	 bc,L4051
 	ld	 bc,L5555
 	ld	 d,h
 	inc	 d
-	nop
-dec	 b
+	nop	
+LA87E:	dec	 b
 	ld	 d,c
 	ld	 d,b
-	djnz	 $A883
-nop
-	nop
+	djnz	 LA883
+LA883:	nop	
+	nop	
 	ld	 b,b
-	nop
-	nop
+	nop	
+	nop	
 	dec	 d
 	ld	 b,b
-	nop
-	nop
-	nop
+	nop	
+	nop	
+	nop	
 	ld	 b,b
 	ld	 d,b
-	nop
+	nop	
 	inc	 bc
-	nop
+	nop	
 	ld	 h,d
 	ld	 d,b
-	nop
-	ccf
+	nop	
+	ccf	
 	ret	 nz
 	ld	 d,b
 	ld	 b,b
-	nop
-	nop
+	nop	
+	nop	
 	ret	 nc
-	djnz	 $A8E1
+	djnz	 LA8E1
 	call	 m,L5100
 	ld	 d,h
 	ld	 d,h
@@ -17559,85 +17005,85 @@ nop
 	ld	 d,l
 	ld	 b,l
 	ld	 d,b
-	nop
-	nop
+	nop	
+	nop	
 	dec	 d
 	ld	 b,c
 	ld	 b,b
-	nop
-	nop
+	nop	
+	nop	
 	dec	 d
 	ld	 b,b
-	nop
-	nop
-	nop
+	nop	
+	nop	
+	nop	
 	ld	 d,l
 	ld	 b,b
-	nop
-	nop
+	nop	
+	nop	
 	ld	 bc,L5055
-	nop
-	nop
+	nop	
+	nop	
 	dec	 b
 	ld	 d,l
 	ld	 d,b
-	nop
-	nop
+	nop	
+	nop	
 	dec	 d
 	ld	 d,l
 	ld	 d,b
-	nop
-	nop
+	nop	
+	nop	
 	dec	 d
 	ld	 d,l
 	ld	 d,h
-	nop
-	nop
+	nop	
+	nop	
 	dec	 d
 	ld	 d,l
 	ld	 d,h
-	nop
-	nop
+	nop	
+	nop	
 	ld	 d,l
 	ld	 d,l
 	ld	 d,h
-	nop
+	nop	
 	ld	 bc,L5555
 	ld	 d,l
-	nop
-	nop
-nop
+	nop	
+	nop	
+LA8E1:	nop	
 	ld	 bc,L0050
-	nop
-	nop
+	nop	
+	nop	
 	dec	 b
 	dec	 d
-	nop
-	nop
-	nop
+	nop	
+	nop	
+	nop	
 	ld	 b,$25
 	ld	 b,b
-	nop
-	nop
+	nop	
+	nop	
 	inc	 b
 	dec	 b
-	nop
-	ccf
+	nop	
+	ccf	
 	pop	 bc
 	ld	 d,l
 	inc	 b
-	nop
-	nop
+	nop	
+	nop	
 	pop	 af
 	ld	 d,l
 	dec	 d
 	ld	 b,b
-	nop
+	nop	
 	inc	 a
 	dec	 b
 	rst	 38H
-ret	 nc
-	nop
+LA902:	ret	 nc
+	nop	
 	inc	 a
 	dec	 b
 	ld	 d,h
@@ -17645,60 +17091,60 @@ ret	 nc
 	dec	 b
 	ld	 d,b
 	inc	 a
-	nop
-	nop
+	nop	
+	nop	
 	dec	 b
 	ld	 b,b
-	nop
-	nop
-	nop
+	nop	
+	nop	
+	nop	
 	dec	 d
 	ld	 d,b
-	nop
-	nop
-	nop
+	nop	
+	nop	
+	nop	
 	ld	 d,l
 	ld	 d,b
-	nop
-	nop
+	nop	
+	nop	
 	ld	 bc,L5055
-	nop
-	nop
+	nop	
+	nop	
 	ld	 bc,L4055
-	nop
-	nop
+	nop	
+	nop	
 	ld	 bc,L4055
-	nop
-	nop
+	nop	
+	nop	
 	dec	 b
 	ld	 d,l
 	ld	 d,b
-	nop
-	nop
+	nop	
+	nop	
 	dec	 b
 	ld	 d,l
 	ld	 d,h
-	nop
-	nop
+	nop	
+	nop	
 	ld	 d,l
 	ld	 d,l
 	ld	 d,l
-	nop
-	nop
-	nop
-	nop
+	nop	
+	nop	
+	nop	
+	nop	
 	dec	 d
 	ld	 b,b
-	nop
-	nop
-	nop
+	nop	
+	nop	
+	nop	
 	ld	 d,l
 	ld	 d,b
-	nop
-	DB	  $fd,$40
+	nop	
+	.db	  $fd,$40
 	dec	 h
 	ld	 d,h
-	jr	 z,$A958
+	jr	 z,LA958
 	ld	 d,h
 	ld	 bc,L0050
 	ret	 p
@@ -17708,91 +17154,91 @@ ret	 nc
 	ld	 hl,(L553D)
 	ld	 d,l
 	ld	 d,b
-nop
+LA958:	nop	
 	dec	 c
 	ld	 b,b
 	dec	 d
 	ld	 d,b
-	nop
+	nop	
 	ld	 bc,$0500
 	ld	 d,b
-	nop
-	nop
-	nop
+	nop	
+	nop	
+	nop	
 	dec	 b
 	ld	 d,b
-	nop
-	nop
-	nop
+	nop	
+	nop	
+	nop	
 	dec	 d
 	ld	 b,b
-	nop
-	nop
+	nop	
+	nop	
 	ld	 bc,L4055
-	nop
-	nop
+	nop	
+	nop	
 	dec	 b
 	ld	 d,l
 	ld	 b,b
-	nop
-	nop
+	nop	
+	nop	
 	dec	 d
 	ld	 d,l
-	nop
-	nop
-	nop
+	nop	
+	nop	
+	nop	
 	dec	 d
 	ld	 d,l
-	nop
-	nop
-	nop
+	nop	
+	nop	
+	nop	
 	dec	 d
 	ld	 d,l
-	nop
-	nop
-nop
+	nop	
+	nop	
+LA986:	nop	
 	ld	 d,l
 	ld	 d,l
 	ld	 b,b
-	nop
-	nop
+	nop	
+	nop	
 	ld	 d,l
 	ld	 d,l
 	ld	 d,b
-	nop
+	nop	
 	dec	 b
 	ld	 d,l
 	ld	 d,l
 	ld	 d,h
-	nop
-	nop
+	nop	
+	nop	
 	ex	 af,af'
-	djnz	 $A999
-nop
-	nop
+	djnz	 LA999
+LA999:	nop	
+	nop	
 	jp	 $0000
-	nop
-	nop
+	nop	
+	nop	
 	inc	 bc
-	jr	 z,$A9A3
-nop
-	nop
-	cpl
+	jr	 z,LA9A3
+LA9A3:	nop	
+	nop	
+	cpl	
 	ret	 pe
-	nop
-	nop
-	nop
-	cpl
+	nop	
+	nop	
+	nop	
+	cpl	
 	xor	 d
-	nop
-	nop
-	jr	 nz,$A9DB
+	nop	
+	nop	
+	jr	 nz,LA9DB
 	jp	 pe,$0000
 	ex	 af,af'
-	cpl
+	cpl	
 	xor	 d
 	add	 a,b
-	nop
+	nop	
 	ex	 af,af'
 	dec	 hl
 	jp	 pe,L20A0
@@ -17800,11 +17246,11 @@ nop
 	ld	 a,(bc)
 	and	 h
 	and	 b
-	jr	 nz,$A9ED
+	jr	 nz,LA9ED
 	and	 d
 	and	 b
 	and	 b
-	ld	 hl,($AAAA)
+	ld	 hl,(LAAAA)
 	xor	 d
 	and	 b
 	ld	 a,(bc)
@@ -17817,53 +17263,53 @@ nop
 	xor	 d
 	xor	 d
 	add	 a,b
-	nop
+	nop	
 	xor	 d
 	xor	 d
 	xor	 d
-	nop
-	jr	 nz,$A986
+	nop	
+	jr	 nz,LA986
 	xor	 d
 	xor	 b
 	inc	 c
-	ld	 hl,($AA2A)
+	ld	 hl,(LAA2A)
 	and	 b
 	inc	 a
-	nop
+	nop	
 	ld	 hl,(L00AA)
 	ret	 p
-	nop
+	nop	
 	ld	 (bc),a
 	and	 b
 	xor	 d
-ret	 p
-	nop
-	nop
+LA9ED:	ret	 p
+	nop	
+	nop	
 	ld	 l,$4C
-	nop
-	nop
-	nop
+	nop	
+	nop	
+	nop	
 	ld	 l,d
 	add	 a,b
-	nop
-	nop
-	nop
-	rlca
+	nop	
+	nop	
+	nop	
+	rlca	
 	ld	 a,(bc)
-	nop
-	nop
-	nop
+	nop	
+	nop	
+	nop	
 	inc	 bc
-ld	 a,(bc)
-	nop
-	nop
-	nop
-	cpl
+LAA00:	ld	 a,(bc)
+	nop	
+	nop	
+	nop	
+	cpl	
 	jp	 pe,L0080
-	nop
-	cpl
+	nop	
+	cpl	
 	jp	 m,L0080
-	jr	 nz,$AA3E
+	jr	 nz,LAA3E
 	jp	 pe,L00A0
 	ex	 af,af'
 	dec	 hl
@@ -17871,25 +17317,25 @@ ld	 a,(bc)
 	ld	 (bc),a
 	xor	 e
 	jp	 (hl)
-	jr	 z,$AA1C
-ld	 hl,(LF8AA)
-	jr	 z,$AA41
+	jr	 z,LAA1C
+LAA1C:	ld	 hl,(LF8AA)
+	jr	 z,LAA41
 	xor	 d
 	xor	 d
 	xor	 d
 	xor	 b
-	ld	 ($AAAA),hl
+	ld	 (LAAAA),hl
 	xor	 d
 	xor	 b
-ld	 hl,($AAAA)
+LAA2A:	ld	 hl,(LAAAA)
 	xor	 d
 	add	 a,b
-	nop
+	nop	
 	xor	 d
 	xor	 d
 	xor	 d
-	nop
-	nop
+	nop	
+	nop	
 	xor	 d
 	xor	 d
 	and	 b
@@ -17898,36 +17344,36 @@ ld	 hl,($AAAA)
 	ld	 hl,(L0BAA)
 	call	 m,L2A02
 	and	 b
-inc	 hl
+LAA41:	inc	 hl
 	ret	 p
 	ld	 a,(bc)
 	ld	 a,(bc)
 	xor	 d
 	add	 a,b
-	nop
-	nop
-	nop
+	nop	
+	nop	
+	nop	
 	jp	 po,LC058
-	nop
+	nop	
 	inc	 bc
 	dec	 bc
 	ld	 b,b
-	nop
-	nop
+	nop	
+	nop	
 	ld	 a,(bc)
-	rlca
+	rlca	
 	ld	 a,(bc)
-	nop
-	nop
+	nop	
+	nop	
 	ld	 b,$03
 	jp	 z,$0000
-	nop
-	cpl
+	nop	
+	cpl	
 	jp	 pe,L0080
-	nop
-	cpl
+	nop	
+	cpl	
 	jp	 m,L0080
-	jr	 nz,$AA98
+	jr	 nz,LAA98
 	jp	 pe,L00A0
 	ex	 af,af'
 	dec	 hl
@@ -17935,25 +17381,25 @@ inc	 hl
 	ld	 (bc),a
 	xor	 e
 	jp	 (hl)
-	jr	 z,$AA76
-ld	 hl,(LF8AA)
-	jr	 z,$AA9B
+	jr	 z,LAA76
+LAA76:	ld	 hl,(LF8AA)
+	jr	 z,LAA9B
 	xor	 d
 	xor	 d
 	xor	 d
 	xor	 b
-	ld	 ($AAAA),hl
+	ld	 (LAAAA),hl
 	xor	 d
 	xor	 b
-	ld	 hl,($AAAA)
+	ld	 hl,(LAAAA)
 	xor	 d
 	add	 a,b
-	nop
+	nop	
 	xor	 d
 	xor	 d
 	xor	 d
-	nop
-	nop
+	nop	
+	nop	
 	xor	 d
 	xor	 d
 	and	 e
@@ -17962,36 +17408,36 @@ ld	 hl,(LF8AA)
 	ld	 hl,(L0BAA)
 	call	 m,L2A02
 	and	 b
-jr	 nz,$AA99
+LAA9B:	jr	 nz,LAA99
 	ld	 a,(bc)
 	ld	 a,(bc)
 	xor	 d
 	add	 a,b
 	inc	 c
-	nop
-	nop
+	nop	
+	nop	
 	ret	 z
 	inc	 b
-	jr	 nc,$AAA8
-nop
-	nop
-ret	 nz
-	nop
-	nop
-	nop
+	jr	 nc,LAAA8
+LAAA8:	nop	
+	nop	
+LAAAA:	ret	 nz
+	nop	
+	nop	
+	nop	
 	inc	 de
 	jp	 z,$0000
 	inc	 b
-inc	 bc
+LAAB3:	inc	 bc
 	jp	 z,$0000
-	nop
-	cpl
+	nop	
+	cpl	
 	jp	 pe,L0080
-	nop
-	cpl
+	nop	
+	cpl	
 	jp	 m,L0080
 	ld	 (bc),a
-	cpl
+	cpl	
 	jp	 pe,L02A0
 	ld	 (bc),a
 	dec	 hl
@@ -17999,57 +17445,57 @@ inc	 bc
 	adc	 a,d
 	xor	 e
 	jp	 (hl)
-	jr	 z,$AAF8
+	jr	 z,LAAF8
 	xor	 d
-xor	 d
+LAAD1:	xor	 d
 	ret	 m
-	jr	 z,$AAD5
-xor	 d
+	jr	 z,LAAD5
+LAAD5:	xor	 d
 	xor	 d
 	xor	 d
 	xor	 b
-	ld	 ($AAAA),hl
+	ld	 (LAAAA),hl
 	xor	 d
 	xor	 b
-	ld	 hl,($AAAA)
+	ld	 hl,(LAAAA)
 	xor	 d
 	add	 a,b
-	nop
+	nop	
 	xor	 d
 	xor	 d
 	xor	 d
-	nop
-	nop
+	nop	
+	nop	
 	ld	 hl,(LA0AA)
 	inc	 c
-	nop
+	nop	
 	ld	 hl,(L00AA)
 	inc	 a
-	nop
+	nop	
 	ld	 a,(bc)
 	add	 a,b
-	nop
+	nop	
 	ret	 p
-	nop
-ld	 (bc),a
+	nop	
+LAAF8:	ld	 (bc),a
 	xor	 d
 	xor	 d
 	ret	 p
-	nop
-	nop
-	nop
+	nop	
+	nop	
+	nop	
 	inc	 bc
 	ret	 nz
-	nop
-	nop
+	nop	
+	nop	
 	xor	 d
 	add	 a,b
 	call	 m,L0200
 	xor	 d
 	and	 b
 	inc	 a
-	nop
-	ld	 hl,($A882)
+	nop	
+	ld	 hl,(LA882)
 	ex	 af,af'
 	ld	 (bc),a
 	xor	 d
@@ -18061,142 +17507,142 @@ ld	 (bc),a
 	xor	 d
 	xor	 d
 	adc	 a,b
-	nop
+	nop	
 	xor	 $EA
 	xor	 d
 	adc	 a,b
-	rrca
+	rrca	
 	rst	 38H
-jp	 pe,LA0AA
-	jr	 nz,$AB21
+LAB21:	jp	 pe,LA0AA
+	jr	 nz,LAB21
 	and	 d
 	xor	 d
 	and	 b
-	nop
+	nop	
 	xor	 d
 	adc	 a,d
 	xor	 d
 	xor	 b
 	inc	 c
-	nop
+	nop	
 	ld	 a,(bc)
 	xor	 d
 	xor	 b
-	nop
-	nop
-	ld	 hl,($A8AA)
-	nop
+	nop	
+	nop	
+	ld	 hl,(LA8AA)
+	nop	
 	ld	 (bc),a
 	xor	 d
 	xor	 d
 	and	 b
-	nop
+	nop	
 	ex	 af,af'
 	ld	 a,(bc)
 	xor	 d
 	and	 b
-	nop
-	nop
+	nop	
+	nop	
 	ld	 (bc),a
 	xor	 d
-	nop
-	nop
-	nop
+	nop	
+	nop	
+	nop	
 	ld	 (bc),a
 	and	 b
 	add	 a,b
-	nop
-	nop
+	nop	
+	nop	
 	ld	 (bc),a
 	add	 a,b
 	add	 a,b
-	nop
-	nop
+	nop	
+	nop	
 	ld	 hl,(L8002)
-	nop
-	nop
+	nop	
+	nop	
 	xor	 d
 	add	 a,b
 	ret	 nz
-	nop
+	nop	
 	ld	 (bc),a
 	xor	 d
 	add	 a,e
 	ret	 p
-	nop
-	ld	 hl,($A382)
+	nop	
+	ld	 hl,(LA382)
 	ret	 p
 	ld	 (bc),a
 	xor	 d
 	sub	 d
 	xor	 b
 	ret	 p
-	ld	 ($AAAA),a
+	ld	 (LAAAA),a
 	xor	 b
 	add	 a,b
-	nop
+	nop	
 	ld	 l,$EE
 	xor	 d
-	jr	 nz,$AB8D
-	ccf
+	jr	 nz,LAB8D
+	ccf	
 	cp	 $AA
 	ex	 af,af'
 	dec	 hl
 	rst	 38H
 	jp	 m,L88AA
 	add	 hl,sp
-	ccf
+	ccf	
 	xor	 d
 	xor	 d
 	adc	 a,b
-	jr	 z,$ABAF
+	jr	 z,LABAF
 	xor	 d
 	xor	 d
 	xor	 b
 	inc	 b
-	nop
-	ld	 hl,($A8AA)
-nop
-	nop
-	ld	 hl,($A8AA)
-	nop
-	nop
+	nop	
+	ld	 hl,(LA8AA)
+LAB8D:	nop	
+	nop	
+	ld	 hl,(LA8AA)
+	nop	
+	nop	
 	adc	 a,d
 	xor	 d
 	xor	 b
-	nop
+	nop	
 	ld	 (bc),a
 	ld	 a,(bc)
 	xor	 d
 	and	 b
-	nop
-	nop
+	nop	
+	nop	
 	ld	 (bc),a
 	xor	 d
-	nop
-	nop
-	nop
-	nop
+	nop	
+	nop	
+	nop	
+	nop	
 	and	 b
 	xor	 b
-	nop
-	nop
-	nop
-	jr	 nz,$ABB3
-	nop
-	nop
+	nop	
+	nop	
+	nop	
+	jr	 nz,LABB3
+	nop	
+	nop	
 	ld	 (bc),a
 	and	 b
-nop
-	nop
-	nop
+LABAF:	nop	
+	nop	
+	nop	
 	xor	 d
-add	 a,b
+LABB3:	add	 a,b
 	call	 m,L0200
 	xor	 d
 	add	 a,e
 	ret	 p
-	jr	 nc,$ABE6
+	jr	 nc,LABE6
 	add	 a,d
 	and	 e
 	ret	 p
@@ -18205,69 +17651,69 @@ add	 a,b
 	sub	 d
 	xor	 e
 	ret	 nz
-	ld	 ($AAAA),hl
+	ld	 (LAAAA),hl
 	xor	 b
 	add	 a,b
-	djnz	 $ABF9
+	djnz	 LABF9
 	xor	 $AA
-	jr	 nz,$ABE3
+	jr	 nz,LABE3
 	rst	 38H
 	cp	 $AA
 	ex	 af,af'
-	cpl
+	cpl	
 	rst	 38H
 	jp	 m,L88AA
 	add	 hl,bc
-	ccf
+	ccf	
 	xor	 d
 	xor	 d
 	adc	 a,b
 	inc	 l
-	ld	 hl,($AAAA)
+	ld	 hl,(LAAAA)
 	xor	 b
 	inc	 a
-nop
-	ld	 hl,($A8AA)
+LABE3:	nop	
+	ld	 hl,(LA8AA)
 	ld	 c,$80
-	ld	 hl,($A8AA)
+	ld	 hl,(LA8AA)
 	ld	 (bc),a
 	ld	 b,b
 	adc	 a,d
 	xor	 d
 	xor	 b
-	nop
+	nop	
 	ld	 (bc),a
 	ld	 a,(bc)
 	xor	 d
 	and	 b
-	nop
-	nop
+	nop	
+	nop	
 	ld	 (bc),a
-xor	 d
-	nop
-	nop
-	nop
-	nop
+LABF9:	xor	 d
+	nop	
+	nop	
+	nop	
+	nop	
 	and	 b
 	xor	 b
-	nop
-	nop
-	nop
-	jr	 nz,$AC0D
-	nop
-	nop
+	nop	
+	nop	
+	nop	
+	jr	 nz,LAC0D
+	nop	
+	nop	
 	ld	 (bc),a
 	and	 b
-	nop
-	nop
-	nop
+	nop	
+	nop	
+	nop	
 	xor	 d
-add	 a,e
+LAC0D:	add	 a,e
 	ret	 nz
-	jr	 nc,$AC13
+	jr	 nc,LAC13
 	xor	 d
 	add	 a,b
-call	 m,L2A00
+LAC13:	call	 m,L2A00
 	add	 a,d
 	and	 b
 	inc	 a
@@ -18281,92 +17727,92 @@ call	 m,L2A00
 	xor	 d
 	xor	 b
 	ex	 af,af'
-	nop
+	nop	
 	ld	 l,$EE
 	xor	 d
 	ex	 af,af'
-	rrca
+	rrca	
 	rst	 38H
 	cp	 $AA
 	ex	 af,af'
 	inc	 bc
 	rst	 38H
 	jp	 m,L88AA
-	jr	 nz,$AC73
+	jr	 nz,LAC73
 	xor	 d
 	xor	 d
 	adc	 a,b
-	ld	 bc,$AA2A
+	ld	 bc,LAA2A
 	xor	 d
 	adc	 a,b
-	jr	 nc,$AC3E
-ld	 hl,($A8AA)
-	nop
+	jr	 nc,LAC3E
+LAC3E:	ld	 hl,(LA8AA)
+	nop	
 	ld	 (bc),a
 	xor	 d
 	xor	 d
 	xor	 b
-	nop
+	nop	
 	ld	 b,b
 	ld	 hl,(LA0AA)
-	nop
-	nop
+	nop	
+	nop	
 	ld	 a,(bc)
 	xor	 d
 	add	 a,b
-	nop
-nop
+	nop	
+LAC51:	nop	
 	ld	 hl,(L00A8)
-	nop
-	nop
+	nop	
+	nop	
 	and	 b
 	and	 b
-	nop
-	nop
-	nop
-	jr	 z,$AC7E
-	nop
-	nop
-	nop
+	nop	
+	nop	
+	nop	
+	jr	 z,LAC7E
+	nop	
+	nop	
+	nop	
 	ex	 af,af'
-and	 b
-	nop
-	nop
-	nop
+LAC62:	and	 b
+	nop	
+	nop	
+	nop	
 	ret	 nz
 	ret	 nz
-	nop
-	nop
-	rrca
-	nop
-	jr	 nc,$AC6E
-nop
+	nop	
+	nop	
+	rrca	
+	nop	
+	jr	 nc,LAC6E
+LAC6E:	nop	
 	inc	 c
 	ld	 c,b
 	ld	 c,h
-	nop
-nop
-	jr	 nc,$AC7E
+	nop	
+LAC73:	nop	
+	jr	 nc,LAC7E
 	inc	 c
-	nop
-	nop
+	nop	
+	nop	
 	inc	 a
-	jr	 z,$AC88
-	nop
-	nop
-ccf
-	jr	 z,$ACBD
-	nop
-	nop
-	rrca
+	jr	 z,LAC88
+	nop	
+	nop	
+LAC7E:	ccf	
+	jr	 z,LACBD
+	nop	
+	nop	
+	rrca	
 	ex	 de,hl
 	rst	 08H
-	nop
-	nop
-inc	 bc
+	nop	
+	nop	
+LAC88:	inc	 bc
 	rst	 38H
 	jp	 L1FC0
-	rrca
+	rrca	
 	rst	 38H
 	ret	 nc
 	ret	 p
@@ -18375,13 +17821,13 @@ inc	 bc
 	rst	 38H
 	rst	 38H
 	ret	 m
-	nop
-	rrca
+	nop	
+	rrca	
 	rst	 38H
 	rst	 38H
 	ret	 z
-	rra
-	rrca
+	rra	
+	rrca	
 	rst	 38H
 	rst	 38H
 	ex	 af,af'
@@ -18389,61 +17835,61 @@ inc	 bc
 	rst	 38H
 	rst	 38H
 	call	 m,L0020
-	rrca
+	rrca	
 	call	 m,L2000
-	rra
-	rrca
+	rra	
+	rrca	
 	ret	 p
 	inc	 bc
 	add	 a,b
 	inc	 de
 	rst	 38H
 	ret	 p
-	rrca
+	rrca	
 	add	 a,b
-	nop
+	nop	
 	inc	 bc
 	call	 m,LC00C
-	nop
-	nop
-	ccf
+	nop	
+	nop	
+	ccf	
 	ret	 p
-inc	 a
-	nop
-	nop
-	jr	 nc,$AC62
-	nop
-	nop
+LACBD:	inc	 a
+	nop	
+	nop	
+	jr	 nc,LAC62
+	nop	
+	nop	
 	inc	 bc
 	jp	 nz,L0083
-	nop
+	nop	
 	inc	 bc
 	ld	 (de),a
 	inc	 bc
-	nop
-	nop
+	nop	
+	nop	
 	ex	 af,af'
-	rrca
+	rrca	
 	inc	 d
 	ret	 nz
-	nop
-	rrca
+	nop	
+	rrca	
 	ld	 a,(bc)
 	inc	 bc
 	ret	 nz
-	nop
-	rrca
+	nop	
+	rrca	
 	jp	 pe,LC00F
-	nop
-inc	 bc
+	nop	
+LACDD:	inc	 bc
 	jp	 m,LC03F
-	nop
+	nop	
 	inc	 bc
 	rst	 38H
 	ret	 p
 	ret	 p
-	nop
-	rrca
+	nop	
+	rrca	
 	rst	 38H
 	call	 p,L00F0
 	rst	 38H
@@ -18453,87 +17899,87 @@ inc	 bc
 	rst	 38H
 	rst	 38H
 	ret	 p
-	rra
-	rrca
+	rra	
+	rrca	
 	rst	 38H
 	rst	 38H
 	ret	 z
-	nop
-	ccf
+	nop	
+	ccf	
 	rst	 38H
 	ret	 p
 	ex	 af,af'
 	inc	 de
 	rst	 38H
 	rst	 38H
-	nop
-jr	 nz,$AD24
-	rrca
+	nop	
+LAD03:	jr	 nz,LAD24
+	rrca	
 	ret	 p
 	inc	 a
 	add	 a,b
-	nop
-	ccf
+	nop	
+	ccf	
 	ret	 nz
 	jp	 z,$13C0
 	rst	 38H
-	di
-	jr	 nz,$AD4F
-	rra
+	di	
+	jr	 nz,LAD4F
+	rra	
 	inc	 bc
 	call	 m,$0000
-nop
-	nop
-	jr	 nc,$AD3C
-	nop
-	nop
+LAD18:	nop	
+	nop	
+	jr	 nc,LAD3C
+	nop	
+	nop	
 	inc	 bc
 	ret	 nz
 	inc	 hl
-	nop
-	nop
+	nop	
+	nop	
 	inc	 bc
-djnz	 $ACA9
-	nop
-	nop
+LAD24:	djnz	 LACA9
+	nop	
+	nop	
 	inc	 c
 	ld	 (bc),a
 	add	 a,h
 	ret	 nz
-	nop
-	rrca
+	nop	
+	rrca	
 	ld	 a,(bc)
 	inc	 bc
 	ret	 nz
-	nop
-	rrca
+	nop	
+	rrca	
 	jp	 z,LC00F
-	nop
+	nop	
 	inc	 bc
 	jp	 m,LC03F
-	nop
-inc	 bc
+	nop	
+LAD3C:	inc	 bc
 	rst	 38H
 	ret	 p
 	ret	 p
-	nop
-	rrca
+	nop	
+	rrca	
 	rst	 38H
 	call	 p,L1FF0
-	rrca
+	rrca	
 	rst	 38H
 	call	 m,$1330
 	rst	 38H
 	rst	 38H
 	rst	 38H
 	ret	 p
-nop
-	rrca
+LAD4F:	nop	
+	rrca	
 	rst	 38H
 	rst	 38H
 	ret	 z
-	rra
-	rrca
+	rra	
+	rrca	
 	rst	 38H
 	ret	 p
 	ex	 af,af'
@@ -18542,12 +17988,12 @@ nop
 	rst	 38H
 	ld	 a,(bc)
 	and	 b
-	nop
-	rrca
+	nop	
+	rrca	
 	ret	 p
-	jr	 nz,$AD63
-rra
-	rrca
+	jr	 nz,LAD63
+LAD63:	rra	
+	rrca	
 	ret	 nz
 	adc	 a,a
 	ret	 p
@@ -18556,49 +18002,49 @@ rra
 	rst	 38H
 	ret	 p
 	inc	 a
-	nop
+	nop	
 	inc	 bc
 	ret	 p
-	nop
+	nop	
 	ret	 p
-	nop
-	nop
-	jr	 nc,$AD9E
-	nop
-	nop
+	nop	
+	nop	
+	jr	 nc,LAD9E
+	nop	
+	nop	
 	inc	 bc
 	ret	 nz
 	and	 e
-	nop
-	nop
+	nop	
+	nop	
 	inc	 bc
-	djnz	 $AD03
-	nop
-	nop
+	djnz	 LAD03
+	nop	
+	nop	
 	inc	 c
 	ld	 (bc),a
 	add	 a,h
 	ret	 nz
-	nop
-	rrca
+	nop	
+	rrca	
 	ld	 a,(bc)
 	add	 a,e
 	ret	 nz
-	nop
-	rrca
+	nop	
+	rrca	
 	jp	 pe,LC00F
-	nop
+	nop	
 	inc	 bc
 	ret	 m
-	ccf
+	ccf	
 	ret	 nz
-	nop
+	nop	
 	inc	 bc
 	rst	 38H
 	ret	 p
 	ret	 p
-	nop
-	rrca
+	nop	
+	rrca	
 	rst	 38H
 	call	 p,L00F0
 	rst	 38H
@@ -18608,25 +18054,25 @@ rra
 	rst	 38H
 	rst	 38H
 	ret	 p
-	rra
-	rrca
+	rra	
+	rrca	
 	rst	 38H
 	rst	 38H
 	ret	 z
-	nop
-	ccf
+	nop	
+	ccf	
 	rst	 38H
 	ret	 p
-	jr	 nz,$ADC7
+	jr	 nz,LADC7
 	rst	 38H
 	rst	 38H
-	nop
+	nop	
 	add	 a,b
-	rra
-	rrca
+	rra	
+	rrca	
 	ret	 p
 	ld	 hl,(L00F0)
-	ccf
+	ccf	
 	ret	 nz
 	inc	 c
 	inc	 a
@@ -18635,40 +18081,40 @@ rra
 	ret	 p
 	inc	 sp
 	inc	 c
-rra
+LADC7:	rra	
 	inc	 bc
 	rst	 38H
 	jp	 L00FF
-	nop
+	nop	
 	ld	 a,(bc)
 	add	 a,b
 	inc	 c
-	nop
-	nop
+	nop	
+	nop	
 	inc	 a
-	jr	 z,$ADE2
-	nop
-nop
+	jr	 z,LADE2
+	nop	
+LADD7:	nop	
 	rst	 38H
 	ld	 (bc),a
 	or	 b
-	nop
+	nop	
 	inc	 bc
 	rst	 08H
 	jp	 L03C0
 	rst	 38H
-rrca
-ret	 p
+LADE2:	rrca	
+LADE3:	ret	 p
 	ret	 p
 	inc	 c
 	inc	 c
-	rra
+	rra	
 	ret	 p
 	inc	 c
 	ld	 sp,LFF03
 	ret	 p
 	inc	 c
-	nop
+	nop	
 	inc	 bc
 	rst	 38H
 	ret	 p
@@ -18683,241 +18129,96 @@ ret	 p
 	rst	 38H
 	ret	 p
 	inc	 c
-	rrca
+	rrca	
 	rst	 38H
 	rst	 38H
 	ret	 p
-	rrca
-	ccf
-	ccf
+	rrca	
+	ccf	
+	ccf	
 	rst	 38H
 	ret	 nz
-	nop
+	nop	
 	call	 m,L300C
 	ret	 nz
-	nop
-	nop
+	nop	
+	nop	
 	inc	 c
-	jr	 nc,$ADD7
-	nop
-	nop
+	jr	 nc,LADD7
+	nop	
+	nop	
 	inc	 a
-	di
+	di	
 	ret	 nz
-	nop
-	nop
-	jr	 nc,$ADE3
-	nop
-	nop
-	nop
+	nop	
+	nop	
+	jr	 nc,LADE3
+	nop	
+	nop	
+	nop	
 	inc	 d
 	ld	 d,c
 	ld	 b,b
-	nop
-	nop
-	nop
-	and	 b
-	jr	 nc,$AE2C
-nop
-	rst	 38H
-	ex	 af,af'
-	jr	 nc,$AE31
-rst	 38H
-	di
-	jp	 nz,L0FC0
-	ccf
-	inc	 bc
-	ret	 nz
-	add	 a,b
-	nop
-	ld	 c,a
-	rra
-	jp	 L2080
-	ld	 b,e
-	rst	 38H
-	di
-	jr	 nz,$AE6D
-	nop
-	rst	 38H
-	ret	 p
-	ret	 nz
-	ld	 a,(bc)
-	xor	 d
-	rst	 38H
-	call	 m,L0030
-	xor	 d
-	rst	 38H
-	call	 m,L310C
-	dec	 bc
-	rst	 38H
-	rst	 38H
-	inc	 a
-	inc	 c
-	rrca
-	rst	 38H
-	rst	 38H
-	call	 m,$3F0F
-	rst	 38H
-	rst	 38H
-	call	 m,LFC00
-	ccf
-	rst	 38H
-	ret	 p
-	nop
-	nop
-	inc	 c
-	inc	 a
-	ret	 p
-	nop
-nop
-	rrca
-	inc	 c
-	jr	 nc,$AE72
-nop
-	inc	 bc
-	rst	 08H
-	inc	 a
-	nop
-	nop
-	nop
-	jp	 L000C
-	nop
-	ld	 bc,$1445
-	nop
-	nop
-	nop
-	and	 b
-	jr	 nc,$AE86
-nop
-	rst	 38H
-	ex	 af,af'
-	call	 m,LFF00
-	di
-	ret	 z
-	call	 z,$3F0F
-	inc	 bc
-	ret	 z
-	ret	 nz
-	nop
-ld	 c,a
-	rra
-	ret	 z
-	ret	 nz
-	jr	 z,$AE9E
-	rst	 38H
-	jp	 p,L0230
-	add	 a,b
-rst	 38H
-	ret	 p
-	or	 b
-	nop
-	xor	 d
-	rst	 38H
-	call	 m,L0030
-	ld	 hl,(LFCFF)
-	jr	 nc,$AEDF
-	inc	 bc
-	rst	 38H
-	rst	 38H
-	inc	 a
-	inc	 c
-	rrca
-	rst	 38H
-	rst	 38H
-	call	 m,$3F0F
-	rst	 38H
-	rst	 38H
-	call	 m,LFC00
-	ccf
-	rst	 38H
-	ret	 p
-	nop
-	nop
-	inc	 bc
-	inc	 c
-	jr	 nc,$AEC7
-nop
-	inc	 bc
-	inc	 c
-	jr	 nc,$AECC
-nop
-	rrca
-	inc	 a
-	ret	 p
-	nop
-nop
-	inc	 c
-	jr	 nc,$AE95
-	nop
-	nop
-	dec	 b
-	inc	 d
-	ld	 d,b
-	nop
-	nop
-	nop
-add	 a,b
-	call	 m,$0000
-	rst	 38H
-	inc	 hl
-	call	 z,LFF00
-	di
-	rrc	 h
-	rrca
-	ccf
-	inc	 bc
-	jp	 nz,L203C
-	ld	 c,a
-	rra
-	jp	 nz,L28C0
-	inc	 bc
-	rst	 38H
-	jp	 p,L0A30
-	and	 b
-	rst	 38H
-	ret	 p
-	inc	 c
-	nop
-	xor	 b
-	rst	 38H
-call	 m,L000C
-	ld	 hl,(LFCFF)
-	inc	 c
-	ld	 sp,LFF0B
-	rst	 38H
-	inc	 a
-	inc	 c
-	rrca
-	rst	 38H
-	rst	 38H
-	call	 m,$3F0F
-	rst	 38H
-	rst	 38H
-	call	 m,LFC00
-	ccf
-	rst	 38H
-	ret	 p
-	nop
-	nop
-	inc	 c
-	inc	 a
-	ret	 p
-	nop
-	nop
-	rrca
-	inc	 c
-	jr	 nc,$AF26
-nop
-	inc	 bc
-	rst	 08H
-	inc	 a
-	nop
-	nop
-	nop
-	jp	 L000C
-	nop
-	ld	 bc,$1445
-	nop
+
+THORWOR6:.DB      $00,$00,$00,$A0,$30 ; . . . . . . . . . . . . 2 2 . . . 3 . .
+        .DB      $00,$00,$FF,$08,$30 ; . . . . . . . . 3 3 3 3 . . 2 . . 3 . .
+        .DB      $00,$FF,$F3,$C2,$C0 ; . . . . 3 3 3 3 3 3 . 3 3 . . 2 3 . . .
+        .DB      $0F,$3F,$03,$C0,$80 ; . . 3 3 . 3 3 3 . . . 3 3 . . . 2 . . .
+        .DB      $00,$4F,$1F,$C3,$80 ; . . . . 1 . 3 3 . 1 3 3 3 . . 3 2 . . .
+        .DB      $20,$43,$FF,$F3,$20 ; . 2 . . 1 . . 3 3 3 3 3 3 3 . 3 . 2 . .
+        .DB      $28,$00,$FF,$F0,$C0 ; . 2 2 . . . . . 3 3 3 3 3 3 . . 3 . . .
+        .DB      $0A,$AA,$FF,$FC,$30 ; . . 2 2 2 2 2 2 3 3 3 3 3 3 3 . . 3 . .
+        .DB      $00,$AA,$FF,$FC,$0C ; . . . . 2 2 2 2 3 3 3 3 3 3 3 . . . 3 .
+        .DB      $31,$0B,$FF,$FF,$3C ; . 3 . 1 . . 2 3 3 3 3 3 3 3 3 3 . 3 3 .
+        .DB      $0C,$0F,$FF,$FF,$FC ; . . 3 . . . 3 3 3 3 3 3 3 3 3 3 3 3 3 .
+        .DB      $0F,$3F,$FF,$FF,$FC ; . . 3 3 . 3 3 3 3 3 3 3 3 3 3 3 3 3 3 .
+        .DB      $00,$FC,$3F,$FF,$F0 ; . . . . 3 3 3 . . 3 3 3 3 3 3 3 3 3 . .
+        .DB      $00,$00,$0C,$3C,$F0 ; . . . . . . . . . . 3 . . 3 3 . 3 3 . .
+        .DB      $00,$00,$0F,$0C,$30 ; . . . . . . . . . . 3 3 . . 3 . . 3 . .
+        .DB      $00,$00,$03,$CF,$3C ; . . . . . . . . . . . 3 3 . 3 3 . 3 3 .
+        .DB      $00,$00,$00,$C3,$0C ; . . . . . . . . . . . . 3 . . 3 . . 3 .
+        .DB      $00,$00,$01,$45,$14 ; . . . . . . . . . . . 1 1 . 1 1 . 1 1 .
+		
+THORWOR7:.DB      $00,$00,$00,$A0,$30 ; . . . . . . . . . . . . 2 2 . . . 3 . .
+        .DB      $00,$00,$FF,$08,$FC ; . . . . . . . . 3 3 3 3 . . 2 . 3 3 3 .
+        .DB      $00,$FF,$F3,$C8,$CC ; . . . . 3 3 3 3 3 3 . 3 3 . 2 . 3 . 3 .
+        .DB      $0F,$3F,$03,$C8,$C0 ; . . 3 3 . 3 3 3 . . . 3 3 . 2 . 3 . . .
+        .DB      $00,$4F,$1F,$C8,$C0 ; . . . . 1 . 3 3 . 1 3 3 3 . 2 . 3 . . .
+        .DB      $28,$03,$FF,$F2,$30 ; . 2 2 . . . . 3 3 3 3 3 3 3 . 2 . 3 . .
+        .DB      $02,$80,$FF,$F0,$B0 ; . . . 2 2 . . . 3 3 3 3 3 3 . . 2 3 . .
+        .DB      $00,$AA,$FF,$FC,$30 ; . . . . 2 2 2 2 3 3 3 3 3 3 3 . . 3 . .
+        .DB      $00,$2A,$FF,$FC,$30 ; . . . . . 2 2 2 3 3 3 3 3 3 3 . . 3 . .
+        .DB      $31,$03,$FF,$FF,$3C ; . 3 . 1 . . . 3 3 3 3 3 3 3 3 3 . 3 3 .
+        .DB      $0C,$0F,$FF,$FF,$FC ; . . 3 . . . 3 3 3 3 3 3 3 3 3 3 3 3 3 .
+        .DB      $0F,$3F,$FF,$FF,$FC ; . . 3 3 . 3 3 3 3 3 3 3 3 3 3 3 3 3 3 .
+        .DB      $00,$FC,$3F,$FF,$F0 ; . . . . 3 3 3 . . 3 3 3 3 3 3 3 3 3 . .
+        .DB      $00,$00,$03,$0C,$30 ; . . . . . . . . . . . 3 . . 3 . . 3 . .
+        .DB      $00,$00,$03,$0C,$30 ; . . . . . . . . . . . 3 . . 3 . . 3 . .
+        .DB      $00,$00,$0F,$3C,$F0 ; . . . . . . . . . . 3 3 . 3 3 . 3 3 . .
+        .DB      $00,$00,$0C,$30,$C0 ; . . . . . . . . . . 3 . . 3 . . 3 . . .
+        .DB      $00,$00,$05,$14,$50 ; . . . . . . . . . . 1 1 . 1 1 . 1 1 . .
+
+THORWOR8:.DB      $00,$00,$00,$80,$FC ; . . . . . . . . . . . . 2 . . . 3 3 3 .
+        .DB      $00,$00,$FF,$23,$CC ; . . . . . . . . 3 3 3 3 . 2 . 3 3 . 3 .
+        .DB      $00,$FF,$F3,$CB,$0C ; . . . . 3 3 3 3 3 3 . 3 3 . 2 3 . . 3 .
+        .DB      $0F,$3F,$03,$C2,$3C ; . . 3 3 . 3 3 3 . . . 3 3 . . 2 . 3 3 .
+        .DB      $20,$4F,$1F,$C2,$C0 ; . 2 . . 1 . 3 3 . 1 3 3 3 . . 2 3 . . .
+        .DB      $28,$03,$FF,$F2,$30 ; . 2 2 . . . . 3 3 3 3 3 3 3 . 2 . 3 . .
+        .DB      $0A,$A0,$FF,$F0,$0C ; . . 2 2 2 2 . . 3 3 3 3 3 3 . . . . 3 .
+        .DB      $00,$A8,$FF,$FC,$0C ; . . . . 2 2 2 . 3 3 3 3 3 3 3 . . . 3 .
+        .DB      $00,$2A,$FF,$FC,$0C ; . . . . . 2 2 2 3 3 3 3 3 3 3 . . . 3 .
+        .DB      $31,$0B,$FF,$FF,$3C ; . 3 . 1 . . 2 3 3 3 3 3 3 3 3 3 . 3 3 .
+        .DB      $0C,$0F,$FF,$FF,$FC ; . . 3 . . . 3 3 3 3 3 3 3 3 3 3 3 3 3 .
+        .DB      $0F,$3F,$FF,$FF,$FC ; . . 3 3 . 3 3 3 3 3 3 3 3 3 3 3 3 3 3 .
+        .DB      $00,$FC,$3F,$FF,$F0 ; . . . . 3 3 3 . . 3 3 3 3 3 3 3 3 3 . .
+        .DB      $00,$00,$0C,$3C,$F0 ; . . . . . . . . . . 3 . . 3 3 . 3 3 . .
+        .DB      $00,$00,$0F,$0C,$30 ; . . . . . . . . . . 3 3 . . 3 . . 3 . .
+        .DB      $00,$00,$03,$CF,$3C ; . . . . . . . . . . . 3 3 . 3 3 . 3 3 .
+        .DB      $00,$00,$00,$C3,$0C ; . . . . . . . . . . . . 3 . . 3 . . 3 .
+        .DB      $00,$00,$01,$45,$14 ; . . . . . . . . . . . 1 1 . 1 1 . 1 1 .
+
+	nop	
+
 	ld	 (L3538),a
 	ld	 b,c
 	ld	 d,(hl)
@@ -18927,7 +18228,7 @@ nop
 	rst	 38H
 	rst	 38H
 	rst	 38H
-	nop
+	nop	
 	rst	 38H
 	rst	 38H
 	rst	 38H
@@ -18991,105 +18292,63 @@ nop
 	rst	 38H
 	rst	 38H
 	rst	 38H
-ld	 a,$07
+LAF80:	ld	 a,$07
 	out	 ($07),a
 	xor	 a
 	out	 ($04),a
 	ld	 hl,L404F
 	ld	 c,$CA
-ld	 b,$14
-inc	 hl
+LAF8C:	ld	 b,$14
+LAF8E:	inc	 hl
 	inc	 hl
 	inc	 hl
 	inc	 hl
 	ld	 (hl),$03
-	djnz	 $AF8E
+	djnz	 LAF8E
 	dec	 c
-	jr	 nz,$AF8C
+	jr	 nz,LAF8C
 	ld	 hl,L4050
 	ld	 b,$CA
 	ld	 de,L0050
-ld	 (hl),$C0
+LAFA1:	ld	 (hl),$C0
 	add	 hl,de
-	djnz	 $AFA1
+	djnz	 LAFA1
 	ld	 hl,L4000
 	ld	 c,$0A
 	ld	 de,$05F0
-call	 $AFC2
+LAFAE:	call	 LAFC2
 	add	 hl,de
 	dec	 c
-	jr	 nz,$AFAE
+	jr	 nz,LAFAE
 	ld	 hl,L7F70
-	call	 $AFC2
+	call	 LAFC2
 
 ; Wait until service switch is on, then restart everything...
 
-in	 a,($10)
+LAFBB:	in	 a,($10)
 	bit	 3,a		; Is service switch on?
-	jr	 z,$AFBB	; No, then wait until hell freezes over for it to be on
+	jr	 z,LAFBB	; No, then wait until hell freezes over for it to be on
 	rst	 00H		; When it service switch goes on, restart everything
 ;
-ld	 b,$50
-ld	 (hl),$FF
+LAFC2:	ld	 b,$50
+LAFC4:	ld	 (hl),$FF
 	inc	 hl
-	djnz	 $AFC4
-	ret
+	djnz	 LAFC4
+	ret	
 
-	rst	 38H
-	rst	 38H
-	rst	 38H
-	rst	 38H
-	rst	 38H
-	rst	 38H
-	rst	 38H
-	rst	 38H
-	rst	 38H
-	rst	 38H
-	rst	 38H
-	rst	 38H
-	rst	 38H
-	rst	 38H
-	rst	 38H
-	rst	 38H
-	rst	 38H
-	rst	 38H
-	rst	 38H
-	rst	 38H
-	rst	 38H
-	rst	 38H
-	rst	 38H
-	rst	 38H
-	rst	 38H
-	rst	 38H
-	rst	 38H
-	rst	 38H
-	rst	 38H
-	ld	 d,h
-	ld	 c,b
-	ld	 b,l
-	nop
-	ld	 d,a
-	ld	 c,c
-	ld	 e,d
-	ld	 b,c
-	ld	 d,d
-	ld	 b,h
-	nop
-	ld	 c,a
-	ld	 b,(hl)
-	nop
-	ld	 d,a
-	ld	 c,a
-	ld	 d,d
-	nop
-	ld	 b,h
-	ld	 c,(hl)
-	ld	 b,c
-	nop
-	inc	 b
-	DB	$22, $81
+        .db     $FF,$FF,$FF,$FF,$FF,$FF,$FF,$FF
+        .db     $FF,$FF,$FF,$FF,$FF,$FF,$FF,$FF
+        .db     $FF,$FF,$FF,$FF,$FF,$FF,$FF,$FF
+        .db     $FF,$FF,$FF,$FF,$FF
 
-
+AuthorString:
+        .db     "THE",0
+        .db     "WIZARD",0
+        .db     "OF",0
+        .db     "WOR",0
+        .db     "DNA",0
+        .db     $04
+        .db     $22,$81
 
 ;END OF ASSEMBLY - EQUATES ARE BELOW
 
@@ -19098,7 +18357,7 @@ ld	 (hl),$FF
 ;
 ;*****************************************************************************
 ;
-; Begin decyphered (or almost decyphered) memory locations.
+; Begin decyphered (or almost decyphered) memory locations. 
 ; Their function will be expanded on as information comes available
 ;
 ;*****************************************************************************
@@ -19106,64 +18365,64 @@ ld	 (hl),$FF
 
 
 
-LD038	EQU	$D038   ; This location seems to have a number which the
-					; first nybble is the same as the second nybble.
+LD038:			.EQU	$D038   ; This location seems to have a number which the
+					; first nybble is the same as the second nybble. 
 					; The next byte $D039 seems to always hold the complement
 					; of that number. ???
 
-LD03B	EQU	$D03B	; Indicates if a coin acceptor is tripped.
+LD03B:			.EQU	$D03B	; Indicates if a coin acceptor is tripped. 
 					; Zero's itself back out when switch is open.
 					;   0=None tripped
 					;   1=coin switch 1 tripped
 					;   2=coin switch 2 tripped
 
-LD03C	EQU	$D03C	; Number of credits.
+LD03C:			.EQU	$D03C	; Number of credits.
 
-LD042	EQU	$D042	; Counter. Number of seconds before change screens
+LD042:			.EQU	$D042	; Counter. Number of seconds before change screens 
 					; especially when in attract mode.
 
-LD048	EQU	$D048	; Another counter. Noticed that it times changes between
+LD048:			.EQU	$D048	; Another counter. Noticed that it times changes between
 					; things like "GET READY" and "GO". ???
 
-LD1D6	EQU	$D1D6	; $d1d6-LSN Direction indicator for player 2.
-					; The value of the least significant nybble changes
+LD1D6:			.EQU	$D1D6	; $d1d6-LSN Direction indicator for player 2. 
+					; The value of the least significant nybble changes 
 					; according to the bit at IN Port 11.
-
-LD1D7	EQU	$D1D7	; $d1d7-LSN Direction indicator for player 1.
-					; The value of the least significant nybble changes
+					
+LD1D7:			.EQU	$D1D7	; $d1d7-LSN Direction indicator for player 1. 
+					; The value of the least significant nybble changes 
 					; according to the bit at IN Port 12.
 					; See that description for details.
 
-LD244	EQU	$D244	; Dip switch - Bit 7 - "Sounds in Attract Mode"
+LD244:			.EQU	$D244	; Dip switch - Bit 7 - "Sounds in Attract Mode"
 
-Is_Speech_Active	EQU	$D245	; $00 = Speech is inactive
+Is_Speech_Active:	.EQU	$D245	; $00 = Speech is inactive
 					; $01 = Speech is active
 
-LD2BD	EQU	$D2BD	; ==
+LD2BD:			.EQU	$D2BD	; ==
 
-LD2CC	EQU	$D2CC	; ==
+LD2CC:			.EQU	$D2CC	; ==
 
-LD2CE	EQU	$D2CE	; Speech: Address of next phoneme to process (place in string)
+LD2CE:			.EQU	$D2CE	; Speech: Address of next phoneme to process (place in string)
 
-Num_Phonemes_Left	EQU	$D2D0	; Seems to hold how many phonemes left to go in speech string
+Num_Phonemes_Left:	.EQU	$D2D0	; Seems to hold how many phonemes left to go in speech string
 
-LD2D1	EQU	$D2D1	; Seems to hold a phoneme in speech routines minus inflection bits (00xx xxxx) ???
+LD2D1:			.EQU	$D2D1	; Seems to hold a phoneme in speech routines minus inflection bits (00xx xxxx) ???
 
-LD2D2	EQU	$D2D2	; ==
+LD2D2:			.EQU	$D2D2	; ==
 					;
-LD2D3	EQU	$D2D3	;Not sure - always seems to be a $d2 in it.
+LD2D3:			.EQU	$D2D3	;Not sure - always seems to be a $d2 in it. 
 					;Code zero's it out early. ???
+					
+LD2D4:			.EQU	$D2D4	; ==
 
-LD2D4	EQU	$D2D4	; ==
-
-Game_Mode	EQU	$D303	; This byte holds if you are in demo or game mode
+Game_Mode:		.EQU	$D303	; This byte holds if you are in demo or game mode
 					;   0: Game over, demo mode
 					;   1: One player game in progress
 					;   2: Two player game in progress
 
-LD347	EQU	$D347	; This memory location is read, but never written to... ??? verify ???
+LD347:			.EQU	$D347	; This memory location is read, but never written to... ??? verify ???
 
-LD349	EQU	$D349	; ??? (saved to in beginning of demo sequence)
+LD349:			.EQU	$D349	; ??? (saved to in beginning of demo sequence)
 
 
 
@@ -19171,680 +18430,682 @@ LD349	EQU	$D349	; ??? (saved to in beginning of demo sequence)
 ;
 ;*****************************************************************************
 ;
-; Locations so far unknown
-;
+; Locations so far unknown 
+; 
 ;*****************************************************************************
 ;
 
 
-L0003	EQU	$0003
-L0005	EQU	$0005
-L0007	EQU	$0007
-L0009	EQU	$0009
-L000B	EQU	$000B
-L000D	EQU	$000D
-L000F	EQU	$000F
-L0011	EQU	$0011
-L001A	EQU	$001A
-L0020	EQU	$0020
-L0029	EQU	$0029
-L004B	EQU	$004B
-L0050	EQU	$0050
-L0055	EQU	$0055
-L006A	EQU	$006A
-L007C	EQU	$007C
-L0080	EQU	$0080
-L0083	EQU	$0083
-L008C	EQU	$008C
-L00A8	EQU	$00A8
-L00E0	EQU	$00E0
-L00F0	EQU	$00F0
-L00FD	EQU	$00FD
-L0100	EQU	$0100
-; Unused Equate: L0116	EQU	$0116
-L0138	EQU	$0138
-L0150	EQU	$0150
-L015E	EQU	$015E
-L017E	EQU	$017E
-L01A8	EQU	$01A8
-L01FF	EQU	$01FF
-L0201	EQU	$0201
-L0202	EQU	$0202
-; Unused Equate: L0207	EQU	$0207
-L0209	EQU	$0209
-L020F	EQU	$020F
-L0217	EQU	$0217
-L022A	EQU	$022A
-L022B	EQU	$022B
-L023C	EQU	$023C
-L0248	EQU	$0248
-L0250	EQU	$0250
-L02B2	EQU	$02B2
-L02FD	EQU	$02FD
-L0301	EQU	$0301
-L0303	EQU	$0303
-; Unused Equate: L0307	EQU	$0307
-L031E	EQU	$031E
-L0325	EQU	$0325
-L03A8	EQU	$03A8
-L03C0	EQU	$03C0
-L040B	EQU	$040B
-L040E	EQU	$040E
-L042E	EQU	$042E
-; Unused Equate: L0507	EQU	$0507
-L0601	EQU	$0601
-; Unused Equate: L061A	EQU	$061A
-; Unused Equate: L061C	EQU	$061C
-; Unused Equate: L068C	EQU	$068C
-; Unused Equate: L06AD	EQU	$06AD
-L0700	EQU	$0700
-L0702	EQU	$0702
-; Unused Equate: L0715	EQU	$0715
-L07C9	EQU	$07C9
-L08A8	EQU	$08A8
-; Unused Equate: L0A07	EQU	$0A07
-L0A30	EQU	$0A30
-L0A3E	EQU	$0A3E
-L0A50	EQU	$0A50
-L0C00	EQU	$0C00
-; Unused Equate: L0C07	EQU	$0C07
-L0C15	EQU	$0C15
-L0C1F	EQU	$0C1F
-L0C28	EQU	$0C28
-L0C56	EQU	$0C56
-L0D15	EQU	$0D15
-; Unused Equate: L0E07	EQU	$0E07
-L0F24	EQU	$0F24
-L0F49	EQU	$0F49
-L0F98	EQU	$0F98
-; Unused Equate: L0FB7	EQU	$0FB7
-L0FC0	EQU	$0FC0
-; Unused Equate: L0FD1	EQU	$0FD1
-; Unused Equate: L0FED	EQU	$0FED
-L0FFF	EQU	$0FFF
-L1004	EQU	$1004
-; Unused Equate: L1016	EQU	$1016
-; Unused Equate: L106A	EQU	$106A
-; Unused Equate: L107B	EQU	$107B
-L1088	EQU	$1088
-; Unused Equate: L109A	EQU	$109A
-L10A7	EQU	$10A7
-; Unused Equate: L10C1	EQU	$10C1
-; Unused Equate: L10EA	EQU	$10EA
-L10FD	EQU	$10FD
-L1107	EQU	$1107
-; Unused Equate: L1152	EQU	$1152
-; Unused Equate: L1166	EQU	$1166
-L117C	EQU	$117C
-; Unused Equate: L12A1	EQU	$12A1
-L1301	EQU	$1301
-; Unused Equate: L134B	EQU	$134B
-L1360	EQU	$1360
-; Unused Equate: L13C4	EQU	$13C4
-L1400	EQU	$1400
-L1413	EQU	$1413
-L143E	EQU	$143E
-L151F	EQU	$151F
-; Unused Equate: L1520	EQU	$1520
-L1540	EQU	$1540
-; Unused Equate: L15C8	EQU	$15C8
-L1601	EQU	$1601
-L1681	EQU	$1681
-L16B5	EQU	$16B5
-L16B6	EQU	$16B6
-L1700	EQU	$1700
-L1701	EQU	$1701
-L1710	EQU	$1710
-L178D	EQU	$178D
-L1893	EQU	$1893
-L18D0	EQU	$18D0
-L18D2	EQU	$18D2
-L190B	EQU	$190B
-L1C33	EQU	$1C33
-L1C99	EQU	$1C99
-L1D0D	EQU	$1D0D
-L1D17	EQU	$1D17
-L1D3E	EQU	$1D3E
-L1D55	EQU	$1D55
-L1D6D	EQU	$1D6D
-L1D90	EQU	$1D90
-L1DAB	EQU	$1DAB
-L1DB3	EQU	$1DB3
-L1DBA	EQU	$1DBA
-L1DF9	EQU	$1DF9
-L1E03	EQU	$1E03
-L1E18	EQU	$1E18
-L1E26	EQU	$1E26
-L1E28	EQU	$1E28
-L1E44	EQU	$1E44
-L1EA6	EQU	$1EA6
-L1F2B	EQU	$1F2B
-L1F32	EQU	$1F32
-L2000	EQU	$2000
-L200E	EQU	$200E
-L203C	EQU	$203C
-L20A0	EQU	$20A0
-L211D	EQU	$211D
-L2218	EQU	$2218
-L222B	EQU	$222B
-L2303	EQU	$2303
-L230B	EQU	$230B
-L2694	EQU	$2694
-L26AD	EQU	$26AD
-; Unused Equate: L2701	EQU	$2701
-L270D	EQU	$270D
-L273E	EQU	$273E
-L2783	EQU	$2783
-L2801	EQU	$2801
-L2903	EQU	$2903
-L29C6	EQU	$29C6
-L2A00	EQU	$2A00
-L2A02	EQU	$2A02
-L2A10	EQU	$2A10
-L2A29	EQU	$2A29
-L2A2C	EQU	$2A2C
-L2AA8	EQU	$2AA8
-L2AA9	EQU	$2AA9
-L2B55	EQU	$2B55
-L2B7A	EQU	$2B7A
-L2B82	EQU	$2B82
-; Unused Equate: L2C0C	EQU	$2C0C
-L2C67	EQU	$2C67
-L2CA7	EQU	$2CA7
-L2D03	EQU	$2D03
-L2D1A	EQU	$2D1A
-L2D1F	EQU	$2D1F
-L2D30	EQU	$2D30
-L2D38	EQU	$2D38
-L2D43	EQU	$2D43
-; Unused Equate: L2D96	EQU	$2D96
-; Unused Equate: L2DD1	EQU	$2DD1
-L2E10	EQU	$2E10
-L2F38	EQU	$2F38
-L3000	EQU	$3000
-L3010	EQU	$3010
-L30C4	EQU	$30C4
-L30D3	EQU	$30D3
-L30E1	EQU	$30E1
-L30F4	EQU	$30F4
-L3100	EQU	$3100
-L310C	EQU	$310C
-L3338	EQU	$3338
-L3368	EQU	$3368
-L3374	EQU	$3374
-L3376	EQU	$3376
-L3378	EQU	$3378
-L3380	EQU	$3380
-L34AA	EQU	$34AA
-L351D	EQU	$351D
-L3522	EQU	$3522
-L355C	EQU	$355C
-L358A	EQU	$358A
-; Unused Equate: L3607	EQU	$3607
-L3728	EQU	$3728
-L3832	EQU	$3832
-L383A	EQU	$383A
-L38BE	EQU	$38BE
-L3950	EQU	$3950
-L3C28	EQU	$3C28
-L3CC7	EQU	$3CC7
-;	EQU3D2B
-;	EQU3D46
-;	EQU3E16
-;	EQU3E28
-; Unused Equate: L3E51	EQU	$3E51
-;	EQU3F51
-;	EQU3F5C
-;	EQU3FAC
-L4000	EQU	$4000
-L4001	EQU	$4001
-L4004	EQU	$4004
-L4005	EQU	$4005
-; Unused Equate: L4010	EQU	$4010
-L4041	EQU	$4041
-L4045	EQU	$4045
-L404C	EQU	$404C
-L404F	EQU	$404F
-L4050	EQU	$4050
-L4051	EQU	$4051
-L4054	EQU	$4054
-L4055	EQU	$4055
-L407D	EQU	$407D
-L40F5	EQU	$40F5
-L4105	EQU	$4105
-L4115	EQU	$4115
-L4141	EQU	$4141
-L4155	EQU	$4155
-L417D	EQU	$417D
-; Unused Equate: L4307	EQU	$4307
-L4500	EQU	$4500
-L462D	EQU	$462D
-L469C	EQU	$469C
-; Unused Equate: L4C50	EQU	$4C50
-L4EA3	EQU	$4EA3
-; Unused Equate: L4F14	EQU	$4F14
-; Unused Equate: L4F43	EQU	$4F43
-L5041	EQU	$5041
-L5055	EQU	$5055
-L50D5	EQU	$50D5
-L5100	EQU	$5100
-L5101	EQU	$5101
-; Unused Equate: L5211	EQU	$5211
-L5241	EQU	$5241
-; Unused Equate: L52C4	EQU	$52C4
-; Unused Equate: L5401	EQU	$5401
-L5445	EQU	$5445
-L5455	EQU	$5455
-L549D	EQU	$549D
-L5500	EQU	$5500
-L5501	EQU	$5501
-L550D	EQU	$550D
-L5510	EQU	$5510
-L5515	EQU	$5515
-L5516	EQU	$5516
-L5518	EQU	$5518
-L553D	EQU	$553D
-L5550	EQU	$5550
-L5555	EQU	$5555
-L555D	EQU	$555D
-L5595	EQU	$5595
-L55A0	EQU	$55A0
-; Unused Equate: L5606	EQU	$5606
-L5655	EQU	$5655
-L56AA	EQU	$56AA
-; Unused Equate: L5753	EQU	$5753
-; Unused Equate: L592A	EQU	$592A
-; Unused Equate: L5A19	EQU	$5A19
-L5A3B	EQU	$5A3B
-L5A94	EQU	$5A94
-L5AAA	EQU	$5AAA
-L5B03	EQU	$5B03
-L5BBE	EQU	$5BBE
-; Unused Equate: L5E0C	EQU	$5E0C
-L5F50	EQU	$5F50
-L5F55	EQU	$5F55
-L6125	EQU	$6125
-L6202	EQU	$6202
-; Unused Equate: L622E	EQU	$622E
-; Unused Equate: L66C3	EQU	$66C3
-; Unused Equate: L6804	EQU	$6804
-L6876	EQU	$6876
-L6AAC	EQU	$6AAC
-L6C1B	EQU	$6C1B
-L6C68	EQU	$6C68
-L6CA4	EQU	$6CA4
-; Unused Equate: L6D0C	EQU	$6D0C
-L6F1B	EQU	$6F1B
-L6F83	EQU	$6F83
-L731E	EQU	$731E
-L732B	EQU	$732B
-L735B	EQU	$735B
-L73AD	EQU	$73AD
-L73BC	EQU	$73BC
-L73CD	EQU	$73CD
-; Unused Equate: L7512	EQU	$7512
-L7716	EQU	$7716
-L7950	EQU	$7950
-L7A3B	EQU	$7A3B
-L7A51	EQU	$7A51
-L7C73	EQU	$7C73
-L7C78	EQU	$7C78
-L7D2B	EQU	$7D2B
-L7D50	EQU	$7D50
-; Unused Equate: L7E7C	EQU	$7E7C
-L7F70	EQU	$7F70
-L8002	EQU	$8002
-L8008	EQU	$8008
-L800A	EQU	$800A
-L807D	EQU	$807D
-L8084	EQU	$8084
-L8200	EQU	$8200
-L8236	EQU	$8236
-L830F	EQU	$830F
-L833E	EQU	$833E
-L878C	EQU	$878C
-L8829	EQU	$8829
-L882E	EQU	$882E
-L886D	EQU	$886D
-L890E	EQU	$890E
-L8924	EQU	$8924
-L8941	EQU	$8941
-L8952	EQU	$8952
-L8971	EQU	$8971
-L8A58	EQU	$8A58
-L8A7E	EQU	$8A7E
-L8B1A	EQU	$8B1A
-L8B51	EQU	$8B51
-L8B58	EQU	$8B58
-L8BA8	EQU	$8BA8
-L8BD1	EQU	$8BD1
-L8CAE	EQU	$8CAE
-L8CC3	EQU	$8CC3
-L8CEB	EQU	$8CEB
-L8D11	EQU	$8D11
-L8D23	EQU	$8D23
-L8E10	EQU	$8E10
-L8E46	EQU	$8E46
-L8E4A	EQU	$8E4A
-L8E7D	EQU	$8E7D
-L8F97	EQU	$8F97
-L8FCD	EQU	$8FCD
-L8FFF	EQU	$8FFF
-L91A5	EQU	$91A5
-L91FD	EQU	$91FD
-L924F	EQU	$924F
-L9255	EQU	$9255
-L92FA	EQU	$92FA
-L931C	EQU	$931C
-L9331	EQU	$9331
-L933B	EQU	$933B
-L9379	EQU	$9379
-L9381	EQU	$9381
-L942B	EQU	$942B
-L9462	EQU	$9462
-L94B3	EQU	$94B3
-L9535	EQU	$9535
-L956B	EQU	$956B
-L9595	EQU	$9595
-L95CC	EQU	$95CC
-;	EQU9750
-;	EQU97B1
-;	EQU981A
-;	EQU99E5
-;	EQU9B72
-;	EQU9BCB
-;	EQU9BCC
-;	EQU9C7B
-;	EQU9E06
-;$9EAE	EQU	$9EAE
-LA00F	EQU	$A00F
-LA063	EQU	$A063
-LA069	EQU	$A069
-LA072	EQU	$A072
-LA07C	EQU	$A07C
-LA08B	EQU	$A08B
-LA26B	EQU	$A26B
-LA284	EQU	$A284
-LA29C	EQU	$A29C
-LA2F6	EQU	$A2F6
-;	EQUA373
-;	EQUA3C8
-;	EQUA3E2
-;	EQUA496
-;	EQUA72A
-;	EQUA882
-;	EQUA8AA
-;	EQUA9DB
-;	EQUAA0E
-;	EQUAA3E
-;	EQUAA98
-;	EQUAA99
-;	EQUABE6
-;	EQUACA9
-;	EQUAD9E
-; Unused Equate: LAE16	EQU	$AE16
-;	EQUAE9E
-;	EQUAEDF
-;	EQUAFA0
-;	EQUAFAA
-LB059	EQU	$B059
-LB0AE	EQU	$B0AE
-LB31E	EQU	$B31E
-LB697	EQU	$B697
-LB72A	EQU	$B72A
-LB83E	EQU	$B83E
-; Unused Equate: LB9B0	EQU	$B9B0
-LBCCE	EQU	$BCCE
-LBE82	EQU	$BE82
-LBEEF	EQU	$BEEF
-LBFAA	EQU	$BFAA
-LBFBB	EQU	$BFBB
-LBFF6	EQU	$BFF6
-LC000	EQU	$C000
-LC002	EQU	$C002
-LC003	EQU	$C003
-LC004	EQU	$C004
-LC00A	EQU	$C00A
-LC00B	EQU	$C00B
-LC00C	EQU	$C00C
-LC00D	EQU	$C00D
-LC00F	EQU	$C00F
-LC030	EQU	$C030
-LC03F	EQU	$C03F
-LC058	EQU	$C058
-; Unused Equate: LC3C3	EQU	$C3C3
-; Unused Equate: LC507	EQU	$C507
-; Unused Equate: LCB07	EQU	$CB07
-LCC0F	EQU	$CC0F
-; Unused Equate: LCD00	EQU	$CD00
-LCEAC	EQU	$CEAC
+L0003:	.EQU	$0003
+L0005:	.EQU	$0005
+L0007:	.EQU	$0007
+L0009:	.EQU	$0009
+L000B:	.EQU	$000B
+L000D:	.EQU	$000D
+L000F:	.EQU	$000F
+L0011:	.EQU	$0011
+L001A:	.EQU	$001A
+L0020:	.EQU	$0020
+L0029:	.EQU	$0029
+L004B:	.EQU	$004B
+L0050:	.EQU	$0050
+L0055:	.EQU	$0055
+L006A:	.EQU	$006A
+L007C:	.EQU	$007C
+L0080:	.EQU	$0080
+L0083:	.EQU	$0083
+L008C:	.EQU	$008C
+L00A8:	.EQU	$00A8
+L00E0:	.EQU	$00E0
+L00F0:	.EQU	$00F0
+L00FD:	.EQU	$00FD
+L0100:	.EQU	$0100
+L0116:	.EQU	$0116
+L0138:	.EQU	$0138
+L0150:	.EQU	$0150
+L015E:	.EQU	$015E
+L017E:	.EQU	$017E
+L01A8:	.EQU	$01A8
+L01FF:	.EQU	$01FF
+L0201:	.EQU	$0201
+L0202:	.EQU	$0202
+L0207:	.EQU	$0207
+L0209:	.EQU	$0209
+L020F:	.EQU	$020F
+L0217:	.EQU	$0217
+L022A:	.EQU	$022A
+L022B:	.EQU	$022B
+L023C:	.EQU	$023C
+L0248:	.EQU	$0248
+L0250:	.EQU	$0250
+L02B2:	.EQU	$02B2
+L02FD:	.EQU	$02FD
+L0301:	.EQU	$0301
+L0303:	.EQU	$0303
+L0307:	.EQU	$0307
+L031E:	.EQU	$031E
+L0325:	.EQU	$0325
+L03A8:	.EQU	$03A8
+L03C0:	.EQU	$03C0
+L040B:	.EQU	$040B
+L040E:	.EQU	$040E
+L042E:	.EQU	$042E
+L0507:	.EQU	$0507
+L0601:	.EQU	$0601
+L061A:	.EQU	$061A
+L061C:	.EQU	$061C
+L068C:	.EQU	$068C
+L06AD:	.EQU	$06AD
+L0700:	.EQU	$0700
+L0702:	.EQU	$0702
+L0715:	.EQU	$0715
+L07C9:	.EQU	$07C9
+L08A8:	.EQU	$08A8
+L0A07:	.EQU	$0A07
+L0A30:	.EQU	$0A30
+L0A3E:	.EQU	$0A3E
+L0A50:	.EQU	$0A50
+L0C00:	.EQU	$0C00
+L0C07:	.EQU	$0C07
+L0C15:	.EQU	$0C15
+L0C1F:	.EQU	$0C1F
+L0C28:	.EQU	$0C28
+L0C56:	.EQU	$0C56
+L0D15:	.EQU	$0D15
+L0E07:	.EQU	$0E07
+L0F24:	.EQU	$0F24
+L0F49:	.EQU	$0F49
+L0F98:	.EQU	$0F98
+L0FB7:	.EQU	$0FB7
+L0FC0:	.EQU	$0FC0
+L0FD1:	.EQU	$0FD1
+L0FED:	.EQU	$0FED
+L0FFF:	.EQU	$0FFF
+L1004:	.EQU	$1004
+L1016:	.EQU	$1016
+L106A:	.EQU	$106A
+L107B:	.EQU	$107B
+L1088:	.EQU	$1088
+L109A:	.EQU	$109A
+L10A7:	.EQU	$10A7
+L10C1:	.EQU	$10C1
+L10EA:	.EQU	$10EA
+L10FD:	.EQU	$10FD
+L1107:	.EQU	$1107
+L1152:	.EQU	$1152
+L1166:	.EQU	$1166
+L117C:	.EQU	$117C
+L12A1:	.EQU	$12A1
+L1301:	.EQU	$1301
+L134B:	.EQU	$134B
+L1360:	.EQU	$1360
+L13C4:	.EQU	$13C4
+L1400:	.EQU	$1400
+L1413:	.EQU	$1413
+L143E:	.EQU	$143E
+L151F:	.EQU	$151F
+L1520:	.EQU	$1520
+L1540:	.EQU	$1540
+L15C8:	.EQU	$15C8
+L1601:	.EQU	$1601
+L1681:	.EQU	$1681
+L16B5:	.EQU	$16B5
+L16B6:	.EQU	$16B6
+L1700:	.EQU	$1700
+L1701:	.EQU	$1701
+L1710:	.EQU	$1710
+L178D:	.EQU	$178D
+L1893:	.EQU	$1893
+L18D0:	.EQU	$18D0
+L18D2:	.EQU	$18D2
+L190B:	.EQU	$190B
+L1C33:	.EQU	$1C33
+L1C99:	.EQU	$1C99
+L1D0D:	.EQU	$1D0D
+L1D17:	.EQU	$1D17
+L1D3E:	.EQU	$1D3E
+L1D55:	.EQU	$1D55
+L1D6D:	.EQU	$1D6D
+L1D90:	.EQU	$1D90
+L1DAB:	.EQU	$1DAB
+L1DB3:	.EQU	$1DB3
+L1DBA:	.EQU	$1DBA
+L1DF9:	.EQU	$1DF9
+L1E03:	.EQU	$1E03
+L1E18:	.EQU	$1E18
+L1E26:	.EQU	$1E26
+L1E28:	.EQU	$1E28
+L1E44:	.EQU	$1E44
+L1EA6:	.EQU	$1EA6
+L1F2B:	.EQU	$1F2B
+L1F32:	.EQU	$1F32
+L2000:	.EQU	$2000
+L200E:	.EQU	$200E
+L203C:	.EQU	$203C
+L20A0:	.EQU	$20A0
+L211D:	.EQU	$211D
+L2218:	.EQU	$2218
+L222B:	.EQU	$222B
+L2303:	.EQU	$2303
+L230B:	.EQU	$230B
+L2694:	.EQU	$2694
+L26AD:	.EQU	$26AD
+L2701:	.EQU	$2701
+L270D:	.EQU	$270D
+L273E:	.EQU	$273E
+L2783:	.EQU	$2783
+L2801:	.EQU	$2801
+L2903:	.EQU	$2903
+L29C6:	.EQU	$29C6
+L2A00:	.EQU	$2A00
+L2A02:	.EQU	$2A02
+L2A10:	.EQU	$2A10
+L2A29:	.EQU	$2A29
+L2A2C:	.EQU	$2A2C
+L2AA8:	.EQU	$2AA8
+L2AA9:	.EQU	$2AA9
+L2B55:	.EQU	$2B55
+L2B7A:	.EQU	$2B7A
+L2B82:	.EQU	$2B82
+L2C0C:	.EQU	$2C0C
+L2C67:	.EQU	$2C67
+L2CA7:	.EQU	$2CA7
+L2D03:	.EQU	$2D03
+L2D1A:	.EQU	$2D1A
+L2D1F:	.EQU	$2D1F
+L2D30:	.EQU	$2D30
+L2D38:	.EQU	$2D38
+L2D43:	.EQU	$2D43
+L2D96:	.EQU	$2D96
+L2DD1:	.EQU	$2DD1
+L2E10:	.EQU	$2E10
+L2F38:	.EQU	$2F38
+L3000:	.EQU	$3000
+L3010:	.EQU	$3010
+L30C4:	.EQU	$30C4
+L30D3:	.EQU	$30D3
+L30E1:	.EQU	$30E1
+L30F4:	.EQU	$30F4
+L3100:	.EQU	$3100
+L310C:	.EQU	$310C
+L3338:	.EQU	$3338
+L3368:	.EQU	$3368
+L3374:	.EQU	$3374
+L3376:	.EQU	$3376
+L3378:	.EQU	$3378
+L3380:	.EQU	$3380
+L34AA:	.EQU	$34AA
+L351D:	.EQU	$351D
+L3522:	.EQU	$3522
+L355C:	.EQU	$355C
+L358A:	.EQU	$358A
+L3607:	.EQU	$3607
+L3728:	.EQU	$3728
+L3832:	.EQU	$3832
+L383A:	.EQU	$383A
+L38BE:	.EQU	$38BE
+L3950:	.EQU	$3950
+L3C28:	.EQU	$3C28
+L3CC7:	.EQU	$3CC7
+L3D2B:	.EQU	$3D2B
+L3D46:	.EQU	$3D46
+L3E16:	.EQU	$3E16
+L3E28:	.EQU	$3E28
+L3E51:	.EQU	$3E51
+L3F51:	.EQU	$3F51
+L3F5C:	.EQU	$3F5C
+L3FAC:	.EQU	$3FAC
+L4000:	.EQU	$4000
+L4001:	.EQU	$4001
+L4004:	.EQU	$4004
+L4005:	.EQU	$4005
+L4010:	.EQU	$4010
+L4041:	.EQU	$4041
+L4045:	.EQU	$4045
+L404C:	.EQU	$404C
+L404F:	.EQU	$404F
+L4050:	.EQU	$4050
+L4051:	.EQU	$4051
+L4054:	.EQU	$4054
+L4055:	.EQU	$4055
+L407D:	.EQU	$407D
+L40F5:	.EQU	$40F5
+L4105:	.EQU	$4105
+L4115:	.EQU	$4115
+L4141:	.EQU	$4141
+L4155:	.EQU	$4155
+L417D:	.EQU	$417D
+L4307:	.EQU	$4307
+L4500:	.EQU	$4500
+L462D:	.EQU	$462D
+L469C:	.EQU	$469C
+L4C50:	.EQU	$4C50
+L4EA3:	.EQU	$4EA3
+L4F14:	.EQU	$4F14
+L4F43:	.EQU	$4F43
+L5041:	.EQU	$5041
+L5055:	.EQU	$5055
+L50D5:	.EQU	$50D5
+L5100:	.EQU	$5100
+L5101:	.EQU	$5101
+L5211:	.EQU	$5211
+L5241:	.EQU	$5241
+L52C4:	.EQU	$52C4
+L5401:	.EQU	$5401
+L5445:	.EQU	$5445
+L5455:	.EQU	$5455
+L549D:	.EQU	$549D
+L5500:	.EQU	$5500
+L5501:	.EQU	$5501
+L550D:	.EQU	$550D
+L5510:	.EQU	$5510
+L5515:	.EQU	$5515
+L5516:	.EQU	$5516
+L5518:	.EQU	$5518
+L553D:	.EQU	$553D
+L5550:	.EQU	$5550
+L5555:	.EQU	$5555
+L555D:	.EQU	$555D
+L5595:	.EQU	$5595
+L55A0:	.EQU	$55A0
+L5606:	.EQU	$5606
+L5655:	.EQU	$5655
+L56AA:	.EQU	$56AA
+L5753:	.EQU	$5753
+L592A:	.EQU	$592A
+L5A19:	.EQU	$5A19
+L5A3B:	.EQU	$5A3B
+L5A94:	.EQU	$5A94
+L5AAA:	.EQU	$5AAA
+L5B03:	.EQU	$5B03
+L5BBE:	.EQU	$5BBE
+L5E0C:	.EQU	$5E0C
+L5F50:	.EQU	$5F50
+L5F55:	.EQU	$5F55
+L6125:	.EQU	$6125
+L6202:	.EQU	$6202
+L622E:	.EQU	$622E
+L66C3:	.EQU	$66C3
+L6804:	.EQU	$6804
+L6876:	.EQU	$6876
+L6AAC:	.EQU	$6AAC
+L6C1B:	.EQU	$6C1B
+L6C68:	.EQU	$6C68
+L6CA4:	.EQU	$6CA4
+L6D0C:	.EQU	$6D0C
+L6F1B:	.EQU	$6F1B
+L6F83:	.EQU	$6F83
+L731E:	.EQU	$731E
+L732B:	.EQU	$732B
+L735B:	.EQU	$735B
+L73AD:	.EQU	$73AD
+L73BC:	.EQU	$73BC
+L73CD:	.EQU	$73CD
+L7512:	.EQU	$7512
+L7716:	.EQU	$7716
+L7950:	.EQU	$7950
+L7A3B:	.EQU	$7A3B
+L7A51:	.EQU	$7A51
+L7C73:	.EQU	$7C73
+L7C78:	.EQU	$7C78
+L7D2B:	.EQU	$7D2B
+L7D50:	.EQU	$7D50
+L7E7C:	.EQU	$7E7C
+L7F70:	.EQU	$7F70
+L8002:	.EQU	$8002
+L8008:	.EQU	$8008
+L800A:	.EQU	$800A
+L807D:	.EQU	$807D
+L8084:	.EQU	$8084
+L8200:	.EQU	$8200
+L8236:	.EQU	$8236
+L830F:	.EQU	$830F
+L833E:	.EQU	$833E
+L878C:	.EQU	$878C
+L8829:	.EQU	$8829
+L882E:	.EQU	$882E
+L886D:	.EQU	$886D
+L890E:	.EQU	$890E
+L8924:	.EQU	$8924
+L8941:	.EQU	$8941
+L8952:	.EQU	$8952
+L8971:	.EQU	$8971
+L8A58:	.EQU	$8A58
+L8A7E:	.EQU	$8A7E
+L8B1A:	.EQU	$8B1A
+L8B51:	.EQU	$8B51
+L8B58:	.EQU	$8B58
+L8BA8:	.EQU	$8BA8
+L8BD1:	.EQU	$8BD1
+L8CAE:	.EQU	$8CAE
+L8CC3:	.EQU	$8CC3
+L8CEB:	.EQU	$8CEB
+L8D11:	.EQU	$8D11
+L8D23:	.EQU	$8D23
+L8E10:	.EQU	$8E10
+L8E46:	.EQU	$8E46
+L8E4A:	.EQU	$8E4A
+L8E7D:	.EQU	$8E7D
+L8F97:	.EQU	$8F97
+L8FCD:	.EQU	$8FCD
+L8FFF:	.EQU	$8FFF
+L91A5:	.EQU	$91A5
+L91FD:	.EQU	$91FD
+L924F:	.EQU	$924F
+L9255:	.EQU	$9255
+L92FA:	.EQU	$92FA
+L931C:	.EQU	$931C
+L9331:	.EQU	$9331
+L933B:	.EQU	$933B
+L9379:	.EQU	$9379
+L9381:	.EQU	$9381
+L942B:	.EQU	$942B
+L9462:	.EQU	$9462
+L94B3:	.EQU	$94B3
+L9535:	.EQU	$9535
+L956B:	.EQU	$956B
+L9595:	.EQU	$9595
+L95CC:	.EQU	$95CC
+L9750:	.EQU	$9750
+L97B1:	.EQU	$97B1
+L981A:	.EQU	$981A
+L99E5:	.EQU	$99E5
+L9B72:	.EQU	$9B72
+L9BCB:	.EQU	$9BCB
+L9BCC:	.EQU	$9BCC
+L9C7B:	.EQU	$9C7B
+L9E06:	.EQU	$9E06
+;L9EAE:	.EQU	$9EAE
+LA00F:	.EQU	$A00F
+LA063:	.EQU	$A063
+LA069:	.EQU	$A069
+LA072:	.EQU	$A072
+LA07C:	.EQU	$A07C
+LA08B:	.EQU	$A08B
+LA26B:	.EQU	$A26B
+LA284:	.EQU	$A284
+LA29C:	.EQU	$A29C
+LA2F6:	.EQU	$A2F6
+LA373:	.EQU	$A373
+LA3C8:	.EQU	$A3C8
+LA3E2:	.EQU	$A3E2
+LA496:	.EQU	$A496
+LA72A:	.EQU	$A72A
+LA882:	.EQU	$A882
+LA8AA:	.EQU	$A8AA
+LA9DB:	.EQU	$A9DB
+LAA0E:	.EQU	$AA0E
+LAA3E:	.EQU	$AA3E
+LAA98:	.EQU	$AA98
+LAA99:	.EQU	$AA99
+LABE6:	.EQU	$ABE6
+LACA9:	.EQU	$ACA9
+LAD9E:	.EQU	$AD9E
+LAE16:	.EQU	$AE16
+LAE9E:	.EQU	$AE9E
+LAEDF:	.EQU	$AEDF
+LAFA0:	.EQU	$AFA0
+LAFAA:	.EQU	$AFAA
+LB059:	.EQU	$B059
+LB0AE:	.EQU	$B0AE
+LB31E:	.EQU	$B31E
+LB697:	.EQU	$B697
+LB72A:	.EQU	$B72A
+LB83E:	.EQU	$B83E
+LB9B0:	.EQU	$B9B0
+LBCCE:	.EQU	$BCCE
+LBE82:	.EQU	$BE82
+LBEEF:	.EQU	$BEEF
+LBFAA:	.EQU	$BFAA
+LBFBB:	.EQU	$BFBB
+LBFF6:	.EQU	$BFF6
+LC000:	.EQU	$C000
+LC002:	.EQU	$C002
+LC003:	.EQU	$C003
+LC004:	.EQU	$C004
+LC00A:	.EQU	$C00A
+LC00B:	.EQU	$C00B
+LC00C:	.EQU	$C00C
+LC00D:	.EQU	$C00D
+LC00F:	.EQU	$C00F
+LC030:	.EQU	$C030
+LC03F:	.EQU	$C03F
+LC058:	.EQU	$C058
+LC3C3:	.EQU	$C3C3
+LC507:	.EQU	$C507
+LCB07:	.EQU	$CB07
+LCC0F:	.EQU	$CC0F
+LCD00:	.EQU	$CD00
+LCEAC:	.EQU	$CEAC
 
 ;
 ; Begin Static RAM area
 ;
 
-LD000	EQU	$D000
-LD003	EQU	$D003
+LD000:	.EQU	$D000
+LD003:	.EQU	$D003
 
 
 
-LD03A	EQU	$D03A
+LD03A:	.EQU	$D03A
 
-
+	
 			;
-LD03D	EQU	$D03D
-LD03E	EQU	$D03E
-LD040	EQU	$D040
-LD041	EQU	$D041
-			;
-
-LD043	EQU	$D043
-LD044	EQU	$D044
-LD045	EQU	$D045
-LD046	EQU	$D046
-LD047	EQU	$D047
-
-
-
-LD049	EQU	$D049
-LD04A	EQU	$D04A
-LD04B	EQU	$D04B
-LD04C	EQU	$D04C
-LD04D	EQU	$D04D
-LD04E	EQU	$D04E
-LD04F	EQU	$D04F
-LD050	EQU	$D050
-LD051	EQU	$D051
-LD053	EQU	$D053
-LD054	EQU	$D054
-LD058	EQU	$D058
-LD05A	EQU	$D05A
-LD05C	EQU	$D05C
-LD067	EQU	$D067
-LD06E	EQU	$D06E
-LD074	EQU	$D074
-LD078	EQU	$D078
-LD07A	EQU	$D07A
-LD07C	EQU	$D07C
-LD087	EQU	$D087
-LD094	EQU	$D094
-LD096	EQU	$D096
-LD09C	EQU	$D09C
-LD0A7	EQU	$D0A7
-LD0C2	EQU	$D0C2
-LD0CD	EQU	$D0CD
-LD0E8	EQU	$D0E8
-LD0F3	EQU	$D0F3
-LD10E	EQU	$D10E
-LD119	EQU	$D119
-LD134	EQU	$D134
-LD13F	EQU	$D13F
-LD15A	EQU	$D15A
-LD165	EQU	$D165
-LD172	EQU	$D172
-LD178	EQU	$D178
-LD18E	EQU	$D18E
-LD198	EQU	$D198
-LD1BA	EQU	$D1BA
-LD1BB	EQU	$D1BB
-LD1BD	EQU	$D1BD
-LD1BF	EQU	$D1BF
-LD1C1	EQU	$D1C1
-LD1C3	EQU	$D1C3
-LD1C4	EQU	$D1C4
-LD1C5	EQU	$D1C5
-LD1C6	EQU	$D1C6
-LD1C7	EQU	$D1C7
-LD1C8	EQU	$D1C8
-LD1C9	EQU	$D1C9
-LD1CA	EQU	$D1CA
-LD1CB	EQU	$D1CB
-LD1CC	EQU	$D1CC
-LD1CD	EQU	$D1CD
-LD1CE	EQU	$D1CE
-LD1CF	EQU	$D1CF
-LD1D0	EQU	$D1D0
-LD1D1	EQU	$D1D1
-LD1D2	EQU	$D1D2
-LD1D3	EQU	$D1D3
-LD1D4	EQU	$D1D4
-LD1D5	EQU	$D1D5
+LD03D:	.EQU	$D03D
+LD03E:	.EQU	$D03E
+LD040:	.EQU	$D040
+LD041:	.EQU	$D041
 			;
 
-			;
-LD1D8	EQU	$D1D8
-LD1D9	EQU	$D1D9
-LD1DA	EQU	$D1DA
-LD1DB	EQU	$D1DB
-LD1DC	EQU	$D1DC
-LD1DD	EQU	$D1DD
-LD1DE	EQU	$D1DE
-LD1DF	EQU	$D1DF
-LD1E0	EQU	$D1E0
-LD1E1	EQU	$D1E1
-LD1E2	EQU	$D1E2
-LD1E3	EQU	$D1E3
-; Unused Equate: LD1E4	EQU	$D1E4
-LD1E5	EQU	$D1E5
-LD1E6	EQU	$D1E6
-LD1E7	EQU	$D1E7
-LD1E8	EQU	$D1E8
-LD1E9	EQU	$D1E9
-LD1EA	EQU	$D1EA
-LD1EB	EQU	$D1EB
-; Unused Equate: LD1EC	EQU	$D1EC
-LD1ED	EQU	$D1ED
-LD1EE	EQU	$D1EE
-LD1EF	EQU	$D1EF
-LD1F0	EQU	$D1F0
-LD1F1	EQU	$D1F1
-LD1F2	EQU	$D1F2
-LD1F3	EQU	$D1F3
-LD240	EQU	$D240
-LD241	EQU	$D241
-LD242	EQU	$D242
-LD243	EQU	$D243
-
-
-LD270	EQU	$D270
-LD2AC	EQU	$D2AC
-
-LD2BE	EQU	$D2BE
+LD043:	.EQU	$D043
+LD044:	.EQU	$D044
+LD045:	.EQU	$D045
+LD046:	.EQU	$D046
+LD047:	.EQU	$D047
 
 
 
-
-LD300	EQU	$D300
-LD301	EQU	$D301
-LD302	EQU	$D302
+LD049:	.EQU	$D049
+LD04A:	.EQU	$D04A
+LD04B:	.EQU	$D04B
+LD04C:	.EQU	$D04C
+LD04D:	.EQU	$D04D
+LD04E:	.EQU	$D04E
+LD04F:	.EQU	$D04F
+LD050:	.EQU	$D050
+LD051:	.EQU	$D051
+LD053:	.EQU	$D053
+LD054:	.EQU	$D054
+LD058:	.EQU	$D058
+LD05A:	.EQU	$D05A
+LD05C:	.EQU	$D05C
+LD067:	.EQU	$D067
+LD06E:	.EQU	$D06E
+LD074:	.EQU	$D074
+LD078:	.EQU	$D078
+LD07A:	.EQU	$D07A
+LD07C:	.EQU	$D07C
+LD087:	.EQU	$D087
+LD094:	.EQU	$D094
+LD096:	.EQU	$D096
+LD09C:	.EQU	$D09C
+LD0A7:	.EQU	$D0A7
+LD0C2:	.EQU	$D0C2
+LD0CD:	.EQU	$D0CD
+LD0E8:	.EQU	$D0E8
+LD0F3:	.EQU	$D0F3
+LD10E:	.EQU	$D10E
+LD119:	.EQU	$D119
+LD134:	.EQU	$D134
+LD13F:	.EQU	$D13F
+LD15A:	.EQU	$D15A
+LD165:	.EQU	$D165
+LD172:	.EQU	$D172
+MazeExpandedCells:	.EQU	$D178
+LD18E:	.EQU	$D18E
+LD198:	.EQU	$D198
+LD1BA:	.EQU	$D1BA
+LD1BB:	.EQU	$D1BB
+LD1BD:	.EQU	$D1BD
+LD1BF:	.EQU	$D1BF
+LD1C1:	.EQU	$D1C1
+LD1C3:	.EQU	$D1C3
+LD1C4:	.EQU	$D1C4
+LD1C5:	.EQU	$D1C5
+LD1C6:	.EQU	$D1C6
+LD1C7:	.EQU	$D1C7
+LD1C8:	.EQU	$D1C8
+LD1C9:	.EQU	$D1C9
+LD1CA:	.EQU	$D1CA
+LD1CB:	.EQU	$D1CB
+LD1CC:	.EQU	$D1CC
+LD1CD:	.EQU	$D1CD
+LD1CE:	.EQU	$D1CE
+LD1CF:	.EQU	$D1CF
+LD1D0:	.EQU	$D1D0
+LD1D1:	.EQU	$D1D1
+LD1D2:	.EQU	$D1D2
+LD1D3:	.EQU	$D1D3
+LD1D4:	.EQU	$D1D4
+LD1D5:	.EQU	$D1D5
 			;
 
 			;
-LD304	EQU	$D304
-LD30E	EQU	$D30E
-LD318	EQU	$D318
-LD319	EQU	$D319
-LD31A	EQU	$D31A
-LD31B	EQU	$D31B
-LD31D	EQU	$D31D
-; Unused Equate: LD33A	EQU	$D33A
-LD340	EQU	$D340
-LD341	EQU	$D341
-LD342	EQU	$D342
-LD343	EQU	$D343
-LD344	EQU	$D344
-LD345	EQU	$D345
-LD346	EQU	$D346
+LD1D8:	.EQU	$D1D8
+LD1D9:	.EQU	$D1D9
+LD1DA:	.EQU	$D1DA
+LD1DB:	.EQU	$D1DB
+LD1DC:	.EQU	$D1DC
+LD1DD:	.EQU	$D1DD
+LD1DE:	.EQU	$D1DE
+LD1DF:	.EQU	$D1DF
+LD1E0:	.EQU	$D1E0
+LD1E1:	.EQU	$D1E1
+LD1E2:	.EQU	$D1E2
+LD1E3:	.EQU	$D1E3
+LD1E4:	.EQU	$D1E4
+LD1E5:	.EQU	$D1E5
+LD1E6:	.EQU	$D1E6
+LD1E7:	.EQU	$D1E7
+LD1E8:	.EQU	$D1E8
+LD1E9:	.EQU	$D1E9
+LD1EA:	.EQU	$D1EA
+LD1EB:	.EQU	$D1EB
+LD1EC:	.EQU	$D1EC
+LD1ED:	.EQU	$D1ED
+LD1EE:	.EQU	$D1EE
+LD1EF:	.EQU	$D1EF
+LD1F0:	.EQU	$D1F0
+LD1F1:	.EQU	$D1F1
+LD1F2:	.EQU	$D1F2
+LD1F3:	.EQU	$D1F3
+LD240:	.EQU	$D240
+LD241:	.EQU	$D241
+LD242:	.EQU	$D242
+LD243:	.EQU	$D243
 
-LD348	EQU	$D348
+
+LD270:	.EQU	$D270
+LD2AC:	.EQU	$D2AC
+
+LD2BE:	.EQU	$D2BE
+
+
+
+
+LD300:	.EQU	$D300
+LD301:	.EQU	$D301
+LD302:	.EQU	$D302
+			;
+
+			;
+LD304:	.EQU	$D304
+LD30E:	.EQU	$D30E
+MazeIndex:	.EQU	$D318
+LD319:	.EQU	$D319
+LD31A:	.EQU	$D31A
+LD31B:	.EQU	$D31B
+LD31D:	.EQU	$D31D
+LD33A:	.EQU	$D33A
+LD340:	.EQU	$D340
+LD341:	.EQU	$D341
+LD342:	.EQU	$D342
+LD343:	.EQU	$D343
+LD344:	.EQU	$D344
+LD345:	.EQU	$D345
+LD346:	.EQU	$D346
+
+LD348:	.EQU	$D348
 
 			;
 
 			;
-LD34A	EQU	$D34A
-LD34C	EQU	$D34C
-LD34E	EQU	$D34E
-LD34F	EQU	$D34F
-LD350	EQU	$D350
-LD351	EQU	$D351
-LD352	EQU	$D352
-; Unused Equate: LD353	EQU	$D353
-LD354	EQU	$D354
-LD47D	EQU	$D47D
-LD55F	EQU	$D55F
-LD59C	EQU	$D59C
-; Unused Equate: LDA07	EQU	$DA07
-LDD04	EQU	$DD04
-; Unused Equate: LDE15	EQU	$DE15
-LE0A9	EQU	$E0A9
-; Unused Equate: LE404	EQU	$E404
-; Unused Equate: LE40C	EQU	$E40C
-LE5BC	EQU	$E5BC
-LE79F	EQU	$E79F
-; Unused Equate: LE7E7	EQU	$E7E7
-LEA02	EQU	$EA02
-LEABF	EQU	$EABF
-LEAEE	EQU	$EAEE
-LEB05	EQU	$EB05
-; Unused Equate: LEB12	EQU	$EB12
-LEEAE	EQU	$EEAE
-LF002	EQU	$F002
-LF03F	EQU	$F03F
-LF0AF	EQU	$F0AF
-LF557	EQU	$F557
-LF6A2	EQU	$F6A2
-LF6A8	EQU	$F6A8
-; Unused Equate: LF807	EQU	$F807
-LF8AA	EQU	$F8AA
-LF904	EQU	$F904
-LF905	EQU	$F905
-LF906	EQU	$F906
-LFB00	EQU	$FB00
-LFB0A	EQU	$FB0A
-LFB1E	EQU	$FB1E
-LFB8B	EQU	$FB8B
-LFC00	EQU	$FC00
-LFC3B	EQU	$FC3B
-; Unused Equate: LFCD1	EQU	$FCD1
-LFCFF	EQU	$FCFF
-LFD8E	EQU	$FD8E
-; Unused Equate: LFE07	EQU	$FE07
-LFF00	EQU	$FF00
-LFF03	EQU	$FF03
-LFF0B	EQU	$FF0B
-LFF0F	EQU	$FF0F
-LFF16	EQU	$FF16
-LFF18	EQU	$FF18
-LFF3B	EQU	$FF3B
-LFF3F	EQU	$FF3F
-LFFD6	EQU	$FFD6
-LFFDD	EQU	$FFDD
-LFFE4	EQU	$FFE4
-LFFEB	EQU	$FFEB
-LFFF2	EQU	$FFF2
-LFFF5	EQU	$FFF5
-LFFF9	EQU	$FFF9
-LFFFB	EQU	$FFFB
-LFFFF	EQU	$FFFF
+LD34A:	.EQU	$D34A
+LD34C:	.EQU	$D34C
+LD34E:	.EQU	$D34E
+LD34F:	.EQU	$D34F
+LD350:	.EQU	$D350
+LD351:	.EQU	$D351
+LD352:	.EQU	$D352
+LD353:	.EQU	$D353
+LD354:	.EQU	$D354
+LD47D:	.EQU	$D47D
+LD55F:	.EQU	$D55F
+LD59C:	.EQU	$D59C
+LDA07:	.EQU	$DA07
+LDD04:	.EQU	$DD04
+LDE15:	.EQU	$DE15
+LE0A9:	.EQU	$E0A9
+LE404:	.EQU	$E404
+LE40C:	.EQU	$E40C
+LE5BC:	.EQU	$E5BC
+LE79F:	.EQU	$E79F
+LE7E7:	.EQU	$E7E7
+LEA02:	.EQU	$EA02
+LEABF:	.EQU	$EABF
+LEAEE:	.EQU	$EAEE
+LEB05:	.EQU	$EB05
+LEB12:	.EQU	$EB12
+LEEAE:	.EQU	$EEAE
+LF002:	.EQU	$F002
+LF03F:	.EQU	$F03F
+LF0AF:	.EQU	$F0AF
+LF557:	.EQU	$F557
+LF6A2:	.EQU	$F6A2
+LF6A8:	.EQU	$F6A8
+LF807:	.EQU	$F807
+LF8AA:	.EQU	$F8AA
+LF904:	.EQU	$F904
+LF905:	.EQU	$F905
+LF906:	.EQU	$F906
+LFB00:	.EQU	$FB00
+LFB0A:	.EQU	$FB0A
+LFB1E:	.EQU	$FB1E
+LFB8B:	.EQU	$FB8B
+LFC00:	.EQU	$FC00
+LFC3B:	.EQU	$FC3B
+LFCD1:	.EQU	$FCD1
+LFCFF:	.EQU	$FCFF
+LFD8E:	.EQU	$FD8E
+LFE07:	.EQU	$FE07
+LFF00:	.EQU	$FF00
+LFF03:	.EQU	$FF03
+LFF0B:	.EQU	$FF0B
+LFF0F:	.EQU	$FF0F
+LFF16:	.EQU	$FF16
+LFF18:	.EQU	$FF18
+LFF3B:	.EQU	$FF3B
+LFF3F:	.EQU	$FF3F
+LFFD6:	.EQU	$FFD6
+LFFDD:	.EQU	$FFDD
+LFFE4:	.EQU	$FFE4
+LFFEB:	.EQU	$FFEB
+LFFF2:	.EQU	$FFF2
+LFFF5:	.EQU	$FFF5
+LFFF9:	.EQU	$FFF9
+LFFFB:	.EQU	$FFFB
+LFFFF:	.EQU	$FFFF
 
 ; END OF EQUATE AREA
+
+	.END
