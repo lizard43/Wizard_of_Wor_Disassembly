@@ -47,19 +47,23 @@ L0026:          ld      a, $00          ; High byte for Interrupt Vector Table
                 ld      i, a            ; Interrupts will be triggered from $0000-$00FF
                 im      2               ; Set Interrupt Mode 2
 
-; *****************************************************************************
+;******************************************************************************************
 ; GAME INITIALIZATION & MEMORY SETUP
 ; Prepares the TERSE script environment, clears buffers, and seeds RNG
-; *****************************************************************************
+;******************************************************************************************
                 xor     a
                 ld      (LD2D3), a              ; Initialize unknown variable to zero
 
+;******************************************************************************************
 ; ----> EXPANSION ROM CHECK
+;******************************************************************************************
 L0030:          ld      a, (L8006)              ; Check High ROM extension socket
                 cp      $C3                     ; Is the byte a 'JP' ($C3) instruction?
                 call    z, L8006                ; If yes, execute external ROM initialization
 
+;******************************************************************************************
 ; ----> HARDWARE VARIABLE SETUP
+;******************************************************************************************
                 ld      hl, LD03A               ; Point to Protected RAM variable ($D03A)
                 ld      c, (hl)                 ; Read current value into C
 L003C:          inc     c                       ; Increment the value
@@ -71,17 +75,23 @@ L0040:          ld      hl, (LD038)             ; Load word from Protected RAM $
                 ld      hl, (LD03E)             ; Load word from Protected RAM $D03E
                 call    L00AA                   ; Execute Nybble parity/complement check
 
+;******************************************************************************************
 ; ----> CREDIT LIMIT CHECK
+;******************************************************************************************
                 ld      a, (LD03C)              ; Load Number of Credits
 L004F:          cp      $1F                     ; Compare with 31 ($1F)
                 call    nc, L00B5               ; If >= 31, zero out bottom of Static RAM
 
+;******************************************************************************************
 ; ----> BUFFER CLEARING
+;******************************************************************************************
 L0054:          ld      hl, Is_Speech_Active    ; Point to Speech Active flag ($D245)
                 call    L00BA                   ; Zero out 256 bytes (Sound/Speech buffers)
                 call    L00B8                   ; Zero out next 64 bytes
 
+;******************************************************************************************
 ; ----> RNG SEED & PROTECTED RAM MIRRORING
+;******************************************************************************************
                 ld      a, r                    ; Read Z80 Refresh Register for RNG entropy
                 ld      (LD34A), a              ; Store as random number seed in Work RAM
 
@@ -108,8 +118,9 @@ L007E:          ld      hl,L007E                ; Load address of this dispatche
                 call    L0875                   ; Fetch next TERSE token address into HL (IY++)
                 push    hl                      ; Push TERSE subroutine address to stack
 
+;******************************************************************************************
 ; ----> DIAGNOSTIC SWITCH ESCAPE HATCH
-
+;******************************************************************************************
                 in      a,($10)                 ; Read hardware switches (Coin/Service)
 L0088:          bit     3,a                     ; Check Service/Diagnostic Switch
                 ret     nz                      ; If switch is OFF, 'ret' executes the TERSE task!
@@ -119,8 +130,10 @@ L0088:          bit     3,a                     ; Check Service/Diagnostic Switc
                 ret     nz                      ; If game in progress, ignore switch and execute task
 
                 jp      L00FB                   ; Else, jump out of TERSE to native Z80 diagnostics!
-;
+
+;******************************************************************************************
 ; ----> INTERRUPT VECTOR & COLOR PALETTE MAPPING
+;******************************************************************************************
 L0093:          ld      a,$CA                   ; Interrupt vector at $CA
                 out     ($0D),a                 ; Set interrupt vector upper byte
 
@@ -129,12 +142,16 @@ L0093:          ld      a,$CA                   ; Interrupt vector at $CA
                 otir                            ; Rapidly blast 8 bytes from HL to port $0B
                 ret
 
+;******************************************************************************************
 ; ----> SET INTERRUPT VECTOR $CC
+;******************************************************************************************
 L00A0:          ld      a,$CC
                 out     ($0D),a                 ; Set interrupt vector upper byte
 L00A4:          ret
 
+;******************************************************************************************
 ; ----> SET INTERRUPT VECTOR $CE
+;******************************************************************************************
 L00A5:          ld      a,$CE
                 out     ($0D),a                 ; Set interrupt vector upper byte
                 ret
@@ -153,39 +170,38 @@ L00AB:          rlca                            ; \
                 cpl                             ; Complement A
                 cp      h                       ; Compare to H
                 ret     z                       ; IF match: Check passed! Return safely.
-;
-;*****************************************************
-; In:    None
-; Out:    Zero $40 (64) bytes at the bottom of
-;    static RAM $D000 to $D040
-;*****************************************************
-;
-L00B5:          ld      hl,LD000                ; Bottom of Static RAM
 
-L00B8:          ld      b,$40                   ; bytes to write
+;******************************************************************************************
+; ----> PROTECTED RAM WIPE ROUTINE
+;       Zeros out the 64 bytes of Protected Static RAM ($D000 - $D03F).
+;       Triggered by anti-tamper failure or >31 credits.
+;******************************************************************************************
+L00B5:          ld      hl,LD000                ; Point HL to bottom of Static RAM ($D000)
 
-L00BA:          ld      c,$00                   ; Fill with 0's
-                ld      a,$A5                   ; Unlock memory byte
+;******************************************************************************************
+; ----> PROTECTED MEMORY FILL ROUTINE
+;       Fills B bytes of Protected RAM with the value in C.
+;******************************************************************************************
+L00B8:          ld      b,$40                   ; B = 64 (bytes to write)
 
-L00BE:          out     ($5B),a                 ; Memory Protection Port
+L00BA:          ld      c,$00                   ; C = 0 (Fill value)
+                ld      a,$A5                   ; A = $A5 (Hardware NVRAM unlock byte)
 
-L00C0:          ld      (hl),c                  ; write byte
-                inc     hl                      ; next byte
-                djnz    L00BE                   ; Go until all byte written
-                ret                             ; Done!
-;
-;*********************************************************
-;
-; Data area for routines at ???
-; What is the data for ???
-;
-;*********************************************************
-;
+L00BE:          out     ($5B),a                 ; Output $A5 to port $5B to unlock memory
+L00C0:          ld      (hl),c                  ; Write byte to protected RAM
+                inc     hl                      ; Advance memory pointer
+                djnz    L00BE                   ; Loop until B = 0
+                ret
 
-L00C5:          DB      $51, $7c, $f3
-L00C8:          DB      $c7, $00, $56, $09, $9e, $09, $b4, $09
+;******************************************************************************************
+; ----> DEFAULT COLOR PALETTE MAPPING TABLE
+;       These bytes are sent to the Color Block Transfer port ($0B) during boot.
+;******************************************************************************************
+L00C5:          DB      $51, $7C, $F3
+L00C8:          DB      $C7, $00, $56, $09, $9E, $09, $B4, $09
 
-;
+
+
 ;*****************************************************
 ;
 ; This is called from the memory fill routine when it
