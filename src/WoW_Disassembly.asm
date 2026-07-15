@@ -202,179 +202,164 @@ L00C8:          DB      $C7, $00, $56, $09, $9E, $09, $B4, $09
 
 
 
-;*****************************************************
-;
-; This is called from the memory fill routine when it
-; gets an error. (See L00D4). It loads the refresh register
-; (random number) and outputs it to a video port.
-; This may be what makes the screen go crazy when video
-; memory is bad.
-;
-;*****************************************************
-;
-L00D0:          ld      a,r
-                out     ($09),a
-;
-;*****************************************************
-;
-; This routine is part of the memory test, or at least
-; it fills the memory to solid values. It takes a byte,
-; fills video memory, checks it. It then  complements
-; the byte and fills from top of video to bottom, checks it
-; then returns.
-; One of the interesting things is that this is a type of
-; worm test. It walks the byte through memory so it only has
-; to check the last location for the correct value.
-; If it's different than the pattern, then memory screwed
-; it up somewhere. In that case, it calls the error routine.
-; Another note, the "return" address is in HL, so if calling
-; this routine, you have to set up HL with where you want
-; it to "return" to.
-;
-;*****************************************************
-;
-L00D4:          exx                             ; Swap the main registers
-                ld      hl,L4000                ; Point to beginning of video memory
-                ld      (hl),a                  ; Load the pattern to write in first
-                ; byte of video memory
-                ld      de,L4001                ; point to one byte later
-                ld      bc,$3FFF                ; set count for all memory
-                ldir                            ; walk the bit through memory
-                cp      (hl)                    ; did the pattern change?
-                jr      nz,L00D0                ; yes, then go to error routine
-                ex      af,af'                  ; exchange AF
-                in      a,($10)                 ; Kick the dog
-                ex      af,af'                  ; exchange again
-L00E8:          dec     de                      ; set up de to correct place
-                dec     de                      ; ... for the next pass
-                cpl                             ; complement the pattern
-                ld      (hl),a                  ; load it at top of video memory
-                ld      bc,$3FFF                ; whole video memory as before
-                lddr                            ; work it down..
-                cp      (hl)                    ; did it change?
-                jr      nz,L00D0                ; yes, go to error routine
-                ex      af,af'                  ; exchange
-                in      a,($10)                 ; kick the dog
-                ex      af,af'                  ; swap back
-                cpl                             ; complement the pattern back
-                exx                             ; swap the main register back
-                jp      (hl)                    ; Go back from whence it came...
-;
-;*********************************************************
-;
-; Entry point to the game diagnostics. The diagnostics
-; loop is terminated by a RST $00 when the diag
-; switch is turned off. Otherwise, it loops forever.
-;
-;*********************************************************
-;
-L00FB:          di                              ; no interuptions
-                ld      a,(L8006)               ; Load from ROM
-L00FF:          cp      $C3                     ; check ROM $8006 for a Jump
-                ; instruction... Why check???
-L0101:          call    z,L8006                 ; Well, call it if it's there...
-                call    L06CC                   ; I think this sets up sound to
-                ; a known state. ???
-                ld      a,$80                   ; Load a pattern for video
-                ; memory test (Pattern is 1000 0000B)
-                ; and fall through to the test...
-;
-;*********************************************************
-;
-; Set up return to $010e and call memory test fill pass
-; at l00d4. ???
-;
-;*********************************************************
-;
-L0109:          ld      hl,L010E                ; set the return location to l010e
-                jr      L00D4                   ; Off to fill video memory...
-;
-;*********************************************************
-;
-; This rotates the initial test pattern in a (which looks
-; to be $80 (or 1000 0000 binary) to walk the bit to the
-; right for each pass. When a=0, then it's done and moves on.
-;
-;*********************************************************
-;
-L010E:          and     a                       ; Set the flags
-                jr      z,L0114                 ; Jump if done...
-L0111:          rra                             ; Change the fill pattern by walking bit right
-                jr      L0109                   ; Go to memory fill at l0109
-;
-;*********************************************************
-;
-; Entry point to the game after the Video RAM tests are
-; complete. Let's go play Wizard of Wor! ???
-;
-;*********************************************************
-;
-L0114:          ld      sp,L8000                ; Set stack pointer right
-                ; below high ROM, but into
-                ; the top of video memory.
-                ; Turns out that video memory ends at $7fbf
-                ; and from $7fc0 to $7fff ($40 bytes) is not
-                ; displayed. That $40 bytes is used for the stack.
-L0117:          call    L08AE                   ; Reset video and blank some static RAM ???
-                ld      hl,L042E                ; String "SCREEN RAM OK"
-                ld      de,L001A                ; Color (RED) ???
-                ld      b,$0D                   ; Length
-                call    L03B3                   ; Go write the string - check on details ???
-;
-;
-;*****************************************************
-;
-; Static RAM test starts here
-;
-;*****************************************************
-;
-                ld      hl,LD000                ; Bottom of Static RAM
-                ld      bc,$0004                ; Outer loop setup
-                ld      d,$FF                   ; Pattern
-                ld      a,$A5                   ;
-L012F:          out     ($5B),a                 ; Enable write to protected memory
-                ld      (hl),d                  ; Store in Static RAM
-                ld      d,(hl)                  ; Read it back in
-                inc     hl                      ; Increment to next location to test
-                djnz    L012F                   ; ... and keep going until 255 bytes checked
-                dec     c                       ; count down the outer loop
-                jr      nz,L012F                ; Outer loop is executed 4 times for 1K
-                ld      a,d                     ; Load test character again
-                cp      $FF                     ; Is it an $FF?
-                jr      nz,L016C                ; No, jump off to error
-                ld      c,$04                   ; Set up outer loop again
-L0140:          inc     d                       ; Bump up test character...
-                ld      a,$A5                   ;
-L0143:          out     ($5B),a                 ; Enable write to protected memory
-                dec     hl                      ; Going down through memory
-                ld      (hl),d                  ; Store test character
-                ld      d,(hl)                  ; Get it back from memory
-                djnz    L0143                   ; Go until bottom of static RAM reached
-                dec     c                       ; Outer loop ???
-                jr      nz,L0143                ; go do ??? until ???
-                ld      a,d                     ;
-                and     a                       ; Test if we got back test character correctly
-                jr      nz,L016C                ; Jump to ??? if not
-                ld      c,$04                   ; Set up for next pass
-L0153:          or      (hl)                    ; change bit pattern in memory
-L0154:          inc     hl                      ; next (going up)
-L0155:          djnz    L0153                   ; Again until reach end of memory
-                dec     c                       ; Outer loop ???
-                jr      nz,L0153                ; More until ???
-                and     a                       ; Did we get back correct byte? ???
-                jr      nz,L016C                ; Off to the error routine if not...
+;******************************************************************************************
+; ----> VIDEO RAM FAILURE / CRASH HANDLER
+;            Causes the screen to flash wildly by spamming random values to the palette port.
+;******************************************************************************************
+L00D0:          ld      a,r                     ; Get random value from Z80 Refresh Register
+                out     ($09),a                 ; Output to background color / palette port
 
-                ld      a,$55                   ;
-                ld      (LD045),a               ; This location seems to hold a $55 when ??? and static RAM tests OK
-                ld      a,(LD045)               ; This location seems to hold a $55 when ??? and static RAM tests OK
-                cp      $55                     ;
+;******************************************************************************************
+; ----> VIDEO RAM TEST / FILL ROUTINE
+;            Stackless memory test. Propagates a test byte across VRAM ($4000-$7FFF),
+;            checks it, then propagates the inverted byte backwards.
+;            Expects return address in HL (uses EXX to preserve it without the stack).
+;******************************************************************************************
+L00D4:          exx                             ; Swap registers (saves return address into HL')
+                ld      hl,$4000                ; Point HL to start of Video RAM
+                ld      (hl),a                  ; Write the test pattern to $4000
 
-                ld      hl,$043B                ; String "STATIC RAM OK "
-L016A:          jr      z,L016F                 ; Skip if static RAM is good ???
-L016C:          ld      hl,L0449                ; String "STATIC RAM BAD"
-L016F:          ld      de,$051A                ; Set color and ???
-                ld      b,$0E                   ; Length
-                call    L03B3                   ; Write the string
+                ld      de,$4001                ; Point DE to the next byte ($4001)
+                ld      bc,$3FFF                ; Count = 16KB minus 1 byte
+                ldir                            ; Rapidly copy (HL) to (DE), filling VRAM upward
+
+                cp      (hl)                    ; Does the last written byte still match the pattern?
+                jr      nz,L00D0                ; IF NOT: Memory failed! Jump to crash handler
+
+                ex      af,af'                  ; Save Accumulator and Flags
+                in      a,($10)                 ; Read hardware switches (Hardware Watchdog kick)
+                ex      af,af'                  ; Restore Accumulator and Flags
+
+L00E8:          dec     de                      ; \ Adjust DE from $8000 down to $7FFE
+                dec     de                      ; / for the reverse fill operation
+
+                cpl                             ; Invert the test pattern in A (e.g. $80 becomes $7F)
+                ld      (hl),a                  ; HL is now $7FFF. Write inverted pattern to top of VRAM
+                ld      bc,$3FFF                ; Count = 16KB minus 1 byte
+                lddr                            ; Rapidly copy (HL) to (DE) backwards, filling VRAM downward
+
+                cp      (hl)                    ; Does the last written byte still match inverted pattern?
+                jr      nz,L00D0                ; IF NOT: Memory failed! Jump to crash handler
+
+                ex      af,af'                  ; Save Accumulator and Flags
+                in      a,($10)                 ; Read hardware switches (Hardware Watchdog kick)
+                ex      af,af'                  ; Restore Accumulator and Flags
+
+                cpl                             ; Invert the pattern back to its original state
+                exx                             ; Swap registers back (restores return address into HL)
+                jp      (hl)                    ; Stackless return! Jump to address in HL
+
+;******************************************************************************************
+; ----> HARDWARE DIAGNOSTICS & MEMORY TEST ENTRY
+;            Disables interrupts, checks for an expansion ROM, resets hardware state,
+;            and seeds the Video RAM worm test with the initial pattern ($80).
+;******************************************************************************************
+L00FB:          di                              ; Disable interrupts during diagnostics
+                ld      a,(L8006)               ; Check High ROM extension socket
+L00FF:          cp      $C3                     ; Is the byte a 'JP' ($C3) instruction?
+L0101:          call    z,L8006                 ; If yes, execute external diagnostic ROM
+
+                call    L06CC                   ; Reset hardware state / sparkle colors
+
+                ld      a,$80                   ; A = $80 (10000000b) initial VRAM test pattern
+                                                ; Falls through into the Video RAM worm test...
+;
+;******************************************************************************************
+; ----> VIDEO RAM WORM TEST LOOP
+;            Sets the stackless return address to L010E and executes the VRAM fill/check.
+;******************************************************************************************
+L0109:          ld      hl,L010E                ; Set return address for stackless memory test
+                jr      L00D4                   ; Execute VRAM test (L00D4)
+
+;******************************************************************************************
+; ----> TEST PATTERN SHIFTER
+;            Shifts the walking bit right. If 0, the test is complete.
+;******************************************************************************************
+L010E:          and     a                       ; Check if the walking bit has shifted out (A=0)
+                jr      z,L0114                 ; IF 0: VRAM test passed! Jump to game start
+L0111:          rra                             ; Rotate the test bit right (e.g., $80 -> $40)
+                jr      L0109                   ; Loop back to test VRAM with the new pattern
+
+;******************************************************************************************
+; ----> MAIN GAME ENTRY & STACK SETUP
+;            Moves the temporary boot stack to its permanent home in the non-viewable
+;            Video RAM margin ($7FC0 - $7FFF) and prints the success message.
+;******************************************************************************************
+L0114:          ld      sp,$8000                ; Set permanent stack (pre-decrements to $7FFF)
+
+L0117:          call    L08AE                   ; Clear screen, init video, and clear Work RAM
+
+                ld      hl,L042E                ; Source string: "SCREEN RAM OK"
+                ld      de,$001A                ; String formatting and color attributes
+                ld      b,$0D                   ; String length (13 characters)
+                call    L03B3                   ; Execute string print routine
+;
+;******************************************************************************************
+; ----> STATIC RAM TEST
+;            Three-pass memory test for the 1KB NVRAM ($D000 - $D3FF).
+;            Pass 1: Fills upward with $FF. Pass 2: Fills downward with $00.
+;            Pass 3: Scans upward to verify all bytes remain $00.
+;******************************************************************************************
+                ld      hl,LD000                ; HL = $D000 (Start of Static RAM)
+                ld      bc,$0004                ; B = 0 (256 loops), C = 4 (1KB total)
+                ld      d,$FF                   ; D = $FF (Initial test pattern)
+                ld      a,$A5                   ; A = $A5 (Hardware NVRAM unlock byte)
+
+L012F:          out     ($5B),a                 ; Unlock NVRAM for writing
+                ld      (hl),d                  ; Write $FF pattern to memory
+                ld      d,(hl)                  ; Read it back into D to test data bus
+                inc     hl                      ; Advance memory pointer upward
+                djnz    L012F                   ; Inner loop: write 256 bytes
+                dec     c                       ; Outer loop: 4 blocks (1024 bytes)
+                jr      nz,L012F
+
+                ld      a,d                     ; Check the last byte read
+                cp      $FF                     ; Did the data bus hold the $FF?
+                jr      nz,L016C                ; IF NOT: Memory failed! Jump to error handler
+
+                ld      c,$04                   ; Reset outer loop counter for 1KB
+L0140:          inc     d                       ; Bump test pattern: $FF + 1 = $00
+                ld      a,$A5                   ; A = $A5 (NVRAM unlock byte)
+
+L0143:          out     ($5B),a                 ; Unlock NVRAM for writing
+                dec     hl                      ; Advance memory pointer downward (Starts at $D400 -> $D3FF)
+                ld      (hl),d                  ; Write $00 pattern to memory
+                ld      d,(hl)                  ; Read it back into D
+                djnz    L0143                   ; Inner loop: write 256 bytes
+                dec     c                       ; Outer loop: 4 blocks (1024 bytes)
+                jr      nz,L0143
+
+                ld      a,d                     ; Check the last byte read
+                and     a                       ; Did the data bus hold the $00?
+                jr      nz,L016C                ; IF NOT: Memory failed! Jump to error handler
+
+                ld      c,$04                   ; Reset outer loop counter for 1KB
+L0153:          or      (hl)                    ; Accumulate any non-zero bits into A
+L0154:          inc     hl                      ; Advance memory pointer upward
+L0155:          djnz    L0153                   ; Inner loop: scan 256 bytes
+                dec     c                       ; Outer loop: 4 blocks
+                jr      nz,L0153
+
+                and     a                       ; Are there ANY non-zero bits left in the entire 1KB?
+                jr      nz,L016C                ; IF YES: Memory failed! Jump to error handler
+
+;******************************************************************************************
+; ----> STATIC RAM TEST PASS / FAIL HANDLER
+;            Performs one final checkerboard byte check, then prints the RAM status.
+;******************************************************************************************
+                ld      a,$55                   ; A = $55 (01010101b checkerboard pattern)
+                ld      (LD045),a               ; Write $55 to $D045 (Static RAM)
+                ld      a,(LD045)               ; Read it back
+                cp      $55                     ; Did it hold the $55 without shorting adjacent bits?
+
+                ld      hl,$043B                ; Source string: "STATIC RAM OK "
+L016A:          jr      z,L016F                 ; IF PASSED: Jump to print string
+
+L016C:          ld      hl,L0449                ; Source string: "STATIC RAM BAD"
+
+L016F:          ld      de,$051A                ; String formatting and color attributes
+                ld      b,$0E                   ; String length (14 characters)
+                call    L03B3                   ; Execute string print routine
 ;
 ;*****************************************************
 ;
