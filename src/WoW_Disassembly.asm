@@ -361,122 +361,163 @@ L016F:          ld      de,$051A                ; String formatting and color at
                 ld      b,$0E                   ; String length (14 characters)
                 call    L03B3                   ; Execute string print routine
 ;
-;*****************************************************
-;
-;Start checking ROMS
-;
-;*****************************************************
-                ld      hl,L0457                ; String "ROM "
-                ld      de,L0A28                ; Set color and ???
-                call    L03B1                   ; Sets length to $04 and drops
-                ; through to the write string
-                ; routine.
-                ld      hl,L03D5                ; String "ABCDEFGX"
-                exx                             ; Swap the registers
-                ld      de,L03E0                ; ???
-                ld      hl,$0000                ; Point to ROM beginning
-                ld      a,(LD347)               ; ???
-                in      a,($13)                 ; Check if Foriegn language switch
-                bit     3,a                     ; ... in bit 3 (DSW Switch 4 - English=On)
-                ld      b,$07                   ; B=initial number of ROMS
-                jr      nz,L0196                ; If it's English, leave ROM count at 7
-                inc     b                       ; If Foreign, Set ROM count to 8
-L0196:          push    bc                      ; Below is ROM check... details to come... ???
-                ld      a,h                     ;
-                cp      $40                     ; Is H=$40? ???
-                jr      nz,L019E                ; No, skip ahead
-                ld      h,$80                   ; H=80 ???
-L019E:          cp      $B0                     ; Is old H=$B0? ???
-                jr      nz,L01A7                ; No, skip ahead
-                ld      de,LC00A                ; DE is set to location in alt. char. ROM
-                ld      h,$C0                   ; H=$C0???
-L01A7:          ld      bc,L0010                ;
-                xor     a                       ; A=0
-L01AB:          add     a,(hl)                  ;
-                inc     hl                      ;
-                djnz    L01AB                   ; Add 255 bytes starting at HL
-                dec     c                       ;
-                jr      nz,L01AB                ; ... 16 times for a total of 4K
-                ex      de,hl                   ;
-                cp      (hl)                    ;
-                inc     hl
-                ex      de,hl
-                exx
-                jr      z,L01C1
-                ld      a,d
-                ld      (LD1D4),a
-                call    L0374
-                dec     hl
-L01C1:          inc     hl
-                exx
-                pop     bc
-                djnz    L0196
-;
-; End of ROM Test
-;
+;******************************************************************************************
+; ----> ROM INTEGRITY TEST
+;            Sums the bytes of each 4KB ROM chip and compares against a checksum table.
+;            Uses EXX to juggle two sets of pointers (ROM/Checksums vs Name Strings).
+;******************************************************************************************
+                ld      hl,L0457                ; Source string: "ROM "
+                ld      de,$0A28                ; DE = Color and screen formatting
+                call    L03B1                   ; Print "ROM "
+
+                ld      hl,L03D5                ; HL = String "ABCDEFGX" (ROM labels)
+                exx                             ; Swap to Alternate Registers (HL' now holds labels)
+
+                ld      de,L03E0                ; DE = Expected ROM Checksums Table
+                ld      hl,$0000                ; HL = $0000 (Start of ROM memory)
+
+; ----> CHECK DIP SWITCH FOR FOREIGN ROM
+                ld      a,(LD347)               ; (Dummy read)
+                in      a,($13)                 ; Read Dip Switches (Port $13)
+                bit     3,a                     ; Check Language Switch (On = English)
+                ld      b,$07                   ; Default to 7 ROMs (A through G)
+                jr      nz,L0196                ; IF English: Jump to test
+                inc     b                       ; IF Foreign: Set count to 8 ROMs (A through X)
+
+; ----> BEGIN ROM CHECK LOOP
+L0196:          push    bc                      ; Save ROM loop counter
+
+; ----> MEMORY GAP SKIPS (VRAM & EMPTY SOCKETS)
+                ld      a,h                     ; Check current ROM high byte
+                cp      $40                     ; Is pointer at $4000 (Start of Video RAM)?
+                jr      nz,L019E                ; IF NOT: Skip to next check
+                ld      h,$80                   ; IF YES: Jump over VRAM directly to High ROMs ($8000)
+
+L019E:          cp      $B0                     ; Is pointer at $B000 (Empty socket)?
+                jr      nz,L01A7                ; IF NOT: Skip ahead
+                ld      de,$C00A                ; IF YES: Redirect expected checksum pointer
+                ld      h,$C0                   ; And jump pointer to Alternate ROM space ($C000)
+
+; ----> 4KB CHECKSUM CALCULATION (modulo-256 checksum)
+L01A7:          ld      bc,$0010                ; B = 0 (256 loops), C = 16 (16 * 256 = 4096 bytes)
+                xor     a                       ; A = 0 (Clear accumulator for checksum)
+L01AB:          add     a,(hl)                  ; Accumulate byte into A
+                inc     hl                      ; Advance to next ROM byte
+                djnz    L01AB                   ; Inner loop: 256 bytes
+                dec     c                       ; Outer loop: 16 blocks (4KB total)
+                jr      nz,L01AB
+
+; ----> COMPARE AND PRINT RESULTS
+                ex      de,hl                   ; Swap ROM pointer and Checksum Table pointer
+                cp      (hl)                    ; Compare calculated sum (A) with expected sum (HL)
+                inc     hl                      ; Advance Checksum Table pointer for next pass
+                ex      de,hl                   ; Swap pointers back
+
+                exx                             ; Swap to Alternate Registers (HL' = "ABCDEFGX")
+                jr      z,L01C1                 ; IF CHECKSUM MATCHES: Jump ahead to next letter
+
+                ld      a,d                     ; IF CHECKSUM FAILS: Save color formatting from D'
+                ld      (LD1D4),a               ; Store it in RAM
+                call    L0374                   ; Print the failing ROM's letter (pointed to by HL')
+                dec     hl                      ; Adjust string pointer backwards so it stays aligned
+
+L01C1:          inc     hl                      ; Advance string pointer to next ROM letter ("A" -> "B")
+                exx                             ; Swap back to Main Registers
+                pop     bc                      ; Restore ROM loop counter
+                djnz    L0196                   ; Loop until all 7 (or 8) ROMs are checked
+
+;******************************************************************************************
+; ----> HARDWARE DIAGNOSTICS & SWITCH TEST SCREEN (UI SETUP)
+;            Draws the text labels for the diagnostic screen.
+;******************************************************************************************
                 exx                             ; Restore registers after ROM test
-                ld      hl,$0446                ; String "OK"
-                ld      a,(LD1D4)               ; ???
-                and     a                       ;
-                call    z,L0356                 ; ???
-                ld      a,$01                   ;
-                ld      (LD1C5),a               ; Save 01 in ???
-                ld      de,$1403                ; Set color and ??? for string write
-                call    L03A7                   ; Go write "MOVE" and "FIRE" then drop to write routine
-                ld      e,$30                   ; change color or ??? for string write
-                call    L03A7                   ; Go write "MOVE" and "FIRE" then drop to write routine
-L01E1:          ld      de,L1E0B                ; Set color and ??? for string write
-                call    L03AE                   ; Write "FIRE" and drop to write string
-                ld      e,$38                   ; change color or ??? for string write
-                call    L03AE                   ; Write "FIRE" and drop to write string
-                ld      hl,L0408                ; String "PL1"
-                ld      de,L230B                ; Color and ??? for string write
-                call    L03A3                   ; B=3 and drop to write string
-                ld      hl,L040B                ;
+                ld      hl,$0446                ; Source string: "OK"
+                ld      a,(LD1D4)               ; Read ROM failure flag ($D1D4)
+                and     a                       ; Is it zero? (No failures)
+                call    z,L0356                 ; IF 0: Print "OK"
+
+                ld      a,$01
+                ld      (LD1C5),a               ; Set diagnostic screen active flag
+
+; ----> DRAW INPUT LABELS
+                ld      de,$1403                ; Screen formatting attributes
+                call    L03A7                   ; Print "MOVE" (Player 1 side)
+                ld      e,$30
+                call    L03A7                   ; Print "MOVE" (Player 2 side)
+
+L01E1:          ld      de,$1E0B
+                call    L03AE                   ; Print "FIRE" (Player 1 side)
                 ld      e,$38
-                call    L03A3
-L01FD:          ld      de,L280B
-L0200:          ld      hl,L03DD
-L0203:          call    L03BA
+                call    L03AE                   ; Print "FIRE" (Player 2 side)
+
+                ld      hl,L0408                ; Source string: "PL1"
+                ld      de,$230B
+                call    L03A3                   ; Print "PL1"
+                ld      hl,L040B                ; Source string: "PL2"
+                ld      e,$38
+                call    L03A3                   ; Print "PL2"
+
+L01FD:          ld      de,$280B
+L0200:          ld      hl,L03DD                ; Source string: "123" (Coin inputs)
+L0203:          call    L03BA                   ; Print "123"
 L0206:          ld      e,$38
-                call    L03BA
+                call    L03BA                   ; Print "123" again
 L020B:          ld      e,$22
-                call    L03BA
-                ld      de,L2D0B
-                ld      hl,L0412
-call            L03B1
-                ld      hl,L0416
-                ld      de,L2D22
-                call    L03C4                   ; Write a string and ???
-                ld      de,L2D38
-                call    L03C4                   ; Write a string and ???
-L0228:          ei                              ; OK to interrupt me...
-                ld      de,LD1D6                ; Player 2 control status save area
-                in      a,($11)                 ; Read player 2 controls
-                cpl                             ; ???
-                ld      (de),a                  ; Save Player 2 control status
-L0230:          ld      de,LD1D7                ; Player 1 control status save area
-                in      a,($12)                 ; Read Player 1 controls
-                cpl                             ; ???
-                ld      (de),a                  ; Save Player 1 control status
-                ld      de,L190B                ; ???
-                ld      hl,LD1CE                ; ???
-                ld      a,(LD1D6)               ; Load Player 2 control status
-                call    L0317                   ; ???
-                ld      de,L1939                ; ???
-                ld      hl,LD1CF                ; ???
-                ld      a,(LD1D7)               ; Load Player 1 control status
-                call    L0317                   ; ???
-                ld      de,L1903                ; ???
-                ld      hl,LD1D0                ; ???
-                ld      a,(LD1D6)               ; Load Player 2 control status
-                and     $10                     ; ???
-                call    L0397                   ; Test and write YES or NO
-                ld      e,$30                   ; ???
-                ld      hl,LD1D1                ; ???
-                ld      a,(LD1D7)               ; Load Player 1 control status
-                and     $10                     ; ???
-                call    L0397                   ; Test and write YES or NO
+                call    L03BA                   ; Print "123" again
+
+                ld      de,$2D0B
+                ld      hl,L0412                ; Source string: "SLAM"
+                call    L03B1                   ; Print "SLAM"
+
+                ld      hl,L0416                ; Source string: "SW1SW2..." (Dip switches)
+                ld      de,$2D22
+                call    L03C4                   ; Print dip switch labels
+                ld      de,$2D38
+                call    L03C4                   ; Print more dip switch labels
+
+;******************************************************************************************
+; ----> HARDWARE DIAGNOSTICS INPUT LOOP
+;            Reads ports, complements them (active-low to active-high), isolates bits,
+;            and uses L0397 to selectively print "YES" or "NO" if the state changed.
+;******************************************************************************************
+L0228:          ei                              ; Enable interrupts to allow screen refresh
+
+                ld      de,LD1D6                ; Point to Player 2 / Cocktail controls buffer
+                in      a,($11)                 ; Read Port $11 (Player 2 joystick/buttons)
+                cpl                             ; Invert (Active-low to active-high)
+                ld      (de),a                  ; Save Player 2 state to $D1D6
+
+L0230:          ld      de,LD1D7                ; Point to Player 1 controls buffer
+                in      a,($12)                 ; Read Port $12 (Player 1 joystick/buttons)
+                cpl
+                ld      (de),a                  ; Save Player 1 state to $D1D7
+
+; ----> CHECK JOYSTICK DIRECTIONS (Port $11 / $12)
+                ld      de,$190B                ; Screen formatting attributes
+                ld      hl,LD1CE                ; State tracking variable
+                ld      a,(LD1D6)               ; Load Player 2 controls
+                call    L0317                   ; Evaluate direction status
+
+                ld      de,$1939
+                ld      hl,LD1CF
+                ld      a,(LD1D7)               ; Load Player 1 controls
+                call    L0317                   ; Evaluate direction status
+
+; ----> CHECK FIRE BUTTONS (Port $11 / $12)
+                ld      de,$1903
+                ld      hl,LD1D0                ; State tracking variable
+                ld      a,(LD1D6)
+                and     $10                     ; Isolate Bit 4 (Button 2)
+                call    L0397                   ; Test bit and print "YES" or "NO "
+
+                ld      e,$30
+                ld      hl,LD1D1
+                ld      a,(LD1D7)
+                and     $10                     ; Isolate Bit 4 (Button 2)
+                call    L0397
+
+
+
                 ld      de,L1E03                ; ???
                 ld      hl,LD1CC                ; ???
                 ld      a,(LD1D6)               ; Load Player 2 control status
@@ -487,6 +528,10 @@ L0230:          ld      de,LD1D7                ; Player 1 control status save a
                 ld      a,(LD1D7)               ; Load Player 1 control status
                 and     $20                     ; ???
                 call    L0397                   ; Test and write YES or NO
+
+
+
+
                 ld      de,L2303                ; ???
                 ld      hl,LD1D2                ; ???
                 in      a,($10)                 ; Check IN0 for activity
@@ -523,6 +568,8 @@ L02A8:          cpl
                 cpl
 L02D1:          and     $10
                 call    L0397
+
+
                 ld      a,(LD347)
                 in      a,($13)
 L02DB:          cpl
