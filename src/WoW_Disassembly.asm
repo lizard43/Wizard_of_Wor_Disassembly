@@ -1,191 +1,158 @@
 ; #INCLUDE "..\\WoW Disassembly Include Files\\WoW Disassembly Header.include"
 
-; Verified working 7/8/2018
+;*****************************************************************************
+; SYSTEM BOOT & HARDWARE INITIALIZATION
+;*****************************************************************************
+                ORG     $0000                   ; ROM Start / Magic RAM start
 
-;******************************************************************************
-; Begin game initialization
-;******************************************************************************
-                ORG     $0000                   ; Beginning of ROM (see memory map)
+                di                              ; Disable interrupts during boot
+                ld      sp, $D400               ; Initialize temporary boot stack
+                                                ; (Pushes pre-decrement to $D3FF, top of Work RAM)
 
-                di                              ; No Interruptions
-                ld      sp,$D400                ; Set Stack at $D400 ($0400 stack size)
-                    ; STATIC RAM is at $D000 - $D3FF
-                ld      a,$01
-L0006:          out     ($08),a                 ; Set Video to HI-RES
+                ld      a, $01
+L0006:          out     ($08), a                ; Video Mode: 1 = High Res (320x204)
 
-L0008:          ld      a,00101100b             ; 00xxxxxxb = Position to switch left and right
-L000A:          out     ($09),a                 ; pallete. xx000000b vblank color
+L0008:          ld      a, $2C                  ; 00101100b
+L000A:          out     ($09), a                ; Set palette switch position and background color
 
-L000C:          ld      a,$CC                   ; Set to 204 screen height.
-                out     ($0A),a                 ; Note DNA manual says 0-203. Why 204?
+L000C:          ld      a, $CC                  ; $CC = 204
+                out     ($0A), a                ; Vertical Blank: Set screen height to 204 scanlines
 
-L0010:          call    L0093                   ; Set interrupt vector and color mapping
+L0010:          call    L0093                   ; Set interrupt vector to $CA & map color palette
 
-                ld      a,00001000b             ; 0000S0L0b = Enable/disable Screen/Lightpen interrupts
-L0015:          out     ($0E),a                 ; 00000S0Lb = MODE for Screen/Lightpen interrupts
+                ld      a, $08                  ; 00001000b (Bit 3 = 1)
+L0015:          out     ($0E), a                ; Interrupt Enable: Turn on Line Interrupts
 
-
-L0017:          ld      a,00000000b             ; Disable coin counter 3
-                in      a,($15)
-                ld      a,00000010b             ; Disable coin counter 2
-                in      a,($15)
-                ld      a,00001110b             ; Disable ???  On gorf it is unused light transistor
-                in      a,($15)
-
-                call    L06C8                   ; Set interrupt line and turn on all sparkle colors
-
-L0026:          ld      a,$00                   ; Set High order byte for Interrupt
-                ld      i,a                     ; Interrupts will be from $0000 to $00FF
-                im      2                       ; Explaination: A call is made to an address read from
-                    ; address (register I � 256 + value from interrupting device)
-
-
-
-;******************************************************************************
+;******************************************************************************************
+; ----> SPECIAL CONTROL REGISTER 1 ($15)
 ;
-; This looks like the end of the hardware initialization code
-; and the beginning of the code to run the game. So far, I have found that the
-; program has tokens associated with subroutines and are kept in a table and
-; called by indexing in IY.
-;
-; This is due to this being a Forth like language called TERSE. The tokens
-; are really "Forth" words and the subroutines associated with it are
-; what the "Forth" commands execute.
-;
-;******************************************************************************
+; Note: Writes to this port are performed using IN instructions!
+; Format: 0000 xxx y (xxx = function 0-7, y = 0 activate / 1 deactivate)
+;******************************************************************************************
+L0017:          ld      a, $00          ; 0000 000 0 (Function 0: Coin Counter 3)
+                in      a, ($15)        ; Activate Coin Counter 3 latch
 
+                ld      a, $02          ; 0000 001 0 (Function 1: Coin Counter 2)
+                in      a, ($15)        ; Activate Coin Counter 2 latch
+
+                ld      a, $0E          ; 0000 111 0 (Function 7: Unused/Light Transistor)
+                in      a, ($15)        ; Activate unused latch
+
+                call    L06C8           ; Set scan line interrupt & enable sparkle colors
+
+;******************************************************************************************
+; ----> SET INTERRUPT MODE
+;******************************************************************************************
+L0026:          ld      a, $00          ; High byte for Interrupt Vector Table
+                ld      i, a            ; Interrupts will be triggered from $0000-$00FF
+                im      2               ; Set Interrupt Mode 2
+
+; *****************************************************************************
+; GAME INITIALIZATION & MEMORY SETUP
+; Prepares the TERSE script environment, clears buffers, and seeds RNG
+; *****************************************************************************
                 xor     a
-                ld      (LD2D3),a               ; Zero ??? (location always seems to have a $D2 in it)
+                ld      (LD2D3), a              ; Initialize unknown variable to zero
 
-L0030:          ld      a,(L8006)               ; If l8006 = Jump Instruction, call it
-                cp      $C3
-                call    z,L8006                 ; Load ($D270)->($D272) with $18, $40, $87
-                ; Zero 14 locations above
-                ; Zero music output (8 zero bytes to music output block)
-                ; Zero 42 locations below
-                ; ??? (need to trace more)
-;
-; Temporary !!!
-; At this point, memory between has the following:
-; $D270 = $18, $40, $87
-; $D281 = $01
-; $D2AC = $58, $40, $87
-; $D2BE = $01
-; $D3F5 = $AF, $D2, $AF, $D2, $58, $08, $AB, $D2, $63, $82, $38
-;
-;
-                ld      hl,LD03A                ; Increment <??? variable>
-                ld      c,(hl)                  ;
-L003C:          inc     c                       ;
-                call    L0F6A                   ; Write to protected memory (HL)=C routine
+; ----> EXPANSION ROM CHECK
+L0030:          ld      a, (L8006)              ; Check High ROM extension socket
+                cp      $C3                     ; Is the byte a 'JP' ($C3) instruction?
+                call    z, L8006                ; If yes, execute external ROM initialization
 
+; ----> HARDWARE VARIABLE SETUP
+                ld      hl, LD03A               ; Point to Protected RAM variable ($D03A)
+                ld      c, (hl)                 ; Read current value into C
+L003C:          inc     c                       ; Increment the value
+                call    L0F6A                   ; Safely write C back through hardware latch
 
-L0040:          ld      hl,(LD038)              ; Load <??? variable>
-                call    L00AA                   ; ...and ???
+L0040:          ld      hl, (LD038)             ; Load word from Protected RAM $D038
+                call    L00AA                   ; Execute Nybble parity/complement check
 
-                ld      hl,(LD03E)              ; Load <??? variable>
-                call    L00AA                   ; ...and ???
+                ld      hl, (LD03E)             ; Load word from Protected RAM $D03E
+                call    L00AA                   ; Execute Nybble parity/complement check
 
-                ld      a,(LD03C)               ; If ($d03c)=$1f then
-L004F:          cp      $1F                     ; ...Go zero first $40 bytes of static RAM  ($D000-$D03F)
-                call    nc,L00B5                ;
+; ----> CREDIT LIMIT CHECK
+                ld      a, (LD03C)              ; Load Number of Credits
+L004F:          cp      $1F                     ; Compare with 31 ($1F)
+                call    nc, L00B5               ; If >= 31, zero out bottom of Static RAM
 
-L0054:          ld      hl,Is_Speech_Active     ;
-                call    L00BA                   ; 256 bytes to $D245 ???
-                call    L00B8                   ; 64 bytes to
+; ----> BUFFER CLEARING
+L0054:          ld      hl, Is_Speech_Active    ; Point to Speech Active flag ($D245)
+                call    L00BA                   ; Zero out 256 bytes (Sound/Speech buffers)
+                call    L00B8                   ; Zero out next 64 bytes
 
-                ld      a,r                     ; Load a with refresh register??? RND Number?
-                ld      (LD34A),a               ; ...and save it to <??? variable>
+; ----> RNG SEED & PROTECTED RAM MIRRORING
+                ld      a, r                    ; Read Z80 Refresh Register for RNG entropy
+                ld      (LD34A), a              ; Store as random number seed in Work RAM
 
-                ld      hl,LD000                ; Move $20 bytes (32 decimal) from $D000 to $D300
-                ld      de,LD300                ;
-L0068:          ld      bc,L0020                ;
-                ldir                            ;
+                ld      hl, LD000               ; Source = $D000 (Protected RAM)
+                ld      de, LD300               ; Dest   = $D300 (Work RAM)
+L0068:          ld      bc, L0020               ; Length = $0020 (32 bytes)
+                ldir                            ; Mirror Protected RAM to fast Work RAM
 
-                call    L08AE                   ; Reset video and blank some static RAM ???
+                call    L08AE                   ; Clear screen, init video, clear Work RAM
 
-;
-; Here is where all the real stuff starts happening. Details are few, but from what
-; I can gather, this part runs the demo and game loop. It also checks to see if the
-; diagnostic switch is set and jumps to diagnostic loop if so at the end of a game or
-; the demo loop. ???
-;
+;******************************************************************************************
+; ----> TERSE SCRIPT DISPATCHER (THE GAME LOOP)
+;       IY acts as the Instruction Pointer for TERSE script tokens.
+;******************************************************************************************
+                ld      a,(Game_Mode)           ; Check Game Mode variable
+                and     a                       ; Is it 0 (Demo Mode)?
+                ld      iy,$0F70                ; Default IY to Demo Mode TERSE script
+L0078:          jr      z,L007E                 ; If Demo Mode, jump to dispatcher loop
+                ld      iy,L10FD                ; Else, set IY to Game Mode TERSE script
 
-                ld      a,(Game_Mode)           ; Load game status variable
-                and     a                       ; Is game in "demo" mode (i.e. no game going on)
-                ld      iy,$0F70                ; Ready demo loop pointer
-L0078:          jr      z,L007E                 ; Skip game loop - we are in demo mode
-                ld      iy,L10FD                ; ...else ready game loop pointer
+L007E:          ld      hl,L007E                ; Load address of this dispatcher loop
+                push    hl                      ; Push it to stack (Tasks will 'ret' back here)
 
-L007E:          ld      hl,L007E                ; Set up "return" from subroutine
-push            hl                              ;
+                call    L0875                   ; Fetch next TERSE token address into HL (IY++)
+                push    hl                      ; Push TERSE subroutine address to stack
 
-                call    L0875                   ; Load up HL with a saved address in IY and IY+1
-                ; ... and IY++
+; ----> DIAGNOSTIC SWITCH ESCAPE HATCH
 
-                push    hl                      ; ...and push it to the stack (for return later?)
+                in      a,($10)                 ; Read hardware switches (Coin/Service)
+L0088:          bit     3,a                     ; Check Service/Diagnostic Switch
+                ret     nz                      ; If switch is OFF, 'ret' executes the TERSE task!
 
-                in      a,($10)                 ; Check status of Service Switch (active low)
-L0088:          bit     3,a                     ;
-                ret     nz                      ; Diag switch off, continue to demo in progress
-
-                ld      a,(Game_Mode)           ; Is a game in progress
+                ld      a,(Game_Mode)           ; If switch is ON, check if game in progress
                 and     a                       ;
-                ret     nz                      ; Yes, continue game in progress
-                ; (... don't want to jump to diag's during a game... wait until after game is over)
-;
-                jp      L00FB                   ; Otherwise, jump to diagnostics loop
-                ; ... note diag loop terminates with a RST $00
-;
-;*****************************************************
-; Set Interrupt vector to $CA and map color pallete
-;*****************************************************
-;
-L0093:          ld      a,$CA                   ;Interrupt vector at $CA (202)
-                out     ($0D),a                 ;This is the upper byte when interrupt hits
+                ret     nz                      ; If game in progress, ignore switch and execute task
 
-                ld      hl,L00C5                ;Point to an color mapping table
-                ld      bc,L080B                ;Move $08 bytes to Port $0b
-                otir                            ;(C)<-(HL), HL+1, B-1 until B=0
-                ret                             ;Interrupt vector an color mapping complete
+                jp      L00FB                   ; Else, jump out of TERSE to native Z80 diagnostics!
 ;
-;*****************************************************
-; Set Interrupt vector to $CC
-;*****************************************************
-;
-L00A0:          ld      a,$CC
-                out     ($0D),a
-L00A4:          ret
-;
-;*****************************************************
-; Set Interrupt vector to $CE
-;*****************************************************
-;
-L00A5:          ld      a,$CE
-                out     ($0D),a
+; ----> INTERRUPT VECTOR & COLOR PALETTE MAPPING
+L0093:          ld      a,$CA                   ; Interrupt vector at $CA
+                out     ($0D),a                 ; Set interrupt vector upper byte
+
+                ld      hl,L00C5                ; Source: Color mapping table
+                ld      bc,$080B                ; B = 8 (count), C = $0B (Color Block Transfer port)
+                otir                            ; Rapidly blast 8 bytes from HL to port $0B
                 ret
-;
-;*****************************************************
-; Checks HL to see if lower nybble is same as upper
-; If yes, skip to clear memory
-; If no, see if complement of H same as normal L
-; If yes, then return.
-;
-; In:    HL
-; Out:    None
-;
-;*****************************************************
-;
-L00AA:          ld      a,l
-L00AB:          rlca
-                rlca
-                rlca
-                rlca
-                cp      l
-                jr      nz,L00B5
-                cpl
-                cp      h
-                ret     z
+
+; ----> SET INTERRUPT VECTOR $CC
+L00A0:          ld      a,$CC
+                out     ($0D),a                 ; Set interrupt vector upper byte
+L00A4:          ret
+
+; ----> SET INTERRUPT VECTOR $CE
+L00A5:          ld      a,$CE
+                out     ($0D),a                 ; Set interrupt vector upper byte
+                ret
+
+;******************************************************************************************
+; ----> MEMORY INTEGRITY / ANTI-TAMPER CHECK
+;       Checks if L's nybbles are identical, and if H is the exact complement of L.
+;******************************************************************************************
+L00AA:          ld      a,l                     ; Copy L to A
+L00AB:          rlca                            ; \
+                rlca                            ; |
+                rlca                            ; | Swap upper and lower nybbles of A
+                rlca                            ; /
+                cp      l                       ; Compare swapped nybbles to original L
+                jr      nz,L00B5                ; IF different: Fail check! (Jumps to RAM wipe)
+                cpl                             ; Complement A
+                cp      h                       ; Compare to H
+                ret     z                       ; IF match: Check passed! Return safely.
 ;
 ;*****************************************************
 ; In:    None
