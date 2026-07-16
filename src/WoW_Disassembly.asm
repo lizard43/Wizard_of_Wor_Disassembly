@@ -1,4 +1,4 @@
-; #INCLUDE "..\\WoW Disassembly Include Files\\WoW Disassembly Header.include"
+INCLUDE "WoW_Equates.include"           ; EQU for the code
 
 ;*****************************************************************************
 ; SYSTEM BOOT & HARDWARE INITIALIZATION
