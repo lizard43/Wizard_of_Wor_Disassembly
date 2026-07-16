@@ -1,11 +1,5 @@
 ; ==============================================================================
 ; Disassembly of the Wizard of Wor ROM
-;
-; CPU Type: Z80
-; Engine:   TERSE (Forth-like scripting language)
-;
-; Originally created with dZ80 1.50 on 02/19/02 by David E. Turner
-; Updated & Corrected 2026
 ; ==============================================================================
 ;
 ; ------------------------------------------------------------------------------
@@ -46,9 +40,6 @@
 ; Memory goes from left to right on the screen. $4000 is the top-left pixel.
 ; It continues right for $50 (80) bytes. $4050 is the left pixel of the 2nd line.
 ; Most writes to video memory are handled rapidly by the custom Pattern Board (DMA).
-;
-; Formula for printing to screen in double size mode:
-; DE = ((line number - 1) * 960) + ((character position - 1) * 2)
 ;
 ; ------------------------------------------------------------------------------
 ; SYSTEM INPUT PORTS (Active Low unless noted)
@@ -152,3 +143,63 @@
 ; $7C       MSB of destination address
 ; $7D       Width of pattern
 ; $7E       Height of pattern (Writing to this port triggers the transfer!)
+
+
+; ------------------------------------------------------------------------------
+; SYSTEM I/O PORTS & HARDWARE REGISTERS (From Official CVGLIB/HVGLIB)
+; ------------------------------------------------------------------------------
+; Video & Color Control
+;	COL0R       EQU     $00         ; Color 0 Right
+;	COL1R       EQU     $01         ; Color 1 Right
+;	COL2R       EQU     $02         ; Color 2 Right
+;	COL3R       EQU     $03         ; Color 3 Right
+;	COL0L       EQU     $04         ; Color 0 Left
+;	COL1L       EQU     $05         ; Color 1 Left
+;	COL2L       EQU     $06         ; Color 2 Left
+;	COL3L       EQU     $07         ; Color 3 Left
+;	CONCM       EQU     $08         ; Consumer/Commercial Mode (1 = High Res Arcade)
+;	HORCB       EQU     $09         ; Horizontal Color Boundary
+;	VERBL       EQU     $0A         ; Vertical Blanking Line
+;	COLBX       EQU     $0B         ; Color Block Output Port
+;	MAGIC       EQU     $0C         ; Magic RAM Control Register
+;	XPAND       EQU     $19         ; Expander Pixel Definition Port
+;
+;	; Interrupt & System Control
+;	INTST       EQU     $08         ; Intercept Status (Hardware Collision)
+;	INFBK       EQU     $0D         ; Interrupt Feedback Vector
+;	INMOD       EQU     $0E         ; Interrupt Mode Enable
+;	INLIN       EQU     $0F         ; Interrupt Scan Line
+;
+;	; Audio & Music Processor
+;	TONMO       EQU     $10         ; Tone Master Oscillator
+;	TONEA       EQU     $11         ; Tone A Oscillator
+;	TONEB       EQU     $12         ; Tone B Oscillator
+;	TONEC       EQU     $13         ; Tone C Oscillator
+;	VIBRA       EQU     $14         ; Vibrato Frequency/Range
+;	VOLC        EQU     $15         ; Tone C Volume
+;	VOLAB       EQU     $16         ; Tones A & B Volume
+;	VOLN        EQU     $17         ; Noise Volume
+;	SNDBX       EQU     $18         ; Sound Block Output Port
+;
+;	; Pattern Board (DMA) Ports
+;	PBLINADRL   EQU     $78         ; LSB of Source Address (SRCLO)
+;	PBLINADRH   EQU     $79         ; MSB of Source Address (SRCHI)
+;	PBSTAT      EQU     $7A         ; Pattern Board Status / Copy Mode (CMODE)
+;	PBXMOD      EQU     $7B         ; LSB of Destination Address / Skip Low (SKIPLO)
+;	PBAREADRH   EQU     $7C         ; MSB of Destination Address (DESTHI)
+;	PBXWIDE     EQU     $7D         ; Width of pattern row (LENGTH)
+;	PBYHIGH     EQU     $7E         ; Height of pattern to copy (LOOPS) - Triggers DMA!
+;
+;	; Security / NVRAM
+;	RIGHTPORT   EQU     $5B         ; NVRAM Write-Protect Port
+;	RIGHTVALUE  EQU     $A5         ; Value required to unlock NVRAM writes
+;
+;	; ------------------------------------------------------------------------------
+;	; MAGIC REGISTER BITMASKS (For Port $0C)
+;	; ------------------------------------------------------------------------------
+;	MRROT       EQU     2           ; Rotate 90 degrees
+;	MRXPND      EQU     3           ; Expand 1bpp to 2bpp
+;	MROR        EQU     4           ; OR mode
+;	MRXOR       EQU     5           ; Exclusive-OR mode
+;	MRFLOP      EQU     6           ; Flop (Horizontal mirror)
+;	MRFLIP      EQU     7           ; Flip (Vertical mirror)
