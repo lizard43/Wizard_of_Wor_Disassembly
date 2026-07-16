@@ -81,3 +81,65 @@ PBCONS      EQU     2           ; DMA: Constant Mode
 PBFLUSH     EQU     3           ; DMA: Flush
 PBFLIP      EQU     4           ; DMA: Vertical Flip
 PBFLOP      EQU     5           ; DMA: Horizontal Flop
+
+
+
+; ------------------------------------------------------------------------------
+; RESTORED MISSING dZ80 EQUATES
+; ------------------------------------------------------------------------------
+L0138       EQU     $0138
+L0209       EQU     $0209
+L031E       EQU     $031E
+L0601       EQU     $0601
+L07C9       EQU     $07C9
+L07CA       EQU     $07CA
+L08AA       EQU     $08AA
+L0A30       EQU     $0A30
+L0C15       EQU     $0C15
+L0F24       EQU     $0F24
+L0FC0       EQU     $0FC0
+L1088       EQU     $1088
+L10A7       EQU     $10A7
+L1301       EQU     $1301
+L1360       EQU     $1360
+L1400       EQU     $1400
+L1540       EQU     $1540
+L1601       EQU     $1601
+L1684       EQU     $1684
+L1697       EQU     $1697
+L1779       EQU     $1779
+L1781       EQU     $1781
+L1792       EQU     $1792
+L270D       EQU     $270D
+L2C67       EQU     $2C67
+L3728       EQU     $3728
+L4041       EQU     $4041
+L4500       EQU     $4500
+L4EA3       EQU     $4EA3
+L5241       EQU     $5241
+L5655       EQU     $5655
+L5A3B       EQU     $5A3B
+L5F50       EQU     $5F50
+L6876       EQU     $6876
+L6F1B       EQU     $6F1B
+L7716       EQU     $7716
+L7F70       EQU     $7F70
+LBCCE       EQU     $BCCE
+LCC0F       EQU     $CC0F
+LCEAC       EQU     $CEAC
+LD1E5       EQU     $D1E5
+LD1ED       EQU     $D1ED
+LD340       EQU     $D340
+LD354       EQU     $D354
+LDD04       EQU     $DD04
+LE0A9       EQU     $E0A9
+LEA02       EQU     $EA02
+LEEAE       EQU     $EEAE
+LF8AA       EQU     $F8AA
+LFCFF       EQU     $FCFF
+LFF00       EQU     $FF00
+LD1E5       EQU     $D1E5
+LD1ED       EQU     $D1ED
+LD340       EQU     $D340
+LD354       EQU     $D354
+LDD04       EQU     $DD04

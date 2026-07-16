@@ -19216,8 +19216,6 @@ L00E0           EQU     $00E0
 L00F0           EQU     $00F0
 L00FD           EQU     $00FD
 L0100           EQU     $0100
-; Unused Equate: L0116    EQU    $0116
-L0138           EQU     $0138
 L0150           EQU     $0150
 L015E           EQU     $015E
 L017E           EQU     $017E
@@ -19225,8 +19223,6 @@ L01A8           EQU     $01A8
 L01FF           EQU     $01FF
 L0201           EQU     $0201
 L0202           EQU     $0202
-; Unused Equate: L0207    EQU    $0207
-L0209           EQU     $0209
 L020F           EQU     $020F
 L0217           EQU     $0217
 L022A           EQU     $022A
@@ -19238,72 +19234,32 @@ L02B2           EQU     $02B2
 L02FD           EQU     $02FD
 L0301           EQU     $0301
 L0303           EQU     $0303
-; Unused Equate: L0307    EQU    $0307
-L031E           EQU     $031E
 L0325           EQU     $0325
 L03A8           EQU     $03A8
 L03C0           EQU     $03C0
 L040B           EQU     $040B
 L040E           EQU     $040E
 L042E           EQU     $042E
-; Unused Equate: L0507    EQU    $0507
-L0601           EQU     $0601
-; Unused Equate: L061A    EQU    $061A
-; Unused Equate: L061C    EQU    $061C
-; Unused Equate: L068C    EQU    $068C
-; Unused Equate: L06AD    EQU    $06AD
 L0700           EQU     $0700
 L0702           EQU     $0702
-; Unused Equate: L0715    EQU    $0715
-L07C9           EQU     $07C9
 L08A8           EQU     $08A8
-; Unused Equate: L0A07    EQU    $0A07
-L0A30           EQU     $0A30
 L0A3E           EQU     $0A3E
 L0A50           EQU     $0A50
 L0C00           EQU     $0C00
-; Unused Equate: L0C07    EQU    $0C07
-L0C15           EQU     $0C15
 L0C1F           EQU     $0C1F
 L0C28           EQU     $0C28
 L0C56           EQU     $0C56
 L0D15           EQU     $0D15
-; Unused Equate: L0E07    EQU    $0E07
-L0F24           EQU     $0F24
 L0F49           EQU     $0F49
 L0F98           EQU     $0F98
-; Unused Equate: L0FB7    EQU    $0FB7
-L0FC0           EQU     $0FC0
-; Unused Equate: L0FD1    EQU    $0FD1
-; Unused Equate: L0FED    EQU    $0FED
 L0FFF           EQU     $0FFF
 L1004           EQU     $1004
-; Unused Equate: L1016    EQU    $1016
-; Unused Equate: L106A    EQU    $106A
-; Unused Equate: L107B    EQU    $107B
-L1088           EQU     $1088
-; Unused Equate: L109A    EQU    $109A
-L10A7           EQU     $10A7
-; Unused Equate: L10C1    EQU    $10C1
-; Unused Equate: L10EA    EQU    $10EA
 L10FD           EQU     $10FD
 L1107           EQU     $1107
-; Unused Equate: L1152    EQU    $1152
-; Unused Equate: L1166    EQU    $1166
 L117C           EQU     $117C
-; Unused Equate: L12A1    EQU    $12A1
-L1301           EQU     $1301
-; Unused Equate: L134B    EQU    $134B
-L1360           EQU     $1360
-; Unused Equate: L13C4    EQU    $13C4
-L1400           EQU     $1400
 L1413           EQU     $1413
 L143E           EQU     $143E
 L151F           EQU     $151F
-; Unused Equate: L1520    EQU    $1520
-L1540           EQU     $1540
-; Unused Equate: L15C8    EQU    $15C8
-L1601           EQU     $1601
 L1681           EQU     $1681
 L16B5           EQU     $16B5
 L16B6           EQU     $16B6
@@ -19346,8 +19302,6 @@ L2303           EQU     $2303
 L230B           EQU     $230B
 L2694           EQU     $2694
 L26AD           EQU     $26AD
-; Unused Equate: L2701    EQU    $2701
-L270D           EQU     $270D
 L273E           EQU     $273E
 L2783           EQU     $2783
 L2801           EQU     $2801
@@ -19363,8 +19317,6 @@ L2AA9           EQU     $2AA9
 L2B55           EQU     $2B55
 L2B7A           EQU     $2B7A
 L2B82           EQU     $2B82
-; Unused Equate: L2C0C    EQU    $2C0C
-L2C67           EQU     $2C67
 L2CA7           EQU     $2CA7
 L2D03           EQU     $2D03
 L2D1A           EQU     $2D1A
@@ -19372,8 +19324,6 @@ L2D1F           EQU     $2D1F
 L2D30           EQU     $2D30
 L2D38           EQU     $2D38
 L2D43           EQU     $2D43
-; Unused Equate: L2D96    EQU    $2D96
-; Unused Equate: L2DD1    EQU    $2DD1
 L2E10           EQU     $2E10
 L2F38           EQU     $2F38
 L3000           EQU     $3000
@@ -19395,8 +19345,6 @@ L351D           EQU     $351D
 L3522           EQU     $3522
 L355C           EQU     $355C
 L358A           EQU     $358A
-; Unused Equate: L3607    EQU    $3607
-L3728           EQU     $3728
 L3832           EQU     $3832
 L383A           EQU     $383A
 L38BE           EQU     $38BE
@@ -19407,16 +19355,12 @@ L3CC7           EQU     $3CC7
 ;    EQU3D46
 ;    EQU3E16
 ;    EQU3E28
-; Unused Equate: L3E51    EQU    $3E51
-;    EQU3F51
 ;    EQU3F5C
 ;    EQU3FAC
 L4000           EQU     $4000
 L4001           EQU     $4001
 L4004           EQU     $4004
 L4005           EQU     $4005
-; Unused Equate: L4010    EQU    $4010
-L4041           EQU     $4041
 L4045           EQU     $4045
 L404C           EQU     $404C
 L404F           EQU     $404F
@@ -19431,23 +19375,13 @@ L4115           EQU     $4115
 L4141           EQU     $4141
 L4155           EQU     $4155
 L417D           EQU     $417D
-; Unused Equate: L4307    EQU    $4307
-L4500           EQU     $4500
 L462D           EQU     $462D
 L469C           EQU     $469C
-; Unused Equate: L4C50    EQU    $4C50
-L4EA3           EQU     $4EA3
-; Unused Equate: L4F14    EQU    $4F14
-; Unused Equate: L4F43    EQU    $4F43
 L5041           EQU     $5041
 L5055           EQU     $5055
 L50D5           EQU     $50D5
 L5100           EQU     $5100
 L5101           EQU     $5101
-; Unused Equate: L5211    EQU    $5211
-L5241           EQU     $5241
-; Unused Equate: L52C4    EQU    $52C4
-; Unused Equate: L5401    EQU    $5401
 L5445           EQU     $5445
 L5455           EQU     $5455
 L549D           EQU     $549D
@@ -19464,32 +19398,18 @@ L5555           EQU     $5555
 L555D           EQU     $555D
 L5595           EQU     $5595
 L55A0           EQU     $55A0
-; Unused Equate: L5606    EQU    $5606
-L5655           EQU     $5655
 L56AA           EQU     $56AA
-; Unused Equate: L5753    EQU    $5753
-; Unused Equate: L592A    EQU    $592A
-; Unused Equate: L5A19    EQU    $5A19
-L5A3B           EQU     $5A3B
 L5A94           EQU     $5A94
 L5AAA           EQU     $5AAA
 L5B03           EQU     $5B03
 L5BBE           EQU     $5BBE
-; Unused Equate: L5E0C    EQU    $5E0C
-L5F50           EQU     $5F50
 L5F55           EQU     $5F55
 L6125           EQU     $6125
 L6202           EQU     $6202
-; Unused Equate: L622E    EQU    $622E
-; Unused Equate: L66C3    EQU    $66C3
-; Unused Equate: L6804    EQU    $6804
-L6876           EQU     $6876
 L6AAC           EQU     $6AAC
 L6C1B           EQU     $6C1B
 L6C68           EQU     $6C68
 L6CA4           EQU     $6CA4
-; Unused Equate: L6D0C    EQU    $6D0C
-L6F1B           EQU     $6F1B
 L6F83           EQU     $6F83
 L731E           EQU     $731E
 L732B           EQU     $732B
@@ -19497,8 +19417,6 @@ L735B           EQU     $735B
 L73AD           EQU     $73AD
 L73BC           EQU     $73BC
 L73CD           EQU     $73CD
-; Unused Equate: L7512    EQU    $7512
-L7716           EQU     $7716
 L7950           EQU     $7950
 L7A3B           EQU     $7A3B
 L7A51           EQU     $7A51
@@ -19506,8 +19424,6 @@ L7C73           EQU     $7C73
 L7C78           EQU     $7C78
 L7D2B           EQU     $7D2B
 L7D50           EQU     $7D50
-; Unused Equate: L7E7C    EQU    $7E7C
-L7F70           EQU     $7F70
 L8002           EQU     $8002
 L8008           EQU     $8008
 L800A           EQU     $800A
@@ -19597,8 +19513,6 @@ LA2F6           EQU     $A2F6
 ;    EQUABE6
 ;    EQUACA9
 ;    EQUAD9E
-; Unused Equate: LAE16    EQU    $AE16
-;    EQUAE9E
 ;    EQUAEDF
 ;    EQUAFA0
 ;    EQUAFAA
@@ -19608,8 +19522,6 @@ LB31E           EQU     $B31E
 LB697           EQU     $B697
 LB72A           EQU     $B72A
 LB83E           EQU     $B83E
-; Unused Equate: LB9B0    EQU    $B9B0
-LBCCE           EQU     $BCCE
 LBE82           EQU     $BE82
 LBEEF           EQU     $BEEF
 LBFAA           EQU     $BFAA
@@ -19627,12 +19539,6 @@ LC00F           EQU     $C00F
 LC030           EQU     $C030
 LC03F           EQU     $C03F
 LC058           EQU     $C058
-; Unused Equate: LC3C3    EQU    $C3C3
-; Unused Equate: LC507    EQU    $C507
-; Unused Equate: LCB07    EQU    $CB07
-LCC0F           EQU     $CC0F
-; Unused Equate: LCD00    EQU    $CD00
-LCEAC           EQU     $CEAC
 
 ;
 ; Begin Static RAM area
@@ -19739,16 +19645,12 @@ LD1E0           EQU     $D1E0
 LD1E1           EQU     $D1E1
 LD1E2           EQU     $D1E2
 LD1E3           EQU     $D1E3
-; Unused Equate: LD1E4    EQU    $D1E4
-LD1E5           EQU     $D1E5
 LD1E6           EQU     $D1E6
 LD1E7           EQU     $D1E7
 LD1E8           EQU     $D1E8
 LD1E9           EQU     $D1E9
 LD1EA           EQU     $D1EA
 LD1EB           EQU     $D1EB
-; Unused Equate: LD1EC    EQU    $D1EC
-LD1ED           EQU     $D1ED
 LD1EE           EQU     $D1EE
 LD1EF           EQU     $D1EF
 LD1F0           EQU     $D1F0
@@ -19782,8 +19684,6 @@ LD319           EQU     $D319
 LD31A           EQU     $D31A
 LD31B           EQU     $D31B
 LD31D           EQU     $D31D
-; Unused Equate: LD33A    EQU    $D33A
-LD340           EQU     $D340
 LD341           EQU     $D341
 LD342           EQU     $D342
 LD343           EQU     $D343
@@ -19803,34 +19703,20 @@ LD34F           EQU     $D34F
 LD350           EQU     $D350
 LD351           EQU     $D351
 LD352           EQU     $D352
-; Unused Equate: LD353    EQU    $D353
-LD354           EQU     $D354
 LD47D           EQU     $D47D
 LD55F           EQU     $D55F
 LD59C           EQU     $D59C
-; Unused Equate: LDA07    EQU    $DA07
-LDD04           EQU     $DD04
-; Unused Equate: LDE15    EQU    $DE15
-LE0A9           EQU     $E0A9
-; Unused Equate: LE404    EQU    $E404
-; Unused Equate: LE40C    EQU    $E40C
 LE5BC           EQU     $E5BC
 LE79F           EQU     $E79F
-; Unused Equate: LE7E7    EQU    $E7E7
-LEA02           EQU     $EA02
 LEABF           EQU     $EABF
 LEAEE           EQU     $EAEE
 LEB05           EQU     $EB05
-; Unused Equate: LEB12    EQU    $EB12
-LEEAE           EQU     $EEAE
 LF002           EQU     $F002
 LF03F           EQU     $F03F
 LF0AF           EQU     $F0AF
 LF557           EQU     $F557
 LF6A2           EQU     $F6A2
 LF6A8           EQU     $F6A8
-; Unused Equate: LF807    EQU    $F807
-LF8AA           EQU     $F8AA
 LF904           EQU     $F904
 LF905           EQU     $F905
 LF906           EQU     $F906
@@ -19840,11 +19726,7 @@ LFB1E           EQU     $FB1E
 LFB8B           EQU     $FB8B
 LFC00           EQU     $FC00
 LFC3B           EQU     $FC3B
-; Unused Equate: LFCD1    EQU    $FCD1
-LFCFF           EQU     $FCFF
 LFD8E           EQU     $FD8E
-; Unused Equate: LFE07    EQU    $FE07
-LFF00           EQU     $FF00
 LFF03           EQU     $FF03
 LFF0B           EQU     $FF0B
 LFF0F           EQU     $FF0F
