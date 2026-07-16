@@ -70,24 +70,24 @@ L003C:          inc     c                       ; Increment the value
                 call    L0F6A                   ; Safely write C back through hardware latch
 
 L0040:          ld      hl, (LD038)             ; Load word from Protected RAM $D038
-                call    L00AA                   ; Execute Nybble parity/complement check
+                call    memcheck                   ; Execute Nybble parity/complement check
 
                 ld      hl, (LD03E)             ; Load word from Protected RAM $D03E
-                call    L00AA                   ; Execute Nybble parity/complement check
+                call    memcheck                   ; Execute Nybble parity/complement check
 
 ;******************************************************************************************
 ; ----> CREDIT LIMIT CHECK
 ;******************************************************************************************
                 ld      a, (LD03C)              ; Load Number of Credits
 L004F:          cp      $1F                     ; Compare with 31 ($1F)
-                call    nc, L00B5               ; If >= 31, zero out bottom of Static RAM
+                call    nc, wiperam               ; If >= 31, zero out bottom of Static RAM
 
 ;******************************************************************************************
 ; ----> BUFFER CLEARING
 ;******************************************************************************************
 L0054:          ld      hl, Is_Speech_Active    ; Point to Speech Active flag ($D245)
                 call    L00BA                   ; Zero out 256 bytes (Sound/Speech buffers)
-                call    L00B8                   ; Zero out next 64 bytes
+                call    wpfill                   ; Zero out next 64 bytes
 
 ;******************************************************************************************
 ; ----> RNG SEED & PROTECTED RAM MIRRORING
@@ -95,7 +95,7 @@ L0054:          ld      hl, Is_Speech_Active    ; Point to Speech Active flag ($
                 ld      a, r                    ; Read Z80 Refresh Register for RNG entropy
                 ld      (LD34A), a              ; Store as random number seed in Work RAM
 
-                ld      hl, LD000               ; Source = $D000 (Protected RAM)
+                ld      hl, WPRAMSTART               ; Source = $D000 (Protected RAM)
                 ld      de, LD300               ; Dest   = $D300 (Work RAM)
 L0068:          ld      bc, L0020               ; Length = $0020 (32 bytes)
                 ldir                            ; Mirror Protected RAM to fast Work RAM
@@ -109,10 +109,10 @@ L0068:          ld      bc, L0020               ; Length = $0020 (32 bytes)
                 ld      a,(Game_Mode)           ; Check Game Mode variable
                 and     a                       ; Is it 0 (Demo Mode)?
                 ld      iy,$0F70                ; Default IY to Demo Mode TERSE script
-L0078:          jr      z,L007E                 ; If Demo Mode, jump to dispatcher loop
+L0078:          jr      z,dispatch                 ; If Demo Mode, jump to dispatcher loop
                 ld      iy,L10FD                ; Else, set IY to Game Mode TERSE script
 
-L007E:          ld      hl,L007E                ; Load address of this dispatcher loop
+dispatch:          ld      hl,dispatch                ; Load address of this dispatcher loop
                 push    hl                      ; Push it to stack (Tasks will 'ret' back here)
 
                 call    L0875                   ; Fetch next TERSE token address into HL (IY++)
@@ -129,7 +129,7 @@ L0088:          bit     3,a                     ; Check Service/Diagnostic Switc
                 and     a                       ;
                 ret     nz                      ; If game in progress, ignore switch and execute task
 
-                jp      L00FB                   ; Else, jump out of TERSE to native Z80 diagnostics!
+                jp      diags                   ; Else, jump out of TERSE to native Z80 diagnostics!
 
 ;******************************************************************************************
 ; ----> INTERRUPT VECTOR & COLOR PALETTE MAPPING
@@ -137,7 +137,7 @@ L0088:          bit     3,a                     ; Check Service/Diagnostic Switc
 L0093:          ld      a,$CA                   ; Interrupt vector at $CA
                 out     ($0D),a                 ; Set interrupt vector upper byte
 
-                ld      hl,L00C5                ; Source: Color mapping table
+                ld      hl,DEFPALETTE                ; Source: Color mapping table
                 ld      bc,$080B                ; B = 8 (count), C = $0B (Color Block Transfer port)
                 otir                            ; Rapidly blast 8 bytes from HL to port $0B
                 ret
@@ -160,13 +160,13 @@ L00A5:          ld      a,$CE
 ; ----> MEMORY INTEGRITY / ANTI-TAMPER CHECK
 ;       Checks if L's nybbles are identical, and if H is the exact complement of L.
 ;******************************************************************************************
-L00AA:          ld      a,l                     ; Copy L to A
+memcheck:          ld      a,l                     ; Copy L to A
 L00AB:          rlca                            ; \
                 rlca                            ; |
                 rlca                            ; | Swap upper and lower nybbles of A
                 rlca                            ; /
                 cp      l                       ; Compare swapped nybbles to original L
-                jr      nz,L00B5                ; IF different: Fail check! (Jumps to RAM wipe)
+                jr      nz,wiperam                ; IF different: Fail check! (Jumps to RAM wipe)
                 cpl                             ; Complement A
                 cp      h                       ; Compare to H
                 ret     z                       ; IF match: Check passed! Return safely.
@@ -176,13 +176,13 @@ L00AB:          rlca                            ; \
 ;       Zeros out the 64 bytes of Protected Static RAM ($D000 - $D03F).
 ;       Triggered by anti-tamper failure or >31 credits.
 ;******************************************************************************************
-L00B5:          ld      hl,LD000                ; Point HL to bottom of Static RAM ($D000)
+wiperam:          ld      hl,WPRAMSTART                ; Point HL to bottom of Static RAM ($D000)
 
 ;******************************************************************************************
 ; ----> PROTECTED MEMORY FILL ROUTINE
 ;       Fills B bytes of Protected RAM with the value in C.
 ;******************************************************************************************
-L00B8:          ld      b,$40                   ; B = 64 (bytes to write)
+wpfill:          ld      b,$40                   ; B = 64 (bytes to write)
 
 L00BA:          ld      c,$00                   ; C = 0 (Fill value)
                 ld      a,$A5                   ; A = $A5 (Hardware NVRAM unlock byte)
@@ -197,7 +197,7 @@ L00C0:          ld      (hl),c                  ; Write byte to protected RAM
 ; ----> DEFAULT COLOR PALETTE MAPPING TABLE
 ;       These bytes are sent to the Color Block Transfer port ($0B) during boot.
 ;******************************************************************************************
-L00C5:          DB      $51, $7C, $F3
+DEFPALETTE:     DB      $51, $7C, $F3
 L00C8:          DB      $C7, $00, $56, $09, $9E, $09, $B4, $09
 
 
@@ -206,7 +206,7 @@ L00C8:          DB      $C7, $00, $56, $09, $9E, $09, $B4, $09
 ; ----> VIDEO RAM FAILURE / CRASH HANDLER
 ;            Causes the screen to flash wildly by spamming random values to the palette port.
 ;******************************************************************************************
-L00D0:          ld      a,r                     ; Get random value from Z80 Refresh Register
+ vramerr:       ld      a,r                     ; Get random value from Z80 Refresh Register
                 out     ($09),a                 ; Output to background color / palette port
 
 ;******************************************************************************************
@@ -215,7 +215,7 @@ L00D0:          ld      a,r                     ; Get random value from Z80 Refr
 ;            checks it, then propagates the inverted byte backwards.
 ;            Expects return address in HL (uses EXX to preserve it without the stack).
 ;******************************************************************************************
-L00D4:          exx                             ; Swap registers (saves return address into HL')
+vramtest:          exx                             ; Swap registers (saves return address into HL')
                 ld      hl,$4000                ; Point HL to start of Video RAM
                 ld      (hl),a                  ; Write the test pattern to $4000
 
@@ -224,7 +224,7 @@ L00D4:          exx                             ; Swap registers (saves return a
                 ldir                            ; Rapidly copy (HL) to (DE), filling VRAM upward
 
                 cp      (hl)                    ; Does the last written byte still match the pattern?
-                jr      nz,L00D0                ; IF NOT: Memory failed! Jump to crash handler
+                jr      nz, vramerr                ; IF NOT: Memory failed! Jump to crash handler
 
                 ex      af,af'                  ; Save Accumulator and Flags
                 in      a,($10)                 ; Read hardware switches (Hardware Watchdog kick)
@@ -239,7 +239,7 @@ L00E8:          dec     de                      ; \ Adjust DE from $8000 down to
                 lddr                            ; Rapidly copy (HL) to (DE) backwards, filling VRAM downward
 
                 cp      (hl)                    ; Does the last written byte still match inverted pattern?
-                jr      nz,L00D0                ; IF NOT: Memory failed! Jump to crash handler
+                jr      nz, vramerr                ; IF NOT: Memory failed! Jump to crash handler
 
                 ex      af,af'                  ; Save Accumulator and Flags
                 in      a,($10)                 ; Read hardware switches (Hardware Watchdog kick)
@@ -254,7 +254,7 @@ L00E8:          dec     de                      ; \ Adjust DE from $8000 down to
 ;            Disables interrupts, checks for an expansion ROM, resets hardware state,
 ;            and seeds the Video RAM worm test with the initial pattern ($80).
 ;******************************************************************************************
-L00FB:          di                              ; Disable interrupts during diagnostics
+diags:          di                              ; Disable interrupts during diagnostics
                 ld      a,(L8006)               ; Check High ROM extension socket
 L00FF:          cp      $C3                     ; Is the byte a 'JP' ($C3) instruction?
 L0101:          call    z,L8006                 ; If yes, execute external diagnostic ROM
@@ -269,7 +269,7 @@ L0101:          call    z,L8006                 ; If yes, execute external diagn
 ;            Sets the stackless return address to L010E and executes the VRAM fill/check.
 ;******************************************************************************************
 L0109:          ld      hl,L010E                ; Set return address for stackless memory test
-                jr      L00D4                   ; Execute VRAM test (L00D4)
+                jr      vramtest                   ; Execute VRAM test (vramtest)
 
 ;******************************************************************************************
 ; ----> TEST PATTERN SHIFTER
@@ -300,7 +300,7 @@ L0117:          call    L08AE                   ; Clear screen, init video, and 
 ;            Pass 1: Fills upward with $FF. Pass 2: Fills downward with $00.
 ;            Pass 3: Scans upward to verify all bytes remain $00.
 ;******************************************************************************************
-                ld      hl,LD000                ; HL = $D000 (Start of Static RAM)
+                ld      hl,WPRAMSTART                ; HL = $D000 (Start of Static RAM)
                 ld      bc,$0004                ; B = 0 (256 loops), C = 4 (1KB total)
                 ld      d,$FF                   ; D = $FF (Initial test pattern)
                 ld      a,$A5                   ; A = $A5 (Hardware NVRAM unlock byte)
@@ -381,11 +381,11 @@ L016F:          ld      de,$051A                ; String formatting and color at
                 in      a,($13)                 ; Read Dip Switches (Port $13)
                 bit     3,a                     ; Check Language Switch (On = English)
                 ld      b,$07                   ; Default to 7 ROMs (A through G)
-                jr      nz,L0196                ; IF English: Jump to test
+                jr      nz,romcheck                ; IF English: Jump to test
                 inc     b                       ; IF Foreign: Set count to 8 ROMs (A through X)
 
 ; ----> BEGIN ROM CHECK LOOP
-L0196:          push    bc                      ; Save ROM loop counter
+romcheck:       push    bc                      ; Save ROM loop counter
 
 ; ----> MEMORY GAP SKIPS (VRAM & EMPTY SOCKETS)
                 ld      a,h                     ; Check current ROM high byte
@@ -417,14 +417,14 @@ L01AB:          add     a,(hl)                  ; Accumulate byte into A
                 jr      z,L01C1                 ; IF CHECKSUM MATCHES: Jump ahead to next letter
 
                 ld      a,d                     ; IF CHECKSUM FAILS: Save color formatting from D'
-                ld      (LD1D4),a               ; Store it in RAM
+                ld      (ROMFAIL),a               ; Store it in RAM
                 call    L0374                   ; Print the failing ROM's letter (pointed to by HL')
                 dec     hl                      ; Adjust string pointer backwards so it stays aligned
 
 L01C1:          inc     hl                      ; Advance string pointer to next ROM letter ("A" -> "B")
                 exx                             ; Swap back to Main Registers
                 pop     bc                      ; Restore ROM loop counter
-                djnz    L0196                   ; Loop until all 7 (or 8) ROMs are checked
+                djnz    romcheck                   ; Loop until all 7 (or 8) ROMs are checked
 
 ;******************************************************************************************
 ; ----> HARDWARE DIAGNOSTICS & SWITCH TEST SCREEN (UI SETUP)
@@ -432,12 +432,12 @@ L01C1:          inc     hl                      ; Advance string pointer to next
 ;******************************************************************************************
                 exx                             ; Restore registers after ROM test
                 ld      hl,$0446                ; Source string: "OK"
-                ld      a,(LD1D4)               ; Read ROM failure flag ($D1D4)
+                ld      a,(ROMFAIL)               ; Read ROM failure flag ($D1D4)
                 and     a                       ; Is it zero? (No failures)
                 call    z,L0356                 ; IF 0: Print "OK"
 
                 ld      a,$01
-                ld      (LD1C5),a               ; Set diagnostic screen active flag
+                ld      (DIAGFLAG),a               ; Set diagnostic screen active flag
 
 ; ----> DRAW INPUT LABELS
                 ld      de,$1403                ; Screen formatting attributes
@@ -480,7 +480,7 @@ L020B:          ld      e,$22
 ;            Reads ports, complements them (active-low to active-high), isolates bits,
 ;            and uses L0397 to selectively print "YES" or "NO" if the state changed.
 ;******************************************************************************************
-L0228:          ei                              ; Enable interrupts to allow screen refresh
+diagloop:          ei                              ; Enable interrupts to allow screen refresh
 
                 ld      de,LD1D6                ; Point to Player 2 / Cocktail controls buffer
                 in      a,($11)                 ; Read Port $11 (Player 2 joystick/buttons)
@@ -601,7 +601,7 @@ L0302:          in      a,($10)
 L0306:          jr      z,L0310
                 in      a,($10)                 ;
                 bit     3,a                     ; Check for service switch on
-                jp      z,L0228                 ; Jump back to diagnostic screen if so
+                jp      z,diagloop                 ; Jump back to diagnostic screen if so
 L030F:          rst     00H                     ; Otherwise, restart everything!
 ;
 ;*****************************************************
@@ -744,7 +744,7 @@ L03B1:          ld      b,$04                   ; Length
 ;
 L03B3:          ld      a,$0C                   ; Expand mode color ???
 L03B5:          ld      c,$FF                   ; ???
-                jp      L0460                   ; Go write the string...
+                jp      printstr                   ; Go write the string...
 ;
 ;*****************************************************
 ; ???
@@ -815,7 +815,7 @@ L045C:          ld      c,$10
 ; and "???" in C
 ;*****************************************************
 ;
-L0460:          di                              ; No interruptions
+printstr:          di                              ; No interruptions
                 out     ($19),a                 ; Expand mode color ???
                 bit     7,c                     ; Check for???
                 ld      a,$08                   ; Setup for expand mode only... !!! change this to binary
@@ -826,9 +826,9 @@ L046D:          ld      a,(hl)                  ; Get the character of the strin
                 inc     hl                      ; Set up for next character
                 push    hl                      ; Save next character location
                 push    de                      ; Save the color of character
-                call    L04AB                   ; Translate ASCII into graphic location
+                call    char2gfx                   ; Translate ASCII into graphic location
                 pop     de                      ; Restore color of character
-                bit     7,c                     ; Check for cocktail again??? unless L04AB changed c... check it. ???
+                bit     7,c                     ; Check for cocktail again??? unless char2gfx changed c... check it. ???
                 ld      a,$26                   ; Set normal line offset value
                 jr      nz,L047D                ; ... skip the modification for ???
                 xor     $30                     ; Modification to ???
@@ -864,14 +864,14 @@ L04A8:          djnz    L046D                   ; Character finished, go back an
                 ret                             ; String is done, return to sender...
 ;
 ;********************************************************************
-; Name:            L04AB
+; Name:            char2gfx
 ;
 ; Title:        ASCII to GRAPHICS Table lookup
 ;
 ; Function:        Take an ASCII character and translate it into
 ;            a graphic entry in a character table. It is not
 ;            true ASCII, but a subset with some modifications.
-;            See character table at L04CE for details.
+;            See character table at CHRTBL for details.
 ;            It also handles translation to alternate ROM set.
 ;
 ; Entry:        A  = ASCII character
@@ -883,14 +883,14 @@ L04A8:          djnz    L046D                   ; Character finished, go back an
 ;
 ;********************************************************************
 ;
-L04AB:          sub     $30                     ; Turn ASCII into table entry
+char2gfx:          sub     $30                     ; Turn ASCII into table entry
                 cp      $0A                     ; Check for number 0-9
                 jr      c,L04B3                 ; Jump if not a number...
                 sub     $06                     ; Adjust to take out unsupported characters
                 ; ... between "9" and "A" (":;<=>?")
 L04B3:          ld      l,a                     ; L = table entry
                 sub     $2C                     ; Check for alternate characters???
-                ld      de,L04CE                ; Entry to character table
+                ld      de,CHRTBL                ; Entry to character table
                 jr      c,L04C2                 ; Skip alternate ROM set
                 ld      hl,LC00B                ; Entry of table to alternate ROM character set
                 ld      e,(hl)                  ; \
@@ -945,7 +945,7 @@ ld              e,l                             ;
 ;
 ;******************************************************************************
 ;
-L04CE:
+CHRTBL:
 
                 DB      $3C,$7E,$66,$66,$66,$66,$66,$66,$7E,$3C ; "0"
                 DB      $18,$38,$18,$18,$18,$18,$18,$18,$3C,$3C ; "1"
@@ -1239,10 +1239,10 @@ L07B6:          pop     hl
                 call    L0886
                 call    L0880
                 ld      c,$FF
-                jp      L0460
+                jp      printstr
 ;
 ;*****************************************************************************
-; Called this routine from L007E routine
+; Called this routine from dispatch routine
 ; ???
 ;*****************************************************************************
 ;L07CA:
@@ -1258,7 +1258,7 @@ L07D3:          call    L0880
                 jr      L07D3
 ;
 ;*****************************************************************************
-; Called this routine from L007E routine
+; Called this routine from dispatch routine
 ; ???
 ;*****************************************************************************
 ;
@@ -1283,7 +1283,7 @@ L0800:          call    L0947
                 jr      L07D3
 ;
 ;*****************************************************************************
-; Called this routine from L007E routine
+; Called this routine from dispatch routine
 ; ???
 ;*****************************************************************************
 ;
@@ -1293,7 +1293,7 @@ L080B:          ret
 
 ;
 ;*****************************************************************************
-; Called this routine from L007E routine
+; Called this routine from dispatch routine
 ; ???
 ;*****************************************************************************
 ;
@@ -1414,7 +1414,7 @@ L089A:          ld      c,(iy+$00)
                 ret
 ;
 ;*****************************************************************************
-; Called this routine from L007E routine
+; Called this routine from dispatch routine
 ; ???
 ;*****************************************************************************
 ;
@@ -1426,7 +1426,7 @@ L08A0:          pop     hl                      ; Return address in HL
                 jp      (hl)                    ; Return...
 ;
 ;*****************************************************************************
-; Called this routine from L007E routine
+; Called this routine from dispatch routine
 ; ???
 ;*****************************************************************************
 ;L08AA:
@@ -1495,7 +1495,7 @@ L08F0:          ld      a,(hl)
                 inc     hl
                 exx
                 push    hl
-                call    L04AB
+                call    char2gfx
                 ex      de,hl
                 pop     hl
                 exx
@@ -1589,7 +1589,7 @@ L0960:          push    ix
                 pop     af
                 ei
                 ret
-L0979:          ld      a,(LD1C5)
+L0979:          ld      a,(DIAGFLAG)
                 and     a
                 ret     nz
                 ld      hl,LD038
@@ -1642,7 +1642,7 @@ L09C8:          ld      hl,LD003
                 ld      c,$00
                 call    L0F6A
                 rst     00H
-L09D1:          ld      a,(LD1C5)
+L09D1:          ld      a,(DIAGFLAG)
                 and     a
                 jp      nz,L0A68
                 in      a,($10)                 ; Check for TILT
@@ -2286,7 +2286,7 @@ L0E54:          exx
 L0E77:          call    L0EC0
                 ld      hl,LD344
                 call    c,L0EE3
-                ld      a,(LD1C5)
+                ld      a,(DIAGFLAG)
 L0E83:          and     a
                 jr      nz,L0E8A
                 bit     3,b
@@ -2736,12 +2736,12 @@ L167E:          djnz    L167C
                 ret
 ;
 ;*****************************************************************************
-; Called this routine from L007E routine
+; Called this routine from dispatch routine
 ; Move $24 (36) bytes of data from $D300 to $D000 ???
 ;*****************************************************************************
 ;L1684:
                 di
-                ld      hl,LD000
+                ld      hl,WPRAMSTART
                 ld      de,LD300
                 ld      b,$24                   ; 36 decimal
 L168D:          ld      a,(de)
@@ -2754,7 +2754,7 @@ L168D:          ld      a,(de)
 
 ;
 ;*****************************************************************************
-; Called this routine from L007E routine
+; Called this routine from dispatch routine
 ; ???
 ;*****************************************************************************
 ;L1697:
@@ -2794,7 +2794,7 @@ L16C9:          out     ($0F),a
 
 ;
 ;*****************************************************************************
-; Called this routine from L007E routine
+; Called this routine from dispatch routine
 ; Check dip switch for free play
 ;*****************************************************************************
 ;
@@ -2911,11 +2911,11 @@ ld              b,(iy+$00)
 L176D:          ld      (LD1C4),a
                 jp      L00A0
                 ld      sp,$D400
-                jp      L007E
+                jp      dispatch
 
 ;
 ;*****************************************************************************
-; Called this routine from L007E routine
+; Called this routine from dispatch routine
 ; ???
 ;*****************************************************************************
 ;
@@ -2925,7 +2925,7 @@ L176D:          ld      (LD1C4),a
                 jp      L0F6A                   ;Write protected memory byte
 ;
 ;*****************************************************************************
-; Called this routine from L007E routine
+; Called this routine from dispatch routine
 ; Check if dip switch set to "Demo Sounds Active"
 ;*****************************************************************************
 ;L1781:
@@ -2946,7 +2946,7 @@ L176D:          ld      (LD1C4),a
 
 ;
 ;*****************************************************************************
-; Called this routine from L007E routine
+; Called this routine from dispatch routine
 ; Check how many lives at beginning of game (dip switch)
 ;*****************************************************************************
 ;L1792:
@@ -2958,7 +2958,7 @@ L176D:          ld      (LD1C4),a
                 ret
 ;
 ;*****************************************************************************
-; Called this routine from L007E routine
+; Called this routine from dispatch routine
 ; Zero $D350 to $D36E
 ;*****************************************************************************
 ;
@@ -3135,7 +3135,7 @@ L18D3:          jr      nc,L18D5
 
 ;
 ;*****************************************************************************
-; Called this routine from L007E routine
+; Called this routine from dispatch routine
 ; ???
 ;*****************************************************************************
 ;
@@ -4676,7 +4676,7 @@ L22E6:          ld      (hl),c
                 ld      c,a
                 ret
 L22F4:          ld      bc,L01FF
-                jp      L0460
+                jp      printstr
 L22FA:          ld      e,h
                 ld      h,c
                 nop
@@ -6035,7 +6035,7 @@ L2D3D:          ld      a,$01
 
 ;
 ;*****************************************************************************
-; Called this routine from L007E routine
+; Called this routine from dispatch routine
 ; ???
 ;*****************************************************************************
 ;
@@ -9201,7 +9201,7 @@ xor             d
                 and     b
                 nop
                 nop
-                ld      hl,(L00AA)
+                ld      hl,(memcheck)
                 ret     p
                 nop
                 ld      hl,(L0AA0)
@@ -13942,7 +13942,7 @@ ex              af,af'
                 and     b
                 inc     c
                 nop
-                ld      hl,(L00AA)
+                ld      hl,(memcheck)
                 inc     a
                 nop
                 ld      a,(bc)
@@ -14003,7 +14003,7 @@ ld              hl,(LF8AA)
                 and     b
 nop
                 ld      (bc),a
-                ld      hl,(L00AA)
+                ld      hl,(memcheck)
                 nop
                 ld      (bc),a
                 ld      hl,(L2AA8)
@@ -17845,7 +17845,7 @@ nop
                 and     b
                 inc     a
                 nop
-                ld      hl,(L00AA)
+                ld      hl,(memcheck)
                 ret     p
                 nop
                 ld      (bc),a
@@ -18038,7 +18038,7 @@ xor             d
                 ld      hl,(LA0AA)
                 inc     c
                 nop
-                ld      hl,(L00AA)
+                ld      hl,(memcheck)
                 inc     a
                 nop
                 ld      a,(bc)
@@ -19638,7 +19638,7 @@ LCEAC           EQU     $CEAC
 ; Begin Static RAM area
 ;
 
-LD000           EQU     $D000
+WPRAMSTART           EQU     $D000
 LD003           EQU     $D003
 
 
@@ -19707,7 +19707,7 @@ LD1BF           EQU     $D1BF
 LD1C1           EQU     $D1C1
 LD1C3           EQU     $D1C3
 LD1C4           EQU     $D1C4
-LD1C5           EQU     $D1C5
+DIAGFLAG           EQU     $D1C5
 LD1C6           EQU     $D1C6
 LD1C7           EQU     $D1C7
 LD1C8           EQU     $D1C8
@@ -19722,7 +19722,7 @@ LD1D0           EQU     $D1D0
 LD1D1           EQU     $D1D1
 LD1D2           EQU     $D1D2
 LD1D3           EQU     $D1D3
-LD1D4           EQU     $D1D4
+ROMFAIL           EQU     $D1D4
 LD1D5           EQU     $D1D5
             ;
 
