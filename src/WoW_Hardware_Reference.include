@@ -1,0 +1,17 @@
+; ==============================================================================
+; Disassembly of the Wizard of Wor Version 2 ROM
+; ==============================================================================
+;
+; ------------------------------------------------------------------------------
+; MEMORY MAP
+; ------------------------------------------------------------------------------
+;  $0000-$3FFF  ROMs X1-X4 (Also Magic RAM area for Pattern Board writes)
+;  $4000-$7FBF  Viewable SCREEN RAM (Bitmap, $50 bytes wide per line)
+;  $7FC0-$7FFF  Non-viewable Video Margin (Repurposed for Z80 STACK)
+;  $8000-$AFFF  ROMs X5-X7
+;  $B000-$CFFF  Empty Sockets (X8, X11)
+;  $D000-$D3FF  Protected Static RAM (Requires $A5 unlock byte at port $5B)
+;  $D400-$DFFF  Empty static RAM (Temporary stack during boot)
+;
+;  ROM CRCs: x1(c1295786) x2(9be93215) x3(75e5a22e) x4(ef28eb84)
+;            x5(16912c2b) x6(35797f82) x7(ce404305)

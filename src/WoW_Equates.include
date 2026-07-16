@@ -1,0 +1,83 @@
+; ==============================================================================
+; Wizard of Wor - Master Hardware Equates
+; ==============================================================================
+
+EXPHOOK     EQU     $8006       ; Expansion ROM jump hook
+
+; ------------------------------------------------------------------------------
+; SYSTEM INPUTS & SWITCHES
+; ------------------------------------------------------------------------------
+COINPORT    EQU     $10         ; System Inputs
+P2PORT      EQU     $11         ; Player 2 / Cocktail Controls
+P1PORT      EQU     $12         ; Player 1 Controls
+SETTINGS    EQU     $13         ; Dip Switches
+CCMISC      EQU     $15         ; Special Control Register 1
+
+; ------------------------------------------------------------------------------
+; VIDEO & COLOR CONTROL PORTS
+; ------------------------------------------------------------------------------
+COL0R       EQU     $00         ; Color 0 Right
+COL1R       EQU     $01         ; Color 1 Right
+COL2R       EQU     $02         ; Color 2 Right
+COL3R       EQU     $03         ; Color 3 Right
+COL0L       EQU     $04         ; Color 0 Left
+COL1L       EQU     $05         ; Color 1 Left
+COL2L       EQU     $06         ; Color 2 Left
+COL3L       EQU     $07         ; Color 3 Left
+CONCM       EQU     $08         ; Consumer/Commercial Mode
+HORCB       EQU     $09         ; Horizontal Color Boundary
+VERBL       EQU     $0A         ; Vertical Blanking Line
+COLBX       EQU     $0B         ; Color Block Output Port
+MAGIC       EQU     $0C         ; Magic RAM Control Register
+XPAND       EQU     $19         ; Expand Mode Color Definition
+
+; ------------------------------------------------------------------------------
+; INTERRUPT & SYSTEM CONTROL PORTS
+; ------------------------------------------------------------------------------
+INTST       EQU     $08         ; Intercept Status (Hardware Collision)
+INFBK       EQU     $0D         ; Interrupt Feedback Vector
+INMOD       EQU     $0E         ; Interrupt Mode Enable
+INLIN       EQU     $0F         ; Interrupt Scan Line
+RIGHTPORT   EQU     $5B         ; NVRAM Write-Protect Port
+RIGHTVALUE  EQU     $A5         ; NVRAM Unlock Value
+
+; ------------------------------------------------------------------------------
+; AUDIO & MUSIC PROCESSOR PORTS
+; ------------------------------------------------------------------------------
+TONMO       EQU     $10         ; Tone Master Oscillator
+TONEA       EQU     $11         ; Tone A Oscillator
+TONEB       EQU     $12         ; Tone B Oscillator
+TONEC       EQU     $13         ; Tone C Oscillator
+VIBRA       EQU     $14         ; Vibrato Frequency/Range
+VOLC        EQU     $15         ; Tone C Volume
+VOLAB       EQU     $16         ; Tones A & B Volume
+VOLN        EQU     $17         ; Noise Volume
+SNDBX       EQU     $18         ; Sound Block Output Port
+
+; ------------------------------------------------------------------------------
+; PATTERN BOARD (DMA) PORTS
+; ------------------------------------------------------------------------------
+PBLINADRL   EQU     $78         ; LSB of Source Address
+PBLINADRH   EQU     $79         ; MSB of Source Address
+PBSTAT      EQU     $7A         ; Pattern Board Status / Copy Mode
+PBXMOD      EQU     $7B         ; LSB of Dest Address / Skip Low
+PBAREADRH   EQU     $7C         ; MSB of Destination Address
+PBXWIDE     EQU     $7D         ; Width of pattern row
+PBYHIGH     EQU     $7E         ; Height of pattern to copy
+
+; ------------------------------------------------------------------------------
+; HARDWARE BITMASKS
+; ------------------------------------------------------------------------------
+MRROT       EQU     2           ; Magic: Rotate 90 degrees
+MRXPND      EQU     3           ; Magic: Expand 1bpp to 2bpp
+MROR        EQU     4           ; Magic: OR mode
+MRXOR       EQU     5           ; Magic: Exclusive-OR mode
+MRFLOP      EQU     6           ; Magic: Flop (Horizontal mirror)
+MRFLIP      EQU     7           ; Magic: Flip (Vertical mirror)
+
+PBDIR       EQU     0           ; DMA: Transfer Direction
+PBEXP       EQU     1           ; DMA: Expand Mode
+PBCONS      EQU     2           ; DMA: Constant Mode
+PBFLUSH     EQU     3           ; DMA: Flush
+PBFLIP      EQU     4           ; DMA: Vertical Flip
+PBFLOP      EQU     5           ; DMA: Horizontal Flop
