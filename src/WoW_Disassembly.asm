@@ -1,4 +1,4 @@
-INCLUDE "WoW_Equates.include"           ; EQU for the code
+INCLUDE         "WoW_Equates.include"           ; EQU for the code
 
 ;*****************************************************************************
 ; SYSTEM BOOT & HARDWARE INITIALIZATION
@@ -10,18 +10,18 @@ INCLUDE "WoW_Equates.include"           ; EQU for the code
                                                 ; (Pushes pre-decrement to $D3FF, top of Work RAM)
 
                 ld      a, $01
-L0006:          out (CONCM), a                ; Video Mode: 1 = High Res (320x204)
+L0006:          out     (CONCM), a              ; Video Mode: 1 = High Res (320x204)
 
 L0008:          ld      a, $2C                  ; 00101100b
-L000A:          out (HORCB), a                ; Set palette switch position and background color
+L000A:          out     (HORCB), a              ; Set palette switch position and background color
 
 L000C:          ld      a, $CC                  ; $CC = 204
-                out (VERBL), a                ; Vertical Blank: Set screen height to 204 scanlines
+                out     (VERBL), a              ; Vertical Blank: Set screen height to 204 scanlines
 
 L0010:          call    L0093                   ; Set interrupt vector to $CA & map color palette
 
                 ld      a, $08                  ; 00001000b (Bit 3 = 1)
-L0015:          out (INMOD), a                ; Interrupt Enable: Turn on Line Interrupts
+L0015:          out     (INMOD), a              ; Interrupt Enable: Turn on Line Interrupts
 
 ;******************************************************************************************
 ; ----> SPECIAL CONTROL REGISTER 1 ($15)
@@ -29,23 +29,23 @@ L0015:          out (INMOD), a                ; Interrupt Enable: Turn on Line I
 ; Note: Writes to this port are performed using IN instructions!
 ; Format: 0000 xxx y (xxx = function 0-7, y = 0 activate / 1 deactivate)
 ;******************************************************************************************
-L0017:          ld      a, $00          ; 0000 000 0 (Function 0: Coin Counter 3)
-                in a, (CCMISC)        ; Activate Coin Counter 3 latch
+L0017:          ld      a, $00                  ; 0000 000 0 (Function 0: Coin Counter 3)
+                in      a, (CCMISC)             ; Activate Coin Counter 3 latch
 
-                ld      a, $02          ; 0000 001 0 (Function 1: Coin Counter 2)
-                in a, (CCMISC)        ; Activate Coin Counter 2 latch
+                ld      a, $02                  ; 0000 001 0 (Function 1: Coin Counter 2)
+                in      a, (CCMISC)             ; Activate Coin Counter 2 latch
 
-                ld      a, $0E          ; 0000 111 0 (Function 7: Unused/Light Transistor)
-                in a, (CCMISC)        ; Activate unused latch
+                ld      a, $0E                  ; 0000 111 0 (Function 7: Unused/Light Transistor)
+                in      a, (CCMISC)             ; Activate unused latch
 
-                call    L06C8           ; Set scan line interrupt & enable sparkle colors
+                call    L06C8                   ; Set scan line interrupt & enable sparkle colors
 
 ;******************************************************************************************
 ; ----> SET INTERRUPT MODE
 ;******************************************************************************************
-L0026:          ld      a, $00          ; High byte for Interrupt Vector Table
-                ld      i, a            ; Interrupts will be triggered from $0000-$00FF
-                im      2               ; Set Interrupt Mode 2
+L0026:          ld      a, $00                  ; High byte for Interrupt Vector Table
+                ld      i, a                    ; Interrupts will be triggered from $0000-$00FF
+                im      2                       ; Set Interrupt Mode 2
 
 ;******************************************************************************************
 ; GAME INITIALIZATION & MEMORY SETUP
@@ -70,24 +70,24 @@ L003C:          inc     c                       ; Increment the value
                 call    L0F6A                   ; Safely write C back through hardware latch
 
 L0040:          ld      hl, (LD038)             ; Load word from Protected RAM $D038
-                call    memcheck                   ; Execute Nybble parity/complement check
+                call    memcheck                ; Execute Nybble parity/complement check
 
                 ld      hl, (LD03E)             ; Load word from Protected RAM $D03E
-                call    memcheck                   ; Execute Nybble parity/complement check
+                call    memcheck                ; Execute Nybble parity/complement check
 
 ;******************************************************************************************
 ; ----> CREDIT LIMIT CHECK
 ;******************************************************************************************
                 ld      a, (LD03C)              ; Load Number of Credits
 L004F:          cp      $1F                     ; Compare with 31 ($1F)
-                call    nc, wiperam               ; If >= 31, zero out bottom of Static RAM
+                call    nc, wiperam             ; If >= 31, zero out bottom of Static RAM
 
 ;******************************************************************************************
 ; ----> BUFFER CLEARING
 ;******************************************************************************************
 L0054:          ld      hl, Is_Speech_Active    ; Point to Speech Active flag ($D245)
                 call    L00BA                   ; Zero out 256 bytes (Sound/Speech buffers)
-                call    wpfill                   ; Zero out next 64 bytes
+                call    wpfill                  ; Zero out next 64 bytes
 
 ;******************************************************************************************
 ; ----> RNG SEED & PROTECTED RAM MIRRORING
@@ -95,7 +95,7 @@ L0054:          ld      hl, Is_Speech_Active    ; Point to Speech Active flag ($
                 ld      a, r                    ; Read Z80 Refresh Register for RNG entropy
                 ld      (LD34A), a              ; Store as random number seed in Work RAM
 
-                ld      hl, WPRAMSTART               ; Source = $D000 (Protected RAM)
+                ld      hl, WPRAMSTART          ; Source = $D000 (Protected RAM)
                 ld      de, LD300               ; Dest   = $D300 (Work RAM)
 L0068:          ld      bc, L0020               ; Length = $0020 (32 bytes)
                 ldir                            ; Mirror Protected RAM to fast Work RAM
@@ -109,10 +109,10 @@ L0068:          ld      bc, L0020               ; Length = $0020 (32 bytes)
                 ld      a,(Game_Mode)           ; Check Game Mode variable
                 and     a                       ; Is it 0 (Demo Mode)?
                 ld      iy,$0F70                ; Default IY to Demo Mode TERSE script
-L0078:          jr      z,dispatch                 ; If Demo Mode, jump to dispatcher loop
+L0078:          jr      z,dispatch              ; If Demo Mode, jump to dispatcher loop
                 ld      iy,L10FD                ; Else, set IY to Game Mode TERSE script
 
-dispatch:          ld      hl,dispatch                ; Load address of this dispatcher loop
+dispatch:       ld      hl,dispatch             ; Load address of this dispatcher loop
                 push    hl                      ; Push it to stack (Tasks will 'ret' back here)
 
                 call    L0875                   ; Fetch next TERSE token address into HL (IY++)
@@ -121,7 +121,7 @@ dispatch:          ld      hl,dispatch                ; Load address of this dis
 ;******************************************************************************************
 ; ----> DIAGNOSTIC SWITCH ESCAPE HATCH
 ;******************************************************************************************
-                in a, (COINPORT)                 ; Read hardware switches (Coin/Service)
+                in      a, (COINPORT)           ; Read hardware switches (Coin/Service)
 L0088:          bit     3,a                     ; Check Service/Diagnostic Switch
                 ret     nz                      ; If switch is OFF, 'ret' executes the TERSE task!
 
@@ -135,9 +135,9 @@ L0088:          bit     3,a                     ; Check Service/Diagnostic Switc
 ; ----> INTERRUPT VECTOR & COLOR PALETTE MAPPING
 ;******************************************************************************************
 L0093:          ld      a,$CA                   ; Interrupt vector at $CA
-                out (INFBK),a                 ; Set interrupt vector upper byte
+                out     (INFBK),a               ; Set interrupt vector upper byte
 
-                ld      hl,DEFPALETTE                ; Source: Color mapping table
+                ld      hl,DEFPALETTE           ; Source: Color mapping table
                 ld      bc,$080B                ; B = 8 (count), C = $0B (Color Block Transfer port)
                 otir                            ; Rapidly blast 8 bytes from HL to port $0B
                 ret
@@ -146,27 +146,27 @@ L0093:          ld      a,$CA                   ; Interrupt vector at $CA
 ; ----> SET INTERRUPT VECTOR $CC
 ;******************************************************************************************
 L00A0:          ld      a,$CC
-                out (INFBK),a                 ; Set interrupt vector upper byte
+                out     (INFBK),a               ; Set interrupt vector upper byte
 L00A4:          ret
 
 ;******************************************************************************************
 ; ----> SET INTERRUPT VECTOR $CE
 ;******************************************************************************************
 L00A5:          ld      a,$CE
-                out (INFBK),a                 ; Set interrupt vector upper byte
+                out     (INFBK),a               ; Set interrupt vector upper byte
                 ret
 
 ;******************************************************************************************
 ; ----> MEMORY INTEGRITY / ANTI-TAMPER CHECK
 ;       Checks if L's nybbles are identical, and if H is the exact complement of L.
 ;******************************************************************************************
-memcheck:          ld      a,l                     ; Copy L to A
+memcheck:       ld      a,l                     ; Copy L to A
 L00AB:          rlca                            ; \
                 rlca                            ; |
                 rlca                            ; | Swap upper and lower nybbles of A
                 rlca                            ; /
                 cp      l                       ; Compare swapped nybbles to original L
-                jr      nz,wiperam                ; IF different: Fail check! (Jumps to RAM wipe)
+                jr      nz,wiperam              ; IF different: Fail check! (Jumps to RAM wipe)
                 cpl                             ; Complement A
                 cp      h                       ; Compare to H
                 ret     z                       ; IF match: Check passed! Return safely.
@@ -176,18 +176,18 @@ L00AB:          rlca                            ; \
 ;       Zeros out the 64 bytes of Protected Static RAM ($D000 - $D03F).
 ;       Triggered by anti-tamper failure or >31 credits.
 ;******************************************************************************************
-wiperam:          ld      hl,WPRAMSTART                ; Point HL to bottom of Static RAM ($D000)
+wiperam:        ld      hl,WPRAMSTART           ; Point HL to bottom of Static RAM ($D000)
 
 ;******************************************************************************************
 ; ----> PROTECTED MEMORY FILL ROUTINE
 ;       Fills B bytes of Protected RAM with the value in C.
 ;******************************************************************************************
-wpfill:          ld      b,$40                   ; B = 64 (bytes to write)
+wpfill:         ld      b,$40                   ; B = 64 (bytes to write)
 
 L00BA:          ld      c,$00                   ; C = 0 (Fill value)
                 ld      a,$A5                   ; A = $A5 (Hardware NVRAM unlock byte)
 
-L00BE:          out (RIGHTPORT),a                 ; Output $A5 to port $5B to unlock memory
+L00BE:          out     (RIGHTPORT),a           ; Output $A5 to port $5B to unlock memory
 L00C0:          ld      (hl),c                  ; Write byte to protected RAM
                 inc     hl                      ; Advance memory pointer
                 djnz    L00BE                   ; Loop until B = 0
@@ -206,8 +206,8 @@ L00C8:          DB      $C7, $00, $56, $09, $9E, $09, $B4, $09
 ; ----> VIDEO RAM FAILURE / CRASH HANDLER
 ;            Causes the screen to flash wildly by spamming random values to the palette port.
 ;******************************************************************************************
- vramerr:       ld      a,r                     ; Get random value from Z80 Refresh Register
-                out (HORCB),a                 ; Output to background color / palette port
+                vramerr: ld      a,r            ; Get random value from Z80 Refresh Register
+                out     (HORCB),a               ; Output to background color / palette port
 
 ;******************************************************************************************
 ; ----> VIDEO RAM TEST / FILL ROUTINE
@@ -215,7 +215,7 @@ L00C8:          DB      $C7, $00, $56, $09, $9E, $09, $B4, $09
 ;            checks it, then propagates the inverted byte backwards.
 ;            Expects return address in HL (uses EXX to preserve it without the stack).
 ;******************************************************************************************
-vramtest:          exx                             ; Swap registers (saves return address into HL')
+vramtest:       exx                             ; Swap registers (saves return address into HL')
                 ld      hl,$4000                ; Point HL to start of Video RAM
                 ld      (hl),a                  ; Write the test pattern to $4000
 
@@ -224,10 +224,10 @@ vramtest:          exx                             ; Swap registers (saves retur
                 ldir                            ; Rapidly copy (HL) to (DE), filling VRAM upward
 
                 cp      (hl)                    ; Does the last written byte still match the pattern?
-                jr      nz, vramerr                ; IF NOT: Memory failed! Jump to crash handler
+                jr      nz, vramerr             ; IF NOT: Memory failed! Jump to crash handler
 
                 ex      af,af'                  ; Save Accumulator and Flags
-                in a, (COINPORT)                 ; Read hardware switches (Hardware Watchdog kick)
+                in      a, (COINPORT)           ; Read hardware switches (Hardware Watchdog kick)
                 ex      af,af'                  ; Restore Accumulator and Flags
 
 L00E8:          dec     de                      ; \ Adjust DE from $8000 down to $7FFE
@@ -239,10 +239,10 @@ L00E8:          dec     de                      ; \ Adjust DE from $8000 down to
                 lddr                            ; Rapidly copy (HL) to (DE) backwards, filling VRAM downward
 
                 cp      (hl)                    ; Does the last written byte still match inverted pattern?
-                jr      nz, vramerr                ; IF NOT: Memory failed! Jump to crash handler
+                jr      nz, vramerr             ; IF NOT: Memory failed! Jump to crash handler
 
                 ex      af,af'                  ; Save Accumulator and Flags
-                in a, (COINPORT)                 ; Read hardware switches (Hardware Watchdog kick)
+                in      a, (COINPORT)           ; Read hardware switches (Hardware Watchdog kick)
                 ex      af,af'                  ; Restore Accumulator and Flags
 
                 cpl                             ; Invert the pattern back to its original state
@@ -269,7 +269,7 @@ L0101:          call    z,L8006                 ; If yes, execute external diagn
 ;            Sets the stackless return address to L010E and executes the VRAM fill/check.
 ;******************************************************************************************
 L0109:          ld      hl,L010E                ; Set return address for stackless memory test
-                jr      vramtest                   ; Execute VRAM test (vramtest)
+                jr      vramtest                ; Execute VRAM test (vramtest)
 
 ;******************************************************************************************
 ; ----> TEST PATTERN SHIFTER
@@ -300,12 +300,12 @@ L0117:          call    L08AE                   ; Clear screen, init video, and 
 ;            Pass 1: Fills upward with $FF. Pass 2: Fills downward with $00.
 ;            Pass 3: Scans upward to verify all bytes remain $00.
 ;******************************************************************************************
-                ld      hl,WPRAMSTART                ; HL = $D000 (Start of Static RAM)
+                ld      hl,WPRAMSTART           ; HL = $D000 (Start of Static RAM)
                 ld      bc,$0004                ; B = 0 (256 loops), C = 4 (1KB total)
                 ld      d,$FF                   ; D = $FF (Initial test pattern)
                 ld      a,$A5                   ; A = $A5 (Hardware NVRAM unlock byte)
 
-L012F:          out (RIGHTPORT),a                 ; Unlock NVRAM for writing
+L012F:          out     (RIGHTPORT),a           ; Unlock NVRAM for writing
                 ld      (hl),d                  ; Write $FF pattern to memory
                 ld      d,(hl)                  ; Read it back into D to test data bus
                 inc     hl                      ; Advance memory pointer upward
@@ -321,7 +321,7 @@ L012F:          out (RIGHTPORT),a                 ; Unlock NVRAM for writing
 L0140:          inc     d                       ; Bump test pattern: $FF + 1 = $00
                 ld      a,$A5                   ; A = $A5 (NVRAM unlock byte)
 
-L0143:          out (RIGHTPORT),a                 ; Unlock NVRAM for writing
+L0143:          out     (RIGHTPORT),a           ; Unlock NVRAM for writing
                 dec     hl                      ; Advance memory pointer downward (Starts at $D400 -> $D3FF)
                 ld      (hl),d                  ; Write $00 pattern to memory
                 ld      d,(hl)                  ; Read it back into D
@@ -378,10 +378,10 @@ L016F:          ld      de,$051A                ; String formatting and color at
 
 ; ----> CHECK DIP SWITCH FOR FOREIGN ROM
                 ld      a,(LD347)               ; (Dummy read)
-                in a, (SETTINGS)                 ; Read Dip Switches (Port $13)
+                in      a, (SETTINGS)           ; Read Dip Switches (Port $13)
                 bit     3,a                     ; Check Language Switch (On = English)
                 ld      b,$07                   ; Default to 7 ROMs (A through G)
-                jr      nz,romcheck                ; IF English: Jump to test
+                jr      nz,romcheck             ; IF English: Jump to test
                 inc     b                       ; IF Foreign: Set count to 8 ROMs (A through X)
 
 ; ----> BEGIN ROM CHECK LOOP
@@ -417,14 +417,14 @@ L01AB:          add     a,(hl)                  ; Accumulate byte into A
                 jr      z,L01C1                 ; IF CHECKSUM MATCHES: Jump ahead to next letter
 
                 ld      a,d                     ; IF CHECKSUM FAILS: Save color formatting from D'
-                ld      (ROMFAIL),a               ; Store it in RAM
+                ld      (ROMFAIL),a             ; Store it in RAM
                 call    L0374                   ; Print the failing ROM's letter (pointed to by HL')
                 dec     hl                      ; Adjust string pointer backwards so it stays aligned
 
 L01C1:          inc     hl                      ; Advance string pointer to next ROM letter ("A" -> "B")
                 exx                             ; Swap back to Main Registers
                 pop     bc                      ; Restore ROM loop counter
-                djnz    romcheck                   ; Loop until all 7 (or 8) ROMs are checked
+                djnz    romcheck                ; Loop until all 7 (or 8) ROMs are checked
 
 ;******************************************************************************************
 ; ----> HARDWARE DIAGNOSTICS & SWITCH TEST SCREEN (UI SETUP)
@@ -432,12 +432,12 @@ L01C1:          inc     hl                      ; Advance string pointer to next
 ;******************************************************************************************
                 exx                             ; Restore registers after ROM test
                 ld      hl,$0446                ; Source string: "OK"
-                ld      a,(ROMFAIL)               ; Read ROM failure flag ($D1D4)
+                ld      a,(ROMFAIL)             ; Read ROM failure flag ($D1D4)
                 and     a                       ; Is it zero? (No failures)
                 call    z,L0356                 ; IF 0: Print "OK"
 
                 ld      a,$01
-                ld      (DIAGFLAG),a               ; Set diagnostic screen active flag
+                ld      (DIAGFLAG),a            ; Set diagnostic screen active flag
 
 ; ----> DRAW INPUT LABELS
                 ld      de,$1403                ; Screen formatting attributes
@@ -480,15 +480,15 @@ L020B:          ld      e,$22
 ;            Reads ports, complements them (active-low to active-high), isolates bits,
 ;            and uses L0397 to selectively print "YES" or "NO" if the state changed.
 ;******************************************************************************************
-diagloop:          ei                              ; Enable interrupts to allow screen refresh
+diagloop:       ei                              ; Enable interrupts to allow screen refresh
 
                 ld      de,LD1D6                ; Point to Player 2 / Cocktail controls buffer
-                in a, (P2PORT)                 ; Read Port $11 (Player 2 joystick/buttons)
+                in      a, (P2PORT)             ; Read Port $11 (Player 2 joystick/buttons)
                 cpl                             ; Invert (Active-low to active-high)
                 ld      (de),a                  ; Save Player 2 state to $D1D6
 
 L0230:          ld      de,LD1D7                ; Point to Player 1 controls buffer
-                in a, (P1PORT)                 ; Read Port $12 (Player 1 joystick/buttons)
+                in      a, (P1PORT)             ; Read Port $12 (Player 1 joystick/buttons)
                 cpl
                 ld      (de),a                  ; Save Player 1 state to $D1D7
 
@@ -534,44 +534,44 @@ L0230:          ld      de,LD1D7                ; Point to Player 1 controls buf
 
                 ld      de,L2303                ; ???
                 ld      hl,LD1D2                ; ???
-                in a, (COINPORT)                 ; Check IN0 for activity
+                in      a, (COINPORT)           ; Check IN0 for activity
                 cpl                             ; ???
                 and     $20                     ; Check ???
                 call    L0397                   ; Test and write YES or NO
                 ld      e,$30                   ; Check ???
                 ld      hl,LD1D3                ; ???
-                in a, (COINPORT)                 ; Check IN0 for activity
+                in      a, (COINPORT)           ; Check IN0 for activity
                 cpl                             ; ???
                 and     $40                     ; Check ???
                 call    L0397                   ; Test and write YES or NO
 L02A0:          ld      de,L2803                ; ???
                 ld      hl,LD1C9                ; ???
-                in a, (COINPORT)
+                in      a, (COINPORT)
 L02A8:          cpl
                 and     $01
                 call    L0397
                 ld      e,$30
                 ld      hl,LD1CA
-                in a, (COINPORT)
+                in      a, (COINPORT)
                 cpl
                 and     $02
                 call    L0397
                 ld      e,$1A
                 ld      hl,LD1CB
-                in a, (COINPORT)
+                in      a, (COINPORT)
                 cpl
                 and     $04
                 call    L0397
                 ld      de,L2D03
                 ld      hl,LD1D5
-                in a, (COINPORT)
+                in      a, (COINPORT)
                 cpl
 L02D1:          and     $10
                 call    L0397
 
 
                 ld      a,(LD347)
-                in a, (SETTINGS)
+                in      a, (SETTINGS)
 L02DB:          cpl
                 ld      b,a
                 ld      de,L2D1A
@@ -596,12 +596,12 @@ L02E5:          push    hl
                 ld      de,L2D30
 L02FE:          sla     c
 L0300:          jr      nz,L02E5
-L0302:          in a, (COINPORT)
+L0302:          in      a, (COINPORT)
                 and     $60
 L0306:          jr      z,L0310
-                in a, (COINPORT)                 ;
+                in      a, (COINPORT)           ;
                 bit     3,a                     ; Check for service switch on
-                jp      z,diagloop                 ; Jump back to diagnostic screen if so
+                jp      z,diagloop              ; Jump back to diagnostic screen if so
 L030F:          rst     00H                     ; Otherwise, restart everything!
 ;
 ;*****************************************************
@@ -744,7 +744,7 @@ L03B1:          ld      b,$04                   ; Length
 ;
 L03B3:          ld      a,$0C                   ; Expand mode color ???
 L03B5:          ld      c,$FF                   ; ???
-                jp      printstr                   ; Go write the string...
+                jp      printstr                ; Go write the string...
 ;
 ;*****************************************************
 ; ???
@@ -815,41 +815,41 @@ L045C:          ld      c,$10
 ; and "???" in C
 ;*****************************************************
 ;
-printstr:          di                              ; No interruptions
-                out (XPAND),a                 ; Expand mode color ???
+printstr:       di                              ; No interruptions
+                out     (XPAND),a               ; Expand mode color ???
                 bit     7,c                     ; Check for???
                 ld      a,$08                   ; Setup for expand mode only... !!! change this to binary
                 jr      nz,L046B                ;   and skip ahead.
                 set     6,a                     ; Otherwise, set ??? bit
-L046B:          out (MAGIC),a                 ; Out to "Magic RAM control"
+L046B:          out     (MAGIC),a               ; Out to "Magic RAM control"
 L046D:          ld      a,(hl)                  ; Get the character of the string
                 inc     hl                      ; Set up for next character
                 push    hl                      ; Save next character location
                 push    de                      ; Save the color of character
-                call    char2gfx                   ; Translate ASCII into graphic location
+                call    char2gfx                ; Translate ASCII into graphic location
                 pop     de                      ; Restore color of character
                 bit     7,c                     ; Check for cocktail again??? unless char2gfx changed c... check it. ???
                 ld      a,$26                   ; Set normal line offset value
                 jr      nz,L047D                ; ... skip the modification for ???
                 xor     $30                     ; Modification to ???
-L047D:          out (PBSTAT),a                 ; Set up line offset value???
+L047D:          out     (PBSTAT),a              ; Set up line offset value???
                 ld      a,l                     ;
-                out (PBLINADRL),a                 ; LSB of source
+                out     (PBLINADRL),a           ; LSB of source
 ld              a,h
-                out (PBLINADRH),a                 ; MSB of source
+                out     (PBLINADRH),a           ; MSB of source
                 ld      a,e
-                out (PBXMOD),a                 ; LSB of destination
+                out     (PBXMOD),a              ; LSB of destination
                 ld      a,d
-                out (PBAREADRH),a                 ; MSB of destination
+                out     (PBAREADRH),a           ; MSB of destination
                 bit     7,c                     ; Check for cocktail... ???
                 ld      a,$4F                   ; Set up for normal ???
                 jr      nz,L0493                ; Skip the mod for ??? if not cocktail
                 ld      a,$B1                   ; Otherwise, set up for ???
-L0493:          out (PBXMOD),a                 ; ??? what is this ???
+L0493:          out     (PBXMOD),a              ; ??? what is this ???
                 ld      a,$01
-                out (PBXWIDE),a                 ; Set width of pattern
+                out     (PBXWIDE),a             ; Set width of pattern
                 ld      a,$09
-                out (PBYHIGH),a                 ; Height of pattern and start transfer!
+                out     (PBYHIGH),a             ; Height of pattern and start transfer!
                 pop     hl                      ; Restore the next character to HL
                 inc     de                      ;
                 inc     de                      ; Why did we double DE???
@@ -883,14 +883,14 @@ L04A8:          djnz    L046D                   ; Character finished, go back an
 ;
 ;********************************************************************
 ;
-char2gfx:          sub     $30                     ; Turn ASCII into table entry
+char2gfx:       sub     $30                     ; Turn ASCII into table entry
                 cp      $0A                     ; Check for number 0-9
                 jr      c,L04B3                 ; Jump if not a number...
                 sub     $06                     ; Adjust to take out unsupported characters
                 ; ... between "9" and "A" (":;<=>?")
 L04B3:          ld      l,a                     ; L = table entry
                 sub     $2C                     ; Check for alternate characters???
-                ld      de,CHRTBL                ; Entry to character table
+                ld      de,CHRTBL               ; Entry to character table
                 jr      c,L04C2                 ; Skip alternate ROM set
                 ld      hl,LC00B                ; Entry of table to alternate ROM character set
                 ld      e,(hl)                  ; \
@@ -1018,7 +1018,7 @@ L0687:          call    L06B5
                 cp      $08
                 ret     c
                 ld      a,(L00C8)
-                out (COL0L),a
+                out     (COL0L),a
                 xor     a
                 ld      (LD1BA),a
                 ld      (LD050),a
@@ -1046,16 +1046,16 @@ L06B5:          ld      hl,LD1C1
 ;*********************************************************
 ;
 L06C8:          ld      a,$A8                   ; Set the interrupt line to 162
-                out (INLIN),a
+                out     (INLIN),a
 
 L06CC:          ld      a,00000111b             ; Turn on sparkle color 1
-                in a, (CCMISC)
+                in      a, (CCMISC)
 
                 ld      a,00001001b             ; Turn on sparkle color 2
-                in a, (CCMISC)
+                in      a, (CCMISC)
 
                 ld      a,00001011b             ; Turn on sparkle color 3
-                in a, (CCMISC)
+                in      a, (CCMISC)
 
                 ret
 ;
@@ -1070,13 +1070,13 @@ L06E0:          add     hl,de
                 and     a
                 jr      nz,L06E8
 L06E7:          ld      a,(hl)
-L06E8:          out (COL3L),a
+L06E8:          out     (COL3L),a
                 inc     hl
                 ld      a,(hl)
-                out (COL2L),a
+                out     (COL2L),a
                 inc     hl
                 ld      a,(hl)
-                out (COL1L),a
+                out     (COL1L),a
                 ret
 ;
 ;*********************************************************
@@ -1105,7 +1105,7 @@ L06E8:          out (COL3L),a
 ld              a,b
                 ret     p
 L070E:          ld      a,$04
-                in a, (CCMISC)
+                in      a, (CCMISC)
                 jr      L06C8
 
 L0714:          ld      hl,LD1BB
@@ -1113,7 +1113,7 @@ L0714:          ld      hl,LD1BB
                 and     a
                 ret     z
                 ld      a,$CC
-                out (INLIN),a
+                out     (INLIN),a
                 inc     hl
                 ld      a,(hl)
                 and     a
@@ -1126,7 +1126,7 @@ L0714:          ld      hl,LD1BB
 L0725:          ld      (hl),$01
                 dec     hl
                 ld      a,$05
-                in a, (CCMISC)
+                in      a, (CCMISC)
                 dec     (hl)
                 call    z,L070E
                 ld      a,(hl)
@@ -1138,7 +1138,7 @@ L0731:          sub     $10
                 ld      hl,L0742
                 add     hl,bc
 L073E:          ld      a,(hl)
-                out (COL0L),a
+                out     (COL0L),a
                 ret
 ;
 ;*********************************************************
@@ -1170,7 +1170,7 @@ L075B:          ld      hl,LD1BD
                 and     a
                 ret     z
                 ld      a,$CC
-                out (INLIN),a
+                out     (INLIN),a
                 inc     hl
                 ld      a,(hl)
                 and     a
@@ -1188,9 +1188,9 @@ L076C:          ld      (hl),$03
                 ld      a,$07
                 jr      z,L0779
                 xor     a
-L0779:          out (COL3L),a
-                out (COL2L),a
-                out (COL1L),a
+L0779:          out     (COL3L),a
+                out     (COL2L),a
+                out     (COL1L),a
                 ret
 ;
 ;*********************************************************
@@ -1204,7 +1204,7 @@ L0781:          call    L0894
 ;*********************************************************
 ;
 L078B:          ld      a,(LD347)
-                in a, (SETTINGS)                 ; Check for language...
+                in      a, (SETTINGS)           ; Check for language...
                 bit     3,a                     ; Off=Foreign, On=English (active HIGH)
                 ld      hl,L3131
                 jr      nz,L079A
@@ -1224,7 +1224,7 @@ L079A:          ld      a,(hl)
 L07A8:          call    L0875
                 push    hl
                 call    L0875
-                in a, (COINPORT)                 ; Unknown what bit 7 does...
+                in      a, (COINPORT)           ; Unknown what bit 7 does...
                 bit     7,a
                 jr      nz,L07B6
                 ex      (sp),hl
@@ -1268,7 +1268,7 @@ call            L0894
                 cpl
                 ld      e,a
                 call    L088B
-                in a, (COINPORT)
+                in      a, (COINPORT)
                 bit     7,a                     ;Unknown what bit 7 does on port $10
                 call    L0880
                 jr      nz,L07FF
@@ -1328,7 +1328,7 @@ call            L0872
 L083E:          push    de
                 pop     iy
                 ret
-                in a, (COINPORT)
+                in      a, (COINPORT)
                 and     (iy+$00)
                 inc     iy
                 call    L0875
@@ -1448,20 +1448,20 @@ L08A0:          pop     hl                      ; Return address in HL
 ;
 L08AE:          di
                 xor     a                       ; Zero A
-                out (XPAND),a                 ; Magic RAM expand mode color ???
+                out     (XPAND),a               ; Magic RAM expand mode color ???
                 ld      a,$08
-                out (MAGIC),a                 ; Set vertical blanking (see description) ???
+                out     (MAGIC),a               ; Set vertical blanking (see description) ???
                 ld      a,$22
-                out (PBSTAT),a                 ; Mode control byte ???
+                out     (PBSTAT),a              ; Mode control byte ???
                 xor     a                       ; A=0
-                out (PBXMOD),a                 ; LSB of destination address
-                out (PBAREADRH),a                 ; MSB of destination address
+                out     (PBXMOD),a              ; LSB of destination address
+                out     (PBAREADRH),a           ; MSB of destination address
                 inc     a                       ; A=1
-L08C0:          out (PBXMOD),a                 ; Line offset value ???
+L08C0:          out     (PBXMOD),a              ; Line offset value ???
                 ld      a,$4F
-                out (PBXWIDE),a                 ; Width of pattern
+                out     (PBXWIDE),a             ; Width of pattern
                 ld      a,$CB
-                out (PBYHIGH),a                 ; Height of pattern and start transfer
+                out     (PBYHIGH),a             ; Height of pattern and start transfer
 
 ; NOTE: After the execution of the previous instruction, the screen is cleared!
 ; So is this a "clear screen" routine using the pattern board???
@@ -1512,14 +1512,14 @@ L0904:          rla
                 ld      (hl),c
 L0908:          inc     hl
                 push    af
-                in a, (COINPORT)
+                in      a, (COINPORT)
                 bit     7,a
                 jr      nz,L0912
                 dec     hl
                 dec     hl
 L0912:          pop     af
                 djnz    L0904
-                in a, (COINPORT)
+                in      a, (COINPORT)
                 bit     7,a
                 ld      c,$E8
                 jr      nz,L0920
@@ -1529,7 +1529,7 @@ L0920:          add     hl,bc
                 djnz    L08FC
                 exx
                 ld      bc,LF6A8
-                in a, (COINPORT)
+                in      a, (COINPORT)
                 bit     7,a
                 jr      nz,L0931
                 ld      bc,L0958
@@ -1615,12 +1615,12 @@ L098B:          and     $0F
                 push    af
                 ld      a,(LD1C4)
                 add     a,$2C
-                out (INLIN),a
+                out     (INLIN),a
                 call    L00A5
                 ld      a,$0A
-                in a, (CCMISC)
+                in      a, (CCMISC)
                 ld      a,$52
-                out (COL3L),a
+                out     (COL3L),a
                 pop     af
                 ei
                 ret
@@ -1630,12 +1630,12 @@ L098B:          and     $0F
 ;
                 push    af
                 ld      a,(LD1C4)
-                out (INLIN),a
+                out     (INLIN),a
                 call    L00A0
                 ld      a,$0B
-                in a, (CCMISC)
+                in      a, (CCMISC)
                 ld      a,$51
-                out (COL3L),a
+                out     (COL3L),a
                 jr      L0957
                 nop
 L09C8:          ld      hl,LD003
@@ -1645,7 +1645,7 @@ L09C8:          ld      hl,LD003
 L09D1:          ld      a,(DIAGFLAG)
                 and     a
                 jp      nz,L0A68
-                in a, (COINPORT)                 ; Check for TILT
+                in      a, (COINPORT)           ; Check for TILT
                 and     $10                     ; Bit 4, active LOW
                 jr      z,L09C8                 ; Jump to TILT routine
                 ld      a,(LD03A)
@@ -1738,9 +1738,9 @@ L0AA0:          djnz    L0A95
 L0AA6:          bit     7,(hl)
 L0AA8:          ret     z
                 ld      a,$0C
-                out (XPAND),a
+                out     (XPAND),a
                 ld      a,$28
-                out (MAGIC),a
+                out     (MAGIC),a
                 bit     3,(hl)
                 jr      z,L0AB9
                 res     7,(hl)
@@ -1769,14 +1769,14 @@ L0AC9:          ld      e,a
                 ld      (hl),e
                 inc     hl
                 ld      (hl),d
-                in a, (INTST)
+                in      a, (INTST)
                 pop     hl
                 ld      a,(hl)
                 push    hl
                 call    L0AF5
                 pop     hl
                 set     6,(hl)
-                in a, (INTST)
+                in      a, (INTST)
                 and     a
                 ret     z
                 set     5,(hl)
@@ -1893,7 +1893,7 @@ L0B89:          bit     4,(hl)
 L0B91:          inc     hl
 L0B92:          di
                 ld      a,(hl)
-                out (MAGIC),a
+                out     (MAGIC),a
                 ld      de,L0005
                 bit     7,a
                 jr      z,L0B9F
@@ -1903,7 +1903,7 @@ L0B9F:          bit     6,a
                 set     5,d
 L0BA5:          ld      a,d
                 or      $0C
-                out (PBSTAT),a
+                out     (PBSTAT),a
 L0BAA:          bit     5,a
                 jr      z,L0BB0
                 ld      e,$FB
@@ -1921,22 +1921,22 @@ L0BB8:          add     a,e
                 ld      e,a
                 inc     hl
                 ld      a,(hl)
-                out (PBLINADRL),a
+                out     (PBLINADRL),a
                 inc     hl
                 ld      a,(hl)
-                out (PBLINADRH),a
+                out     (PBLINADRH),a
                 inc     hl
                 ld      a,(hl)
-                out (PBXMOD),a
+                out     (PBXMOD),a
                 inc     hl
                 ld      a,(hl)
-                out (PBAREADRH),a
+                out     (PBAREADRH),a
                 ld      a,e
-                out (PBXMOD),a
+                out     (PBXMOD),a
                 ld      a,$05
-                out (PBXWIDE),a
+                out     (PBXWIDE),a
                 ld      a,$11
-                out (PBYHIGH),a
+                out     (PBYHIGH),a
                 ret
                 nop
 L0BD7:          push    iy
@@ -2157,7 +2157,7 @@ L0D59:          ld      (ix+$1d),$00
                 cp      $02
                 jr      c,L0D87
                 ex      af,af'
-                in a, (COINPORT)
+                in      a, (COINPORT)
                 bit     7,a
                 jr      nz,L0D86
                 set     7,c
@@ -2257,7 +2257,7 @@ L0E2B:          ld      hl,LD341
 L0E3E:          ld      d,$0E
                 call    L0F00
                 ld      a,(LD347)
-                in a, (SETTINGS)
+                in      a, (SETTINGS)
                 ld      b,a
                 exx
                 ld      de,L0F1A
@@ -2326,11 +2326,11 @@ L0EBB:          ld      a,b
                 inc     e
                 ret
 L0EC0:          ld      hl,LD03B
-                in a, (COINPORT)
+                in      a, (COINPORT)
                 and     c
                 ld      d,(hl)
                 ld      a,$A5
-                out (RIGHTPORT),a
+                out     (RIGHTPORT),a
                 jr      nz,L0ED1
                 ld      a,d
                 or      c
@@ -2374,7 +2374,7 @@ L0F01:          and     a
                 cp      $0F
 L0F07:          ret     nz
                 ld      a,d
-                in a, (CCMISC)
+                in      a, (CCMISC)
 L0F0B:          ret
 L0F0C:          inc     hl
                 ld      a,(hl)
@@ -2385,7 +2385,7 @@ L0F0C:          inc     hl
                 ld      (hl),$1E
                 ld      a,d
                 set     0,a
-                in a, (CCMISC)
+                in      a, (CCMISC)
                 ret
 L0F1A:          djnz    L0F24
                 jr      nc,L0F6E
@@ -2443,7 +2443,7 @@ L0F57:          ex      (sp),hl
 ;************************************************************
 ;
 L0F6A:          ld      a,$A5
-                out (RIGHTPORT),a                 ; Protected memory port
+                out     (RIGHTPORT),a           ; Protected memory port
 L0F6E:          ld      (hl),c
                 ret
 ;
@@ -2695,7 +2695,7 @@ L163A:          ld      a,(LD302)
 
 
                 ld      a,(LD347)
-                in a, (SETTINGS)
+                in      a, (SETTINGS)
                 ld      b,$03
                 bit     5,a                     ; Dipswitch: Bonus Lives active HIGH
                     ; Off = 4th Level,  On  = 3rd Level
@@ -2772,7 +2772,7 @@ L168D:          ld      a,(de)
                 ld      (hl),a
                 ret
                 ld      a,(LD347)
-                in a, (SETTINGS)                 ; Check for Free Play - Active HIGH ???
+                in      a, (SETTINGS)           ; Check for Free Play - Active HIGH ???
                     ; Bit 6: Free Play
                     ; Off=No Free Play, On=Free Play
                 bit     6,a
@@ -2782,12 +2782,12 @@ L168D:          ld      a,(de)
                 dec     c
                 jp      L0F6A                   ;Write protected memory byte
                 ld      a,$CC
-                out (INLIN),a
+                out     (INLIN),a
                 ld      hl,L0109
                 ld      (LD1BF),hl
                 ret
 ld              a,$CC
-L16C9:          out (INLIN),a
+L16C9:          out     (INLIN),a
                 ld      hl,L0109
                 ld      (LD1C1),hl
                 ret
@@ -2799,7 +2799,7 @@ L16C9:          out (INLIN),a
 ;*****************************************************************************
 ;
 ld              a,(LD347)
-                in a, (SETTINGS)
+                in      a, (SETTINGS)
                 cpl
                 and     $40
                 ld      (LD348),a
@@ -2813,10 +2813,10 @@ ld              a,(LD347)
 ;
 ;*****************************************************************************
 ;
-                in a, (P2PORT)                 ; Check P2 controls - all active LOW
+                in      a, (P2PORT)             ; Check P2 controls - all active LOW
                 cpl                             ; Convert to active HIGH
                 ld      b,a                     ;
-                in a, (P1PORT)                 ; Now check P1 Controls - all active LOW
+                in      a, (P1PORT)             ; Now check P1 Controls - all active LOW
                 cpl                             ; Make active HIGH
                 or      b                       ; Combine with P2 controls
                 and     00111111b               ; Mask unused input bits (see port description)
@@ -2833,7 +2833,7 @@ ld              a,(LD347)
                 ld      (LD240),a
                 ld      (LD244),a               ; Dip switch - Bit 7 - "Sounds in Attract Mode"
                 ret
-                in a, (COINPORT)
+                in      a, (COINPORT)
                 bit     7,a                     ; Check to see if <function> is active
                 ret     nz
 ;
@@ -2887,7 +2887,7 @@ L1724:          inc     a
                 ld      (hl),a
 L1741:          dec     de
                 dec     de
-                in a, (COINPORT)
+                in      a, (COINPORT)
                 bit     7,a
                 jr      nz,L174D
                 inc     de
@@ -2903,7 +2903,7 @@ ld              b,(iy+$00)
                 inc     iy
                 or      b
                 jp      L8009
-                in a, (COINPORT)
+                in      a, (COINPORT)
                 bit     7,a
                 ld      a,$88
                 jr      nz,L176D
@@ -2930,7 +2930,7 @@ L176D:          ld      (LD1C4),a
 ;*****************************************************************************
 ;L1781:
                 ld      a,(LD347)               ; Why load this? The next command wipes it out ???
-                in a, (SETTINGS)
+                in      a, (SETTINGS)
                 and     $80                     ; Check bit 7 - Demo Sounds active high ???
                 ld      (LD244),a               ; Save demo sound status, A=$80 if active, $00 if not
                 ret
@@ -2951,7 +2951,7 @@ L176D:          ld      (LD1C4),a
 ;*****************************************************************************
 ;L1792:
                 ld      a,(LD347)               ; Why load this? The next command wipes it out ???
-                in a, (SETTINGS)
+                in      a, (SETTINGS)
                 cpl
                 and     $10                     ; Normally active HIGH, but complemented is active LOW
                 ld      (LD34F),a               ; $10=3/7 lives, $00=2/5
@@ -2973,9 +2973,9 @@ L17A4:          ld      (hl),c
                 nop
                 call    L17C5
                 ld      a,$0C
-                out (XPAND),a
+                out     (XPAND),a
                 ld      a,$18
-                out (MAGIC),a
+                out     (MAGIC),a
                 ld      hl,L0F07
                 ld      a,$0B
                 call    L185F
@@ -3030,9 +3030,9 @@ L181D:          di
                 ld      a,$0C
                 jr      nz,L1828
                 ld      a,$04
-L1828:          out (XPAND),a
+L1828:          out     (XPAND),a
                 ld      a,$18
-                out (MAGIC),a
+                out     (MAGIC),a
                 ret
                 call    L181D
                 ld      hl,L30DD
@@ -3106,21 +3106,21 @@ L1896:          ld      (hl),$FF
 ;
 
 L18A8:          ld      a,$22
-                out (PBSTAT),a
+                out     (PBSTAT),a
                 ld      a,e
-                out (PBLINADRL),a
+                out     (PBLINADRL),a
                 ld      a,d
-                out (PBLINADRH),a
+                out     (PBLINADRH),a
                 ld      a,l
-                out (PBXMOD),a
+                out     (PBXMOD),a
                 ld      a,h
-                out (PBAREADRH),a
+                out     (PBAREADRH),a
                 ld      a,$4F
-                out (PBXMOD),a
+                out     (PBXMOD),a
                 ld      a,$01
-                out (PBXWIDE),a
+                out     (PBXWIDE),a
                 ld      a,c
-                out (PBYHIGH),a
+                out     (PBYHIGH),a
                 ret
 ;
 L18C4:          ld      a,h
@@ -3142,10 +3142,10 @@ L18D3:          jr      nc,L18D5
 
 L18D5:          di
                 ld      a,$08
-                out (MAGIC),a
+                out     (MAGIC),a
                 ld      de,L1937
                 ld      a,$04
-                out (XPAND),a
+                out     (XPAND),a
                 ld      bc,L1107
                 ld      hl,L3522
                 call    L191B
@@ -3157,7 +3157,7 @@ L18D5:          di
                 ld      hl,L37B2
                 call    L191B
                 ld      a,$08
-                out (XPAND),a
+                out     (XPAND),a
 L1903:          ld      hl,L37DC
                 call    L191B
                 ld      hl,L37EC
@@ -3167,22 +3167,22 @@ L1903:          ld      hl,L37DC
                 call    L191B
                 ld      hl,$3D7C
 L191B:          ld      a,$22
-                out (PBSTAT),a
+                out     (PBSTAT),a
                 ld      a,e
-                out (PBLINADRL),a
+                out     (PBLINADRL),a
                 ld      a,d
-                out (PBLINADRH),a
+                out     (PBLINADRH),a
                 ld      a,l
-                out (PBXMOD),a
+                out     (PBXMOD),a
                 ld      a,h
-                out (PBAREADRH),a
+                out     (PBAREADRH),a
                 ld      a,$50
                 sub     b
-                out (PBXMOD),a
+                out     (PBXMOD),a
                 ld      a,b
-                out (PBXWIDE),a
+                out     (PBXWIDE),a
                 ld      a,c
-                out (PBYHIGH),a
+                out     (PBYHIGH),a
                 ret
 ;
 L1937:          rst     38H
@@ -3269,7 +3269,7 @@ L19B1:          and     $07
                 push    bc
                 ld      bc,LFB00
                 ex      af,af'
-                in a, (COINPORT)
+                in      a, (COINPORT)
                 bit     7,a
                 jr      nz,L19C8
                 ld      h,$0A
@@ -3290,7 +3290,7 @@ L19C9:          add     hl,bc
                 call    L19E3
                 ld      hl,L16B5
                 ld      de,LD30E
-L19E3:          in a, (COINPORT)
+L19E3:          in      a, (COINPORT)
                 bit     7,a
                 jr      nz,L19EB
                 ld      h,$20
@@ -3304,7 +3304,7 @@ L19ED:          push    bc
                 pop     de
                 inc     de
                 inc     de
-                in a, (COINPORT)
+                in      a, (COINPORT)
                 bit     7,a
                 ld      bc,$0500
                 jr      nz,L1A05
@@ -3329,7 +3329,7 @@ L1A0B:          ld      hl,LD1E1
                 ld      a,$08
 L1A2C:          ret     z
 L1A2D:          ex      af,af'
-                in a, (COINPORT)
+                in      a, (COINPORT)
                 bit     7,a
                 jr      nz,L1A38
                 ld      bc,L02DB
@@ -3866,7 +3866,7 @@ L1D12:          ld      hl,L1D27
                 jr      L1D20
 L1D1A:          ld      hl,L1D6D
                 ld      de,L1D90
-L1D20:          in a, (COINPORT)
+L1D20:          in      a, (COINPORT)
                 bit     7,a
                 ret     nz
                 ex      de,hl
@@ -3996,7 +3996,7 @@ L1DD6:          jp      po,$9EAE
                 sbc     a,e
                 inc     e
                 jp      po,$A39A
-                in a, (SETTINGS)
+                in      a, (SETTINGS)
                 jp      po,$A610
                 dec     de
                 ld      b,$60
@@ -4169,7 +4169,7 @@ L1F27:          ld      de,L004B
 L1F2A:          ld      b,$04
                 di
                 ld      a,$20
-                out (MAGIC),a
+                out     (MAGIC),a
                 ld      a,(LD1EB)
                 and     a
                 ld      c,$55
@@ -4598,7 +4598,7 @@ L2259:          ld      a,(LD1ED)
                 ld      a,(Game_Mode)
                 cp      $02
                 jr      nz,L226F
-                in a, (P2PORT)
+                in      a, (P2PORT)
                 ld      hl,LD04A
                 call    L228E
                 call    c,L289D
@@ -4610,7 +4610,7 @@ L2274:          ld      a,(LD1EE)
                 ld      a,(Game_Mode)
                 and     a
                 jr      z,L2289
-                in a, (P1PORT)
+                in      a, (P1PORT)
                 ld      hl,LD04B
                 call    L228E
                 call    c,L289D
@@ -4657,7 +4657,7 @@ L22C0:          ld      hl,L22FA
                 ld      de,L0050
                 di
                 ld      a,$20
-                out (MAGIC),a
+                out     (MAGIC),a
                 ld      hl,L0F57
                 call    L22E4
                 ld      hl,L0F98
@@ -5367,7 +5367,7 @@ L281F:          exx
 L2825:          exx
                 ld      hl,LD1CB
                 ld      (hl),a
-L282A:          in a, (COINPORT)
+L282A:          in      a, (COINPORT)
                 bit     7,a
                 jr      nz,L2837
                 push    hl
@@ -5892,7 +5892,7 @@ L2C15:          ld      a,(Game_Mode)
                 ld      a,(LD1DB)
                 and     a
                 ret     z
-                in a, (COINPORT)
+                in      a, (COINPORT)
                 and     $28
                 jp      z,L2D12
                 ld      a,$06
@@ -5994,9 +5994,9 @@ L2CD6:          ld      a,$03
                 ld      hl,$0403
                 ld      (LD1F3),hl
 L2CF0:          ld      a,$0A
-                in a, (CCMISC)
+                in      a, (CCMISC)
                 ld      a,$52
-                out (COL3L),a
+                out     (COL3L),a
                 ret
 L2CF9:          ld      a,$01
                 ld      (LD1DF),a
@@ -6299,7 +6299,7 @@ L2F1B:          jr      z,L2F42
                 xor     a
                 ld      (ix+$00),a
                 ld      a,$F3
-                out (COL3L),a
+                out     (COL3L),a
                 ld      (LD1BA),a
                 ld      (LD1D8),a
                 ld      hl,LD242
@@ -6419,7 +6419,7 @@ L300C:          jr      nz,L301A
                 add     a,$05
                 ld      c,a
                 jr      L3026
-L301A:          in a, (COINPORT)
+L301A:          in      a, (COINPORT)
                 bit     7,a
                 jr      nz,L3026
                 ld      b,$05
@@ -10114,7 +10114,7 @@ L81D8:          ret
 ;
 ; Speech Routines ???
 ;
-L81D9:          in a, (P1PORT)                 ; Check to see if phoneme is complete
+L81D9:          in      a, (P1PORT)             ; Check to see if phoneme is complete
                 bit     7,a                     ; Active HIGH (ready to accept phonemes)
                 jr      z,L81F7                 ; Not ready for new phoneme, so return
                 ld      hl,Num_Phonemes_Left    ; Get length of phoneme left to go...
@@ -10225,7 +10225,7 @@ L827D:          cp      $50
                 inc     a
                 ld      c,a
                 ld      a,(LD347)
-                in a, (SETTINGS)
+                in      a, (SETTINGS)
                 bit     3,a
                 jr      nz,L8292
                 ld      hl,(LC002)
@@ -10257,7 +10257,7 @@ L82B7:          exx
                 ld      hl,L9476
                 ld      e,a
                 ld      a,(LD347)
-                in a, (SETTINGS)
+                in      a, (SETTINGS)
                 bit     3,a
                 jr      nz,L82C9
                 ld      hl,(LC000)
@@ -10699,7 +10699,7 @@ L8481:          ld      bc,L3010
                 out     (c),b
                 ld      c,$50
                 out     (c),b
-                in a, (COINPORT)                 ;
+                in      a, (COINPORT)           ;
                 set     3,a                     ; Set service switch bit ???
                 call    L8470
                 ld      bc,L0C15
@@ -10710,8 +10710,8 @@ L8481:          ld      bc,L3010
 L849B:          xor     $7F
                 add     a,$32
 L849F:          out     (c),b
-                out (TONEC),a
-                in a, (P2PORT)
+                out     (TONEC),a
+                in      a, (P2PORT)
                 and     $3F
                 or      $C0
                 call    L8470
@@ -10723,7 +10723,7 @@ L849F:          out     (c),b
 L84B6:          add     a,$4E
 L84B8:          out     (c),b
                 out     ($51),a
-                in a, (P1PORT)
+                in      a, (P1PORT)
                 and     $3F
                 or      $C0
                 call    L8470
@@ -10734,9 +10734,9 @@ L84B8:          out     (c),b
                 jr      L84D1
 L84CF:          add     a,$27
 L84D1:          out     (c),b
-                out (TONEA),a
+                out     (TONEA),a
                 ld      a,(LD347)
-                in a, (SETTINGS)
+                in      a, (SETTINGS)
                 call    L8470
                 ld      bc,L0C55
                 or      a
@@ -10751,7 +10751,7 @@ L84EB:          out     (c),b
 L84F2:          ld      a,(Game_Mode)
                 or      a
                 jr      nz,L8501
-                in a, (COINPORT)                 ;
+                in      a, (COINPORT)           ;
                 bit     3,a                     ; Is service switch on?
                 jr      nz,L8501                ; no, skip down
                 jp      L8481                   ; Otherwise, go here ???
@@ -19007,9 +19007,9 @@ nop
                 rst     38H
                 rst     38H
 ld              a,$07
-                out (COL3L),a
+                out     (COL3L),a
                 xor     a
-                out (COL0L),a
+                out     (COL0L),a
                 ld      hl,L404F
                 ld      c,$CA
 ld              b,$14
@@ -19039,7 +19039,7 @@ call            $AFC2
 
 ; Wait until service switch is on, then restart everything...
 
-in a, (COINPORT)
+in              a,      (COINPORT)
                 bit     3,a                     ; Is service switch on?
                 jr      z,$AFBB                 ; No, then wait until hell freezes over for it to be on
                 rst     00H                     ; When it service switch goes on, restart everything
@@ -19151,7 +19151,7 @@ LD1D7           EQU     $D1D7                   ; $d1d7-LSN Direction indicator 
 
 LD244           EQU     $D244                   ; Dip switch - Bit 7 - "Sounds in Attract Mode"
 
-Is_Speech_Active    EQU    $D245                ; $00 = Speech is inactive
+Is_Speech_Active EQU    $D245                   ; $00 = Speech is inactive
                     ; $01 = Speech is active
 
 LD2BD           EQU     $D2BD                   ; ==
@@ -19160,7 +19160,7 @@ LD2CC           EQU     $D2CC                   ; ==
 
 LD2CE           EQU     $D2CE                   ; Speech: Address of next phoneme to process (place in string)
 
-Num_Phonemes_Left    EQU    $D2D0               ; Seems to hold how many phonemes left to go in speech string
+Num_Phonemes_Left EQU   $D2D0                   ; Seems to hold how many phonemes left to go in speech string
 
 LD2D1           EQU     $D2D1                   ; Seems to hold a phoneme in speech routines minus inflection bits (00xx xxxx) ???
 
@@ -19544,7 +19544,7 @@ LC058           EQU     $C058
 ; Begin Static RAM area
 ;
 
-WPRAMSTART           EQU     $D000
+WPRAMSTART      EQU     $D000
 LD003           EQU     $D003
 
 
@@ -19613,7 +19613,7 @@ LD1BF           EQU     $D1BF
 LD1C1           EQU     $D1C1
 LD1C3           EQU     $D1C3
 LD1C4           EQU     $D1C4
-DIAGFLAG           EQU     $D1C5
+DIAGFLAG        EQU     $D1C5
 LD1C6           EQU     $D1C6
 LD1C7           EQU     $D1C7
 LD1C8           EQU     $D1C8
@@ -19628,7 +19628,7 @@ LD1D0           EQU     $D1D0
 LD1D1           EQU     $D1D1
 LD1D2           EQU     $D1D2
 LD1D3           EQU     $D1D3
-ROMFAIL           EQU     $D1D4
+ROMFAIL         EQU     $D1D4
 LD1D5           EQU     $D1D5
             ;
 
