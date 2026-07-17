@@ -14951,84 +14951,33 @@ L95D7:          ld      b,(hl)
                 nop
                 xor     d
                 xor     b
-;
-; At $9C38, it is the pattern for the blue player (demo screen)!
-; Need to change to data and find start and end ???
-;
-                jr      nc,$9C39
-                nop
-                nop
-                ld      hl,($0000)
-                nop
-                nop
-                jp      z,L008C
-                nop
-                nop
-                ld      a,(bc)
-                add     a,b
-                nop
-                nop
-                ld      (bc),a
-                xor     d
-                nop
-                ld      (bc),a
-                nop
-                nop
-                ld      hl,(L3C28)
-                nop
-                nop
-                cpl
-                xor     b
-                ld      a,(bc)
-                ex      af,af'
-                add     a,b
-                xor     e
-                ret     pe
-                ld      hl,(LBFBB)
-                rst     38H
-                ret     pe
-                ld      a,(L8308)
-                rst     38H
-                xor     b
-                nop
-                nop
-                nop
-                xor     d
-                xor     b
-                nop
-                nop
-                nop
-                xor     d
-                xor     b
-                nop
-                nop
-                ld      (bc),a
-                xor     d
-                add     a,b
-                nop
-                nop
-                ld      a,(bc)
-                xor     d
-                add     a,b
-                nop
-                jr      nz,$9CA6
-                ld      hl,($0000)
-                ex      af,af'
-                xor     b
-                ld      hl,($0000)
-                ld      a,(bc)
-                and     b
-                ld      a,(bc)
-                add     a,b
-                nop
-                ld      (bc),a
-                add     a,b
-                ld      (bc),a
-                add     a,b
-                nop
-                nop
-                nop
-                ld      hl,(L3380)
+
+;******************************************************************************************
+; BLUE PLAYER (Demo Screen) - Found at $9C38
+; 20x18 pixels (5 bytes per row)
+;******************************************************************************************
+PATTERN_9C38:
+            DB      $30, $00, $00, $00, $2A     ; . 3 . .   . . . .   . . . .   . . . .   . 2 2 2
+            DB      $00, $00, $00, $00, $CA     ; . . . .   . . . .   . . . .   . . . .   3 . 2 2
+            DB      $8C, $00, $00, $00, $0A     ; 2 . 3 .   . . . .   . . . .   . . . .   . . 2 2
+            DB      $80, $00, $00, $02, $AA     ; 2 . . .   . . . .   . . . .   . . . 2   2 2 2 2
+            DB      $00, $02, $00, $00, $2A     ; . . . .   . . . 2   . . . .   . . . .   . 2 2 2
+            DB      $28, $3C, $00, $00, $2F     ; . 2 2 .   . 3 3 .   . . . .   . . . .   . 2 3 3
+            DB      $A8, $0A, $08, $80, $AB     ; 2 2 2 .   . . 2 2   . . 2 .   2 . . .   2 2 2 3
+            DB      $E8, $2A, $BB, $BF, $FF     ; 3 2 2 .   . 2 2 2   2 3 2 3   2 3 3 3   3 3 3 3
+            DB      $E8, $3A, $08, $83, $FF     ; 3 2 2 .   . 3 2 2   . . 2 .   2 . . 3   3 3 3 3
+            DB      $A8, $00, $00, $00, $AA     ; 2 2 2 .   . . . .   . . . .   . . . .   2 2 2 2
+            DB      $A8, $00, $00, $00, $AA     ; 2 2 2 .   . . . .   . . . .   . . . .   2 2 2 2
+            DB      $A8, $00, $00, $02, $AA     ; 2 2 2 .   . . . .   . . . .   . . . 2   2 2 2 2
+            DB      $80, $00, $00, $0A, $AA     ; 2 . . .   . . . .   . . . .   . . 2 2   2 2 2 2
+            DB      $80, $00, $20, $2A, $2A     ; 2 . . .   . . . .   . 2 . .   . 2 2 2   . 2 2 2
+            DB      $00, $00, $08, $A8, $2A     ; . . . .   . . . .   . . 2 .   2 2 2 .   . 2 2 2
+            DB      $00, $00, $0A, $A0, $0A     ; . . . .   . . . .   . . 2 2   2 2 . .   . . 2 2
+            DB      $80, $00, $02, $80, $02     ; 2 . . .   . . . .   . . . 2   2 . . .   . . . 2
+            DB      $80, $00, $00, $00, $2A     ; 2 . . .   . . . .   . . . .   . . . .   . 2 2 2
+
+            DB      $80, $33
+
                 ld      bc,L0A00
                 add     a,b
                 ld      c,$80
@@ -19122,41 +19071,41 @@ LA2F9:          nop
 
 
 LD038           EQU     $D038                   ; This location seems to have a number which the
-                    ; first nybble is the same as the second nybble.
-                    ; The next byte $D039 seems to always hold the complement
-                    ; of that number. ???
+                                                ; first nybble is the same as the second nybble.
+                                                ; The next byte $D039 seems to always hold the complement
+                                                ; of that number. ???
 
 LD03B           EQU     $D03B                   ; Indicates if a coin acceptor is tripped.
-                    ; Zero's itself back out when switch is open.
-                    ;   0=None tripped
-                    ;   1=coin switch 1 tripped
-                    ;   2=coin switch 2 tripped
+                                                ; Zero's itself back out when switch is open.
+                                                ;   0=None tripped
+                                                ;   1=coin switch 1 tripped
+                                                ;   2=coin switch 2 tripped
 
 LD03C           EQU     $D03C                   ; Number of credits.
 
 LD042           EQU     $D042                   ; Counter. Number of seconds before change screens
-                    ; especially when in attract mode.
+                                                ; especially when in attract mode.
 
 LD048           EQU     $D048                   ; Another counter. Noticed that it times changes between
-                    ; things like "GET READY" and "GO". ???
+                                                ; things like "GET READY" and "GO". ???
 
 LD1D6           EQU     $D1D6                   ; $d1d6-LSN Direction indicator for player 2.
-                    ; The value of the least significant nybble changes
-                    ; according to the bit at IN Port 11.
+                                                ; The value of the least significant nybble changes
+                                                ; according to the bit at IN Port 11.
 
 LD1D7           EQU     $D1D7                   ; $d1d7-LSN Direction indicator for player 1.
-                    ; The value of the least significant nybble changes
-                    ; according to the bit at IN Port 12.
-                    ; See that description for details.
+                                                ; The value of the least significant nybble changes
+                                                ; according to the bit at IN Port 12.
+                                                ; See that description for details.
 
 LD244           EQU     $D244                   ; Dip switch - Bit 7 - "Sounds in Attract Mode"
 
 Is_Speech_Active EQU    $D245                   ; $00 = Speech is inactive
-                    ; $01 = Speech is active
+                                                ; $01 = Speech is active
 
-LD2BD           EQU     $D2BD                   ; ==
+LD2BD           EQU     $D2BD
 
-LD2CC           EQU     $D2CC                   ; ==
+LD2CC           EQU     $D2CC
 
 LD2CE           EQU     $D2CE                   ; Speech: Address of next phoneme to process (place in string)
 
@@ -19164,17 +19113,17 @@ Num_Phonemes_Left EQU   $D2D0                   ; Seems to hold how many phoneme
 
 LD2D1           EQU     $D2D1                   ; Seems to hold a phoneme in speech routines minus inflection bits (00xx xxxx) ???
 
-LD2D2           EQU     $D2D2                   ; ==
-                    ;
-LD2D3           EQU     $D2D3                   ;Not sure - always seems to be a $d2 in it.
-                    ;Code zero's it out early. ???
+LD2D2           EQU     $D2D2
 
-LD2D4           EQU     $D2D4                   ; ==
+LD2D3           EQU     $D2D3                   ;Not sure - always seems to be a $d2 in it.
+                                                ;Code zero's it out early. ???
+
+LD2D4           EQU     $D2D4
 
 Game_Mode       EQU     $D303                   ; This byte holds if you are in demo or game mode
-                    ;   0: Game over, demo mode
-                    ;   1: One player game in progress
-                    ;   2: Two player game in progress
+                                                ;   0: Game over, demo mode
+                                                ;   1: One player game in progress
+                                                ;   2: Two player game in progress
 
 LD347           EQU     $D347                   ; This memory location is read, but never written to... ??? verify ???
 
@@ -19190,7 +19139,6 @@ LD349           EQU     $D349                   ; ??? (saved to in beginning of 
 ;
 ;*****************************************************************************
 ;
-
 
 L0003           EQU     $0003
 L0005           EQU     $0005
@@ -19351,12 +19299,6 @@ L38BE           EQU     $38BE
 L3950           EQU     $3950
 L3C28           EQU     $3C28
 L3CC7           EQU     $3CC7
-;    EQU3D2B
-;    EQU3D46
-;    EQU3E16
-;    EQU3E28
-;    EQU3F5C
-;    EQU3FAC
 L4000           EQU     $4000
 L4001           EQU     $4001
 L4004           EQU     $4004
@@ -19478,16 +19420,6 @@ L9535           EQU     $9535
 L956B           EQU     $956B
 L9595           EQU     $9595
 L95CC           EQU     $95CC
-;    EQU9750
-;    EQU97B1
-;    EQU981A
-;    EQU99E5
-;    EQU9B72
-;    EQU9BCB
-;    EQU9BCC
-;    EQU9C7B
-;    EQU9E06
-;$9EAE    EQU    $9EAE
 LA00F           EQU     $A00F
 LA063           EQU     $A063
 LA069           EQU     $A069
@@ -19498,24 +19430,6 @@ LA26B           EQU     $A26B
 LA284           EQU     $A284
 LA29C           EQU     $A29C
 LA2F6           EQU     $A2F6
-;    EQUA373
-;    EQUA3C8
-;    EQUA3E2
-;    EQUA496
-;    EQUA72A
-;    EQUA882
-;    EQUA8AA
-;    EQUA9DB
-;    EQUAA0E
-;    EQUAA3E
-;    EQUAA98
-;    EQUAA99
-;    EQUABE6
-;    EQUACA9
-;    EQUAD9E
-;    EQUAEDF
-;    EQUAFA0
-;    EQUAFAA
 LB059           EQU     $B059
 LB0AE           EQU     $B0AE
 LB31E           EQU     $B31E
