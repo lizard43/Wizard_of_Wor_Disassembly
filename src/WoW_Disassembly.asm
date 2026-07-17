@@ -1,4 +1,4 @@
-INCLUDE         "WoW_Equates.include"           ; EQU for the code
+                INCLUDE "WoW_Equates.include"   ; EQU for the code
 
 ;*****************************************************************************
 ; SYSTEM BOOT & HARDWARE INITIALIZATION
@@ -790,7 +790,7 @@ L03F6:          DB      "_"
 L03F7:          DB      "ERROR"
 L03FC:          DB      "FIRE"
 L0400:          DB      "MOVE@DI"
-DB              'R'
+                DB      'R'
 L0408:          DB      "PL1PL2CO"
 L0410:          DB      "IN"
 L0412:          DB      "SLAM"
@@ -835,7 +835,7 @@ L046D:          ld      a,(hl)                  ; Get the character of the strin
 L047D:          out     (PBSTAT),a              ; Set up line offset value???
                 ld      a,l                     ;
                 out     (PBLINADRL),a           ; LSB of source
-ld              a,h
+                ld      a,h
                 out     (PBLINADRH),a           ; MSB of source
                 ld      a,e
                 out     (PBXMOD),a              ; LSB of destination
@@ -901,7 +901,7 @@ L04C2:          ld      h,$00                   ;
                 add     hl,hl                   ; Begin multiplying HL * $0A
                 push    de                      ; Push beginning of table address
                 ld      d,h                     ;
-ld              e,l                             ;
+                ld      e,l                     ;
                 add     hl,hl                   ;
                 add     hl,hl                   ;
                 add     hl,de                   ; Multiply HL * $0A complete. This is table offset.
@@ -1102,7 +1102,7 @@ L06E8:          out     (COL3L),a
                 ld      a,b
                 ret     p
                 ld      d,b
-ld              a,b
+                ld      a,b
                 ret     p
 L070E:          ld      a,$04
                 in      a, (CCMISC)
@@ -1262,7 +1262,7 @@ L07D3:          call    L0880
 ; ???
 ;*****************************************************************************
 ;
-call            L0894
+                call    L0894
                 call    L078B
                 sub     $29
                 cpl
@@ -1287,7 +1287,7 @@ L0800:          call    L0947
 ; ???
 ;*****************************************************************************
 ;
-call            L0872
+                call    L0872
                 ld      (hl),a
 L080B:          ret
 
@@ -1321,7 +1321,7 @@ L0823:          call    L0875
                 and     a
                 ret     z
                 jr      L086E
-call            L0872
+                call    L0872
                 call    L0886
                 cp      (hl)
                 ret     c
@@ -1334,7 +1334,7 @@ L083E:          push    de
                 call    L0875
                 ret     z
                 jr      L086E
-xor             a
+                xor     a
                 ld      (LD050),a
                 call    L0880
                 ld      (LD048),a
@@ -1798,7 +1798,7 @@ L0AF5:          ex      de,hl
                 ld      a,$18
                 call    L0B06
 L0B06:          ld      (hl),a
-inc             hl
+                inc     hl
                 ld      (hl),a
                 add     hl,de
                 ld      (hl),a
@@ -2168,7 +2168,7 @@ L0D87:          cp      $01
 L0D8D:          cp      $02
                 jr      z,L0D9D
                 cp      $03
-jr              z,L0D9B
+                jr      z,L0D9B
                 ld      a,(LD1DA)
                 and     a
                 jr      z,L0D9D
@@ -2408,7 +2408,7 @@ L0F39:          exx
                 add     hl,bc
                 push    hl
 L0F43:          ld      hl,L2776
-adc             hl,bc
+                adc     hl,bc
                 ld      de,(LD34C)
                 add     hl,de
                 ex      (sp),hl
@@ -2786,7 +2786,7 @@ L168D:          ld      a,(de)
                 ld      hl,L0109
                 ld      (LD1BF),hl
                 ret
-ld              a,$CC
+                ld      a,$CC
 L16C9:          out     (INLIN),a
                 ld      hl,L0109
                 ld      (LD1C1),hl
@@ -2798,7 +2798,7 @@ L16C9:          out     (INLIN),a
 ; Check dip switch for free play
 ;*****************************************************************************
 ;
-ld              a,(LD347)
+                ld      a,(LD347)
                 in      a, (SETTINGS)
                 cpl
                 and     $40
@@ -2896,7 +2896,7 @@ L1741:          dec     de
                 inc     de
 L174D:          ld      a,$0C
                 jp      L045C
-ld              b,(iy+$00)
+                ld      b,(iy+$00)
                 inc     iy
                 call    L0F39
                 and     (iy+$00)
@@ -3476,7 +3476,7 @@ L1AED:          dec     e
                 dec     de
                 ex      (sp),hl
                 dec     de
-push            af
+                push    af
                 dec     de
                 rlca
                 inc     e
@@ -4203,7 +4203,7 @@ L1F55:          ld      a,(Game_Mode)
                 ld      a,$0A
                 ret
                 nop
-dec             iy
+                dec     iy
                 dec     iy
                 ei
                 call    L2081
@@ -4686,7 +4686,7 @@ L2300:          and     a
                 ld      a,$06
                 push    iy
 L2306:          push    af
-call            L0F1F
+                call    L0F1F
                 ld      iy,LD054
                 call    L2498
                 ld      iy,LD074
@@ -6065,7 +6065,7 @@ L2D67:          ld      (LD318),a
                 ret
 ;
 L2D6B:          ld      a,(Game_Mode)
-and             a
+                and     a
                 ret     z
                 ld      a,(LD1D7)
                 and     a
@@ -6981,7 +6981,7 @@ L3238:          ld      c,(hl)
                 ld      c,a
                 ld      d,d
                 ld      b,l
-ld              b,a
+                ld      b,a
                 ld      b,c
                 ld      c,l
                 ld      b,l
@@ -7075,7 +7075,7 @@ L3321:          ld      d,d
                 ld      b,l
                 ld      d,e
                 ld      b,l
-ld              d,d
+                ld      d,d
                 ld      d,(hl)
                 ld      b,l
                 ld      b,h
@@ -8303,7 +8303,7 @@ L38F6:          nop
                 nop
 L3903:          ld      hl,(L0008)
                 nop
-ld              a,(bc)
+                ld      a,(bc)
                 xor     b
                 nop
                 nop
@@ -8976,7 +8976,7 @@ L3C03:          ld      d,l
                 ld      a,a
                 push    de
                 ld      d,h
-nop
+                nop
                 ld      bc,LD55F
                 ld      d,h
                 nop
@@ -9178,14 +9178,14 @@ L3CA9:          ld      a,l
 L3CFC:          jr      z,$3D08
                 adc     a,d
                 xor     d
-ret             m
+                ret     m
                 jr      z,$3D2B
                 xor     d
                 xor     d
                 xor     d
                 xor     b
                 nop
-xor             d
+                xor     d
                 xor     d
                 xor     d
                 xor     b
@@ -9215,25 +9215,25 @@ xor             d
 ;
 ; At $3D2F starts pattern of Thorwor (demo screen) ???
 ;
-nop
+                nop
                 nop
                 nop
                 nop
                 ret     p
                 nop
-ld              a,(bc)
+                ld      a,(bc)
                 nop
                 inc     bc
                 ret     nz
                 nop
-jr              nz,L3CFC
+                jr      nz,L3CFC
                 rrca
                 ret     nz
                 nop
                 add     a,e
                 ret     p
                 inc     c
-nop
+                nop
                 nop
                 rrca
                 call    m,L000F
@@ -9251,7 +9251,7 @@ nop
                 pop     af
                 rst     38H
                 ret     nz
-jr              nc,$3D67
+                jr      nc,$3D67
                 rst     38H
                 rst     38H
                 ret     p
@@ -9265,7 +9265,7 @@ jr              nc,$3D67
                 rst     38H
                 ret     p
                 inc     a
-inc             bc
+                inc     bc
                 rst     38H
                 rst     38H
                 ret     p
@@ -9284,7 +9284,7 @@ inc             bc
                 jr      nc,$3D3A
                 nop
                 nop
-inc             a
+                inc     a
                 di
                 ret     nz
                 nop
@@ -9311,26 +9311,26 @@ inc             a
                 nop
                 ret     nz
                 nop
-add             a,e
+                add     a,e
                 ret     p
                 nop
                 ret     p
                 nop
-rrca
+                rrca
                 call    m,L3000
                 nop
                 inc     a
                 rst     38H
                 nop
                 jr      nc,$3DA8
-ret             p
+                ret     p
                 rst     38H
                 nop
                 jr      nc,$3DB0
                 pop     af
                 rst     38H
                 ret     nz
-inc             a
+                inc     a
                 ccf
                 rst     38H
                 rst     38H
@@ -9375,12 +9375,12 @@ inc             a
                 adc     a,b
                 inc     bc
                 call    m,$0000
-ld              (bc),a
+                ld      (bc),a
                 nop
                 rrca
                 ret     nz
                 nop
-nop
+                nop
                 ret     nz
                 nop
                 ret     nz
@@ -9408,10 +9408,10 @@ nop
                 inc     a
                 inc     a
                 ccf
-rst             38H
+                rst     38H
                 ret     p
                 inc     a
-ld              sp,LFF0F
+                ld      sp,LFF0F
                 rst     38H
                 call    m,L0301
                 rst     38H
@@ -9421,8 +9421,8 @@ ld              sp,LFF0F
                 inc     bc
                 rst     38H
                 rst     38H
-ret             p
-nop
+                ret     p
+                nop
                 rrca
                 rst     38H
                 rst     38H
@@ -9431,7 +9431,7 @@ nop
                 jr      nc,$3DE9
                 inc     a
                 ccf
-inc             c
+                inc     c
                 jr      nc,$3DEE
                 rrca
                 call    m,L3C0F
@@ -9441,20 +9441,20 @@ inc             c
                 inc     bc
                 inc     c
                 jr      nc,$3E39
-nop
-dec             b
+                nop
+                dec     b
                 inc     d
                 ld      d,b
                 nop
-rrca
+                rrca
                 jr      nc,$3E41
-nop
+                nop
                 nop
                 rrca
                 inc     a
                 nop
                 nop
-nop
+                nop
                 inc     c
                 inc     a
                 nop
@@ -9465,7 +9465,7 @@ nop
                 jp      nz,$0000
                 inc     a
                 rst     38H
-ret             p
+                ret     p
                 add     a,b
                 nop
                 inc     a
@@ -9482,13 +9482,13 @@ ret             p
                 rrca
                 rst     38H
                 rst     38H
-nop
+                nop
                 inc     bc
                 rst     38H
                 rst     38H
                 call    m,$1000
                 rrca
-rst             38H
+                rst     38H
                 ret     p
                 nop
                 rra
@@ -9511,7 +9511,7 @@ rst             38H
                 ret     p
                 ret     nz
                 call    m,L0300
-rst             38H
+                rst     38H
                 ret     nz
                 inc     c
                 nop
@@ -9540,10 +9540,10 @@ rst             38H
                 nop
                 call    m,L3CFC
                 jr      nz,$3EB6
-ccf
+                ccf
                 DB      $fd,$0f
                 jr      nz,$3EBB
-ccf
+                ccf
                 rst     38H
                 rst     38H
                 ret     nz
@@ -9561,7 +9561,7 @@ ccf
                 nop
                 nop
                 rrca
-rst             38H
+                rst     38H
                 ret     p
                 nop
                 rra
@@ -9570,7 +9570,7 @@ rst             38H
                 nop
                 rrca
                 ret     p
-nop
+                nop
                 nop
                 djnz    $3EEE
                 ret     p
@@ -9586,7 +9586,7 @@ nop
                 inc     c
                 nop
                 nop
-ccf
+                ccf
                 nop
                 nop
                 nop
@@ -9610,19 +9610,19 @@ ccf
                 ex      af,af'
                 inc     bc
                 ret     nz
-rrca
+                rrca
                 ret     p
                 nop
                 inc     bc
                 call    m,L3C3C
                 ex      af,af'
-nop
+                nop
                 rst     38H
                 DB      $fd,$0f
                 jr      nz,$3F15
-ccf
+                ccf
                 rst     38H
-rst             38H
+                rst     38H
                 ret     nz
                 nop
                 rrca
@@ -9665,16 +9665,16 @@ rst             38H
                 ret     p
                 nop
                 nop
-nop
+                nop
                 ccf
                 nop
                 nop
                 nop
-and             b
+                and     b
                 sbc     a,l
                 and     b
                 sbc     a,l
-jp              m,L549D
+                jp      m,L549D
                 sbc     a,(hl)
                 cp      h
                 sbc     a,a
@@ -9724,8 +9724,8 @@ jp              m,L549D
                 xor     e
                 ld      a,(bc)
                 xor     h
-dec             a
-ld              a,$97
+                dec     a
+                ld      a,$97
                 ld      a,$F1
                 ld      a,$97
                 ld      a,$64
@@ -9781,7 +9781,7 @@ ld              a,$97
                 ld      (bc),a
                 and     l
                 ld      e,h
-and             l
+                and     l
                 or      (hl)
                 and     l
                 ld      a,b
@@ -9819,7 +9819,7 @@ and             l
                 rst     38H
                 rst     38H
                 rst     38H
-rst             38H
+                rst     38H
 ;
 ;
 ;
@@ -9870,7 +9870,7 @@ L8019:          ld      hl,L0011
                 push    hl
                 pop     de
 
-ld              (hl),$00
+                ld      (hl),$00
                 inc     de
                 ldir                            ; (DE+3) to (DE+16) = 0 (14 bytes)
 
@@ -11113,7 +11113,7 @@ L878D:          add     a,c
                 djnz    L881F
                 inc     de
                 ld      d,h
-ld              (de),a
+                ld      (de),a
                 ld      l,d
                 ld      de,L017E
                 ex      af,af'
@@ -12319,7 +12319,7 @@ L8E74:          dec     bc
 
 ;Speech string "Hey, Insert coin!" for $13 ($19) bytes
 
-DB              $1B,$60,$4B,$62,$3E,$3E,$27,$0D,$1F,$7A,$6A,$3E,$59,$75,$34,$09,$22,$0D,$3E,$0A
+                DB      $1B,$60,$4B,$62,$3E,$3E,$27,$0D,$1F,$7A,$6A,$3E,$59,$75,$34,$09,$22,$0D,$3E,$0A
 ;    DB
 
                 dec     e
@@ -13742,7 +13742,7 @@ L95D7:          ld      b,(hl)
                 ld      hl,(L2AA9)
                 add     a,d
                 nop
-ld              hl,($AAAA)
+                ld      hl,($AAAA)
                 add     a,d
                 nop
                 ld      (bc),a
@@ -13762,11 +13762,11 @@ ld              hl,($AAAA)
                 xor     d
                 xor     d
                 jr      z,$9688
-ld              (bc),a
+                ld      (bc),a
                 xor     d
                 xor     d
                 jr      nz,$968D
-ld              (bc),a
+                ld      (bc),a
                 xor     d
                 xor     d
                 and     b
@@ -13863,7 +13863,7 @@ ld              (bc),a
                 xor     d
                 add     a,b
                 nop
-nop
+                nop
                 ld      hl,(L00A8)
                 nop
                 nop
@@ -13888,11 +13888,11 @@ nop
                 nop
                 inc     bc
                 jr      z,$9718
-nop
+                nop
                 nop
                 dec     bc
                 jr      z,$971D
-nop
+                nop
                 nop
                 cpl
                 xor     d
@@ -13900,7 +13900,7 @@ nop
                 nop
                 jr      nz,$9750
                 jp      pe,$0000
-ex              af,af'
+                ex      af,af'
                 cpl
                 xor     d
                 add     a,b
@@ -13948,7 +13948,7 @@ ex              af,af'
                 ld      a,(bc)
                 add     a,b
                 nop
-ret             p
+                ret     p
                 nop
                 ld      (bc),a
                 xor     d
@@ -13979,8 +13979,8 @@ ret             p
                 ld      (bc),a
                 xor     e
                 jp      (hl)
-jr              z,$978C
-ld              hl,(LF8AA)
+                jr      z,$978C
+                ld      hl,(LF8AA)
                 jr      z,$97B1
                 xor     d
                 xor     d
@@ -14001,7 +14001,7 @@ ld              hl,(LF8AA)
                 xor     d
                 xor     d
                 and     b
-nop
+                nop
                 ld      (bc),a
                 ld      hl,(memcheck)
                 nop
@@ -14085,7 +14085,7 @@ nop
                 rrca
                 ld      bc,$0000
                 dec     b
-ld              e,a
+                ld      e,a
                 ld      b,c
                 jr      nc,$984D
                 ld      d,l
@@ -14102,7 +14102,7 @@ ld              e,a
                 ld      d,h
                 dec     d
                 dec     b
-ld              d,a
+                ld      d,a
                 ret     nc
                 ld      d,b
                 nop
@@ -14115,7 +14115,7 @@ ld              d,a
                 ld      d,l
                 ld      d,h
                 jr      nc,$985B
-nop
+                nop
                 nop
                 inc     c
                 call    z,$0000
@@ -14165,10 +14165,10 @@ nop
                 nop
                 nop
                 djnz    $9898
-ld              a,h
+                ld      a,h
                 ld      bc,$1000
                 dec     b
-ld              a,l
+                ld      a,l
                 ld      bc,$1530
                 dec     b
                 ld      a,l
@@ -14194,7 +14194,7 @@ ld              a,l
                 ld      d,l
                 ld      d,b
                 jr      nc,$98B5
-nop
+                nop
                 nop
                 jr      nc,$9839
                 nop
@@ -14212,7 +14212,7 @@ nop
                 inc     b
                 nop
                 jr      z,$98CD
-nop
+                nop
                 ld      d,b
                 ld      bc,L08C0
                 ld      bc,L0340
@@ -14236,10 +14236,10 @@ nop
                 nop
                 nop
                 djnz    $98F2
-ld              a,h
+                ld      a,h
                 ld      bc,$1000
                 dec     b
-ld              a,l
+                ld      a,l
                 ld      b,c
                 jr      nc,$990B
                 ld      d,l
@@ -14263,10 +14263,10 @@ ld              a,l
                 ld      d,b
                 nop
                 nop
-ld              d,l
+                ld      d,l
                 ld      d,h
                 jr      nc,$990F
-nop
+                nop
                 ld      c,$30
                 nop
                 nop
@@ -14279,7 +14279,7 @@ nop
                 ld      a,(bc)
                 adc     a,b
                 jr      nz,$991E
-nop
+                nop
                 ld      (bc),a
                 nop
                 nop
@@ -14334,7 +14334,7 @@ nop
                 ld      d,h
                 dec     d
                 ld      d,l
-ld              d,a
+                ld      d,a
                 ret     nc
                 ld      d,b
                 nop
@@ -14347,7 +14347,7 @@ ld              d,a
                 ld      d,l
                 ld      d,h
                 jr      nc,$9969
-nop
+                nop
                 nop
                 dec     d
                 nop
@@ -14400,7 +14400,7 @@ nop
                 ld      bc,L4055
                 nop
                 nop
-dec             b
+                dec     b
                 ld      d,l
                 ld      b,b
                 nop
@@ -14424,7 +14424,7 @@ dec             b
                 nop
                 nop
                 dec     d
-ld              b,b
+                ld      b,b
                 inc     sp
                 nop
                 nop
@@ -14540,7 +14540,7 @@ ld              b,b
                 nop
                 nop
                 dec     b
-ld              d,l
+                ld      d,l
                 ld      b,b
                 nop
                 djnz    $9A70
@@ -14563,7 +14563,7 @@ ld              d,l
                 nop
                 nop
                 dec     b
-nop
+                nop
                 nop
                 nop
                 ld      bc,L0055
@@ -14579,7 +14579,7 @@ nop
                 ld      c,h
                 nop
                 jr      nc,$9A83
-dec             b
+                dec     b
                 ld      b,b
                 nop
                 nop
@@ -14591,7 +14591,7 @@ dec             b
                 inc     d
                 inc     a
                 nop
-nop
+                nop
                 rra
                 ld      d,h
                 ld      a,(bc)
@@ -14670,7 +14670,7 @@ nop
                 nop
                 nop
                 ld      (bc),a
-add             a,b
+                add     a,b
                 ld      a,(bc)
                 add     a,b
                 nop
@@ -14699,7 +14699,7 @@ add             a,b
                 nop
                 nop
                 ld      a,(bc)
-xor             a
+                xor     a
                 add     a,d
                 jr      nc,$9B2D
                 xor     d
@@ -14725,9 +14725,9 @@ xor             a
                 xor     d
                 xor     b
                 jr      nc,$9B2B
-nop
                 nop
-inc             c
+                nop
+                inc     c
                 call    z,$0000
                 inc     c
                 ld      (bc),a
@@ -14744,7 +14744,7 @@ inc             c
                 and     b
                 nop
                 jr      z,$9B41
-ld              (bc),a
+                ld      (bc),a
                 add     a,b
                 nop
                 and     b
@@ -14758,7 +14758,7 @@ ld              (bc),a
                 inc     b
                 nop
                 jr      z,$9B50
-ret             po
+                ret     po
                 nop
                 nop
                 ld      hl,(LC003)
@@ -14777,11 +14777,11 @@ ret             po
                 ld      (bc),a
                 nop
                 jr      nz,$9B72
-cp              (hl)
+                cp      (hl)
                 ld      (bc),a
                 jr      nc,$9B96
                 ld      a,(bc)
-cp              (hl)
+                cp      (hl)
                 adc     a,d
                 ex      af,af'
                 ld      hl,(LBFAA)
@@ -14800,7 +14800,7 @@ cp              (hl)
                 xor     d
                 and     b
                 jr      nc,$9B85
-nop
+                nop
                 nop
                 jr      nc,$9B09
                 nop
@@ -14814,11 +14814,11 @@ nop
                 ld      hl,(L00C0)
                 nop
                 nop
-ld              hl,($0000)
+                ld      hl,($0000)
                 ex      af,af'
                 nop
                 jr      z,$9B9D
-nop
+                nop
                 and     b
                 ld      (bc),a
                 ret     nz
@@ -14850,11 +14850,11 @@ nop
                 ld      (bc),a
                 nop
                 jr      nz,$9BCC
-cp              (hl)
+                cp      (hl)
                 add     a,d
                 jr      nc,$9BF0
                 xor     d
-cp              (hl)
+                cp      (hl)
                 xor     d
                 ex      af,af'
                 ld      hl,(LBFAA)
@@ -14873,7 +14873,7 @@ cp              (hl)
                 xor     d
                 xor     b
                 jr      nc,$9BDF
-nop
+                nop
                 ld      c,$30
                 nop
                 nop
@@ -14886,9 +14886,9 @@ nop
                 ld      a,(bc)
                 adc     a,b
                 jr      nz,$9BEE
-nop
+                nop
                 ld      (bc),a
-nop
+                nop
                 nop
                 nop
                 nop
@@ -14934,7 +14934,7 @@ nop
                 ex      af,af'
                 jr      nz,$9BCB
                 xor     a
-cp              d
+                cp      d
                 xor     b
                 ld      hl,($AFAA)
                 jp      m,L2AA8
@@ -14956,9 +14956,9 @@ cp              d
 ; Need to change to data and find start and end ???
 ;
                 jr      nc,$9C39
-nop
                 nop
-ld              hl,($0000)
+                nop
+                ld      hl,($0000)
                 nop
                 nop
                 jp      z,L008C
@@ -15043,7 +15043,7 @@ ld              hl,($0000)
                 nop
                 xor     d
                 add     a,b
-jr              nc,$9CB6
+                jr      nc,$9CB6
                 nop
                 ld      a,(bc)
                 and     b
@@ -15058,7 +15058,7 @@ jr              nc,$9CB6
                 ld      a,(bc)
                 ret     pe
                 nop
-nop
+                nop
                 ccf
                 dec     hl
                 ret     m
@@ -15197,9 +15197,9 @@ nop
                 nop
                 jp      z,L008C
                 jr      nc,$9D53
-ld              a,(bc)
+                ld      a,(bc)
                 add     a,b
-nop
+                nop
                 nop
                 ld      (bc),a
                 xor     d
@@ -15259,7 +15259,7 @@ nop
                 nop
                 and     b
                 ld      (bc),a
-add             a,b
+                add     a,b
                 nop
                 nop
                 nop
@@ -15278,7 +15278,7 @@ add             a,b
                 ld      b,b
                 nop
                 djnz    $9E06
-dec             d
+                dec     d
                 ld      d,b
                 nop
                 ld      de,$1555
@@ -15290,7 +15290,7 @@ dec             d
                 call    p,$1000
                 ld      d,b
                 ld      d,l
-ld              d,h
+                ld      d,h
                 nop
                 ld      bc,L5555
                 ld      d,h
@@ -15303,12 +15303,12 @@ ld              d,h
                 nop
                 ld      bc,L0155
                 djnz    $9DDC
-ld              bc,L4054
+                ld      bc,L4054
                 nop
                 nop
                 djnz    $9DF3
                 djnz    $9DE5
-nop
+                nop
                 dec     d
                 ld      d,h
                 dec     b
@@ -15319,7 +15319,7 @@ nop
                 ld      d,h
                 djnz    $9E47
                 nop
-ld              d,l
+                ld      d,l
                 ld      d,b
                 djnz    $9DFC
                 nop
@@ -15327,7 +15327,7 @@ ld              d,l
                 nop
                 nop
                 nop
-nop
+                nop
                 ld      b,l
                 nop
                 ld      bc,L0101
@@ -15368,7 +15368,7 @@ nop
                 ld      d,c
                 dec     d
                 djnz    $9E32
-dec             b
+                dec     b
                 ld      b,b
                 ld      de,$0000
                 dec     d
@@ -15385,15 +15385,15 @@ dec             b
                 ld      bc,L4051
                 inc     b
                 inc     d
-nop
+                nop
                 ld      d,l
                 ld      d,b
                 djnz    $9E4C
-nop
+                nop
                 dec     d
                 ld      d,h
                 djnz    $9E51
-nop
+                nop
                 dec     b
                 ld      b,h
                 inc     b
@@ -15487,7 +15487,7 @@ nop
 ;
 ;*******************************************************************************
 
-DB              $00,$00,$00,$00,$40             ; . . . . . . . . . . . . . . . . 1 . . .
+                DB      $00,$00,$00,$00,$40     ; . . . . . . . . . . . . . . . . 1 . . .
                 DB      $00,$00,$00,$01,$50     ; . . . . . . . . . . . . . . . 1 1 1 . .
                 DB      $00,$00,$00,$01,$50     ; . . . . . . . . . . . . . . . 1 1 1 . .
                 DB      $00,$00,$01,$01,$54     ; . . . . . . . . . . . 1 . . . 1 1 1 1 .
@@ -15554,7 +15554,7 @@ DB              $00,$00,$00,$00,$40             ; . . . . . . . . . . . . . . . 
                 nop
                 ld      d,l
                 djnz    $9F3A
-ld              bc,L5555
+                ld      bc,L5555
                 ld      d,h
                 nop
                 dec     b
@@ -15666,7 +15666,7 @@ ld              bc,L5555
                 call    z,$0000
                 nop
                 nop
-rlca
+                rlca
                 ld      d,b
                 nop
                 djnz    $9FCD
@@ -15674,7 +15674,7 @@ rlca
                 ld      d,b
                 nop
                 djnz    LA022
-rla
+                rla
                 ld      d,b
                 nop
                 ld      de,$1555
@@ -15691,7 +15691,7 @@ rla
                 nop
                 djnz    LA031
                 dec     b
-ld              a,l
+                ld      a,l
                 nop
                 ld      bc,L5555
                 ld      d,l
@@ -16339,7 +16339,7 @@ LA2F9:          nop
                 add     a,b
                 ld      bc,L5555
                 xor     a
-add             a,b
+                add     a,b
                 nop
                 ld      d,l
                 ld      d,h
@@ -16365,9 +16365,9 @@ add             a,b
                 djnz    $A335
                 sub     l
                 xor     b
-nop
+                nop
                 djnz    $A338
-and             l
+                and     l
                 ld      l,b
                 nop
                 nop
@@ -16382,7 +16382,7 @@ and             l
                 xor     d
                 sub     h
                 nop
-nop
+                nop
                 nop
                 xor     d
                 ld      h,h
@@ -16399,7 +16399,7 @@ nop
                 nop
                 ld      de,$A612
                 jr      c,$A35E
-inc             d
+                inc     d
                 djnz    LA2F9
                 cp      (hl)
                 nop
@@ -16425,7 +16425,7 @@ inc             d
                 djnz    $A317
                 cp      (hl)
                 djnz    $A393
-ld              de,L38A6
+                ld      de,L38A6
                 nop
                 djnz    $A3E2
                 ld      h,(hl)
@@ -16439,7 +16439,7 @@ ld              de,L38A6
                 ld      (bc),a
                 xor     d
                 sub     h
-nop
+                nop
                 nop
                 ld      (bc),a
                 xor     d
@@ -16449,7 +16449,7 @@ nop
 ;
 ; At $A39A starts pattern of Worluk (demo screen) ???
 ;
-nop
+                nop
                 dec     b
                 nop
                 inc     d
@@ -16464,13 +16464,13 @@ nop
                 ld      hl,(LFB8B)
                 jp      m,L2AA8
                 xor     a
-ei
+                ei
                 cp      $A8
                 ld      d,$A2
                 jp      pe,$A4EA
                 dec     b
                 xor     b
-ld              hl,(L940A)
+                ld      hl,(L940A)
                 ld      b,$5A
                 add     hl,de
                 add     hl,hl
@@ -16484,10 +16484,10 @@ ld              hl,(L940A)
                 inc     b
                 nop
                 ld      b,b
-ld              d,l
+                ld      d,l
                 ld      b,b
                 djnz    $A3D2
-nop
+                nop
                 ld      d,l
                 ld      b,b
                 nop
@@ -16511,13 +16511,13 @@ nop
                 djnz    $A3F1
                 ld      bc,L0100
                 ld      d,b
-nop
+                nop
                 ld      bc,L0050
                 ld      bc,L4000
                 nop
                 nop
                 ld      bc,$0001
-nop
+                nop
                 nop
                 dec     bc
                 xor     e
@@ -16567,13 +16567,13 @@ nop
                 nop
                 ld      d,l
                 ld      d,l
-ld              b,b
+                ld      b,b
                 nop
                 nop
                 ld      b,c
                 ld      d,l
                 djnz    $A43F
-nop
+                nop
                 djnz    $A496
                 inc     b
                 nop
@@ -16581,7 +16581,7 @@ nop
                 inc     b
                 djnz    $A449
                 nop
-nop
+                nop
                 ld      d,h
                 nop
                 ld      bc,L0050
@@ -16606,7 +16606,7 @@ nop
                 ei
                 ret     m
                 nop
-nop
+                nop
                 rrca
                 ei
                 call    m,$0000
@@ -16647,7 +16647,7 @@ nop
                 dec     d
                 inc     b
                 jr      z,$A49F
-ld              bc,L1004
+                ld      bc,L1004
                 nop
                 nop
                 dec     d
@@ -16657,11 +16657,11 @@ ld              bc,L1004
                 nop
                 nop
                 jr      nc,$A4AC
-nop
+                nop
                 nop
                 nop
                 jr      nc,$A4B1
-nop
+                nop
                 nop
                 nop
                 inc     b
@@ -16710,11 +16710,11 @@ nop
                 inc     b
                 dec     d
                 ld      d,l
-ld              d,h
+                ld      d,h
                 dec     d
                 nop
                 dec     d
-ld              d,h
+                ld      d,h
                 nop
                 inc     d
                 nop
@@ -16722,7 +16722,7 @@ ld              d,h
                 ld      b,b
                 nop
                 djnz    $A4F3
-dec             d
+                dec     d
                 nop
                 nop
                 ld      d,b
@@ -16743,11 +16743,11 @@ dec             d
                 nop
                 nop
                 jr      nc,$A50B
-nop
+                nop
                 nop
                 nop
                 jr      nc,$A510
-nop
+                nop
                 nop
                 nop
                 inc     b
@@ -16809,7 +16809,7 @@ nop
                 nop
                 nop
                 nop
-nop
+                nop
                 nop
                 nop
                 nop
@@ -16843,7 +16843,7 @@ nop
                 ld      b,b
                 inc     d
                 inc     d
-djnz            $A5CF
+                djnz    $A5CF
                 djnz    $A590
                 ld      d,l
                 inc     d
@@ -16866,7 +16866,7 @@ djnz            $A5CF
                 ld      d,h
                 dec     d
                 ld      d,l
-ld              d,l
+                ld      d,l
                 ld      d,h
                 inc     b
                 dec     d
@@ -16913,17 +16913,17 @@ ld              d,l
                 nop
                 nop
                 jr      nc,$A5C4
-nop
+                nop
                 nop
                 nop
                 jr      nc,$A5C9
-nop
+                nop
                 inc     b
                 dec     b
                 inc     b
                 nop
                 nop
-inc             b
+                inc     b
                 ld      d,l
                 ld      b,l
                 ld      bc,$0550
@@ -16977,7 +16977,7 @@ inc             b
                 nop
                 nop
                 call    p,$0000
-nop
+                nop
                 nop
                 nop
                 nop
@@ -16985,9 +16985,9 @@ nop
 ;
 ; At $A610 starts pattern of Wizard of Wor (demo screen) ???
 ;
-nop
                 nop
-dec             d
+                nop
+                dec     d
                 ld      b,b
                 nop
                 nop
@@ -17118,7 +17118,7 @@ dec             d
                 dec     b
                 ld      d,l
                 ld      b,b
-nop
+                nop
                 nop
                 dec     d
                 ld      d,l
@@ -17149,7 +17149,7 @@ nop
                 nop
                 nop
                 nop
-dec             d
+                dec     d
                 nop
                 nop
                 nop
@@ -17267,11 +17267,11 @@ dec             d
                 ld      d,l
                 ld      d,b
                 jr      nc,$A751
-dec             b
+                dec     b
                 ld      d,l
                 ld      d,b
                 jr      nc,$A756
-dec             d
+                dec     d
                 ld      d,l
                 ld      d,b
                 nop
@@ -17314,7 +17314,7 @@ dec             d
                 inc     bc
                 nop
                 djnz    $A784
-nop
+                nop
                 inc     bc
                 ret     nz
                 inc     d
@@ -17365,7 +17365,7 @@ nop
                 ld      b,b
                 ld      bc,L0050
                 djnz    $A7C0
-dec             b
+                dec     b
                 ld      c,h
                 nop
                 nop
@@ -17395,11 +17395,11 @@ dec             b
                 inc     c
                 nop
                 djnz    $A7E3
-nop
+                nop
                 inc     a
                 nop
                 djnz    $A7E8
-inc             bc
+                inc     bc
                 ret     p
                 nop
                 dec     d
@@ -17446,7 +17446,7 @@ inc             bc
                 nop
                 ld      bc,L50D5
                 djnz    $A81A
-nop
+                nop
                 pop     de
                 ld      d,b
                 nop
@@ -17474,7 +17474,7 @@ nop
                 nop
                 nop
                 jr      nz,$A83B
-nop
+                nop
                 nop
                 nop
                 inc     c
@@ -17485,11 +17485,11 @@ nop
                 inc     a
                 ret     nz
                 djnz    $A847
-nop
+                nop
                 di
                 ret     nz
                 djnz    $A84C
-ld              bc,L4051
+                ld      bc,L4051
                 dec     d
                 nop
                 nop
@@ -17534,11 +17534,11 @@ ld              bc,L4051
                 ld      d,h
                 inc     d
                 nop
-dec             b
+                dec     b
                 ld      d,c
                 ld      d,b
                 djnz    $A883
-nop
+                nop
                 nop
                 ld      b,b
                 nop
@@ -17621,7 +17621,7 @@ nop
                 ld      d,l
                 nop
                 nop
-nop
+                nop
                 ld      bc,L0050
                 nop
                 nop
@@ -17651,7 +17651,7 @@ nop
                 inc     a
                 dec     b
                 rst     38H
-ret             nc
+                ret     nc
                 nop
                 inc     a
                 dec     b
@@ -17723,7 +17723,7 @@ ret             nc
                 ld      hl,(L553D)
                 ld      d,l
                 ld      d,b
-nop
+                nop
                 dec     c
                 ld      b,b
                 dec     d
@@ -17765,7 +17765,7 @@ nop
                 ld      d,l
                 nop
                 nop
-nop
+                nop
                 ld      d,l
                 ld      d,l
                 ld      b,b
@@ -17783,14 +17783,14 @@ nop
                 nop
                 ex      af,af'
                 djnz    $A999
-nop
+                nop
                 nop
                 jp      $0000
                 nop
                 nop
                 inc     bc
                 jr      z,$A9A3
-nop
+                nop
                 nop
                 cpl
                 ret     pe
@@ -17851,7 +17851,7 @@ nop
                 ld      (bc),a
                 and     b
                 xor     d
-ret             p
+                ret     p
                 nop
                 nop
                 ld      l,$4C
@@ -17869,7 +17869,7 @@ ret             p
                 nop
                 nop
                 inc     bc
-ld              a,(bc)
+                ld      a,(bc)
                 nop
                 nop
                 nop
@@ -17887,7 +17887,7 @@ ld              a,(bc)
                 xor     e
                 jp      (hl)
                 jr      z,$AA1C
-ld              hl,(LF8AA)
+                ld      hl,(LF8AA)
                 jr      z,$AA41
                 xor     d
                 xor     d
@@ -17896,7 +17896,7 @@ ld              hl,(LF8AA)
                 ld      ($AAAA),hl
                 xor     d
                 xor     b
-ld              hl,($AAAA)
+                ld      hl,($AAAA)
                 xor     d
                 add     a,b
                 nop
@@ -17913,7 +17913,7 @@ ld              hl,($AAAA)
                 ld      hl,(L0BAA)
                 call    m,L2A02
                 and     b
-inc             hl
+                inc     hl
                 ret     p
                 ld      a,(bc)
                 ld      a,(bc)
@@ -17951,7 +17951,7 @@ inc             hl
                 xor     e
                 jp      (hl)
                 jr      z,$AA76
-ld              hl,(LF8AA)
+                ld      hl,(LF8AA)
                 jr      z,$AA9B
                 xor     d
                 xor     d
@@ -17977,7 +17977,7 @@ ld              hl,(LF8AA)
                 ld      hl,(L0BAA)
                 call    m,L2A02
                 and     b
-jr              nz,$AA99
+                jr      nz,$AA99
                 ld      a,(bc)
                 ld      a,(bc)
                 xor     d
@@ -17988,16 +17988,16 @@ jr              nz,$AA99
                 ret     z
                 inc     b
                 jr      nc,$AAA8
-nop
                 nop
-ret             nz
+                nop
+                ret     nz
                 nop
                 nop
                 nop
                 inc     de
                 jp      z,$0000
                 inc     b
-inc             bc
+                inc     bc
                 jp      z,$0000
                 nop
                 cpl
@@ -18016,10 +18016,10 @@ inc             bc
                 jp      (hl)
                 jr      z,$AAF8
                 xor     d
-xor             d
+                xor     d
                 ret     m
                 jr      z,$AAD5
-xor             d
+                xor     d
                 xor     d
                 xor     d
                 xor     b
@@ -18046,7 +18046,7 @@ xor             d
                 nop
                 ret     p
                 nop
-ld              (bc),a
+                ld      (bc),a
                 xor     d
                 xor     d
                 ret     p
@@ -18082,7 +18082,7 @@ ld              (bc),a
                 adc     a,b
                 rrca
                 rst     38H
-jp              pe,LA0AA
+                jp      pe,LA0AA
                 jr      nz,$AB21
                 and     d
                 xor     d
@@ -18171,7 +18171,7 @@ jp              pe,LA0AA
                 inc     b
                 nop
                 ld      hl,($A8AA)
-nop
+                nop
                 nop
                 ld      hl,($A8AA)
                 nop
@@ -18202,11 +18202,11 @@ nop
                 nop
                 ld      (bc),a
                 and     b
-nop
+                nop
                 nop
                 nop
                 xor     d
-add             a,b
+                add     a,b
                 call    m,L0200
                 xor     d
                 add     a,e
@@ -18241,7 +18241,7 @@ add             a,b
                 ld      hl,($AAAA)
                 xor     b
                 inc     a
-nop
+                nop
                 ld      hl,($A8AA)
                 ld      c,$80
                 ld      hl,($A8AA)
@@ -18258,7 +18258,7 @@ nop
                 nop
                 nop
                 ld      (bc),a
-xor             d
+                xor     d
                 nop
                 nop
                 nop
@@ -18277,12 +18277,12 @@ xor             d
                 nop
                 nop
                 xor     d
-add             a,e
+                add     a,e
                 ret     nz
                 jr      nc,$AC13
                 xor     d
                 add     a,b
-call            m,L2A00
+                call    m,L2A00
                 add     a,d
                 and     b
                 inc     a
@@ -18315,7 +18315,7 @@ call            m,L2A00
                 xor     d
                 adc     a,b
                 jr      nc,$AC3E
-ld              hl,($A8AA)
+                ld      hl,($A8AA)
                 nop
                 ld      (bc),a
                 xor     d
@@ -18330,7 +18330,7 @@ ld              hl,($A8AA)
                 xor     d
                 add     a,b
                 nop
-nop
+                nop
                 ld      hl,(L00A8)
                 nop
                 nop
@@ -18344,7 +18344,7 @@ nop
                 nop
                 nop
                 ex      af,af'
-and             b
+                and     b
                 nop
                 nop
                 nop
@@ -18355,12 +18355,12 @@ and             b
                 rrca
                 nop
                 jr      nc,$AC6E
-nop
+                nop
                 inc     c
                 ld      c,b
                 ld      c,h
                 nop
-nop
+                nop
                 jr      nc,$AC7E
                 inc     c
                 nop
@@ -18369,7 +18369,7 @@ nop
                 jr      z,$AC88
                 nop
                 nop
-ccf
+                ccf
                 jr      z,$ACBD
                 nop
                 nop
@@ -18378,7 +18378,7 @@ ccf
                 rst     08H
                 nop
                 nop
-inc             bc
+                inc     bc
                 rst     38H
                 jp      L1FC0
                 rrca
@@ -18423,7 +18423,7 @@ inc             bc
                 nop
                 ccf
                 ret     p
-inc             a
+                inc     a
                 nop
                 nop
                 jr      nc,$AC62
@@ -18450,7 +18450,7 @@ inc             a
                 rrca
                 jp      pe,LC00F
                 nop
-inc             bc
+                inc     bc
                 jp      m,LC03F
                 nop
                 inc     bc
@@ -18482,7 +18482,7 @@ inc             bc
                 rst     38H
                 rst     38H
                 nop
-jr              nz,$AD24
+                jr      nz,$AD24
                 rrca
                 ret     p
                 inc     a
@@ -18497,7 +18497,7 @@ jr              nz,$AD24
                 rra
                 inc     bc
                 call    m,$0000
-nop
+                nop
                 nop
                 jr      nc,$AD3C
                 nop
@@ -18508,7 +18508,7 @@ nop
                 nop
                 nop
                 inc     bc
-djnz            $ACA9
+                djnz    $ACA9
                 nop
                 nop
                 inc     c
@@ -18527,7 +18527,7 @@ djnz            $ACA9
                 inc     bc
                 jp      m,LC03F
                 nop
-inc             bc
+                inc     bc
                 rst     38H
                 ret     p
                 ret     p
@@ -18542,7 +18542,7 @@ inc             bc
                 rst     38H
                 rst     38H
                 ret     p
-nop
+                nop
                 rrca
                 rst     38H
                 rst     38H
@@ -18561,7 +18561,7 @@ nop
                 rrca
                 ret     p
                 jr      nz,$AD63
-rra
+                rra
                 rrca
                 ret     nz
                 adc     a,a
@@ -18650,7 +18650,7 @@ rra
                 ret     p
                 inc     sp
                 inc     c
-rra
+                rra
                 inc     bc
                 rst     38H
                 jp      L00FF
@@ -18663,7 +18663,7 @@ rra
                 inc     a
                 jr      z,$ADE2
                 nop
-nop
+                nop
                 rst     38H
                 ld      (bc),a
                 or      b
@@ -18672,8 +18672,8 @@ nop
                 rst     08H
                 jp      L03C0
                 rst     38H
-rrca
-ret             p
+                rrca
+                ret     p
                 ret     p
                 inc     c
                 inc     c
@@ -18733,11 +18733,11 @@ ret             p
                 nop
                 and     b
                 jr      nc,$AE2C
-nop
+                nop
                 rst     38H
                 ex      af,af'
                 jr      nc,$AE31
-rst             38H
+                rst     38H
                 di
                 jp      nz,L0FC0
                 ccf
@@ -18784,11 +18784,11 @@ rst             38H
                 inc     a
                 ret     p
                 nop
-nop
+                nop
                 rrca
                 inc     c
                 jr      nc,$AE72
-nop
+                nop
                 inc     bc
                 rst     08H
                 inc     a
@@ -18803,7 +18803,7 @@ nop
                 nop
                 and     b
                 jr      nc,$AE86
-nop
+                nop
                 rst     38H
                 ex      af,af'
                 call    m,LFF00
@@ -18814,7 +18814,7 @@ nop
                 ret     z
                 ret     nz
                 nop
-ld              c,a
+                ld      c,a
                 rra
                 ret     z
                 ret     nz
@@ -18822,7 +18822,7 @@ ld              c,a
                 rst     38H
                 jp      p,L0230
                 add     a,b
-rst             38H
+                rst     38H
                 ret     p
                 or      b
                 nop
@@ -18851,16 +18851,16 @@ rst             38H
                 inc     bc
                 inc     c
                 jr      nc,$AEC7
-nop
+                nop
                 inc     bc
                 inc     c
                 jr      nc,$AECC
-nop
+                nop
                 rrca
                 inc     a
                 ret     p
                 nop
-nop
+                nop
                 inc     c
                 jr      nc,$AE95
                 nop
@@ -18871,7 +18871,7 @@ nop
                 nop
                 nop
                 nop
-add             a,b
+                add     a,b
                 call    m,$0000
                 rst     38H
                 inc     hl
@@ -18895,7 +18895,7 @@ add             a,b
                 nop
                 xor     b
                 rst     38H
-call            m,L000C
+                call    m,L000C
                 ld      hl,(LFCFF)
                 inc     c
                 ld      sp,LFF0B
@@ -18922,7 +18922,7 @@ call            m,L000C
                 rrca
                 inc     c
                 jr      nc,$AF26
-nop
+                nop
                 inc     bc
                 rst     08H
                 inc     a
@@ -19006,14 +19006,14 @@ nop
                 rst     38H
                 rst     38H
                 rst     38H
-ld              a,$07
+                ld      a,$07
                 out     (COL3L),a
                 xor     a
                 out     (COL0L),a
                 ld      hl,L404F
                 ld      c,$CA
-ld              b,$14
-inc             hl
+                ld      b,$14
+                inc     hl
                 inc     hl
                 inc     hl
                 inc     hl
@@ -19024,13 +19024,13 @@ inc             hl
                 ld      hl,L4050
                 ld      b,$CA
                 ld      de,L0050
-ld              (hl),$C0
+                ld      (hl),$C0
                 add     hl,de
                 djnz    $AFA1
                 ld      hl,L4000
                 ld      c,$0A
                 ld      de,$05F0
-call            $AFC2
+                call    $AFC2
                 add     hl,de
                 dec     c
                 jr      nz,$AFAE
@@ -19039,13 +19039,13 @@ call            $AFC2
 
 ; Wait until service switch is on, then restart everything...
 
-in              a,      (COINPORT)
+                in      a,      (COINPORT)
                 bit     3,a                     ; Is service switch on?
                 jr      z,$AFBB                 ; No, then wait until hell freezes over for it to be on
                 rst     00H                     ; When it service switch goes on, restart everything
 ;
-ld              b,$50
-ld              (hl),$FF
+                ld      b,$50
+                ld      (hl),$FF
                 inc     hl
                 djnz    $AFC4
                 ret
