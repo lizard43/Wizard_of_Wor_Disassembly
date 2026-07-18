@@ -18,7 +18,7 @@ L000A:      out     (HORCB), a          ; Set palette switch position and backgr
 L000C:      ld      a, $CC              ; $CC = 204
             out     (VERBL), a          ; Vertical Blank: Set screen height to 204 scanlines
 
-L0010:      call    L0093               ; Set interrupt vector to $CA & map color palette
+            call    L0093               ; Set interrupt vector to $CA & map color palette
 
             ld      a, $08              ; 00001000b (Bit 3 = 1)
 L0015:      out     (INMOD), a          ; Interrupt Enable: Turn on Line Interrupts
@@ -206,7 +206,7 @@ L00C8:      DB      $C7, $00, $56, $09, $9E, $09, $B4, $09
 ; ----> VIDEO RAM FAILURE / CRASH HANDLER
 ;            Causes the screen to flash wildly by spamming random values to the palette port.
 ;******************************************************************************************
-            vramerr: ld      a,r        ; Get random value from Z80 Refresh Register
+vramerr:    ld      a,r                 ; Get random value from Z80 Refresh Register
             out     (HORCB),a           ; Output to background color / palette port
 
 ;******************************************************************************************
@@ -230,7 +230,7 @@ vramtest:   exx                         ; Swap registers (saves return address i
             in      a, (COINPORT)       ; Read hardware switches (Hardware Watchdog kick)
             ex      af,af'              ; Restore Accumulator and Flags
 
-L00E8:      dec     de                  ; \ Adjust DE from $8000 down to $7FFE
+            dec     de                  ; \ Adjust DE from $8000 down to $7FFE
             dec     de                  ; / for the reverse fill operation
 
             cpl                         ; Invert the test pattern in A (e.g. $80 becomes $7F)
@@ -262,7 +262,7 @@ L0101:      call    z,L8006             ; If yes, execute external diagnostic RO
             call    L06CC               ; Reset hardware state / sparkle colors
 
             ld      a,$80               ; A = $80 (10000000b) initial VRAM test pattern
-                                                ; Falls through into the Video RAM worm test...
+                                        ; Falls through into the Video RAM worm test...
 ;
 ;******************************************************************************************
 ; ----> VIDEO RAM WORM TEST LOOP
@@ -375,8 +375,9 @@ L016F:      ld      de,$051A            ; String formatting and color attributes
 
             ld      de,L03E0            ; DE = Expected ROM Checksums Table
             ld      hl,$0000            ; HL = $0000 (Start of ROM memory)
-
+;******************************************************************************************
 ; ----> CHECK DIP SWITCH FOR FOREIGN ROM
+;******************************************************************************************
             ld      a,($D347)           ; (Dummy read)
             in      a, (SETTINGS)       ; Read Dip Switches (Port $13)
             bit     3,a                 ; Check Language Switch (On = English)
@@ -1289,7 +1290,7 @@ L0800:      call    L0947
 ;
             call    L0872
             ld      (hl),a
-L080B:      ret
+            ret
 
 ;
 ;*****************************************************************************
@@ -1675,7 +1676,7 @@ L0A15:      ld      hl,LD13F
             ld      a,$05
             jr      L0A5D
 L0A25:      ld      hl,LD07C
-L0A28:      call    L0B62
+            call    L0B62
             ld      hl,LD0C2
             call    L0B62
             ld      hl,LD10E
@@ -2945,7 +2946,7 @@ L176D:      ld      (LD1C4),a
 ;          to play immediately.
 ;*****************************************************************************
 ;
-L18D5:      ld      a,$08               ; $08 = Bit 3 (High-priority sound ID)
+            ld      a,$08               ; $08 = Bit 3 (High-priority sound ID)
             ld      (LD243),a           ; Overwrite Sound Queue 4, clearing other bits
             ret
 
@@ -4026,14 +4027,14 @@ L1DD6:      jp      po,$9EAE
             dec     hl
 L1DFE:      ret     po
             sbc     a,h
-L1E00:      jr      c,L1DF9
+            jr      c,L1DF9
             djnz    L1E26
             or      $38
             ret     m
             dec     hl
 L1E08:      and     d
             or      $38
-L1E0B:      jr      L1E1E
+            jr      L1E1E
 L1E0D:      ld      a,(LD03C)
             dec     a
             jr      z,L1E2F
@@ -4783,7 +4784,7 @@ L23A0:      call    L2477
             ret     c
             call    L2422
             ld      a,(ix+$06)
-L23AC:      ld      l,c
+            ld      l,c
             add     a,$16
             jr      L23C7
 L23B1:      call    L253D
@@ -5368,7 +5369,7 @@ L2805:      ex      af,af'
             ld      a,(LD1DB)
             and     a
             ret     z
-L280B:      bit     7,(hl)
+            bit     7,(hl)
             ld      a,$40
             jr      z,L2825
             bit     2,(hl)
@@ -6027,7 +6028,7 @@ L2CF9:      ld      a,$01
             and     $80
             ret     nz
             ld      hl,LD054
-L2D0B:      ld      a,(LD074)
+            ld      a,(LD074)
             or      (hl)
             and     $08
             ret     nz
@@ -6038,7 +6039,7 @@ L2D12:      ld      (LD1DB),a
             sub     $07
             jr      c,L2D42
 L2D20:      sub     $06
-L2D22:      jr      nc,L2D20
+            jr      nc,L2D20
             add     a,$06
             cp      $05
             jr      nz,L2D3D
@@ -8708,7 +8709,7 @@ L3A5C:      ld      b,c
             nop
             nop
             ld      (bc),a
-L3AAC:      add     a,d
+            add     a,d
             and     b
             nop
             nop
@@ -18681,7 +18682,6 @@ Game_Mode   EQU     $D303               ; This byte holds if you are in demo or 
                                                 ;   1: One player game in progress
                                                 ;   2: Two player game in progress
 
-LD347       EQU     $D347               ; This memory location is read, but never written to... ??? verify ???
 
 LD349       EQU     $D349               ; ??? (saved to in beginning of demo sequence)
 
@@ -18704,7 +18704,6 @@ L000B       EQU     $000B
 L000D       EQU     $000D
 L000F       EQU     $000F
 L0011       EQU     $0011
-L001A       EQU     $001A
 L0020       EQU     $0020
 L0029       EQU     $0029
 L004B       EQU     $004B
@@ -18771,14 +18770,11 @@ L1700       EQU     $1700
 L1701       EQU     $1701
 L1710       EQU     $1710
 L178D       EQU     $178D
-L1893       EQU     $1893
-L190B       EQU     $190B
 L1C33       EQU     $1C33
 L1C99       EQU     $1C99
 L1D0D       EQU     $1D0D
 L1D17       EQU     $1D17
 L1D3E       EQU     $1D3E
-L1D55       EQU     $1D55
 L1D6D       EQU     $1D6D
 L1D90       EQU     $1D90
 L1DAB       EQU     $1DAB
@@ -18801,7 +18797,6 @@ L211D       EQU     $211D
 L2218       EQU     $2218
 L222B       EQU     $222B
 L2303       EQU     $2303
-L230B       EQU     $230B
 L2694       EQU     $2694
 L26AD       EQU     $26AD
 L273E       EQU     $273E
@@ -18824,7 +18819,6 @@ L2D03       EQU     $2D03
 L2D1A       EQU     $2D1A
 L2D1F       EQU     $2D1F
 L2D30       EQU     $2D30
-L2D38       EQU     $2D38
 L2D43       EQU     $2D43
 L2E10       EQU     $2E10
 L2F38       EQU     $2F38
@@ -18856,7 +18850,6 @@ L3CC7       EQU     $3CC7
 L4000       EQU     $4000
 L4001       EQU     $4001
 L4004       EQU     $4004
-L4005       EQU     $4005
 L4045       EQU     $4045
 L404C       EQU     $404C
 L404F       EQU     $404F
@@ -18866,9 +18859,6 @@ L4054       EQU     $4054
 L4055       EQU     $4055
 L407D       EQU     $407D
 L40F5       EQU     $40F5
-L4105       EQU     $4105
-L4115       EQU     $4115
-L4141       EQU     $4141
 L4155       EQU     $4155
 L417D       EQU     $417D
 L462D       EQU     $462D
@@ -18877,7 +18867,6 @@ L5041       EQU     $5041
 L5055       EQU     $5055
 L50D5       EQU     $50D5
 L5100       EQU     $5100
-L5101       EQU     $5101
 L5445       EQU     $5445
 L5455       EQU     $5455
 L549D       EQU     $549D
@@ -18916,14 +18905,11 @@ L73CD       EQU     $73CD
 L7950       EQU     $7950
 L7A3B       EQU     $7A3B
 L7A51       EQU     $7A51
-L7C73       EQU     $7C73
-L7C78       EQU     $7C78
 L7D2B       EQU     $7D2B
 L7D50       EQU     $7D50
 L8002       EQU     $8002
 L8008       EQU     $8008
 L800A       EQU     $800A
-L807D       EQU     $807D
 L8084       EQU     $8084
 L8200       EQU     $8200
 L8236       EQU     $8236
@@ -18974,12 +18960,6 @@ L9535       EQU     $9535
 L956B       EQU     $956B
 L9595       EQU     $9595
 L95CC       EQU     $95CC
-LA00F       EQU     $A00F
-LA063       EQU     $A063
-LA069       EQU     $A069
-LA072       EQU     $A072
-LA07C       EQU     $A07C
-LA08B       EQU     $A08B
 LA26B       EQU     $A26B
 LA284       EQU     $A284
 LA29C       EQU     $A29C
@@ -18999,7 +18979,6 @@ LC000       EQU     $C000
 LC002       EQU     $C002
 LC003       EQU     $C003
 LC004       EQU     $C004
-LC00A       EQU     $C00A
 LC00B       EQU     $C00B
 LC00C       EQU     $C00C
 LC00D       EQU     $C00D
@@ -19179,7 +19158,6 @@ LE79F       EQU     $E79F
 LEABF       EQU     $EABF
 LEAEE       EQU     $EAEE
 LEB05       EQU     $EB05
-LF002       EQU     $F002
 LF03F       EQU     $F03F
 LF0AF       EQU     $F0AF
 LF557       EQU     $F557
