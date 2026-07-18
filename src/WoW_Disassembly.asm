@@ -493,30 +493,37 @@ L0230:      ld      de,LD1D7            ; Point to Player 1 controls buffer
             cpl
             ld      (de),a              ; Save Player 1 state to $D1D7
 
+; =================================================================================
 ; ----> CHECK JOYSTICK DIRECTIONS (Port $11 / $12)
-            ld      de,$190B            ; Screen formatting attributes
-            ld      hl,LD1CE            ; State tracking variable
-            ld      a,(LD1D6)           ; Load Player 2 controls
-            call    L0317               ; Evaluate direction status
+; =================================================================================
+            ; Player 2 Joystick Check
+            ld      de,$190B            ; DE = Screen formatting and position attributes for P2
+            ld      hl,LD1CE            ; HL = Pointer to P2 joystick state tracking variable ($D1CE)
+            ld      a,(LD1D6)           ; A = Load Player 2 controls state (Read from Port $11)
+            call    L0317               ; Call L0317 to evaluate the direction status (lower nybble)
 
-            ld      de,$1939
-            ld      hl,LD1CF
-            ld      a,(LD1D7)           ; Load Player 1 controls
-            call    L0317               ; Evaluate direction status
+            ; Player 1 Joystick Check
+            ld      de,$1939            ; DE = Screen formatting and position attributes for P1
+            ld      hl,LD1CF            ; HL = Pointer to P1 joystick state tracking variable ($D1CF)
+            ld      a,(LD1D7)           ; A = Load Player 1 controls state (Read from Port $12)
+            call    L0317               ; Call L0317 to evaluate the direction status (lower nybble)
 
+; =================================================================================
 ; ----> CHECK FIRE BUTTONS (Port $11 / $12)
-            ld      de,$1903
-            ld      hl,LD1D0            ; State tracking variable
-            ld      a,(LD1D6)
-            and     $10                 ; Isolate Bit 4 (Button 2)
-            call    L0397               ; Test bit and print "YES" or "NO "
+; =================================================================================
+            ; Player 2 Fire Button Check
+            ld      de,$1903            ; DE = Screen formatting and position attributes for P2 Fire
+            ld      hl,LD1D0            ; HL = Pointer to P2 fire button state tracking variable ($D1D0)
+            ld      a,(LD1D6)           ; A = Load Player 2 controls state again
+            and     $10                 ; Isolate Bit 4 (00010000b) to check Button 2 (Fire)
+            call    L0397               ; Call L0397 to test the bit and print "YES" or " NO" if changed
 
-            ld      e,$30
-            ld      hl,LD1D1
-            ld      a,(LD1D7)
-            and     $10                 ; Isolate Bit 4 (Button 2)
-            call    L0397
-
+            ; Player 1 Fire Button Check
+            ld      e,$30               ; E = Update only the lower byte of screen attribute (DE becomes $1930)
+            ld      hl,LD1D1            ; HL = Pointer to P1 fire button state tracking variable ($D1D1)
+            ld      a,(LD1D7)           ; A = Load Player 1 controls state again
+            and     $10                 ; Isolate Bit 4 (00010000b) to check Button 2 (Fire)
+            call    L0397               ; Call L0397 to test the bit and print "YES" or " NO
 
 
             ld      de,L1E03            ; ???
