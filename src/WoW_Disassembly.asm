@@ -3098,40 +3098,59 @@ L1896:          ld      (hl),$FF
                 ret
 ;
 ;*****************************************************************************
-; This routine seems to be used to draw vertical lines on the screen
-; First used in drawing the radar box in the demo screens.
-; Also called when drawing the maze... more details as they are available ???
-; Uses DE, HL, C for parameters for source, dest and height.
+; ROUTINE: Draw Vertical Line via Pattern Board (DMA)
+; Purpose: Uses the Astrocade Pattern Board to rapidly blit a 1-byte wide
+;          (4 pixel) vertical line or box edge to the screen. First used
+;          in drawing the radar box in the demo screens.
+; Inputs:
+;    DE = Source Address (Pattern data to expand)
+;    HL = Destination Address (Screen/Magic RAM)
+;    C  = Height of the line (in scanlines)
 ;*****************************************************************************
 ;
 
-L18A8:          ld      a,$22
-                out     (PBSTAT),a
+L18A8:          ld      a,$22                   ; %00100010 = Set PBEXP (Expand Mode) and PBFLOP (Horizontal Flop)
+                out     (PBSTAT),a              ; Output to Pattern Board Status port
                 ld      a,e
-                out     (PBLINADRL),a
+                out     (PBLINADRL),a           ; Set Source Address LSB
                 ld      a,d
-                out     (PBLINADRH),a
+                out     (PBLINADRH),a           ; Set Source Address MSB
                 ld      a,l
-                out     (PBXMOD),a
+                out     (PBXMOD),a              ; Set Destination Address LSB
                 ld      a,h
-                out     (PBAREADRH),a
-                ld      a,$4F
-                out     (PBXMOD),a
-                ld      a,$01
-                out     (PBXWIDE),a
+                out     (PBAREADRH),a           ; Set Destination Address MSB
+                ld      a,$4F                   ; Screen Width ($50) minus Pattern Width ($01) = $4F Skip Value
+                out     (PBXMOD),a              ; Set Dest Skip/Modulo (Advances Y coordinate cleanly to the next row)
+                ld      a,$01                   ; Width = 1 byte (4 pixels wide)
+                out     (PBXWIDE),a             ; Set Pattern Width
                 ld      a,c
-                out     (PBYHIGH),a
+                out     (PBYHIGH),a             ; Set Pattern Height (Writing this port triggers the DMA transfer!)
                 ret
+
 ;
-L18C4:          ld      a,h
-                ld      (hl),c
-                call    m,L7C73
-                halt
-                call    m,L7C78
-                ld      a,e
-                call    m,L807D
-                djnz    L1893
-L18D3:          jr      nc,L18D5
+;*****************************************************************************
+; SCREEN Y-COORDINATE LOOKUP TABLE (16 Scanline Spacing)
+; Found at $18C4. Accessed by L2776.
+; Note: Each word jumps exactly $0280 (640 bytes), which equals 16 scanlines
+; on the Astrocade 40-byte wide screen.
+;*****************************************************************************
+L18C4:          DW      $717C
+                DW      $73FC
+                DW      $767C
+                DW      $78FC
+                DW      $7B7C
+                DW      $7DFC
+
+;*****************************************************************************
+; VERTICAL WALL PIXEL MASKS (Astrocade 2BPP)
+; Found at $18D0. Passed to the Pattern Board DMA (L18A8) via DE register
+; to draw vertical lines at specific pixel offsets.
+;*****************************************************************************
+L18D0:          DB      $80                     ; Binary 10000000 (Color 2, Pixel 0)
+                DB      $10                     ; Binary 00010000 (Color 1, Pixel 2)
+L18D2:          DB      $C0                     ; Binary 11000000 (Color 3, Pixel 0)
+L18D3:          DB      $30                     ; Binary 00110000 (Color 3, Pixel 1)
+                DB      $00                     ; Blank
 
 ;
 ;*****************************************************************************
@@ -3184,7 +3203,7 @@ L191B:          ld      a,$22
                 ld      a,c
                 out     (PBYHIGH),a
                 ret
-;
+;******************************************************************************************
 L1937:          rst     38H
                 nop
 L1939:          ld      hl,(LD31B)
@@ -18751,8 +18770,6 @@ L1701           EQU     $1701
 L1710           EQU     $1710
 L178D           EQU     $178D
 L1893           EQU     $1893
-L18D0           EQU     $18D0
-L18D2           EQU     $18D2
 L190B           EQU     $190B
 L1C33           EQU     $1C33
 L1C99           EQU     $1C99
