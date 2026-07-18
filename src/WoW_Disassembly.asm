@@ -377,7 +377,7 @@ L016F:          ld      de,$051A                ; String formatting and color at
                 ld      hl,$0000                ; HL = $0000 (Start of ROM memory)
 
 ; ----> CHECK DIP SWITCH FOR FOREIGN ROM
-                ld      a,(LD347)               ; (Dummy read)
+                ld      a,($D347)               ; (Dummy read)
                 in      a, (SETTINGS)           ; Read Dip Switches (Port $13)
                 bit     3,a                     ; Check Language Switch (On = English)
                 ld      b,$07                   ; Default to 7 ROMs (A through G)
@@ -570,7 +570,7 @@ L02D1:          and     $10
                 call    L0397
 
 
-                ld      a,(LD347)
+                ld      a,($D347)
                 in      a, (SETTINGS)
 L02DB:          cpl
                 ld      b,a
@@ -1203,7 +1203,7 @@ L0781:          call    L0894
 ;
 ;*********************************************************
 ;
-L078B:          ld      a,(LD347)
+L078B:          ld      a,($D347)
                 in      a, (SETTINGS)           ; Check for language...
                 bit     3,a                     ; Off=Foreign, On=English (active HIGH)
                 ld      hl,L3131
@@ -2256,7 +2256,7 @@ L0E2B:          ld      hl,LD341
                 ld      hl,LD345
 L0E3E:          ld      d,$0E
                 call    L0F00
-                ld      a,(LD347)
+                ld      a,($D347)
                 in      a, (SETTINGS)
                 ld      b,a
                 exx
@@ -2694,7 +2694,7 @@ L163A:          ld      a,(LD302)
                 ret
 
 
-                ld      a,(LD347)
+                ld      a,($D347)
                 in      a, (SETTINGS)
                 ld      b,$03
                 bit     5,a                     ; Dipswitch: Bonus Lives active HIGH
@@ -2771,7 +2771,7 @@ L168D:          ld      a,(de)
                 dec     hl
                 ld      (hl),a
                 ret
-                ld      a,(LD347)
+                ld      a,($D347)
                 in      a, (SETTINGS)           ; Check for Free Play - Active HIGH ???
                     ; Bit 6: Free Play
                     ; Off=No Free Play, On=Free Play
@@ -2798,7 +2798,7 @@ L16C9:          out     (INLIN),a
 ; Check dip switch for free play
 ;*****************************************************************************
 ;
-                ld      a,(LD347)
+                ld      a,($D347)
                 in      a, (SETTINGS)
                 cpl
                 and     $40
@@ -2929,32 +2929,36 @@ L176D:          ld      (LD1C4),a
 ; Check if dip switch set to "Demo Sounds Active"
 ;*****************************************************************************
 ;L1781:
-                ld      a,(LD347)               ; Why load this? The next command wipes it out ???
+                ld      a,($D347)               ; Why load this? The next command wipes it out ???
                 in      a, (SETTINGS)
                 and     $80                     ; Check bit 7 - Demo Sounds active high ???
                 ld      (LD244),a               ; Save demo sound status, A=$80 if active, $00 if not
                 ret
 ;
 ;*****************************************************************************
-; ???
+; ROUTINE: High-Priority Sound Trigger (Override)
+; Found at $18D5 (Immediately following the Maze Wall bitmasks).
+; Purpose: Writes directly to Sound Queue 4 (LD243), requesting Sound Bit 3
+;          ($08 = 00001000b). By using LD instead of SET, it intentionally
+;          clears/aborts any other pending sounds in this queue to force
+;          this specific high-priority sound (e.g., Coin Drop, Player Death)
+;          to play immediately.
 ;*****************************************************************************
 ;
-
-                ld      a,$08
-                ld      (LD243),a
+L18D5:          ld      a,$08                   ; $08 = Bit 3 (High-priority sound ID)
+                ld      (LD243),a               ; Overwrite Sound Queue 4, clearing other bits
                 ret
 
 ;
 ;*****************************************************************************
-; Called this routine from dispatch routine
-; Check how many lives at beginning of game (dip switch)
+; ROUTINE: Check Starting Lives (Dip Switch)
+; Called from dispatch routine. Evaluates Bit 4 of the settings port.
 ;*****************************************************************************
-;L1792:
-                ld      a,(LD347)               ; Why load this? The next command wipes it out ???
-                in      a, (SETTINGS)
-                cpl
-                and     $10                     ; Normally active HIGH, but complemented is active LOW
-                ld      (LD34F),a               ; $10=3/7 lives, $00=2/5
+                ld      a,($D347)       ; MACRO ARTIFACT: Useless read of orphaned RAM cache
+                in      a,(SETTINGS)    ; PATCH: Read hardware directly, overwriting A
+                cpl                     ; Invert bits (Active-LOW hardware to Active-HIGH logic)
+                and     $10             ; Isolate Bit 4 (00010000b)
+                ld      (LD34F),a       ; Save status: $10 = 3/7 lives, $00 = 2/5 lives
                 ret
 ;
 ;*****************************************************************************
@@ -3158,8 +3162,7 @@ L18D3:          DB      $30                     ; Binary 00110000 (Color 3, Pixe
 ; ???
 ;*****************************************************************************
 ;
-
-L18D5:          di
+                di
                 ld      a,$08
                 out     (MAGIC),a
                 ld      de,L1937
@@ -10243,7 +10246,7 @@ L827D:          cp      $50
                 ld      hl,L9514
                 inc     a
                 ld      c,a
-                ld      a,(LD347)
+                ld      a,($D347)
                 in      a, (SETTINGS)
                 bit     3,a
                 jr      nz,L8292
@@ -10275,7 +10278,7 @@ L82B7:          exx
                 rlca
                 ld      hl,L9476
                 ld      e,a
-                ld      a,(LD347)
+                ld      a,($D347)
                 in      a, (SETTINGS)
                 bit     3,a
                 jr      nz,L82C9
@@ -10754,7 +10757,7 @@ L84B8:          out     (c),b
 L84CF:          add     a,$27
 L84D1:          out     (c),b
                 out     (TONEA),a
-                ld      a,(LD347)
+                ld      a,($D347)
                 in      a, (SETTINGS)
                 call    L8470
                 ld      bc,L0C55
