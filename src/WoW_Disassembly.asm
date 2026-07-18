@@ -8695,7 +8695,7 @@ L3AAC:          add     a,d
                 add     a,b
                 jr      nz,L3AB4
 L3AB4:          nop
-                ld      hl,(LA082)
+                ld      hl,($A082)
                 nop
                 nop
                 inc     c
@@ -8750,7 +8750,7 @@ L3AF0:          ld      hl,($AAAA)
                 xor     a
                 jp      pe,L2AA8
                 xor     b
-                ld      hl,(LA0A0)
+                ld      hl,($A0A0)
                 ld      hl,($AF00)
                 ret     pe
                 nop
@@ -8901,7 +8901,7 @@ L3BA2:          jr      nc,L3BCE
                 xor     a
                 jp      pe,L00A8
                 nop
-                ld      hl,(LA0A0)
+                ld      hl,($A0A0)
                 nop
                 nop
                 xor     a
@@ -9056,7 +9056,7 @@ L3C4F:          cp      (hl)
                 xor     a
                 jp      pe,L22A8
                 xor     b
-                ld      hl,(LA0A0)
+                ld      hl,($A0A0)
                 ld      ($AFA0),hl
                 ret     pe
                 nop
@@ -13856,7 +13856,7 @@ L95D7:          ld      b,(hl)
                 xor     b
                 nop
                 nop
-                ld      hl,(LA0AA)
+                ld      hl,($A0AA)
                 nop
                 nop
                 ld      a,(bc)
@@ -15316,71 +15316,29 @@ PATTERN_A016:
             DB      $11,$54,$05,$55,$50 ; . 1 . 1 1 1 1 . . . 1 1 1 1 1 1 1 1 . .
             DB      $10,$55,$01,$55,$40 ; . 1 . . 1 1 1 1 . . . 1 1 1 1 1 1 . . .
             DB      $10,$05,$00,$15,$00 ; . 1 . . . . 1 1 . . . . . 1 1 1 . . . .
-                nop
-                jr      nz,LA0A3
-                call    z,L0100
-                ld      bc,LF002
-                nop
-                ld      bc,L4005
-                or      c
-                ld      b,b
-                ld      bc,L4115
-LA082:          push    af
-                ld      b,b
-                ld      bc,L4155
-                DB      $fd,$40
-                ld      sp,L4141
-                push    af
-                ld      d,b
-                ld      bc,L5101
-                DB      $fd,$d4
-                nop
-                dec     b
-                ld      d,b
-                ld      (hl),l
-                call    p,$050C
-                ld      d,l
-                ld      d,l
-                call    p,$0500
-                ld      d,l
-LA0A0:          ld      d,l
-                ld      d,h
-                nop
-LA0A3:          dec     b
-                ld      d,l
-                ld      d,l
-                ld      d,h
-                nop
-                dec     b
-                ld      d,h
-LA0AA:          ld      b,l
-                ld      b,h
-                nop
-                dec     d
-                ld      d,b
-                inc     b
-                ld      b,b
-                inc     b
-                ld      d,l
-                ld      d,h
-                nop
-                nop
-                dec     b
-                ld      d,l
-                dec     b
-                ld      d,l
-                ld      b,b
-                inc     b
-                inc     d
-LA0BD:          ld      bc,L5055
-                djnz    LA0C2
-LA0C2:          nop
-                ld      d,l
-                ld      d,h
-                djnz    LA0C7
-LA0C7:          nop
-                dec     d
-                ld      d,b
+;*****************************************************************************************
+; GARWOR (Facing Right) - FRAME 3 - Found at $A070
+; SIZE: 5x18
+;*****************************************************************************************
+PATTERN_A070:
+            DB      $00,$20,$30,$CC,$00 ; . . . . . 2 . . . 3 . . 3 . 3 . . . . .
+            DB      $01,$01,$02,$F0,$00 ; . . . 1 . . . 1 . . . 2 3 3 . . . . . .
+            DB      $01,$05,$40,$B1,$40 ; . . . 1 . . 1 1 1 . . . 2 3 . 1 1 . . .
+            DB      $01,$15,$41,$F5,$40 ; . . . 1 . 1 1 1 1 . . 1 3 3 1 1 1 . . .
+            DB      $01,$55,$41,$FD,$40 ; . . . 1 1 1 1 1 1 . . 1 3 3 3 1 1 . . .
+            DB      $31,$41,$41,$F5,$50 ; . 3 . 1 1 . . 1 1 . . 1 3 3 1 1 1 1 . .
+            DB      $01,$01,$51,$FD,$D4 ; . . . 1 . . . 1 1 1 . 1 3 3 3 1 3 1 1 .
+            DB      $00,$05,$50,$75,$F4 ; . . . . . . 1 1 1 1 . . 1 3 1 1 3 3 1 .
+            DB      $0C,$05,$55,$55,$F4 ; . . 3 . . . 1 1 1 1 1 1 1 1 1 1 3 3 1 .
+            DB      $00,$05,$55,$55,$54 ; . . . . . . 1 1 1 1 1 1 1 1 1 1 1 1 1 .
+            DB      $00,$05,$55,$55,$54 ; . . . . . . 1 1 1 1 1 1 1 1 1 1 1 1 1 .
+            DB      $00,$05,$54,$45,$44 ; . . . . . . 1 1 1 1 1 . 1 . 1 1 1 . 1 .
+            DB      $00,$15,$50,$04,$40 ; . . . . . 1 1 1 1 1 . . . . 1 . 1 . . .
+            DB      $04,$55,$54,$00,$00 ; . . 1 . 1 1 1 1 1 1 1 . . . . . . . . .
+            DB      $05,$55,$05,$55,$40 ; . . 1 1 1 1 1 1 . . 1 1 1 1 1 1 1 . . .
+            DB      $04,$14,$01,$55,$50 ; . . 1 . . 1 1 . . . . 1 1 1 1 1 1 1 . .
+            DB      $10,$00,$00,$55,$54 ; . 1 . . . . . . . . . . 1 1 1 1 1 1 1 .
+            DB      $10,$00,$00,$15,$50 ; . 1 . . . . . . . . . . . 1 1 1 1 1 . .
                 nop
                 nop
                 nop
@@ -15816,7 +15774,7 @@ LA2C7:          ret     nc
                 xor     d
                 nop
                 djnz    LA2D9
-LA2D9:          ld      bc,LA0AA
+LA2D9:          ld      bc,$A0AA
                 djnz    LA2DE
 LA2DE:          ld      b,b
                 ld      l,d
@@ -17561,7 +17519,7 @@ LA2F9:          nop
                 xor     d
                 nop
                 nop
-                ld      hl,(LA0AA)
+                ld      hl,($A0AA)
                 inc     c
                 nop
                 ld      hl,(memcheck)
@@ -17608,7 +17566,7 @@ LA2F9:          nop
                 adc     a,b
                 rrca
                 rst     38H
-                jp      pe,LA0AA
+                jp      pe,$A0AA
                 jr      nz,$AB21
                 and     d
                 xor     d
@@ -17849,7 +17807,7 @@ LA2F9:          nop
                 xor     b
                 nop
                 ld      b,b
-                ld      hl,(LA0AA)
+                ld      hl,($A0AA)
                 nop
                 nop
                 ld      a,(bc)
