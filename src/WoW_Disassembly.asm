@@ -453,10 +453,10 @@ L01E1:      ld      de,$1E0B
 
             ld      hl,L0408            ; Source string: "PL1"
             ld      de,$230B
-            call    L03A3               ; Print "PL1"
+            call    Print_3_Chars               ; Print "PL1"
             ld      hl,L040B            ; Source string: "PL2"
             ld      e,$38
-            call    L03A3               ; Print "PL2"
+            call    Print_3_Chars               ; Print "PL2"
 
 L01FD:      ld      de,$280B
 L0200:      ld      hl,L03DD            ; Source string: "123" (Coin inputs)
@@ -479,7 +479,7 @@ L020B:      ld      e,$22
 ;******************************************************************************************
 ; ----> HARDWARE DIAGNOSTICS INPUT LOOP
 ;            Reads ports, complements them (active-low to active-high), isolates bits,
-;            and uses L0397 to selectively print "YES" or "NO" if the state changed.
+;            and uses Print_YesNo to selectively print "YES" or "NO" if the state changed.
 ;******************************************************************************************
 diagloop:   ei                          ; Enable interrupts to allow screen refresh
 
@@ -516,13 +516,13 @@ L0230:      ld      de,LD1D7            ; Point to Player 1 controls buffer
             ld      hl,LD1D0            ; HL = Pointer to P2 Right Fire tracking var ($D1D0)
             ld      a,(LD1D6)           ; A = Load Player 2 controls state again
             and     $10                 ; Isolate Bit 4 (00010000b) to check Button 2 (Right)
-            call    L0397               ; Call L0397 to test bit and print "YES" or " NO"
+            call    Print_YesNo               ; Call Print_YesNo to test bit and print "YES" or " NO"
 
             ld      e,$30               ; E = Update column coordinate for P1 (DE = $1930)
             ld      hl,LD1D1            ; HL = Pointer to P1 Right Fire tracking var ($D1D1)
             ld      a,(LD1D7)           ; A = Load Player 1 controls state again
             and     $10                 ; Isolate Bit 4 (00010000b) to check Button 2 (Right)
-            call    L0397               ; Call L0397 to test bit and print "YES" or " NO"
+            call    Print_YesNo               ; Call Print_YesNo to test bit and print "YES" or " NO"
 
 ;*****************************************************************************************
 ; ----> CHECK LEFT FIRE BUTTONS (Port $11 / $12, Bit 5)
@@ -532,104 +532,137 @@ L0230:      ld      de,LD1D7            ; Point to Player 1 controls buffer
             ld      hl,LD1CC            ; HL = Pointer to P2 Left Fire tracking var ($D1CC)
             ld      a,(LD1D6)           ; A = Load Player 2 controls state (Port $11)
             and     $20                 ; Isolate Bit 5 (00100000b) to check Button 1 (Left)
-            call    L0397               ; Test bit and print "YES" or " NO" if state changed
+            call    Print_YesNo               ; Test bit and print "YES" or " NO" if state changed
 
             ld      e,$30               ; E = Update column coordinate for P1 (DE = $1E30)
             ld      hl,LD1CD            ; HL = Pointer to P1 Left Fire tracking var ($D1CD)
             ld      a,(LD1D7)           ; A = Load Player 1 controls state (Port $12)
             and     $20                 ; Isolate Bit 5 (00100000b) to check Button 1 (Left)
-            call    L0397               ; Test bit and print "YES" or " NO" if state changed
+            call    Print_YesNo               ; Test bit and print "YES" or " NO" if state changed
 
 ;*****************************************************************************************
-; ---->
+; ----> CHECK START BUTTONS (Port $10, Bits 5 & 6)
+; Evaluates the 1-Player and 2-Player Start buttons.
 ;*****************************************************************************************
+            ld      de,$2303            ; DE = Screen formatting/position for PL1 Start
+            ld      hl,LD1D2            ; HL = Pointer to PL1 Start tracking var ($D1D2)
+            in      a, (COINPORT)       ; Read System Inputs (Port $10)
+            cpl                         ; Invert (Active-LOW hardware to Active-HIGH)
+            and     $20                 ; Isolate Bit 5 (00100000b) to check PL1 Start
+            call    Print_YesNo               ; Test bit and print "YES" or " NO" if changed
 
+            ld      e,$30               ; E = Update column coordinate for PL2 (DE = $2330)
+            ld      hl,LD1D3            ; HL = Pointer to PL2 Start tracking var ($D1D3)
+            in      a, (COINPORT)       ; Read System Inputs again
+            cpl                         ; Invert (Active-LOW hardware to Active-HIGH)
+            and     $40                 ; Isolate Bit 6 (01000000b) to check PL2 Start
+            call    Print_YesNo               ; Test bit and print "YES" or " NO" if changed
 
+;*****************************************************************************************
+; ----> CHECK COIN SWITCHES (Port $10, Bits 0, 1, 2)
+; Polls the three coin slot microswitches.
+;*****************************************************************************************
+L02A0:      ld      de,$2803            ; DE = Screen formatting/position for Coin 1 ($2803)
+            ld      hl,LD1C9            ; HL = Pointer to Coin 1 tracking var ($D1C9)
+            in      a, (COINPORT)       ; Read System Inputs (Port $10)
+L02A8:      cpl                         ; Invert (Active-LOW hardware to Active-HIGH)
+            and     $01                 ; Isolate Bit 0 (00000001b) to check Coin 1
+            call    Print_YesNo               ; Test bit and print "YES" or " NO" if changed
 
-            ld      de,L2303            ; ???
-            ld      hl,LD1D2            ; ???
-            in      a, (COINPORT)       ; Check IN0 for activity
-            cpl                         ; ???
-            and     $20                 ; Check ???
-            call    L0397               ; Test and write YES or NO
-            ld      e,$30               ; Check ???
-            ld      hl,LD1D3            ; ???
-            in      a, (COINPORT)       ; Check IN0 for activity
-            cpl                         ; ???
-            and     $40                 ; Check ???
-            call    L0397               ; Test and write YES or NO
-L02A0:      ld      de,L2803            ; ???
-            ld      hl,LD1C9            ; ???
-            in      a, (COINPORT)
-L02A8:      cpl
-            and     $01
-            call    L0397
-            ld      e,$30
-            ld      hl,LD1CA
-            in      a, (COINPORT)
-            cpl
-            and     $02
-            call    L0397
-            ld      e,$1A
-            ld      hl,LD1CB
-            in      a, (COINPORT)
-            cpl
-            and     $04
-            call    L0397
-            ld      de,L2D03
-            ld      hl,LD1D5
-            in      a, (COINPORT)
-            cpl
-L02D1:      and     $10
-            call    L0397
+            ld      e,$30               ; E = Update column coordinate for Coin 2 ($2830)
+            ld      hl,LD1CA            ; HL = Pointer to Coin 2 tracking var ($D1CA)
+            in      a, (COINPORT)       ; Read System Inputs (Port $10)
+            cpl                         ; Invert (Active-LOW to Active-HIGH)
+            and     $02                 ; Isolate Bit 1 (00000010b) to check Coin 2
+            call    Print_YesNo               ; Test bit and print "YES" or " NO"
 
+            ld      e,$1A               ; E = Update column coordinate for Coin 3 ($281A)
+            ld      hl,LD1CB            ; HL = Pointer to Coin 3 tracking var ($D1CB)
+            in      a, (COINPORT)       ; Read System Inputs (Port $10)
+            cpl                         ; Invert (Active-LOW to Active-HIGH)
+            and     $04                 ; Isolate Bit 2 (00000100b) to check Coin 3
+            call    Print_YesNo               ; Test bit and print "YES" or " NO"
 
-            ld      a,($D347)
-            in      a, (SETTINGS)
-L02DB:      cpl
-            ld      b,a
-            ld      de,L2D1A
-            ld      hl,LD1D8
-            ld      c,$01
-L02E5:      push    hl
-            push    bc
-            ld      a,b
-            and     c
-            push    de
-            call    L0397
-            pop     de
-            pop     bc
-            ld      hl,$0500
-            add     hl,de
-            ex      de,hl
-            pop     hl
-            inc     hl
-            ld      a,c
-            cp      $08
-            jr      nz,L02FE
-            ld      de,L2D30
-L02FE:      sla     c
-L0300:      jr      nz,L02E5
-L0302:      in      a, (COINPORT)
-            and     $60
-L0306:      jr      z,L0310
-            in      a, (COINPORT)       ;
-            bit     3,a                 ; Check for service switch on
-            jp      z,diagloop          ; Jump back to diagnostic screen if so
-L030F:      rst     00H                 ; Otherwise, restart everything!
+;*****************************************************************************************
+; ----> CHECK SLAM SWITCH (Port $10, Bit 4)
+; Polls the anti-cheat slam tilt switch inside the coin door.
+;*****************************************************************************************
+            ld      de,$2D03            ; DE = Screen formatting/position for SLAM ($2D03)
+            ld      hl,LD1D5            ; HL = Pointer to SLAM tracking var ($D1D5)
+            in      a, (COINPORT)       ; Read System Inputs (Port $10)
+            cpl                         ; Invert (Active-LOW to Active-HIGH)
+L02D1:      and     $10                 ; Isolate Bit 4 (00010000b) to check SLAM
+            call    Print_YesNo               ; Test bit and print "YES" or " NO"
+
+;*****************************************************************************************
+; ----> DIP SWITCH TEST LOOP (Initialization)
+; Reads the hardware DIP switches (Settings port) and sets up the loop to test all 8.
+;*****************************************************************************************
+            ld      a,($D347)           ; MACRO ARTIFACT: Useless read of orphaned RAM
+            in      a, (SETTINGS)       ; PATCH: Read DIP Switches (Port $13) over A
+L02DB:      cpl                         ; Invert (Active-LOW to Active-HIGH)
+            ld      b,a                 ; Store the inverted DIP switch state in B
+            ld      de,$2D1A            ; DE = Screen position for SW1 ($2D1A)
+                                        ;      NOTE: Disassembler artifact 'L2D1A'
+            ld      hl,LD1D8            ; HL = Pointer to SW1 tracking var ($D1D8)
+            ld      c,$01               ; C = Initialize shifting bitmask to Bit 0 ($01)
+L02E5:      push    hl                  ; Save state variable pointer
+            push    bc                  ; Save port state (B) and bitmask (C)
+            ld      a,b                 ; Load DIP switch state into A
+            and     c                   ; Isolate the current bit using the mask in C
+            push    de                  ; Save screen coordinates
+            call    Print_YesNo               ; Test bit and print "YES" or " NO"
+
+;*****************************************************************************************
+; ----> DIP SWITCH TEST LOOP (Continuation)
+; Iterates through the 8 hardware dip switches, moving the cursor down the screen
+; for each switch. Once SW4 is reached, it jumps to a new column for SW5-SW8.
+;*****************************************************************************************
+            pop     de                  ; Restore DE (Screen formatting/coordinates)
+            pop     bc                  ; Restore B (Settings port state) and C (Bitmask)
+            ld      hl,$0500            ; HL = $0500 (Used to add 5 to the Row byte 'D')
+            add     hl,de               ; Add $0500 to DE (Drops the cursor down 5 rows)
+            ex      de,hl               ; DE now holds the updated screen coordinates
+            pop     hl                  ; Restore HL (State tracking variable pointer)
+            inc     hl                  ; Advance pointer to the next switch's memory state
+            ld      a,c                 ; Load current bitmask into A
+            cp      $08                 ; Have we just finished checking SW4 (Bitmask $08)?
+            jr      nz,L02FE            ; If not, skip the column reset
+            ld      de,$2D30            ; If yes, move cursor to the next column (Row $2D, Col $30)
+                                        ; NOTE: Disassembler artifact mistakenly labeled this 'L2D30'.
+L02FE:      sla     c                   ; Shift bitmask left (e.g., $01 -> $02 -> $04)
+L0300:      jr      nz,L02E5            ; If mask is not 0 (8 bits not done), loop back to L02E5
+
+;*****************************************************************************************
+; ----> EVALUATE DIAGNOSTIC SCREEN ADVANCE OR EXIT
+; Checks input port $10 to see if the operator is advancing the test or exiting.
+;*****************************************************************************************
+L0302:      in      a, (COINPORT)       ; Read System Inputs (Port $10)
+            and     $60                 ; Isolate Bits 5 & 6 (likely Coin or Start inputs)
+L0306:      jr      z,L0310             ; If both are pressed (0), advance to next diagnostic phase
+
+            in      a, (COINPORT)       ; Read System Inputs again
+            bit     3,a                 ; Check Bit 3 (Service/Diagnostic Switch inside coin door)
+            jp      z,diagloop          ; Active-LOW: If 0 (Switch ON), loop back and keep diagnosing
+L030F:      rst     00H                 ; Active-HIGH: If 1 (Switch OFF), soft reset back to the game!
 ;
-;*****************************************************
-;
-; ???
-;
-;*****************************************************
-L0310:      di
-            call    L08AE
-L0314:      jp      $AF80
-L0317:      and     $0F
-            cp      (hl)
-            ret     z
-;
+;*****************************************************************************************
+; ----> ADVANCE TO CROSSHATCH / BURN-IN TEST
+; Triggered by pressing both Start buttons. Clears the screen and jumps to the grid draw.
+;*****************************************************************************************
+L0310:      di                  ; Disable interrupts
+            call    L08AE       ; Call video initialization and screen clear routine
+L0314:      jp      $AF80       ; Jump to EOF routine to draw alignment grid and halt
+
+;*****************************************************************************************
+; ----> JOYSTICK DIRECTION EVALUATOR
+; Isolates the lower nybble (joystick directions) and checks for state changes.
+;*****************************************************************************************
+L0317:      and     $0F         ; Isolate bits 0-3 (Up, Down, Left, Right)
+            cp      (hl)        ; Compare current joystick state against previous state
+            ret     z           ; Return immediately if the joystick hasn't moved
+
+;*****************************************************************************************
             ld      (hl),a
             ld      c,a
             ld      b,$00
@@ -712,23 +745,23 @@ L0388:      ld      hl,L03F4
             jr      L037B
             call    L0388
             jr      L0383
-;
-;*****************************************************
-;
-; ??? test to see if specified control is off or on
-; and write YES or NO accordingly.
-;
-;*****************************************************
-;
-L0397:      cp      (hl)                ; ???
-            ret     z                   ; ???
-            ld      (hl),a              ; ???
-            and     a                   ; ???
-            ld      hl,$03EB            ; String " NO"
-            jr      z,L03A3             ; ???
-            ld      hl,L03E8            ; String "YES"
-L03A3:      ld      b,$03               ; Length
-            jr      L03B3               ; Write string
+;*****************************************************************************************
+; ----> Print_YesNo (Evaluate Switch State & Update Screen)
+; Compares the current bit (A) against the previous state (HL). If the state has
+; changed, it updates the state and prints "YES" or " NO" on the diagnostic screen.
+;*****************************************************************************************
+Print_YesNo:
+            cp      (hl)                ; Compare current bit (A) against previous state
+            ret     z                   ; Return immediately if the state hasn't changed
+            ld      (hl),a              ; State changed! Overwrite old state with new
+            and     a                   ; Is the new state 0 (Unpressed) or >0 (Pressed)?
+            ld      hl,$03EB            ; Pre-load HL with pointer to string " NO"
+            jr      z,Print_3_Chars     ; If state is 0, jump ahead to print
+            ld      hl,L03E8            ; If state > 0, overwrite HL with pointer to "YES"
+
+Print_3_Chars:
+            ld      b,$03               ; Length of string is 3 characters
+            jr      L03B3               ; Jump to the string printing engine
 ;
 ;*****************************************************
 ; Write "MOVE"
@@ -776,7 +809,7 @@ L03BA:      push    hl
 ;*****************************************************
 L03C4:      ld      b,$04               ; ???
 L03C6:      push    bc                  ; Save ???
-            call    L03A3               ; B=3 and drop to write string
+            call    Print_3_Chars               ; B=3 and drop to write string
             push    hl                  ; save ???
             ld      hl,$04FA            ; HL is in graphic characters area ???
             add     hl,de               ; ???
