@@ -2962,15 +2962,14 @@ L18D5:          ld      a,$08                   ; $08 = Bit 3 (High-priority sou
                 ret
 ;
 ;*****************************************************************************
-; Called this routine from dispatch routine
-; Zero $D350 to $D36E
+; ROUTINE: Zero Memory Block ($D350 to $D36D)
+; Called from dispatch routine. Clears 30 ($1E) bytes of static RAM.
 ;*****************************************************************************
-;
-L179E:          ld      hl,LD350
-                ld      bc,L1E00
-L17A4:          ld      (hl),c
-                inc     hl
-                djnz    L17A4
+L179E:          ld      hl,LD350                ; Start address to clear
+                ld      bc,$1E00                ; OPTIMIZATION: B = $1E (Loop count 30), C = $00 (Zero value)
+L17A4:          ld      (hl),c                  ; Write $00 to memory
+                inc     hl                      ; Advance pointer
+                djnz    L17A4                   ; Decrement B and loop until 30 bytes are cleared
                 ret
 ;
 
