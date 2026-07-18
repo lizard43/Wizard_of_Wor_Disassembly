@@ -493,9 +493,9 @@ L0230:      ld      de,LD1D7            ; Point to Player 1 controls buffer
             cpl
             ld      (de),a              ; Save Player 1 state to $D1D7
 
-; =================================================================================
+;******************************************************************************************
 ; ----> CHECK JOYSTICK DIRECTIONS (Port $11 / $12)
-; =================================================================================
+;******************************************************************************************
             ; Player 2 Joystick Check
             ld      de,$190B            ; DE = Screen formatting and position attributes for P2
             ld      hl,LD1CE            ; HL = Pointer to P2 joystick state tracking variable ($D1CE)
@@ -508,35 +508,41 @@ L0230:      ld      de,LD1D7            ; Point to Player 1 controls buffer
             ld      a,(LD1D7)           ; A = Load Player 1 controls state (Read from Port $12)
             call    L0317               ; Call L0317 to evaluate the direction status (lower nybble)
 
-; =================================================================================
-; ----> CHECK FIRE BUTTONS (Port $11 / $12)
-; =================================================================================
-            ; Player 2 Fire Button Check
-            ld      de,$1903            ; DE = Screen formatting and position attributes for P2 Fire
-            ld      hl,LD1D0            ; HL = Pointer to P2 fire button state tracking variable ($D1D0)
+;*****************************************************************************************
+; ----> CHECK RIGHT FIRE BUTTONS (Port $11 / $12, Bit 4)
+; Secondary fire buttons located on the right side of the joystick.
+;*****************************************************************************************
+            ld      de,$1903            ; DE = Screen formatting/position for P2 Right Fire
+            ld      hl,LD1D0            ; HL = Pointer to P2 Right Fire tracking var ($D1D0)
             ld      a,(LD1D6)           ; A = Load Player 2 controls state again
-            and     $10                 ; Isolate Bit 4 (00010000b) to check Button 2 (Fire)
-            call    L0397               ; Call L0397 to test the bit and print "YES" or " NO" if changed
+            and     $10                 ; Isolate Bit 4 (00010000b) to check Button 2 (Right)
+            call    L0397               ; Call L0397 to test bit and print "YES" or " NO"
 
-            ; Player 1 Fire Button Check
-            ld      e,$30               ; E = Update only the lower byte of screen attribute (DE becomes $1930)
-            ld      hl,LD1D1            ; HL = Pointer to P1 fire button state tracking variable ($D1D1)
+            ld      e,$30               ; E = Update column coordinate for P1 (DE = $1930)
+            ld      hl,LD1D1            ; HL = Pointer to P1 Right Fire tracking var ($D1D1)
             ld      a,(LD1D7)           ; A = Load Player 1 controls state again
-            and     $10                 ; Isolate Bit 4 (00010000b) to check Button 2 (Fire)
-            call    L0397               ; Call L0397 to test the bit and print "YES" or " NO
+            and     $10                 ; Isolate Bit 4 (00010000b) to check Button 2 (Right)
+            call    L0397               ; Call L0397 to test bit and print "YES" or " NO"
 
+;*****************************************************************************************
+; ----> CHECK LEFT FIRE BUTTONS (Port $11 / $12, Bit 5)
+; Primary fire buttons located on the left side of the joystick.
+;*****************************************************************************************
+            ld      de,$1E03            ; DE = Screen formatting/position for P2 Left Fire
+            ld      hl,LD1CC            ; HL = Pointer to P2 Left Fire tracking var ($D1CC)
+            ld      a,(LD1D6)           ; A = Load Player 2 controls state (Port $11)
+            and     $20                 ; Isolate Bit 5 (00100000b) to check Button 1 (Left)
+            call    L0397               ; Test bit and print "YES" or " NO" if state changed
 
-            ld      de,L1E03            ; ???
-            ld      hl,LD1CC            ; ???
-            ld      a,(LD1D6)           ; Load Player 2 control status
-            and     $20                 ; ???
-            call    L0397               ; Test and write YES or NO
-            ld      e,$30               ; ???
-            ld      hl,LD1CD            ; ???
-            ld      a,(LD1D7)           ; Load Player 1 control status
-            and     $20                 ; ???
-            call    L0397               ; Test and write YES or NO
+            ld      e,$30               ; E = Update column coordinate for P1 (DE = $1E30)
+            ld      hl,LD1CD            ; HL = Pointer to P1 Left Fire tracking var ($D1CD)
+            ld      a,(LD1D7)           ; A = Load Player 1 controls state (Port $12)
+            and     $20                 ; Isolate Bit 5 (00100000b) to check Button 1 (Left)
+            call    L0397               ; Test bit and print "YES" or " NO" if state changed
 
+;*****************************************************************************************
+; ---->
+;*****************************************************************************************
 
 
 
