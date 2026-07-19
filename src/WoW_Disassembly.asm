@@ -58,9 +58,9 @@ L0026:      ld      a, $00              ; High byte for Interrupt Vector Table
 ;******************************************************************************************
 ; ----> EXPANSION ROM CHECK
 ;******************************************************************************************
-L0030:      ld      a, (L8006)          ; Check High ROM extension socket
+L0030:      ld      a, (EXPHOOK)          ; Check High ROM extension socket
             cp      $C3                 ; Is the byte a 'JP' ($C3) instruction?
-            call    z, L8006            ; If yes, execute external ROM initialization
+            call    z, EXPHOOK            ; If yes, execute external ROM initialization
 
 ;******************************************************************************************
 ; ----> HARDWARE VARIABLE SETUP
@@ -101,7 +101,7 @@ L0054:      ld      hl, Is_Speech_Active ; Point to Speech Active flag ($D245)
 L0068:      ld      bc, L0020           ; Length = $0020 (32 bytes)
             ldir                        ; Mirror Protected RAM to fast Work RAM
 
-            call    L08AE               ; Clear screen, init video, clear Work RAM
+            call    Clear_Screen_Init_RAM               ; Clear screen, init video, clear Work RAM
 
 ;******************************************************************************************
 ; ----> TERSE SCRIPT DISPATCHER (THE GAME LOOP)
@@ -256,9 +256,9 @@ vramtest:   exx                         ; Swap registers (saves return address i
 ;            and seeds the Video RAM worm test with the initial pattern ($80).
 ;******************************************************************************************
 diags:      di                          ; Disable interrupts during diagnostics
-            ld      a,(L8006)           ; Check High ROM extension socket
+            ld      a,(EXPHOOK)           ; Check High ROM extension socket
 L00FF:      cp      $C3                 ; Is the byte a 'JP' ($C3) instruction?
-L0101:      call    z,L8006             ; If yes, execute external diagnostic ROM
+L0101:      call    z,EXPHOOK             ; If yes, execute external diagnostic ROM
 
             call    L06CC               ; Reset hardware state / sparkle colors
 
@@ -288,7 +288,7 @@ L0111:      rra                         ; Rotate the test bit right (e.g., $80 -
 ;******************************************************************************************
 L0114:      ld      sp,$8000            ; Set permanent stack (pre-decrements to $7FFF)
 
-L0117:      call    L08AE               ; Clear screen, init video, and clear Work RAM
+L0117:      call    Clear_Screen_Init_RAM               ; Clear screen, init video, and clear Work RAM
 
             ld      hl,L042E            ; Source string: "SCREEN RAM OK"
             ld      de,$001A            ; String formatting and color attributes
@@ -676,7 +676,7 @@ L030F:      rst     00H                 ; Active-HIGH: If 1 (Switch OFF), soft r
 ; Triggered by pressing both Start buttons. Clears the screen and jumps to the grid draw.
 ;*****************************************************************************************
 L0310:      di                  ; Disable interrupts
-            call    L08AE       ; Call video initialization and screen clear routine
+            call    Clear_Screen_Init_RAM       ; Call video initialization and screen clear routine
 L0314:      jp      $AF80       ; Jump to EOF routine to draw alignment grid and halt
 
 ;*****************************************************************************************
@@ -844,6 +844,7 @@ L03C6:      push    bc                  ; Save ???
             pop     bc                  ; Restore count
             djnz    L03C6               ; Loop until ???
             ret                         ; Go back
+
 ;*****************************************************
 ; Begin Data area for "Words" in diagnostics
 ; Note: "@" is used as a space. ??? Verify
@@ -1502,57 +1503,52 @@ L08A0:      pop     hl                  ; Return address in HL
 ; Called this routine from dispatch routine
 ; ???
 ;*****************************************************************************
-;L08AA:
             pop     hl
             pop     iy
             jp      (hl)
-;
-;***********************************************************************
-;
-; I think this routine sets video for game play and fills some
-; static RAM memory with 0's.
-; Note: In the pattern xfer below, the source destination regisers are
-; missing. This probably means they were set before the call ???
-;
-;
-; Details and film at eleven...
-;
-;***********************************************************************
-;
-L08AE:      di
-            xor     a                   ; Zero A
-            out     (XPAND),a           ; Magic RAM expand mode color ???
-            ld      a,$08
-            out     (MAGIC),a           ; Set vertical blanking (see description) ???
-            ld      a,$22
-            out     (PBSTAT),a          ; Mode control byte ???
-            xor     a                   ; A=0
-            out     (PBXMOD),a          ; LSB of destination address
-            out     (PBAREADRH),a       ; MSB of destination address
-            inc     a                   ; A=1
-L08C0:      out     (PBXMOD),a          ; Line offset value ???
-            ld      a,$4F
-            out     (PBXWIDE),a         ; Width of pattern
-            ld      a,$CB
-            out     (PBYHIGH),a         ; Height of pattern and start transfer
 
-; NOTE: After the execution of the previous instruction, the screen is cleared!
-; So is this a "clear screen" routine using the pattern board???
+;*****************************************************************************************
+; ----> Clear_Screen_Init_RAM
 ;
-; What is this section of static RAM used for?
-; This section of code blanks out $d040 to $d243 inclusive.
-; Also note that the first $40 (64 decimal) bytes is not included.
-;
-            ld      hl,LD040
-            ld      (hl),$00
-            ld      de,LD041
-            ld      bc,L0203
-            ldir
+; Sets up Magic RAM and the Pattern Board (DMA) to rapidly clear the screen,
+; zeroes out $0203 bytes of Work RAM, and checks for an expansion ROM.
+;*****************************************************************************************
+Clear_Screen_Init_RAM:
+            di                          ; Disable interrupts during the wipe
+            xor     a                   ; A = 0
+            out     (XPAND),a           ; Set Expand Color to 0 (Black Paintbrush)
+            ld      a,$08               ; 00001000b (MRXPND = bit 3)
+            out     (MAGIC),a           ; Enable Magic RAM Expand Mode
+            ld      a,$22               ; 00100010b (PBFLOP = bit 5, PBEXP = bit 1)
+            out     (PBSTAT),a          ; Set DMA to Expand Mode & Horizontal Flop
+            xor     a                   ; A = 0
+            out     (PBXMOD),a          ; Destination Address LSB = $00
+            out     (PBAREADRH),a       ; Destination Address MSB = $00
+            inc     a                   ; A = 1
+            out     (PBXMOD),a          ; Dest Skip/Modulo = 1 (Advances to next line)
+            ld      a,$4F               ; Width = $4F (79 bytes wide)
+            out     (PBXWIDE),a         ; Set Pattern Width
+            ld      a,$CB               ; Height = $CB (203 scanlines)
+            out     (PBYHIGH),a         ; Set Pattern Height and START DMA TRANSFER!
 
-            ld      a,(L8006)
-            cp      $C3
-            call    z,L8006
-            ret
+;*****************************************************************************************
+; ----> CLEAR WORK RAM ($D040 - $D243)
+; Clears 515 bytes of game state memory. Skips the first 64 bytes ($D000 - $D03F)
+; which are battery-backed protected RAM.
+;*****************************************************************************************
+            ld      hl,LD040            ; HL = Start of unprotected Work RAM ($D040)
+            ld      (hl),$00            ; Seed the first byte with $00
+            ld      de,LD041            ; DE = Dest pointer (one byte ahead)
+            ld      bc,$0203            ; BC = Count (515 bytes). NOTE: Artifact 'L0203'
+            ldir                        ; Rapidly copy the zero through the RAM block
+
+;*****************************************************************************************
+; ----> EXPANSION ROM HOOK
+;*****************************************************************************************
+            ld      a,(EXPHOOK)         ; Read byte at expansion hook address ($8006)
+            cp      $C3                 ; Is it a Z80 'JP' ($C3) instruction?
+            call    z,EXPHOOK           ; If yes, execute the expansion ROM
+            ret                         ; Return to caller
 ;
 ;************************************************************************
 ;
@@ -9921,7 +9917,7 @@ L3CFC:      jr      z,$3D08
 
 L8000:      jp      L84F2
 L8003:      jp      L86C1
-L8006:      jp      L8316               ; Entry point from startup code
+            jp      L8316               ; Entry point from startup code
 L8009:      jp      L827D
             jp      L8253
 L800F:      bit     7,a
@@ -14308,7 +14304,7 @@ L95D7:      ld      b,(hl)
             jr      z,$98CD
             nop
             ld      d,b
-            ld      bc,L08C0
+            ld      bc,$08C0
             ld      bc,L0340
             ld      b,e
             nop
