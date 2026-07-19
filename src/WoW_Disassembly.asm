@@ -1203,64 +1203,65 @@ Process_Scanline_Timer:
             inc     hl
             ld      a, (hl)
             and     a
-            jr      z, L0725
+            jr      z, Proc_BG_Fade
             dec     (hl)
             ret
-;
-;*********************************************************
-;
-L0725:      ld      (hl),$01
+;*****************************************************************************************
+; ----> Proc_BG_Fade
+;       Decrements a timer, triggers hardware latch, and updates the background color.
+;*****************************************************************************************
+Proc_BG_Fade:
+            ld      (hl), $01
             dec     hl
-            ld      a,$05
-            in      a, (CCMISC)
+            ld      a, $05
+            in      a, (CCMISC)             ; Trigger hardware latch
             dec     (hl)
-            call    z,$070E
-            ld      a,(hl)
-L0731:      sub     $10
-            jr      nc,L0731
-            add     a,$10
-            ld      c,a
-            ld      b,$00
-            ld      hl,L0742
-            add     hl,bc
-L073E:      ld      a,(hl)
-            out     (COL0L),a
+            call    z, Trigger_CCMISC_4
+            ld      a, (hl)
+Calc_Color_Idx:
+            sub     $10                     ; Modulo 16 loop
+            jr      nc, Calc_Color_Idx
+            add     a, $10
+            ld      c, a
+            ld      b, $00
+            ld      hl, BG_Color_Data
+            add     hl, bc                  ; Calculate offset into the color table
+Write_BG_Color:
+            ld      a, (hl)
+            out     (COL0L), a              ; Output to Background Color Register
             ret
-;
-;*********************************************************
-;
-;
-; Data Below?
-;
-L0742:      rst     00H
-            ld      a,b
-            ld      c,e
-            jr      L0702
-            ld      l,b
-            in      a,($58)
-            dec     hl
-            ex      af,af'
-            xor     e
-            adc     a,b
-            dec     sp
-            sbc     a,b
-            set     7,e
-L0752:      ld      hl,$06F3
-            call    $06E7
-            jp       Set_Scanline_Int
-;
-; End Data?
-;
-L075B:      ld      hl,LD1BD
-            ld      a,(hl)
+
+;*****************************************************************************************
+; ----> BG_Color_Data
+;       16 bytes of background colors.
+;       (Previously disassembled incorrectly as Z80 instructions)
+;*****************************************************************************************
+BG_Color_Data:
+            DB      $C7, $78, $4B, $18, $BB, $68, $DB, $58
+            DB      $2B, $08, $AB, $88, $3B, $98, $CB, $FB
+
+;*****************************************************************************************
+; ----> Load_Fade_Col_3
+;*****************************************************************************************
+Load_Fade_Col_3:
+            ld      hl, Fade_Palette_Data   ; Previously $06F3
+            call    Load_Color_3
+            jp      Set_Scanline_Int        ; Jump to scanline interrupt routine
+
+;*****************************************************************************************
+; ----> Proc_Scan_Tmr_2
+;*****************************************************************************************
+Proc_Scan_Tmr_2:
+            ld      hl, LD1BD
+            ld      a, (hl)
             and     a
             ret     z
-            ld      a,$CC
-            out     (INLIN),a
+            ld      a, $CC
+            out     (INLIN), a
             inc     hl
-            ld      a,(hl)
+            ld      a, (hl)
             and     a
-            jr      z,L076C
+            jr      z, L076C
             dec     (hl)
             ret
 ;
@@ -1269,7 +1270,7 @@ L075B:      ld      hl,LD1BD
 L076C:      ld      (hl),$03
             dec     hl
             dec     (hl)
-            jr      z,L0752
+            jr      z, Load_Fade_Col_3
             bit     0,(hl)
             ld      a,$07
             jr      z,L0779
@@ -1752,7 +1753,7 @@ L0A06:      call    L0AA6
 L0A15:      ld      hl,LD13F
             call    L0AA6
             call    L0BD7
-            call    L075B
+            call    Proc_Scan_Tmr_2
             ld      a,$05
             jr      L0A5D
 L0A25:      ld      hl,LD07C
@@ -1772,13 +1773,13 @@ L0A25:      ld      hl,LD07C
             ld      hl,LD165
             call    L0AA6
             call    L0BE7
-            call    $0714
+            call    Process_Scanline_Timer
             ld      a,$0A
 L0A5D:      ld      hl,LD1C3
             or      (hl)
             ld      (hl),a
             call    L0A72
-            call    $0687
+            call    Update_Color_Fade_1
 L0A68:      ld      a,(L8000)
             cp      $C3
             call    z,L8000
@@ -3092,7 +3093,7 @@ L17F9:      ld      a,(hl)
             exx
             djnz    L17F9
             exx
-            ld      de,L073E
+            ld      de,Write_BG_Color
             add     hl,de
             exx
             dec     c
@@ -3159,7 +3160,7 @@ L187D:      bit     0,a
             call    z,L1889
             bit     1,a
             ret     nz
-            ld      de,$06E0
+            ld      de,Load_Palette_Colors_Loop
             add     hl,de
 L1889:      push    hl
             call    L1896
