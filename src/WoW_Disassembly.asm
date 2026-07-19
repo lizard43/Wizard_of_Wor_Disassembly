@@ -38,7 +38,7 @@ L0017:      ld      a, $00              ; 0000 000 0 (Function 0: Coin Counter 3
             ld      a, $0E              ; 0000 111 0 (Function 7: Unused/Light Transistor)
             in      a, (CCMISC)         ; Activate unused latch
 
-            call    L06C8               ; Set scan line interrupt & enable sparkle colors
+            call     Set_Scanline_Int               ; Set scan line interrupt & enable sparkle colors
 
 ;******************************************************************************************
 ; ----> SET INTERRUPT MODE
@@ -101,7 +101,7 @@ L0054:      ld      hl, Is_Speech_Active ; Point to Speech Active flag ($D245)
 L0068:      ld      bc, L0020           ; Length = $0020 (32 bytes)
             ldir                        ; Mirror Protected RAM to fast Work RAM
 
-            call    Clear_Screen_Init_RAM               ; Clear screen, init video, clear Work RAM
+            call     Sys_Init               ; Clear screen, init video, clear Work RAM
 
 ;******************************************************************************************
 ; ----> TERSE SCRIPT DISPATCHER (THE GAME LOOP)
@@ -260,7 +260,7 @@ diags:      di                          ; Disable interrupts during diagnostics
 L00FF:      cp      $C3                 ; Is the byte a 'JP' ($C3) instruction?
 L0101:      call    z,EXPHOOK             ; If yes, execute external diagnostic ROM
 
-            call    L06CC               ; Reset hardware state / sparkle colors
+            call    Enable_Sparkle_Colors               ; Reset hardware state / sparkle colors
 
             ld      a,$80               ; A = $80 (10000000b) initial VRAM test pattern
                                         ; Falls through into the Video RAM worm test...
@@ -288,7 +288,7 @@ L0111:      rra                         ; Rotate the test bit right (e.g., $80 -
 ;******************************************************************************************
 L0114:      ld      sp,$8000            ; Set permanent stack (pre-decrements to $7FFF)
 
-L0117:      call    Clear_Screen_Init_RAM               ; Clear screen, init video, and clear Work RAM
+L0117:      call     Sys_Init               ; Clear screen, init video, and clear Work RAM
 
             ld      hl,L042E            ; Source string: "SCREEN RAM OK"
             ld      de,$001A            ; String formatting and color attributes
@@ -676,7 +676,7 @@ L030F:      rst     00H                 ; Active-HIGH: If 1 (Switch OFF), soft r
 ; Triggered by pressing both Start buttons. Clears the screen and jumps to the grid draw.
 ;*****************************************************************************************
 L0310:      di                  ; Disable interrupts
-            call    Clear_Screen_Init_RAM       ; Call video initialization and screen clear routine
+            call     Sys_Init       ; Call video initialization and screen clear routine
 L0314:      jp      $AF80       ; Jump to EOF routine to draw alignment grid and halt
 
 ;*****************************************************************************************
@@ -1098,7 +1098,7 @@ L0687:      call    L06B5
             ld      (LD050),a
             inc     a
             ld      (LD048),a
-            jr      L06C8
+            jr       Set_Scanline_Int
 L06B5:      ld      hl,LD1C1
             ld      a,(hl)
             and     a
@@ -1113,25 +1113,26 @@ L06B5:      ld      hl,LD1C1
             call    L06D9
             dec     e
             ret     p
+;*****************************************************************************************
+; ----> Set_Scanline_Int & Enable_Sparkle_Colors
 ;
-;*********************************************************
-; Set scan line interrupt and
-; turn on all three sparkle colors
-;*********************************************************
-;
-L06C8:      ld      a,$A8               ; Set the interrupt line to 162
-            out     (INLIN),a
+;       Sets the vertical scanline interrupt trigger position and enables the
+;       hardware "sparkle" (shimmer) effect on colors 1, 2, and 3 via the CCMISC latch.
+;*****************************************************************************************
+Set_Scanline_Int:
+            ld      a,$A8               ; A = 168 ($A8). NOTE: Original comment '162' was off!
+            out     (INLIN),a           ; Set the scanline interrupt trigger position
 
-L06CC:      ld      a,00000111b         ; Turn on sparkle color 1
-            in      a, (CCMISC)
+Enable_Sparkle_Colors:
+            ld      a,00000111b         ; 0000 011 1 (Function 3, State 1)
+            in      a, (CCMISC)         ; Trigger latch to enable Sparkle Color 1
 
-            ld      a,00001001b         ; Turn on sparkle color 2
-            in      a, (CCMISC)
+            ld      a,00001001b         ; 0000 100 1 (Function 4, State 1)
+            in      a, (CCMISC)         ; Trigger latch to enable Sparkle Color 2
 
-            ld      a,00001011b         ; Turn on sparkle color 3
-            in      a, (CCMISC)
-
-            ret
+            ld      a,00001011b         ; 0000 101 1 (Function 5, State 1)
+            in      a, (CCMISC)         ; Trigger latch to enable Sparkle Color 3
+            ret                         ; Return to caller
 ;
 ;*********************************************************
 ;
@@ -1180,7 +1181,7 @@ L06E8:      out     (COL3L),a
             ret     p
 L070E:      ld      a,$04
             in      a, (CCMISC)
-            jr      L06C8
+            jr      Set_Scanline_Int
 
 L0714:      ld      hl,LD1BB
             ld      a,(hl)
@@ -1235,7 +1236,7 @@ L0742:      rst     00H
             set     7,e
 L0752:      ld      hl,$06F3
             call    L06E7
-            jp      L06C8
+            jp       Set_Scanline_Int
 ;
 ; End Data?
 ;
@@ -1508,12 +1509,12 @@ L08A0:      pop     hl                  ; Return address in HL
             jp      (hl)
 
 ;*****************************************************************************************
-; ----> Clear_Screen_Init_RAM
+; ---->  Sys_Init
 ;
 ; Sets up Magic RAM and the Pattern Board (DMA) to rapidly clear the screen,
 ; zeroes out $0203 bytes of Work RAM, and checks for an expansion ROM.
 ;*****************************************************************************************
-Clear_Screen_Init_RAM:
+ Sys_Init:
             di                          ; Disable interrupts during the wipe
             xor     a                   ; A = 0
             out     (XPAND),a           ; Set Expand Color to 0 (Black Paintbrush)
@@ -6394,7 +6395,7 @@ L2F1B:      jr      z,L2F42
             ld      (LD1D8),a
             ld      hl,LD242
             set     5,(hl)
-            call    L06CC
+            call    Enable_Sparkle_Colors
             jp      L30BA
 L2F42:      ld      a,$0A
             ld      (LD047),a
