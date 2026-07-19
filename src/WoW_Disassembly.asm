@@ -10202,33 +10202,39 @@ L81C5:      ld      c,(iy+$00)
             ld      b,$08
             otir
 L81D8:      ret
+;*****************************************************************************************
+; ----> Play_Next_Phoneme
 ;
-; Speech Routines ???
+;       Checks if the Votrax SC-01A is ready, processes the next phoneme from the string,
+;       updates the delta-encoded pitch/inflection bit, and sends it to the speech chip.
+;*****************************************************************************************
+Play_Next_Phoneme:
+            in      a, (P1PORT)             ; Read Port $12 (Player 1 / Votrax Status)
+            bit     7,a                     ; Check bit 7 (Votrax A/R pin: 1 = Ready)
+            jr      z,Play1                 ; If 0 (Busy speaking), return immediately
+            ld      hl,Num_Phonemes_Left    ; HL = Pointer to remaining phoneme count ($D2D0)
+            dec     (hl)                    ; Decrement the phonemes remaining counter
+            inc     hl                      ; Advance HL to point to $D2D1 (Inflection state)
+            ld      a,(hl)                  ; Load the previous phoneme's inflection bit
+            ld      hl,(LD2CE)              ; Load the ROM address of the current phoneme
+            xor     (hl)                    ; XOR previous inflection with current ROM byte
+            inc     hl                      ; Advance pointer to the next phoneme in ROM
+            ld      (LD2CE),hl              ; Store the updated ROM pointer back in RAM
+            ld      b,a                     ; B = The decoded phoneme + new inflection bit
+            and     $80                     ; Isolate just the new inflection bit (Bit 7)
+            ld      (LD2D1),a               ; Store the new inflection state in RAM
+            ld      c,$17                   ; C = Speech Chip Port ($17)
+            in      a,(c)                   ; HARDWARE TRICK: Sends B over address lines!
+Play1:      ret                             ; Return to caller
+
+;*****************************************************************************************
 ;
-L81D9:      in      a, (P1PORT)         ; Check to see if phoneme is complete
-            bit     7,a                 ; Active HIGH (ready to accept phonemes)
-            jr      z,L81F7             ; Not ready for new phoneme, so return
-            ld      hl,Num_Phonemes_Left ; Get length of phoneme left to go...
-            dec     (hl)                ; ... and decrement the count
-            inc     hl                  ; $D2D1 holds inflection bit 7 ???
-            ld      a,(hl)              ;
-            ld      hl,(LD2CE)          ; $D2CE holds the address to the next phoneme
-            xor     (hl)                ; ... moves phoneme into A ???
-            inc     hl                  ; Next phoneme address
-            ld      (LD2CE),hl          ; ... and store it
-            ld      b,a                 ; B holds raw phoneme with inflection bits (iipp pppp)
-            and     $80                 ; A holds just bit 7 of phoneme (inflection bit?)
-            ld      (LD2D1),a           ; Store it. $D2D1 holds inflection bit???
-            ld      c,$17               ; C=Speech Port
-            in      a,(c)               ; Speech output (a=phoneme, c=speech port)
-L81F7:      ret                         ; ... and we are done with that phoneme, go back
 ;
-;
-;
+;*****************************************************************************************
 L81F8:      ld      a,(Num_Phonemes_Left) ; Load A with length of phoneme left to go
             or      a                   ; if no more phonemes...
             jr      z,L8201             ; ... then skip the phoneme output routine
-            jp      L81D9               ; Otherwise, call speech phoneme output routine
+            jp      Play_Next_Phoneme   ; Otherwise, call speech phoneme output routine
 L8201:      xor     a                   ; Zero A
             ld      hl,(LD2D2)          ; HL = ???
             ld      de,(LD2D4)          ; DE = ???
@@ -10253,7 +10259,7 @@ L8210:      ld      d,(hl)
             jr      nc,L822D
             ld      de,LD2BE
 L822D:      ld      (LD2D4),de
-            jp      L81D9
+            jp      Play_Next_Phoneme
 L8234:      xor     a
             ld      (Is_Speech_Active),a ; Mark speech inactive
             ld      bc,$3F17            ; Write a STOP phoneme... (end of string?)
