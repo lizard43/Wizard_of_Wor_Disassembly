@@ -12378,7 +12378,7 @@ L8E36:      add     hl,hl
             ld      e,$3C
             rrca
             ld      (bc),a
-            jr      L8E90
+            jr      $8E90
             dec     h
 L8E6E:      ld      hl,(L2F0C)
             nop
@@ -12404,73 +12404,40 @@ Speech_Hey_Insert_Coin:
             DB      $0A                 ; Padding  (I2 - Unplayed 20th byte)
 
 
-            dec     e
-            ld      d,l
-            ld      c,c
-            ld      l,c
-L8E90:      dec     c
-            ld      e,$0C
-            inc     l
-            inc     a
-            ld      a,$12
-            dec     d
-            ld      c,c
-            ld      l,c
-            inc     c
-            inc     bc
-            ex      af,af'
-            dec     (hl)
-            scf
-            ld      e,$15
-            inc     bc
-            rra
-            dec     h
-            ex      af,af'
-            ld      c,e
-            ld      l,c
-            ld      hl,(L083E)
-            inc     e
-            dec     sp
-            ld      hl,(L3B2B)
-            ld      e,$29
-            ld      a,$20
-            ld      (L2836),hl
-            ld      e,$03
-            ld      c,$42
-            ld      hl,(L033A)
-            dec     de
-            ld      h,$25
-            ld      (L6876),hl
-            ld      e,$26
-            dec     c
-            ld      hl,(L555D)
-            add     hl,bc
-            ld      (L1E0D),hl
-            ld      c,h
-            inc     l
-            inc     a
-            ld      a,$3E
-            ld      a,$1E
-            dec     d
-            dec     c
-            inc     sp
-            add     hl,sp
-            ld      a,(L1903)
-            dec     (hl)
-            inc     (hl)
-            add     hl,bc
-            ld      (L1D0D),hl
-            ld      h,$2B
-            inc     c
-            ld      d,l
-            ld      c,c
-            ld      h,d
-            ld      hl,(L022B)
-            rlca
-            ld      a,($102A)
-            dec     sp
-            rra
-            ld      hl,(L0A3E)
+;*****************************************************************************************
+; ----> Votrax Speech Strings: Wizard Taunts
+;
+;       Length: $67 (103) bytes. Pitch inflection is applied via bit 6 (+$40).
+;*****************************************************************************************
+Speech_Find_Me:
+            DB      $1D, $55, $49, $69, $0D, $1E                ; "Find"       (F, AH1, I3, Y, N, D)
+            DB      $0C, $2C, $3C, $3E                          ; "me,"        (M, E, E1, PA1)
+
+Speech_Outta_Spite:
+            DB      $12, $15, $49, $69, $0C, $03                ; "Zym/I'm"    (Z, AH1, I3, Y, M, PA0)
+            DB      $08, $35, $37, $1E, $15, $03                ; "outta"      (AH2, O1, U1, D, AH1, PA0)
+            DB      $1F, $25, $08, $4B, $69, $2A, $3E           ; "spite,"     (S, P, AH2, I1, Y, T, PA1)
+
+Speech_Get_Ready:
+            DB      $08, $1C, $3B, $2A, $2B, $3B, $1E, $29, $3E ; "Get ready," (AH2, G, EH, T, R, EH, D, Y, PA1)
+
+Speech_Better_Hope:
+            DB      $20, $22, $36, $28, $1E, $03                ; "you'd"      (A, Y1, IU, U, D, PA0)
+            DB      $0E, $42, $2A, $3A, $03                     ; "better"     (B, EH1, T, ER, PA0)
+            DB      $1B, $26, $25                               ; "hope"       (H, O, P)
+            DB      $22, $76, $68                               ; "you'll"     (Y1, IU, L)
+            DB      $1E, $26, $0D, $2A                          ; "don't"      (D, O, N, T)
+            DB      $5D, $55, $09, $22, $0D, $1E                ; "find"       (F, AH1, I3, Y1, N, D)
+            DB      $4C, $2C, $3C, $3E, $3E, $3E                ; "me"         (M, E, E1, PA1, PA1, PA1)
+
+Speech_Treasure_Chest:
+            DB      $1E, $15, $0D, $33, $39, $3A, $03           ; "down there" (D, AH1, N, UH, TH, ER, PA0)
+            DB      $19, $35, $34, $09, $22, $0D                ; "coin/goin'" (K, O1, O2, I3, Y1, N)
+            DB      $1D, $26, $2B                               ; "for"        (F, O, R)
+            DB      $0C, $55, $49, $62                          ; "my"         (M, AH1, I3, Y1)
+            DB      $2A, $2B, $02, $07, $3A                     ; "treasure"   (T, R, EH1, ZH, ER)
+            DB      $2A, $10, $3B, $1F, $2A                     ; "chest."     (T, CH, EH, S, T)
+            DB      $3E, $0A                                    ; Pause & Pad  (PA1, I2)
             ld      a,$1B
             ld      d,l
             dec     de
