@@ -12387,10 +12387,22 @@ L8E74:      dec     bc
             add     hl,de
             ld      a,$13
 
-;Speech string "Hey, Insert coin!" for $13 ($19) bytes
+;*****************************************************************************************
+; ----> Votrax Speech String: "Hey, Insert coin!"
+;
+;       Length: $13 (19) bytes. Pitch inflection is applied via bit 6 (+$40).
+;*****************************************************************************************
+Speech_Hey_Insert_Coin:
+            DB      $1B, $60, $4B, $62  ; "Hey,"   (H, A, I1, Y1)
+            DB      $3E, $3E            ; Pause    (PA1, PA1)
+            DB      $27, $0D, $1F, $7A  ; "Inser-" (I, N, S, ER)
+            DB      $6A                 ; "-t"     (T)
+            DB      $3E                 ; Pause    (PA1)
+            DB      $59, $75, $34, $09  ; "Coi-"   (K, O1, O2, I3)
+            DB      $22, $0D            ; "-n!"    (Y1, N)
+            DB      $3E                 ; Pause    (PA1)
+            DB      $0A                 ; Padding  (I2 - Unplayed 20th byte)
 
-            DB      $1B,$60,$4B,$62,$3E,$3E,$27,$0D,$1F,$7A,$6A,$3E,$59,$75,$34,$09,$22,$0D,$3E,$0A
-;    DB
 
             dec     e
             ld      d,l
