@@ -1066,52 +1066,58 @@ CHRTBL:
             DB      $1C,$04,$06,$02,$FF,$FF,$02,$06,$04,$1C ; "Right arrow"
 
             nop                         ; Not sure why there is a NOP here... left in just in case.
-;
-;*************************************************
-;
-;
-;*************************************************
-L0687:      call    L06B5
-            ld      hl,LD1BF
-            ld      a,(hl)
+;*****************************************************************************************
+; ----> Update_Color_Fade_1
+;       Processes fading/cycling timers and triggers new palette loads.
+;*****************************************************************************************
+Update_Color_Fade_1:
+            call    Update_Color_Fade_2
+            ld      hl, LD1BF
+            ld      a, (hl)
             and     a
             ret     z
             inc     hl
             dec     (hl)
             ret     nz
-            ld      (hl),$02
+            ld      (hl), $02               ; Reset sub-timer
             dec     hl
-            dec     (hl)
-            ld      a,(hl)
+            dec     (hl)                    ; Decrement main fade index
+            ld      a, (hl)
             sub     $09
             cpl
-            ld      e,a
-            call    L06D9
-            ld      a,e
+            ld      e, a                    ; E = Complemented index offset
+            call    Load_Palette_Colors
+            ld      a, e
             cp      $08
             ret     c
-            ld      a,(L00C8)
-            out     (COL0L),a
+            ld      a, (L00C8)              ; Load default background color
+            out     (COL0L), a
             xor     a
-            ld      (LD1BA),a
-            ld      (LD050),a
+            ld      (LD1BA), a
+            ld      (LD050), a
             inc     a
-            ld      (LD048),a
-            jr       Set_Scanline_Int
-L06B5:      ld      hl,LD1C1
-            ld      a,(hl)
+            ld      (LD048), a
+            jr      Set_Scanline_Int
+
+;*****************************************************************************************
+; ----> Update_Color_Fade_2
+;*****************************************************************************************
+Update_Color_Fade_2:
+            ld      hl, LD1C1
+            ld      a, (hl)
             and     a
             ret     z
             inc     hl
             dec     (hl)
             ret     nz
-            ld      (hl),$04
+            ld      (hl), $04
             dec     hl
             dec     (hl)
-            ld      e,(hl)
-            call    L06D9
+            ld      e, (hl)
+            call    Load_Palette_Colors
             dec     e
             ret     p
+
 ;*****************************************************************************************
 ; ----> Set_Scanline_Int & Enable_Sparkle_Colors
 ;
@@ -1119,79 +1125,85 @@ L06B5:      ld      hl,LD1C1
 ;       hardware "sparkle" (shimmer) effect on colors 1, 2, and 3 via the CCMISC latch.
 ;*****************************************************************************************
 Set_Scanline_Int:
-            ld      a,$A8               ; A = 168 ($A8). NOTE: Original comment '162' was off!
-            out     (INLIN),a           ; Set the scanline interrupt trigger position
+            ld      a, $A8              ; A = 168 ($A8). NOTE: Original comment '162' was off!
+            out     (INLIN), a          ; Set the scanline interrupt trigger position
 
 Enable_Sparkle_Colors:
-            ld      a,00000111b         ; 0000 011 1 (Function 3, State 1)
+            ld      a, 00000111b        ; 0000 011 1 (Function 3, State 1)
             in      a, (CCMISC)         ; Trigger latch to enable Sparkle Color 1
 
-            ld      a,00001001b         ; 0000 100 1 (Function 4, State 1)
+            ld      a, 00001001b        ; 0000 100 1 (Function 4, State 1)
             in      a, (CCMISC)         ; Trigger latch to enable Sparkle Color 2
 
-            ld      a,00001011b         ; 0000 101 1 (Function 5, State 1)
+            ld      a, 00001011b        ; 0000 101 1 (Function 5, State 1)
             in      a, (CCMISC)         ; Trigger latch to enable Sparkle Color 3
             ret                         ; Return to caller
-;
-;*********************************************************
-;
-L06D9:      ld      d,$00
-            ld      hl,$06F3
-            add     hl,de
-            add     hl,de
-L06E0:      add     hl,de
-            ld      a,(LD1BA)
+
+;*****************************************************************************************
+; ----> Load_Palette_Colors
+;       Calculates the offset into the Fade_Palette_Data table (E * 3) and sends
+;       the 3 bytes to the Astrocade's Left Color registers.
+;*****************************************************************************************
+Load_Palette_Colors:
+            ld      d, $00
+            ld      hl, Fade_Palette_Data
+            add     hl, de
+            add     hl, de
+Load_Palette_Colors_Loop:
+            add     hl, de
+            ld      a, (LD1BA)
             and     a
-            jr      nz,L06E8
-L06E7:      ld      a,(hl)
-L06E8:      out     (COL3L),a
+            jr      nz, Write_Color_3
+Load_Color_3:
+            ld      a, (hl)
+Write_Color_3:
+            out     (COL3L), a
             inc     hl
-            ld      a,(hl)
-            out     (COL2L),a
+            ld      a, (hl)
+            out     (COL2L), a
             inc     hl
-            ld      a,(hl)
-            out     (COL1L),a
+            ld      a, (hl)
+            out     (COL1L), a
             ret
-;
-;*********************************************************
-;
-            ld      d,c
-            ld      a,h
-            di
-            ld      d,c
-            ld      a,e
-            di
-            ld      d,c
-            ld      a,e
-            di
-            ld      d,c
-            ld      a,d
-            jp      p,L7A51
-            jp      p,L7950
-            pop     af
-            ld      d,b
-            ld      a,c
-            pop     af
-            ld      d,b
-            ld      a,b
-            ret     p
-            ld      d,b
-            ld      a,b
-            ret     p
-L070E:      ld      a,$04
+
+;*****************************************************************************************
+; ----> Fade_Palette_Data
+;       9 sets of 3-byte color palettes for screen fading effects.
+;       (Previously disassembled incorrectly as Z80 instructions)
+;*****************************************************************************************
+Fade_Palette_Data:
+            DB      $51, $7C, $F3
+            DB      $51, $7B, $F3
+            DB      $51, $7B, $F3
+            DB      $51, $7A, $F2
+            DB      $51, $7A, $F2
+            DB      $50, $79, $F1
+            DB      $50, $79, $F1
+            DB      $50, $78, $F0
+            DB      $50, $78, $F0
+
+;*****************************************************************************************
+; ----> Trigger_CCMISC_4
+;*****************************************************************************************
+Trigger_CCMISC_4:
+            ld      a, $04
             in      a, (CCMISC)
             jr      Set_Scanline_Int
 
-L0714:      ld      hl,LD1BB
-            ld      a,(hl)
+;*****************************************************************************************
+; ----> Process_Scanline_Timer
+;*****************************************************************************************
+Process_Scanline_Timer:
+            ld      hl, LD1BB
+            ld      a, (hl)
             and     a
             ret     z
-            ld      a,$CC
-            out     (INLIN),a
+            ld      a, $CC
+            out     (INLIN), a
             inc     hl
-            ld      a,(hl)
+            ld      a, (hl)
             and     a
-            jr      z,L0725
+            jr      z, L0725
             dec     (hl)
             ret
 ;
@@ -1202,7 +1214,7 @@ L0725:      ld      (hl),$01
             ld      a,$05
             in      a, (CCMISC)
             dec     (hl)
-            call    z,L070E
+            call    z,$070E
             ld      a,(hl)
 L0731:      sub     $10
             jr      nc,L0731
@@ -1234,7 +1246,7 @@ L0742:      rst     00H
             sbc     a,b
             set     7,e
 L0752:      ld      hl,$06F3
-            call    L06E7
+            call    $06E7
             jp       Set_Scanline_Int
 ;
 ; End Data?
@@ -1760,13 +1772,13 @@ L0A25:      ld      hl,LD07C
             ld      hl,LD165
             call    L0AA6
             call    L0BE7
-            call    L0714
+            call    $0714
             ld      a,$0A
 L0A5D:      ld      hl,LD1C3
             or      (hl)
             ld      (hl),a
             call    L0A72
-            call    L0687
+            call    $0687
 L0A68:      ld      a,(L8000)
             cp      $C3
             call    z,L8000
@@ -3147,7 +3159,7 @@ L187D:      bit     0,a
             call    z,L1889
             bit     1,a
             ret     nz
-            ld      de,L06E0
+            ld      de,$06E0
             add     hl,de
 L1889:      push    hl
             call    L1896
@@ -9917,7 +9929,7 @@ L3CFC:      jr      z,$3D08
 
 L8000:      jp      L84F2
 L8003:      jp      L86C1
-            jp      L8316               ; Entry point from startup code
+            jp      $8316               ; Entry point from startup code
 L8009:      jp      L827D
             jp      L8253
 L800F:      bit     7,a
@@ -10406,47 +10418,46 @@ Init_Sound_Block:
 Init_Sound_Exec:
             jp      L8019               ; Jump to the main music port initialization
 
-;
 ;*****************************************************************************************
-; Temporary comments on right. Strange code...
-; Called from: l8316 (maybe others)
-; Essentially, a=$18, de'=$d270, jump to more code  ???
+; ----> Init_Sound_Queue_1
+;       Initializes the first sound queue/block in static RAM.
 ;*****************************************************************************************
-;
+Init_Sound_Queue_1:
+            ld      a, $18
+Init_Sound_Queue_1_Alt:
+            exx                         ; Swap to alternate register set
+            ld      de, LD270           ; DE' = $D270 (Sound Queue 1 RAM)
+            jr      Init_Sound_Block    ; Call initialization routine
 
-L8306:      ld      a,$18
-L8308:      exx                         ;Change other reg's to prime set
-            ld      de,LD270            ;de=$d270 (static RAM)
-            jr      Init_Sound_Block               ;Call continues through $82f5
-                ;then through $8019 which does a return
-;
 ;*****************************************************************************************
-;
+; ----> Init_Sound_Queue_2
+;       Initializes the second sound queue/block in static RAM.
 ;*****************************************************************************************
-;
-L830E:      ld      a,$58
-            exx
-            ld      de,LD2AC            ; ???
-            jr      Init_Sound_Block               ;Call continues through $82f5
-                ;then through $8019 which does a return
-;
-;*****************************************************************************************
-; Jump here if you execute $8006...
-; ???
-;*****************************************************************************************
-;
-L8316:      call    L8306               ;
-            call    L830E               ; ... and another ???
-            jp      L8253               ; ... Oh, and now jump away! ???
-;
-;*****************************************************************************************
-;
+Init_Sound_Queue_2:
+            ld      a, $58
+            exx                         ; Swap to alternate register set
+            ld      de, LD2AC           ; DE' = $D2AC (Sound Queue 2 RAM)
+            jr      Init_Sound_Block    ; Call initialization routine
 
-            ld      e,(hl)
+;*****************************************************************************************
+; ----> Init_All_Sound_Queues
+;       Master sound initialization, executed during ROM startup (via $8006).
+;*****************************************************************************************
+Init_All_Sound_Queues:
+            call    Init_Sound_Queue_1  ; Initialize Queue 1
+            call    Init_Sound_Queue_2  ; Initialize Queue 2
+            jp      L8253               ; Jump to sound execution/exit
+
+;*****************************************************************************************
+; ----> Dereference_HL
+;       Reads the 16-bit address at (HL) and returns it in HL. Clears A.
+;*****************************************************************************************
+Dereference_HL:
+            ld      e, (hl)             ; Load lower byte into E
             inc     hl
-            ld      d,(hl)
-            ex      de,hl
-            xor     a
+            ld      d, (hl)             ; Load upper byte into D
+            ex      de, hl              ; HL = DE (HL now contains the dereferenced pointer)
+            xor     a                   ; Clear A (A = 0)
             ret
 ;
 ;*****************************************************************************************
@@ -10972,7 +10983,7 @@ L8607:      rra
             ld      d,$01
             ld      hl,L8AF6
             jr      nc,L861C
-            call    L851D
+            call    $851D
             ld      hl,L8B1F
             ld      iy,LD2AC
             jp      L851D
@@ -10992,7 +11003,7 @@ L863A:      ret
             call    L851D
             ld      d,$00
             ret
-L8643:      call    L8316
+L8643:      call    $8316
             ld      iy,LD270
             ld      d,$00
             ld      hl,L89BE
@@ -11000,7 +11011,7 @@ L8643:      call    L8316
             ld      iy,LD2AC
             ld      hl,L89E5
             jp      L851D
-L865C:      call    L8316
+L865C:      call    $8316
             ld      d,$00
             ld      iy,LD270
             ld      hl,L8A0C
@@ -11012,20 +11023,20 @@ L8675:      ld      iy,LD270
             ld      d,$00
             ld      hl,L8971
             jp      L851D
-L8681:      call    L8316
+L8681:      call    $8316
             ld      iy,LD270
             ld      hl,L89A0
             call    L851D
             ld      iy,LD2AC
             ld      hl,L89AF
             jp      L851D
-L8698:      call    L8316
+L8698:      call    $8316
             ld      iy,LD270
             ld      d,$00
             ld      hl,L8981
             call    L851D
             ret
-L86A8:      call    L8316
+L86A8:      call    $8316
             ld      iy,LD2AC
             ld      hl,L8772
             ld      d,$00
@@ -11057,9 +11068,9 @@ L86C1:      ld      a,(LD244)
             bit     5,e
             call    nz,L8675
             bit     6,e
-            call    nz,L830E
+            call    nz,$830E
             bit     7,e
-            call    nz,L8306
+            call    nz,$8306
             jr      L8707
 L86FE:      call    L8538
             call    L8583
@@ -12392,7 +12403,7 @@ L8E74:      dec     bc
 ;
 ;       Length: $13 (19) bytes. Pitch inflection is applied via bit 6 (+$40).
 ;*****************************************************************************************
-Speech_Hey_Insert_Coin:
+SPK_Hey_Insert_Coin:
             DB      $1B, $60, $4B, $62  ; "Hey,"   (H, A, I1, Y1)
             DB      $3E, $3E            ; Pause    (PA1, PA1)
             DB      $27, $0D, $1F, $7A  ; "Inser-" (I, N, S, ER)
@@ -12409,19 +12420,19 @@ Speech_Hey_Insert_Coin:
 ;
 ;       Length: $67 (103) bytes. Pitch inflection is applied via bit 6 (+$40).
 ;*****************************************************************************************
-Speech_Find_Me:
+SPK_Find_Me:
             DB      $1D, $55, $49, $69, $0D, $1E                ; "Find"       (F, AH1, I3, Y, N, D)
             DB      $0C, $2C, $3C, $3E                          ; "me,"        (M, E, E1, PA1)
 
-Speech_Outta_Spite:
+SPK_Outta_Spite:
             DB      $12, $15, $49, $69, $0C, $03                ; "Zym/I'm"    (Z, AH1, I3, Y, M, PA0)
             DB      $08, $35, $37, $1E, $15, $03                ; "outta"      (AH2, O1, U1, D, AH1, PA0)
             DB      $1F, $25, $08, $4B, $69, $2A, $3E           ; "spite,"     (S, P, AH2, I1, Y, T, PA1)
 
-Speech_Get_Ready:
+SPK_Get_Ready:
             DB      $08, $1C, $3B, $2A, $2B, $3B, $1E, $29, $3E ; "Get ready," (AH2, G, EH, T, R, EH, D, Y, PA1)
 
-Speech_Better_Hope:
+SPK_Better_Hope:
             DB      $20, $22, $36, $28, $1E, $03                ; "you'd"      (A, Y1, IU, U, D, PA0)
             DB      $0E, $42, $2A, $3A, $03                     ; "better"     (B, EH1, T, ER, PA0)
             DB      $1B, $26, $25                               ; "hope"       (H, O, P)
@@ -12430,7 +12441,7 @@ Speech_Better_Hope:
             DB      $5D, $55, $09, $22, $0D, $1E                ; "find"       (F, AH1, I3, Y1, N, D)
             DB      $4C, $2C, $3C, $3E, $3E, $3E                ; "me"         (M, E, E1, PA1, PA1, PA1)
 
-Speech_Treasure_Chest:
+SPK_Treasure_Chest:
             DB      $1E, $15, $0D, $33, $39, $3A, $03           ; "down there" (D, AH1, N, UH, TH, ER, PA0)
             DB      $19, $35, $34, $09, $22, $0D                ; "coin/goin'" (K, O1, O2, I3, Y1, N)
             DB      $1D, $26, $2B                               ; "for"        (F, O, R)
@@ -12438,6 +12449,8 @@ Speech_Treasure_Chest:
             DB      $2A, $2B, $02, $07, $3A                     ; "treasure"   (T, R, EH1, ZH, ER)
             DB      $2A, $10, $3B, $1F, $2A                     ; "chest."     (T, CH, EH, S, T)
             DB      $3E, $0A                                    ; Pause & Pad  (PA1, I2)
+
+
             ld      a,$1B
             ld      d,l
             dec     de
@@ -15093,7 +15106,7 @@ L95D7:      ld      b,(hl)
             ld      hl,(LBFBB)
             rst     38H
             ret     pe
-            ld      a,(L8308)
+            ld      a,($8308)
             rst     38H
             xor     b
             nop
