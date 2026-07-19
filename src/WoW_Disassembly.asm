@@ -431,7 +431,7 @@ L01AB:      add     a,(hl)              ; Accumulate byte into A
 
             ld      a,d                 ; IF CHECKSUM FAILS: Save color formatting from D'
             ld      (ROMFAIL),a         ; Store it in RAM
-            call    L0374               ; Print the failing ROM's letter (pointed to by HL')
+            call    Write_1_Char               ; Print the failing ROM's letter (pointed to by HL')
             dec     hl                  ; Adjust string pointer backwards so it stays aligned
 
 L01C1:      inc     hl                  ; Advance string pointer to next ROM letter ("A" -> "B")
@@ -448,7 +448,7 @@ L01C1:      inc     hl                  ; Advance string pointer to next ROM let
             ld      hl,$0446            ; Source string: "OK"
             ld      a,(ROMFAIL)         ; Read ROM failure flag ($D1D4)
             and     a                   ; Is it zero? (No failures)
-            call    z,L0356             ; IF 0: Print "OK"
+            call    z,Write_2_Chars             ; IF 0: Print "OK"
 
             ld      a,$01
             ld      (DIAGFLAG),a        ; Set diagnostic screen active flag
@@ -689,88 +689,101 @@ L0317:      and     $0F         ; Isolate bits 0-3 (Up, Down, Left, Right)
             ret     z           ; Return immediately if the joystick hasn't moved
 
 ;*****************************************************************************************
+; ----> Disp_Joy_Str
+;       Called to print the state of the joystick in diagnostics mode.
+;       First clears the string area, then uses a jump table to print
+;       directional combinations ("UP", "LF_DN", "ERROR", etc.).
+;*****************************************************************************************
             ld      (hl),a
             ld      c,a
             ld      b,$00
-L031F:      push    bc
-L0320:      push    de
-            ld      b,$05
+Disp_Joy_Str:
+            push    bc
+Clear_Joy_Str:
+            push    de
+            ld      b,$05               ; Print 5 spaces to clear old string
             xor     a
             call    L03B5
             pop     de
-L0328:      pop     bc
-            ld      hl,L0333
+Do_Joy_Jump:
+            pop     bc
+            ld      hl,Joy_String_Table
             add     hl,bc
-            add     hl,bc
+            add     hl,bc               ; Calculate table offset (BC * 2)
             ld      a,(hl)
             inc     hl
             ld      h,(hl)
-L0331:      ld      l,a
-            jp      (hl)
+Exec_Joy_Jump:
+            ld      l,a
+            jp      (hl)                ; Jump to specific string routine
 
+;*****************************************************************************************
+; ----> Joy_String_Table
+;       16-entry jump table for joystick switch combinations.
+;       (Previously disassembled incorrectly as Z80 instructions)
+;*****************************************************************************************
+Joy_String_Table:
+            DW      Write_NO            ; 00: "NO" (No direction pressed)
+            DW      Write_UP            ; 01: "UP"
+            DW      Write_DN            ; 02: "DN"
+            DW      Write_ERROR         ; 03: UP+DN (Invalid)
+            DW      Write_LF            ; 04: "LF"
+            DW      Write_LF_UP         ; 05: "LF_UP"
+            DW      Write_LF_DN         ; 06: "LF_DN"
+            DW      Write_ERROR         ; 07: UP+DN+LF (Invalid)
+            DW      Write_RT            ; 08: "RT"
+            DW      Write_RT_UP         ; 09: "RT_UP"
+            DW      Write_RT_DN         ; 10: "RT_DN"
+            DW      Write_ERROR         ; 11: UP+DN+RT (Invalid)
+            DW      Write_ERROR         ; 12: LF+RT (Invalid)
+            DW      Write_ERROR         ; 13: LF+RT+UP (Invalid)
+            DW      Write_ERROR         ; 14: LF+RT+DN (Invalid)
+            DW      Write_ERROR         ; 15: LF+RT+UP+DN (Invalid)
 
-L0333:      ld      d,e
-            inc     bc
-            ld      e,d
-            inc     bc
-            ld      e,a
-            inc     bc
-            ld      h,h
-L033A:      inc     bc
-            ld      l,h
-            inc     bc
-            ld      a,b
-            inc     bc
-            add     a,b
-L0340:      inc     bc
-            ld      h,h
-            inc     bc
-            adc     a,b
-L0344:      inc     bc
-            adc     a,l
-            inc     bc
-            sub     d
-            inc     bc
-            ld      h,h
-            inc     bc
-            ld      h,h
-            inc     bc
-            ld      h,h
-            inc     bc
-            ld      h,h
-            inc     bc
-            ld      h,h
-            inc     bc
-
-            ld      hl,L03EC            ; "NO" String
-L0356:      ld      b,$02
+Write_NO:
+            ld      hl,L03EC            ; String "NO"
+Write_2_Chars:
+            ld      b,$02
             jr      L03B3               ; Write String
-L035A:      ld      hl,L03EE
-            jr      L0356
-L035F:      ld      hl,L03F0
-            jr      L0356
+Write_UP:
+            ld      hl,L03EE            ; String "UP"
+            jr      Write_2_Chars
+Write_DN:
+            ld      hl,L03F0            ; String "DN"
+            jr      Write_2_Chars
+Write_ERROR:
             ld      hl,L03F7            ; String "ERROR"
             ld      b,$05
             jp      L03B3               ; Write String
-;
-L036C:      ld      hl,L03F2            ; String "YES"
-            jr      L0356
-L0371:      ld      hl,L03F6            ; String "_" May translate to other character ???
-L0374:      ld      b,$01
+
+Write_LF:
+            ld      hl,L03F2            ; String "LF"
+            jr      Write_2_Chars
+Write_UScore:
+            ld      hl,L03F6            ; String "_" (Used to link diagonals)
+Write_1_Char:
+            ld      b,$01
             jr      L03B3               ; Write string
-;
-            call    L036C
-L037B:      call    L0371
-            jr      L035A
-            call    L036C
-L0383:      call    L0371
-            jr      L035F
-L0388:      ld      hl,L03F4
-            jr      L0356
-            call    L0388
-            jr      L037B
-            call    L0388
-            jr      L0383
+
+Write_LF_UP:
+            call    Write_LF
+Write__UP:
+            call    Write_UScore
+            jr      Write_UP
+Write_LF_DN:
+            call    Write_LF
+Write__DN:
+            call    Write_UScore
+            jr      Write_DN
+Write_RT:
+            ld      hl,L03F4            ; String "RT"
+            jr      Write_2_Chars
+Write_RT_UP:
+            call    Write_RT
+            jr      Write__UP
+Write_RT_DN:
+            call    Write_RT
+            jr      Write__DN
 ;*****************************************************************************************
 ; ----> Print_YesNo (Evaluate Switch State & Update Screen)
 ; Compares the current bit (A) against the previous state (HL). If the state has
@@ -827,7 +840,7 @@ L03BA:      push    hl
             ld      hl,L040E
             call    L03B1
             pop     hl
-            jr      L0374
+            jr      Write_1_Char
 ;
 ;*****************************************************
 ; ??? Write string of some kind... strange stuff going on.
@@ -4201,7 +4214,7 @@ L1E9F:      ld      a,(LD1D7)
             and     a
             jr      z,L1ED6
             ld      b,$00
-            ld      de,L0344
+            ld      de,$0344
             call    L1F55
             dec     c
             jr      nz,L1EBE
@@ -11421,7 +11434,7 @@ L8911:      inc     de
             jr      L8941
             ret     m
             ld      bc,L0202
-            ld      bc,L0328
+            ld      bc,Do_Joy_Jump
 L8928:      djnz    L8952
             rla
             add     a,h
@@ -11449,7 +11462,7 @@ L892F:      add     a,h
             rst     38H
             ld      bc,$1500
             inc     e
-            ld      bc,L0320
+            ld      bc,Clear_Joy_Str
             inc     de
             ld      d,h
             ld      (de),a
@@ -12896,7 +12909,7 @@ L913C:      add     hl,sp
             add     hl,hl
             ld      c,$60
             ld      c,$29
-            ld      (L031F),hl
+            ld      (Disp_Joy_Str),hl
             ld      c,$2B
             inc     a
             add     hl,hl
@@ -13301,7 +13314,7 @@ L9387:      dec     c
             ld      a,$1E
             ld      h,a
             ld      c,l
-            ld      a,(L031F)
+            ld      a,(Disp_Joy_Str)
             dec     hl
             ld      a,e
             add     hl,bc
@@ -13325,7 +13338,7 @@ L93B5:      dec     hl
             inc     bc
             ld      c,$28
             scf
-            ld      hl,(L031F)
+            ld      hl,(Disp_Joy_Str)
             inc     sp
             dec     c
             ld      hl,(L0A15)
@@ -13339,7 +13352,7 @@ L93B5:      dec     hl
             ld      (L2C0E),hl
             inc     a
             rra
-            ld      hl,(L031F)
+            ld      hl,(Disp_Joy_Str)
             dec     hl
             inc     sp
             dec     c
@@ -13397,7 +13410,7 @@ L941A:      inc     bc
             dec     e
             daa
             ld      hl,(L0303)
-            ld      hl,(L0328)
+            ld      hl,(Do_Joy_Jump)
             add     a,e
             rra
             ld      a,(L080F)
@@ -14278,7 +14291,7 @@ L95D7:      ld      b,(hl)
             nop
             ld      d,b
             ld      bc,$08C0
-            ld      bc,L0340
+            ld      bc,$0340
             ld      b,e
             nop
             ld      bc,L0F50
@@ -14356,7 +14369,7 @@ L95D7:      ld      b,(hl)
             dec     b
             ld      b,b
             nop
-            ld      bc,L0340
+            ld      bc,$0340
             nop
             nop
             dec     b
@@ -18240,7 +18253,7 @@ LA2F9:      nop
             rst     38H
             call    m,L003C
             ld      hl,(LFFFF)
-            call    m,L0331
+            call    m,Exec_Joy_Jump
             rst     38H
             rst     38H
             ret     p
