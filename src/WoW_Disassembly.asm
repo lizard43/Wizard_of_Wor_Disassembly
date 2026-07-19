@@ -1014,7 +1014,6 @@ L04C2:      ld      h,$00               ;
 ;        $66    -XX--XX-    --XXXX----XXXX--
 ;        $66    -XX--XX-    --XXXX----XXXX--
 ;
-
 ;
 ;
 ;******************************************************************************
@@ -11061,46 +11060,14 @@ L8707:      ld      iy,LD270
             call    L8437
             pop     iy
 L8717:      ret
-            nop
-            rst     38H
-            rst     38H
-            rst     38H
-            rst     38H
-            rst     38H
-            rst     38H
-            rst     38H
-            rst     38H
-            rst     38H
-            rst     38H
-            rst     38H
-            rst     38H
-            rst     38H
-            rst     38H
-            rst     38H
-            rst     38H
-            rst     38H
-            rst     38H
-            rst     38H
-            rst     38H
-            rst     38H
-            rst     38H
-            rst     38H
-            rst     38H
-            rst     38H
-            rst     38H
-            rst     38H
-            rst     38H
-            rst     38H
-            rst     38H
-            rst     38H
-            rst     38H
-            rst     38H
-            rst     38H
-            rst     38H
-            rst     38H
-            rst     38H
-            rst     38H
-            rst     38H
+
+            ; 40 bytes - ROM Padding
+            DB      $00, $FF, $FF, $FF, $FF, $FF, $FF, $FF
+            DB      $FF, $FF, $FF, $FF, $FF, $FF, $FF, $FF
+            DB      $FF, $FF, $FF, $FF, $FF, $FF, $FF, $FF
+            DB      $FF, $FF, $FF, $FF, $FF, $FF, $FF, $FF
+            DB      $FF, $FF, $FF, $FF, $FF, $FF, $FF, $FF
+
 L8740:      inc     bc
 L8741:      inc     de
             inc     (hl)
@@ -18520,10 +18487,10 @@ LA2F9:      nop
             ; Fragment Data (i.e., garbage)
             DB      $C3, $0C, $00, $00, $01, $45, $14, $00
 
-            ; "285AVE" Text
+            ; "285AVE" Text (i.e., garbage)
             DB      $32, $38, $35, $41, $56, $45
 
-            ; 5 FFs and a 00
+            ; 5 FFs and a 00 - Fragment Data (i.e., garbage)
             DB      $FF, $FF, $FF, $FF, $FF, $00
 
             ; ROM Padding: 63 bytes ($FF)
