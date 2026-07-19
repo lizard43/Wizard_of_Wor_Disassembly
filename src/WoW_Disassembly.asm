@@ -21,7 +21,7 @@ L000C:      ld      a, $CC              ; $CC = 204
             call    L0093               ; Set interrupt vector to $CA & map color palette
 
             ld      a, $08              ; 00001000b (Bit 3 = 1)
-L0015:      out     (INMOD), a          ; Interrupt Enable: Turn on Line Interrupts
+            out     (INMOD), a          ; Interrupt Enable: Turn on Line Interrupts
 
 ;******************************************************************************************
 ; ----> SPECIAL CONTROL REGISTER 1 ($15)
@@ -49,6 +49,7 @@ L0026:      ld      a, $00              ; High byte for Interrupt Vector Table
 
 ;******************************************************************************************
 ; GAME INITIALIZATION & MEMORY SETUP
+;
 ; Prepares the TERSE script environment, clears buffers, and seeds RNG
 ;******************************************************************************************
             xor     a
@@ -104,6 +105,7 @@ L0068:      ld      bc, L0020           ; Length = $0020 (32 bytes)
 
 ;******************************************************************************************
 ; ----> TERSE SCRIPT DISPATCHER (THE GAME LOOP)
+;
 ;       IY acts as the Instruction Pointer for TERSE script tokens.
 ;******************************************************************************************
             ld      a,(Game_Mode)       ; Check Game Mode variable
@@ -195,12 +197,11 @@ L00C0:      ld      (hl),c              ; Write byte to protected RAM
 
 ;******************************************************************************************
 ; ----> DEFAULT COLOR PALETTE MAPPING TABLE
+;
 ;       These bytes are sent to the Color Block Transfer port ($0B) during boot.
 ;******************************************************************************************
 DEFPALETTE: DB      $51, $7C, $F3
 L00C8:      DB      $C7, $00, $56, $09, $9E, $09, $B4, $09
-
-
 
 ;******************************************************************************************
 ; ----> VIDEO RAM FAILURE / CRASH HANDLER
@@ -296,6 +297,7 @@ L0117:      call    L08AE               ; Clear screen, init video, and clear Wo
 ;
 ;******************************************************************************************
 ; ----> STATIC RAM TEST
+;
 ;            Three-pass memory test for the 1KB NVRAM ($D000 - $D3FF).
 ;            Pass 1: Fills upward with $FF. Pass 2: Fills downward with $00.
 ;            Pass 3: Scans upward to verify all bytes remain $00.
@@ -345,6 +347,7 @@ L0155:      djnz    L0153               ; Inner loop: scan 256 bytes
 
 ;******************************************************************************************
 ; ----> STATIC RAM TEST PASS / FAIL HANDLER
+;
 ;            Performs one final checkerboard byte check, then prints the RAM status.
 ;******************************************************************************************
             ld      a,$55               ; A = $55 (01010101b checkerboard pattern)
@@ -363,6 +366,7 @@ L016F:      ld      de,$051A            ; String formatting and color attributes
 ;
 ;******************************************************************************************
 ; ----> ROM INTEGRITY TEST
+;
 ;            Sums the bytes of each 4KB ROM chip and compares against a checksum table.
 ;            Uses EXX to juggle two sets of pointers (ROM/Checksums vs Name Strings).
 ;******************************************************************************************
@@ -375,6 +379,7 @@ L016F:      ld      de,$051A            ; String formatting and color attributes
 
             ld      de,L03E0            ; DE = Expected ROM Checksums Table
             ld      hl,$0000            ; HL = $0000 (Start of ROM memory)
+
 ;******************************************************************************************
 ; ----> CHECK DIP SWITCH FOR FOREIGN ROM
 ;******************************************************************************************
@@ -385,10 +390,14 @@ L016F:      ld      de,$051A            ; String formatting and color attributes
             jr      nz,romcheck         ; IF English: Jump to test
             inc     b                   ; IF Foreign: Set count to 8 ROMs (A through X)
 
+;******************************************************************************************
 ; ----> BEGIN ROM CHECK LOOP
+;******************************************************************************************
 romcheck:   push    bc                  ; Save ROM loop counter
 
+;******************************************************************************************
 ; ----> MEMORY GAP SKIPS (VRAM & EMPTY SOCKETS)
+;******************************************************************************************
             ld      a,h                 ; Check current ROM high byte
             cp      $40                 ; Is pointer at $4000 (Start of Video RAM)?
             jr      nz,L019E            ; IF NOT: Skip to next check
@@ -398,8 +407,9 @@ L019E:      cp      $B0                 ; Is pointer at $B000 (Empty socket)?
             jr      nz,L01A7            ; IF NOT: Skip ahead
             ld      de,$C00A            ; IF YES: Redirect expected checksum pointer
             ld      h,$C0               ; And jump pointer to Alternate ROM space ($C000)
-
+;******************************************************************************************
 ; ----> 4KB CHECKSUM CALCULATION (modulo-256 checksum)
+;******************************************************************************************
 L01A7:      ld      bc,$0010            ; B = 0 (256 loops), C = 16 (16 * 256 = 4096 bytes)
             xor     a                   ; A = 0 (Clear accumulator for checksum)
 L01AB:      add     a,(hl)              ; Accumulate byte into A
@@ -408,7 +418,9 @@ L01AB:      add     a,(hl)              ; Accumulate byte into A
             dec     c                   ; Outer loop: 16 blocks (4KB total)
             jr      nz,L01AB
 
+;******************************************************************************************
 ; ----> COMPARE AND PRINT RESULTS
+;******************************************************************************************
             ex      de,hl               ; Swap ROM pointer and Checksum Table pointer
             cp      (hl)                ; Compare calculated sum (A) with expected sum (HL)
             inc     hl                  ; Advance Checksum Table pointer for next pass
@@ -429,6 +441,7 @@ L01C1:      inc     hl                  ; Advance string pointer to next ROM let
 
 ;******************************************************************************************
 ; ----> HARDWARE DIAGNOSTICS & SWITCH TEST SCREEN (UI SETUP)
+;
 ;            Draws the text labels for the diagnostic screen.
 ;******************************************************************************************
             exx                         ; Restore registers after ROM test
@@ -440,7 +453,9 @@ L01C1:      inc     hl                  ; Advance string pointer to next ROM let
             ld      a,$01
             ld      (DIAGFLAG),a        ; Set diagnostic screen active flag
 
+;******************************************************************************************
 ; ----> DRAW INPUT LABELS
+;******************************************************************************************
             ld      de,$1403            ; Screen formatting attributes
             call    L03A7               ; Print "MOVE" (Player 1 side)
             ld      e,$30
@@ -478,8 +493,9 @@ L020B:      ld      e,$22
 
 ;******************************************************************************************
 ; ----> HARDWARE DIAGNOSTICS INPUT LOOP
-;            Reads ports, complements them (active-low to active-high), isolates bits,
-;            and uses Print_YesNo to selectively print "YES" or "NO" if the state changed.
+;
+;       Reads ports, complements them (active-low to active-high), isolates bits,
+;       and uses Print_YesNo to selectively print "YES" or "NO" if the state changed.
 ;******************************************************************************************
 diagloop:   ei                          ; Enable interrupts to allow screen refresh
 
@@ -510,6 +526,7 @@ L0230:      ld      de,LD1D7            ; Point to Player 1 controls buffer
 
 ;*****************************************************************************************
 ; ----> CHECK RIGHT FIRE BUTTONS (Port $11 / $12, Bit 4)
+;
 ; Secondary fire buttons located on the right side of the joystick.
 ;*****************************************************************************************
             ld      de,$1903            ; DE = Screen formatting/position for P2 Right Fire
@@ -526,6 +543,7 @@ L0230:      ld      de,LD1D7            ; Point to Player 1 controls buffer
 
 ;*****************************************************************************************
 ; ----> CHECK LEFT FIRE BUTTONS (Port $11 / $12, Bit 5)
+;
 ; Primary fire buttons located on the left side of the joystick.
 ;*****************************************************************************************
             ld      de,$1E03            ; DE = Screen formatting/position for P2 Left Fire
@@ -542,6 +560,7 @@ L0230:      ld      de,LD1D7            ; Point to Player 1 controls buffer
 
 ;*****************************************************************************************
 ; ----> CHECK START BUTTONS (Port $10, Bits 5 & 6)
+;
 ; Evaluates the 1-Player and 2-Player Start buttons.
 ;*****************************************************************************************
             ld      de,$2303            ; DE = Screen formatting/position for PL1 Start
@@ -560,7 +579,8 @@ L0230:      ld      de,LD1D7            ; Point to Player 1 controls buffer
 
 ;*****************************************************************************************
 ; ----> CHECK COIN SWITCHES (Port $10, Bits 0, 1, 2)
-; Polls the three coin slot microswitches.
+;
+;       Polls the three coin slot microswitches.
 ;*****************************************************************************************
 L02A0:      ld      de,$2803            ; DE = Screen formatting/position for Coin 1 ($2803)
             ld      hl,LD1C9            ; HL = Pointer to Coin 1 tracking var ($D1C9)
@@ -585,18 +605,20 @@ L02A8:      cpl                         ; Invert (Active-LOW hardware to Active-
 
 ;*****************************************************************************************
 ; ----> CHECK SLAM SWITCH (Port $10, Bit 4)
-; Polls the anti-cheat slam tilt switch inside the coin door.
+;
+;       Polls the anti-cheat slam tilt switch inside the coin door.
 ;*****************************************************************************************
             ld      de,$2D03            ; DE = Screen formatting/position for SLAM ($2D03)
             ld      hl,LD1D5            ; HL = Pointer to SLAM tracking var ($D1D5)
             in      a, (COINPORT)       ; Read System Inputs (Port $10)
             cpl                         ; Invert (Active-LOW to Active-HIGH)
 L02D1:      and     $10                 ; Isolate Bit 4 (00010000b) to check SLAM
-            call    Print_YesNo               ; Test bit and print "YES" or " NO"
+            call    Print_YesNo         ; Test bit and print "YES" or " NO"
 
 ;*****************************************************************************************
 ; ----> DIP SWITCH TEST LOOP (Initialization)
-; Reads the hardware DIP switches (Settings port) and sets up the loop to test all 8.
+;
+;       Reads the hardware DIP switches (Settings port) and sets up the loop to test all 8.
 ;*****************************************************************************************
             ld      a,($D347)           ; MACRO ARTIFACT: Useless read of orphaned RAM
             in      a, (SETTINGS)       ; PATCH: Read DIP Switches (Port $13) over A
@@ -611,12 +633,13 @@ L02E5:      push    hl                  ; Save state variable pointer
             ld      a,b                 ; Load DIP switch state into A
             and     c                   ; Isolate the current bit using the mask in C
             push    de                  ; Save screen coordinates
-            call    Print_YesNo               ; Test bit and print "YES" or " NO"
+            call    Print_YesNo         ; Test bit and print "YES" or " NO"
 
 ;*****************************************************************************************
 ; ----> DIP SWITCH TEST LOOP (Continuation)
-; Iterates through the 8 hardware dip switches, moving the cursor down the screen
-; for each switch. Once SW4 is reached, it jumps to a new column for SW5-SW8.
+;
+;       Iterates through the 8 hardware dip switches, moving the cursor down the screen
+;       for each switch. Once SW4 is reached, it jumps to a new column for SW5-SW8.
 ;*****************************************************************************************
             pop     de                  ; Restore DE (Screen formatting/coordinates)
             pop     bc                  ; Restore B (Settings port state) and C (Bitmask)
@@ -635,6 +658,7 @@ L0300:      jr      nz,L02E5            ; If mask is not 0 (8 bits not done), lo
 
 ;*****************************************************************************************
 ; ----> EVALUATE DIAGNOSTIC SCREEN ADVANCE OR EXIT
+;
 ; Checks input port $10 to see if the operator is advancing the test or exiting.
 ;*****************************************************************************************
 L0302:      in      a, (COINPORT)       ; Read System Inputs (Port $10)
@@ -648,6 +672,7 @@ L030F:      rst     00H                 ; Active-HIGH: If 1 (Switch OFF), soft r
 ;
 ;*****************************************************************************************
 ; ----> ADVANCE TO CROSSHATCH / BURN-IN TEST
+;
 ; Triggered by pressing both Start buttons. Clears the screen and jumps to the grid draw.
 ;*****************************************************************************************
 L0310:      di                  ; Disable interrupts
@@ -656,6 +681,7 @@ L0314:      jp      $AF80       ; Jump to EOF routine to draw alignment grid and
 
 ;*****************************************************************************************
 ; ----> JOYSTICK DIRECTION EVALUATOR
+;
 ; Isolates the lower nybble (joystick directions) and checks for state changes.
 ;*****************************************************************************************
 L0317:      and     $0F         ; Isolate bits 0-3 (Up, Down, Left, Right)
@@ -13276,7 +13302,7 @@ L9354:      ld      e,$03
             ld      a,(bc)
             ld      ($3E1E),hl
             ld      c,$33
-            ld      hl,(L0015)
+            ld      hl,($0015)
             add     hl,bc
             add     hl,hl
             inc     c
