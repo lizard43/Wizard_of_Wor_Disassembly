@@ -10385,31 +10385,27 @@ L82EA:      exx
             ld      (Is_Speech_Active),a ; Mark speech as active
             ei
 L82F4:      ret
-;
-;**********************************************************
-; ???
-;
-; Input:    DE
-;        A
-;
-; Output:    (DE)=A
-;        (DE+1)=$40
-;        (DE+2)=$87
-;
-;**********************************************************
-;
-L82F5:      ld      hl,$0000
-            add     hl,de
 
-            ld      (hl),a
-            ld      hl,$0001
-            add     hl,de
+;*****************************************************************************************
+; ----> Init_Sound_Block
+;
+;       Seeds the first three bytes of a sound/music configuration block in RAM,
+;       then jumps to the main setup routine to finish the initialization.
+;*****************************************************************************************
+Init_Sound_Block:
+            ld      hl,$0000            ; Clunky compiler math: HL = 0
+            add     hl,de               ; HL = DE + 0
 
-            ld      (hl),$40            ;
-            inc     hl
-            ld      (hl),$87            ;
+            ld      (hl),a              ; Byte 0: (DE) = A
+            ld      hl,$0001            ; Clunky compiler math: HL = 1
+            add     hl,de               ; HL = DE + 1
 
-L8303:      jp      L8019
+            ld      (hl),$40            ; Byte 1: (DE+1) = $40
+            inc     hl                  ; HL = DE + 2 (Finally uses INC!)
+            ld      (hl),$87            ; Byte 2: (DE+2) = $87
+
+Init_Sound_Exec:
+            jp      L8019               ; Jump to the main music port initialization
 
 ;
 ;**********************************************************
@@ -10422,7 +10418,7 @@ L8303:      jp      L8019
 L8306:      ld      a,$18
 L8308:      exx                         ;Change other reg's to prime set
             ld      de,LD270            ;de=$d270 (static RAM)
-            jr      L82F5               ;Call continues through $82f5
+            jr      Init_Sound_Block               ;Call continues through $82f5
                 ;then through $8019 which does a return
 ;
 ;**********************************************************
@@ -10432,7 +10428,7 @@ L8308:      exx                         ;Change other reg's to prime set
 L830E:      ld      a,$58
             exx
             ld      de,LD2AC            ; ???
-            jr      L82F5               ;Call continues through $82f5
+            jr      Init_Sound_Block               ;Call continues through $82f5
                 ;then through $8019 which does a return
 ;
 ;**********************************************************
@@ -12093,7 +12089,7 @@ L8C8B:      ld      (de),a
 L8CBC:      ld      hl,(L3238)
             ld      c,$3B
             rra
-            ld      hl,(L8303)
+            ld      hl,(Init_Sound_Exec)
             ld      sp,L2783
             dec     e
             add     hl,hl
@@ -18510,759 +18506,113 @@ LA2F9:      nop
             nop
             nop
             nop
-            jp      L000C
-            nop
-            ld      bc,$1445
-            nop
-            ld      (L3538),a
-            ld      b,c
-            ld      d,(hl)
-            ld      b,l
-            rst     38H
-            rst     38H
-            rst     38H
-            rst     38H
-            rst     38H
-            nop
-            rst     38H
-            rst     38H
-            rst     38H
-            rst     38H
-            rst     38H
-            rst     38H
-            rst     38H
-            rst     38H
-            rst     38H
-            rst     38H
-            rst     38H
-            rst     38H
-            rst     38H
-            rst     38H
-            rst     38H
-            rst     38H
-            rst     38H
-            rst     38H
-            rst     38H
-            rst     38H
-            rst     38H
-            rst     38H
-            rst     38H
-            rst     38H
-            rst     38H
-            rst     38H
-            rst     38H
-            rst     38H
-            rst     38H
-            rst     38H
-            rst     38H
-            rst     38H
-            rst     38H
-            rst     38H
-            rst     38H
-            rst     38H
-            rst     38H
-            rst     38H
-            rst     38H
-            rst     38H
-            rst     38H
-            rst     38H
-            rst     38H
-            rst     38H
-            rst     38H
-            rst     38H
-            rst     38H
-            rst     38H
-            rst     38H
-            rst     38H
-            rst     38H
-            rst     38H
-            rst     38H
-            rst     38H
-            rst     38H
-            rst     38H
-            rst     38H
-            rst     38H
-            rst     38H
-            rst     38H
-            rst     38H
-            rst     38H
-            rst     38H
-            ld      a,$07
-            out     (COL3L),a
-            xor     a
-            out     (COL0L),a
-            ld      hl,L404F
-            ld      c,$CA
-            ld      b,$14
-            inc     hl
-            inc     hl
-            inc     hl
-            inc     hl
-            ld      (hl),$03
-            djnz    $AF8E
-            dec     c
-            jr      nz,$AF8C
-            ld      hl,L4050
-            ld      b,$CA
-            ld      de,L0050
-            ld      (hl),$C0
-            add     hl,de
-            djnz    $AFA1
-            ld      hl,L4000
-            ld      c,$0A
-            ld      de,$05F0
-            call    $AFC2
-            add     hl,de
-            dec     c
-            jr      nz,$AFAE
-            ld      hl,L7F70
-            call    $AFC2
 
-; Wait until service switch is on, then restart everything...
-
-            in      a,      (COINPORT)
-            bit     3,a                 ; Is service switch on?
-            jr      z,$AFBB             ; No, then wait until hell freezes over for it to be on
-            rst     00H                 ; When it service switch goes on, restart everything
+;*****************************************************************************************
+; ----> Compiler Buffer Bleed / Fragment Data
 ;
-            ld      b,$50
-            ld      (hl),$FF
-            inc     hl
-            djnz    $AFC4
-            ret
+;       This block contains junk data (including the ASCII string "285AVE") likely
+;       caused by "Compiler Buffer Bleed." In vintage arcade development, the memory
+;       buffer of the compiling computer often wasn't wiped clean. Random leftover
+;       data sitting in RAM would accidentally get tacked onto the end of the game's
+;       binary right before the blank EPROM $FF padding began!
+;*****************************************************************************************
 
-            rst     38H
-            rst     38H
-            rst     38H
-            rst     38H
-            rst     38H
-            rst     38H
-            rst     38H
-            rst     38H
-            rst     38H
-            rst     38H
-            rst     38H
-            rst     38H
-            rst     38H
-            rst     38H
-            rst     38H
-            rst     38H
-            rst     38H
-            rst     38H
-            rst     38H
-            rst     38H
-            rst     38H
-            rst     38H
-            rst     38H
-            rst     38H
-            rst     38H
-            rst     38H
-            rst     38H
-            rst     38H
-            rst     38H
-            ld      d,h
-            ld      c,b
-            ld      b,l
-            nop
-            ld      d,a
-            ld      c,c
-            ld      e,d
-            ld      b,c
-            ld      d,d
-            ld      b,h
-            nop
-            ld      c,a
-            ld      b,(hl)
-            nop
-            ld      d,a
-            ld      c,a
-            ld      d,d
-            nop
-            ld      b,h
-            ld      c,(hl)
-            ld      b,c
-            nop
-            inc     b
-            DB      $22, $81
+            ; Fragment Data (i.e., garbage)
+            DB      $C3, $0C, $00, $00, $01, $45, $14, $00
 
+            ; "285AVE" Text
+            DB      $32, $38, $35, $41, $56, $45
 
+            ; 5 FFs and a 00
+            DB      $FF, $FF, $FF, $FF, $FF, $00
 
-;END OF ASSEMBLY - EQUATES ARE BELOW
+            ; ROM Padding: 63 bytes ($FF)
+            DB      $FF, $FF, $FF, $FF, $FF, $FF, $FF, $FF
+            DB      $FF, $FF, $FF, $FF, $FF, $FF, $FF, $FF
+            DB      $FF, $FF, $FF, $FF, $FF, $FF, $FF, $FF
+            DB      $FF, $FF, $FF, $FF, $FF, $FF, $FF, $FF
+            DB      $FF, $FF, $FF, $FF, $FF, $FF, $FF, $FF
+            DB      $FF, $FF, $FF, $FF, $FF, $FF, $FF, $FF
+            DB      $FF, $FF, $FF, $FF, $FF, $FF, $FF, $FF
+            DB      $FF, $FF, $FF, $FF, $FF, $FF, $FF
 
-
+;*****************************************************************************************
+; ----> Build_Grid
 ;
+;       Builds the CRT alignment grid by painting a dot pattern across the screen,
+;       drawing a solid left border, and then drawing evenly spaced horizontal lines.
+;*****************************************************************************************
+Build_Grid:
+            ld      a,$07               ; A = 7 (Color White)
+            out     (COL3L),a           ; Set Color 3 to White
+            xor     a                   ; A = 0
+            out     (COL0L),a           ; Set Color 0 to Black (Background)
+            ld      hl,$404F            ; Start near top left of Video RAM
+            ld      c,$CA               ; Outer loop counter = 202 rows
+Buil1:      ld      b,$14               ; Inner loop counter = 20 dots across
+Buil2:      inc     hl                  ; Skip 4 bytes (16 pixels) between dots
+            inc     hl                  ;
+            inc     hl                  ;
+            inc     hl                  ;
+            ld      (hl),$03            ; Write a dot (Color 3)
+            djnz    Buil2               ; Loop until 20 dots are drawn
+            dec     c                   ; Decrement row counter
+            jr      nz,Buil1            ; Loop until 202 rows are dotted!
+            ld      hl,$4050            ; Start at top left of VRAM
+            ld      b,$CA               ; B = 202 rows (pixels) down
+            ld      de,$0050            ; DE = 80 bytes (1 scanline offset)
+Buil3:      ld      (hl),$C0            ; Write $C0 (Solid pixels on left edge)
+            add     hl,de               ; Move pointer exactly one scanline down
+            djnz    Buil3               ; Loop until the left line is drawn
+            ld      hl,$4000            ; Start at top left of VRAM
+            ld      c,$0A               ; C = 10 horizontal lines to draw
+            ld      de,$05F0            ; DE = 1520 bytes (19 scanlines)
+Buil4:      call    Draw_Grid_Line      ; Call routine to draw a solid horizontal line
+            add     hl,de               ; Move pointer 19 scanlines down
+            dec     c                   ; Decrement line counter
+            jr      nz,Buil4            ; Loop until 10 lines are drawn
+            ld      hl,$7F70            ; Point to bottom edge of VRAM
+            call    Draw_Grid_Line      ; Draw the final horizontal boundary
+
+;*****************************************************************************************
+; ----> Wait_For_Service_Off
 ;
-;*****************************************************************************
+;       Infinite loop that holds the alignment grid on screen. Exits and reboots
+;       the arcade machine only when the physical service switch is flipped OFF.
+;*****************************************************************************************
+Wait_For_Service_Off:
+            in      a, (COINPORT)       ; Read System Inputs (Port $10)
+            bit     3,a                 ; Check Bit 3 (Service Switch, Active LOW)
+            jr      z,Wait_For_Service_Off ; IF 0 (Switch ON): Loop back and wait!
+            rst     00H                 ; IF 1 (Switch OFF): Soft reset the cabinet!
+
+;*****************************************************************************************
+; ----> Draw_Grid_Line
 ;
-; Begin decyphered (or almost decyphered) memory locations.
-; Their function will be expanded on as information comes available
-;
-;*****************************************************************************
-;
+;       Helper routine for the CRT alignment grid. Draws a solid horizontal line
+;       across the screen by writing 80 bytes ($50) of solid pixels ($FF).
+;*****************************************************************************************
+Draw_Grid_Line:
+            ld      b,$50               ; Loop counter = 80 bytes (320 pixels)
+Draw1:      ld      (hl),$FF            ; Write $FF (4 solid pixels) to Video RAM
+            inc     hl                  ; Advance pointer to next byte
+            djnz    Draw1               ; Decrement B and loop until line is drawn
+            ret                         ; Return to caller
 
+;*****************************************************************************************
+; ----> ROM Identification / Developer Signature
+;*****************************************************************************************
+            ; 29 bytes of padding for ROM
+            DB      $FF, $FF, $FF, $FF, $FF, $FF, $FF, $FF
+            DB      $FF, $FF, $FF, $FF, $FF, $FF, $FF, $FF
+            DB      $FF, $FF, $FF, $FF, $FF, $FF, $FF, $FF
+            DB      $FF, $FF, $FF, $FF, $FF
 
+            DB      "THE", $00          ; $54, $48, $45, $00
+            DB      "WIZARD", $00       ; $57, $49, $5A, $41, $52, $44, $00
+            DB      "OF", $00           ; $4F, $46, $00
+            DB      "WOR", $00          ; $57, $4F, $52, $00
+            DB      "DNA", $00          ; $44, $4E, $41, $00 (Dave Nutting Associates)
+            DB      $04, $22, $81       ; 04-22-81 (April 22, 1981)
 
-LD038       EQU     $D038               ; This location seems to have a number which the
-                                                ; first nybble is the same as the second nybble.
-                                                ; The next byte $D039 seems to always hold the complement
-                                                ; of that number. ???
-
-LD03B       EQU     $D03B               ; Indicates if a coin acceptor is tripped.
-                                                ; Zero's itself back out when switch is open.
-                                                ;   0=None tripped
-                                                ;   1=coin switch 1 tripped
-                                                ;   2=coin switch 2 tripped
-
-LD03C       EQU     $D03C               ; Number of credits.
-
-LD042       EQU     $D042               ; Counter. Number of seconds before change screens
-                                                ; especially when in attract mode.
-
-LD048       EQU     $D048               ; Another counter. Noticed that it times changes between
-                                                ; things like "GET READY" and "GO". ???
-
-LD1D6       EQU     $D1D6               ; $d1d6-LSN Direction indicator for player 2.
-                                                ; The value of the least significant nybble changes
-                                                ; according to the bit at IN Port 11.
-
-LD1D7       EQU     $D1D7               ; $d1d7-LSN Direction indicator for player 1.
-                                                ; The value of the least significant nybble changes
-                                                ; according to the bit at IN Port 12.
-                                                ; See that description for details.
-
-LD244       EQU     $D244               ; Dip switch - Bit 7 - "Sounds in Attract Mode"
-
-Is_Speech_Active EQU $D245              ; $00 = Speech is inactive
-                                                ; $01 = Speech is active
-
-LD2BD       EQU     $D2BD
-
-LD2CC       EQU     $D2CC
-
-LD2CE       EQU     $D2CE               ; Speech: Address of next phoneme to process (place in string)
-
-Num_Phonemes_Left EQU $D2D0             ; Seems to hold how many phonemes left to go in speech string
-
-LD2D1       EQU     $D2D1               ; Seems to hold a phoneme in speech routines minus inflection bits (00xx xxxx) ???
-
-LD2D2       EQU     $D2D2
-
-LD2D3       EQU     $D2D3               ;Not sure - always seems to be a $d2 in it.
-                                                ;Code zero's it out early. ???
-
-LD2D4       EQU     $D2D4
-
-Game_Mode   EQU     $D303               ; This byte holds if you are in demo or game mode
-                                                ;   0: Game over, demo mode
-                                                ;   1: One player game in progress
-                                                ;   2: Two player game in progress
-
-
-LD349       EQU     $D349               ; ??? (saved to in beginning of demo sequence)
-
-
-
-;
-;
-;*****************************************************************************
-;
-; Locations so far unknown
-;
-;*****************************************************************************
-;
-
-L0003       EQU     $0003
-L0005       EQU     $0005
-L0007       EQU     $0007
-L0009       EQU     $0009
-L000B       EQU     $000B
-L000D       EQU     $000D
-L000F       EQU     $000F
-L0011       EQU     $0011
-L0020       EQU     $0020
-L0029       EQU     $0029
-L004B       EQU     $004B
-L0050       EQU     $0050
-L0055       EQU     $0055
-L006A       EQU     $006A
-L007C       EQU     $007C
-L0080       EQU     $0080
-L0083       EQU     $0083
-L008C       EQU     $008C
-L00A8       EQU     $00A8
-L00E0       EQU     $00E0
-L00F0       EQU     $00F0
-L00FD       EQU     $00FD
-L0100       EQU     $0100
-L0150       EQU     $0150
-L015E       EQU     $015E
-L017E       EQU     $017E
-L01A8       EQU     $01A8
-L01FF       EQU     $01FF
-L0201       EQU     $0201
-L0202       EQU     $0202
-L020F       EQU     $020F
-L0217       EQU     $0217
-L022A       EQU     $022A
-L022B       EQU     $022B
-L023C       EQU     $023C
-L0248       EQU     $0248
-L0250       EQU     $0250
-L02B2       EQU     $02B2
-L02FD       EQU     $02FD
-L0301       EQU     $0301
-L0303       EQU     $0303
-L0325       EQU     $0325
-L03A8       EQU     $03A8
-L03C0       EQU     $03C0
-L040B       EQU     $040B
-L040E       EQU     $040E
-L042E       EQU     $042E
-L0700       EQU     $0700
-L0702       EQU     $0702
-L08A8       EQU     $08A8
-L0A3E       EQU     $0A3E
-L0A50       EQU     $0A50
-L0C00       EQU     $0C00
-L0C1F       EQU     $0C1F
-L0C28       EQU     $0C28
-L0C56       EQU     $0C56
-L0D15       EQU     $0D15
-L0F49       EQU     $0F49
-L0F98       EQU     $0F98
-L0FFF       EQU     $0FFF
-L1004       EQU     $1004
-L10FD       EQU     $10FD
-L1107       EQU     $1107
-L117C       EQU     $117C
-L1413       EQU     $1413
-L143E       EQU     $143E
-L151F       EQU     $151F
-L1681       EQU     $1681
-L16B5       EQU     $16B5
-L16B6       EQU     $16B6
-L1700       EQU     $1700
-L1701       EQU     $1701
-L1710       EQU     $1710
-L178D       EQU     $178D
-L1C33       EQU     $1C33
-L1C99       EQU     $1C99
-L1D0D       EQU     $1D0D
-L1D17       EQU     $1D17
-L1D3E       EQU     $1D3E
-L1D6D       EQU     $1D6D
-L1D90       EQU     $1D90
-L1DAB       EQU     $1DAB
-L1DB3       EQU     $1DB3
-L1DBA       EQU     $1DBA
-L1DF9       EQU     $1DF9
-L1E03       EQU     $1E03
-L1E18       EQU     $1E18
-L1E26       EQU     $1E26
-L1E28       EQU     $1E28
-L1E44       EQU     $1E44
-L1EA6       EQU     $1EA6
-L1F2B       EQU     $1F2B
-L1F32       EQU     $1F32
-L2000       EQU     $2000
-L200E       EQU     $200E
-L203C       EQU     $203C
-L20A0       EQU     $20A0
-L211D       EQU     $211D
-L2218       EQU     $2218
-L222B       EQU     $222B
-L2303       EQU     $2303
-L2694       EQU     $2694
-L26AD       EQU     $26AD
-L273E       EQU     $273E
-L2783       EQU     $2783
-L2801       EQU     $2801
-L2903       EQU     $2903
-L29C6       EQU     $29C6
-L2A00       EQU     $2A00
-L2A02       EQU     $2A02
-L2A10       EQU     $2A10
-L2A29       EQU     $2A29
-L2A2C       EQU     $2A2C
-L2AA8       EQU     $2AA8
-L2AA9       EQU     $2AA9
-L2B55       EQU     $2B55
-L2B7A       EQU     $2B7A
-L2B82       EQU     $2B82
-L2CA7       EQU     $2CA7
-L2D03       EQU     $2D03
-L2D1A       EQU     $2D1A
-L2D1F       EQU     $2D1F
-L2D30       EQU     $2D30
-L2D43       EQU     $2D43
-L2E10       EQU     $2E10
-L2F38       EQU     $2F38
-L3000       EQU     $3000
-L3010       EQU     $3010
-L30C4       EQU     $30C4
-L30D3       EQU     $30D3
-L30E1       EQU     $30E1
-L30F4       EQU     $30F4
-L3100       EQU     $3100
-L310C       EQU     $310C
-L3338       EQU     $3338
-L3368       EQU     $3368
-L3374       EQU     $3374
-L3376       EQU     $3376
-L3378       EQU     $3378
-L3380       EQU     $3380
-L34AA       EQU     $34AA
-L351D       EQU     $351D
-L3522       EQU     $3522
-L355C       EQU     $355C
-L358A       EQU     $358A
-L3832       EQU     $3832
-L383A       EQU     $383A
-L38BE       EQU     $38BE
-L3950       EQU     $3950
-L3C28       EQU     $3C28
-L3CC7       EQU     $3CC7
-L4000       EQU     $4000
-L4001       EQU     $4001
-L4004       EQU     $4004
-L4045       EQU     $4045
-L404C       EQU     $404C
-L404F       EQU     $404F
-L4050       EQU     $4050
-L4051       EQU     $4051
-L4054       EQU     $4054
-L4055       EQU     $4055
-L407D       EQU     $407D
-L40F5       EQU     $40F5
-L4155       EQU     $4155
-L417D       EQU     $417D
-L462D       EQU     $462D
-L469C       EQU     $469C
-L5041       EQU     $5041
-L5055       EQU     $5055
-L50D5       EQU     $50D5
-L5100       EQU     $5100
-L5445       EQU     $5445
-L5455       EQU     $5455
-L549D       EQU     $549D
-L5500       EQU     $5500
-L5501       EQU     $5501
-L550D       EQU     $550D
-L5510       EQU     $5510
-L5515       EQU     $5515
-L5516       EQU     $5516
-L5518       EQU     $5518
-L553D       EQU     $553D
-L5550       EQU     $5550
-L5555       EQU     $5555
-L555D       EQU     $555D
-L5595       EQU     $5595
-L55A0       EQU     $55A0
-L56AA       EQU     $56AA
-L5A94       EQU     $5A94
-L5AAA       EQU     $5AAA
-L5B03       EQU     $5B03
-L5BBE       EQU     $5BBE
-L5F55       EQU     $5F55
-L6125       EQU     $6125
-L6202       EQU     $6202
-L6AAC       EQU     $6AAC
-L6C1B       EQU     $6C1B
-L6C68       EQU     $6C68
-L6CA4       EQU     $6CA4
-L6F83       EQU     $6F83
-L731E       EQU     $731E
-L732B       EQU     $732B
-L735B       EQU     $735B
-L73AD       EQU     $73AD
-L73BC       EQU     $73BC
-L73CD       EQU     $73CD
-L7950       EQU     $7950
-L7A3B       EQU     $7A3B
-L7A51       EQU     $7A51
-L7D2B       EQU     $7D2B
-L7D50       EQU     $7D50
-L8002       EQU     $8002
-L8008       EQU     $8008
-L800A       EQU     $800A
-L8084       EQU     $8084
-L8200       EQU     $8200
-L8236       EQU     $8236
-L830F       EQU     $830F
-L833E       EQU     $833E
-L878C       EQU     $878C
-L8829       EQU     $8829
-L882E       EQU     $882E
-L886D       EQU     $886D
-L890E       EQU     $890E
-L8924       EQU     $8924
-L8941       EQU     $8941
-L8952       EQU     $8952
-L8971       EQU     $8971
-L8A58       EQU     $8A58
-L8A7E       EQU     $8A7E
-L8B1A       EQU     $8B1A
-L8B51       EQU     $8B51
-L8B58       EQU     $8B58
-L8BA8       EQU     $8BA8
-L8BD1       EQU     $8BD1
-L8CAE       EQU     $8CAE
-L8CC3       EQU     $8CC3
-L8CEB       EQU     $8CEB
-L8D11       EQU     $8D11
-L8D23       EQU     $8D23
-L8E10       EQU     $8E10
-L8E46       EQU     $8E46
-L8E4A       EQU     $8E4A
-L8E7D       EQU     $8E7D
-L8F97       EQU     $8F97
-L8FCD       EQU     $8FCD
-L8FFF       EQU     $8FFF
-L91A5       EQU     $91A5
-L91FD       EQU     $91FD
-L924F       EQU     $924F
-L9255       EQU     $9255
-L92FA       EQU     $92FA
-L931C       EQU     $931C
-L9331       EQU     $9331
-L933B       EQU     $933B
-L9379       EQU     $9379
-L9381       EQU     $9381
-L942B       EQU     $942B
-L9462       EQU     $9462
-L94B3       EQU     $94B3
-L9535       EQU     $9535
-L956B       EQU     $956B
-L9595       EQU     $9595
-L95CC       EQU     $95CC
-LA26B       EQU     $A26B
-LA284       EQU     $A284
-LA29C       EQU     $A29C
-LA2F6       EQU     $A2F6
-LB059       EQU     $B059
-LB0AE       EQU     $B0AE
-LB31E       EQU     $B31E
-LB697       EQU     $B697
-LB72A       EQU     $B72A
-LB83E       EQU     $B83E
-LBE82       EQU     $BE82
-LBEEF       EQU     $BEEF
-LBFAA       EQU     $BFAA
-LBFBB       EQU     $BFBB
-LBFF6       EQU     $BFF6
-LC000       EQU     $C000
-LC002       EQU     $C002
-LC003       EQU     $C003
-LC004       EQU     $C004
-LC00B       EQU     $C00B
-LC00C       EQU     $C00C
-LC00D       EQU     $C00D
-LC00F       EQU     $C00F
-LC030       EQU     $C030
-LC03F       EQU     $C03F
-LC058       EQU     $C058
-
-;
-; Begin Static RAM area
-;
-
-WPRAMSTART  EQU     $D000
-LD003       EQU     $D003
-
-
-
-LD03A       EQU     $D03A
-
-
-            ;
-LD03D       EQU     $D03D
-LD03E       EQU     $D03E
-LD040       EQU     $D040
-LD041       EQU     $D041
-            ;
-
-LD043       EQU     $D043
-LD044       EQU     $D044
-LD045       EQU     $D045
-LD046       EQU     $D046
-LD047       EQU     $D047
-
-
-
-LD049       EQU     $D049
-LD04A       EQU     $D04A
-LD04B       EQU     $D04B
-LD04C       EQU     $D04C
-LD04D       EQU     $D04D
-LD04E       EQU     $D04E
-LD04F       EQU     $D04F
-LD050       EQU     $D050
-LD051       EQU     $D051
-LD053       EQU     $D053
-LD054       EQU     $D054
-LD058       EQU     $D058
-LD05A       EQU     $D05A
-LD05C       EQU     $D05C
-LD067       EQU     $D067
-LD06E       EQU     $D06E
-LD074       EQU     $D074
-LD078       EQU     $D078
-LD07A       EQU     $D07A
-LD07C       EQU     $D07C
-LD087       EQU     $D087
-LD094       EQU     $D094
-LD096       EQU     $D096
-LD09C       EQU     $D09C
-LD0A7       EQU     $D0A7
-LD0C2       EQU     $D0C2
-LD0CD       EQU     $D0CD
-LD0E8       EQU     $D0E8
-LD0F3       EQU     $D0F3
-LD10E       EQU     $D10E
-LD119       EQU     $D119
-LD134       EQU     $D134
-LD13F       EQU     $D13F
-LD15A       EQU     $D15A
-LD165       EQU     $D165
-LD172       EQU     $D172
-LD178       EQU     $D178
-LD18E       EQU     $D18E
-LD198       EQU     $D198
-LD1BA       EQU     $D1BA
-LD1BB       EQU     $D1BB
-LD1BD       EQU     $D1BD
-LD1BF       EQU     $D1BF
-LD1C1       EQU     $D1C1
-LD1C3       EQU     $D1C3
-LD1C4       EQU     $D1C4
-DIAGFLAG    EQU     $D1C5
-LD1C6       EQU     $D1C6
-LD1C7       EQU     $D1C7
-LD1C8       EQU     $D1C8
-LD1C9       EQU     $D1C9
-LD1CA       EQU     $D1CA
-LD1CB       EQU     $D1CB
-LD1CC       EQU     $D1CC
-LD1CD       EQU     $D1CD
-LD1CE       EQU     $D1CE
-LD1CF       EQU     $D1CF
-LD1D0       EQU     $D1D0
-LD1D1       EQU     $D1D1
-LD1D2       EQU     $D1D2
-LD1D3       EQU     $D1D3
-ROMFAIL     EQU     $D1D4
-LD1D5       EQU     $D1D5
-            ;
-
-            ;
-LD1D8       EQU     $D1D8
-LD1D9       EQU     $D1D9
-LD1DA       EQU     $D1DA
-LD1DB       EQU     $D1DB
-LD1DC       EQU     $D1DC
-LD1DD       EQU     $D1DD
-LD1DE       EQU     $D1DE
-LD1DF       EQU     $D1DF
-LD1E0       EQU     $D1E0
-LD1E1       EQU     $D1E1
-LD1E2       EQU     $D1E2
-LD1E3       EQU     $D1E3
-LD1E6       EQU     $D1E6
-LD1E7       EQU     $D1E7
-LD1E8       EQU     $D1E8
-LD1E9       EQU     $D1E9
-LD1EA       EQU     $D1EA
-LD1EB       EQU     $D1EB
-LD1EE       EQU     $D1EE
-LD1EF       EQU     $D1EF
-LD1F0       EQU     $D1F0
-LD1F1       EQU     $D1F1
-LD1F2       EQU     $D1F2
-LD1F3       EQU     $D1F3
-LD240       EQU     $D240
-LD241       EQU     $D241
-LD242       EQU     $D242
-LD243       EQU     $D243
-
-
-LD270       EQU     $D270
-LD2AC       EQU     $D2AC
-
-LD2BE       EQU     $D2BE
-
-
-
-
-LD300       EQU     $D300
-LD301       EQU     $D301
-LD302       EQU     $D302
-            ;
-
-            ;
-LD304       EQU     $D304
-LD30E       EQU     $D30E
-LD318       EQU     $D318
-LD319       EQU     $D319
-LD31A       EQU     $D31A
-LD31B       EQU     $D31B
-LD31D       EQU     $D31D
-LD341       EQU     $D341
-LD342       EQU     $D342
-LD343       EQU     $D343
-LD344       EQU     $D344
-LD345       EQU     $D345
-LD346       EQU     $D346
-
-LD348       EQU     $D348
-
-            ;
-
-            ;
-LD34A       EQU     $D34A
-LD34C       EQU     $D34C
-LD34E       EQU     $D34E
-LD34F       EQU     $D34F
-LD350       EQU     $D350
-LD351       EQU     $D351
-LD352       EQU     $D352
-LD47D       EQU     $D47D
-LD55F       EQU     $D55F
-LD59C       EQU     $D59C
-LE5BC       EQU     $E5BC
-LE79F       EQU     $E79F
-LEABF       EQU     $EABF
-LEAEE       EQU     $EAEE
-LEB05       EQU     $EB05
-LF03F       EQU     $F03F
-LF0AF       EQU     $F0AF
-LF557       EQU     $F557
-LF6A2       EQU     $F6A2
-LF6A8       EQU     $F6A8
-LF904       EQU     $F904
-LF905       EQU     $F905
-LF906       EQU     $F906
-LFB00       EQU     $FB00
-LFB0A       EQU     $FB0A
-LFB1E       EQU     $FB1E
-LFB8B       EQU     $FB8B
-LFC00       EQU     $FC00
-LFC3B       EQU     $FC3B
-LFD8E       EQU     $FD8E
-LFF03       EQU     $FF03
-LFF0B       EQU     $FF0B
-LFF0F       EQU     $FF0F
-LFF16       EQU     $FF16
-LFF18       EQU     $FF18
-LFF3B       EQU     $FF3B
-LFF3F       EQU     $FF3F
-LFFD6       EQU     $FFD6
-LFFDD       EQU     $FFDD
-LFFE4       EQU     $FFE4
-LFFEB       EQU     $FFEB
-LFFF2       EQU     $FFF2
-LFFF5       EQU     $FFF5
-LFFF9       EQU     $FFF9
-LFFFB       EQU     $FFFB
-LFFFF       EQU     $FFFF
-
-; END OF EQUATE AREA
+            END     ;END OF ASSEMBLY
