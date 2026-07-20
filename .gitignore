@@ -1,6 +1,7 @@
 # Ignored Folders
 _Work_Area/
 tools/
+Reference/
 
 # Compiled ROM binaries, lists, objects, and scripts
 *.bin
