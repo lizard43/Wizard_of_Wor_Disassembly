@@ -1,58 +1,49 @@
-# Z80 Code Architecture & Formatting Guidelines
+# Wizard of Wor — Z80 Source Reconstruction
 
-This document outlines the structural, formatting, and documentation standards for the Z80 disassembly and development project. 
+This repository contains the disassembly, source code reconstruction, and technical documentation for the classic arcade game **Wizard of Wor** (Midway, 1980).
 
----
-
-## 1. General Code Rules
-
-These rules apply universally to all source files, instructions, and data structures to ensure a consistent codebase.
-
-### Column Placement
-To maintain strict visual alignment throughout the codebase, structure your source files using the following exact column boundaries:
-
-| Code Element | Target Column | Description |
-| :--- | :--- | :--- |
-| **Labels** | Column 1 | All labels must begin at the absolute start of the line. |
-| **Opcodes** | Column 13 | Mnemonics and assembler directives (e.g., LD, DB, EQU). |
-| **Operands** | Column 21 | Registers, values, and memory addresses. |
-| **Line Comments** | Column 41 | All trailing or standalone line comments. |
-
-> A Note on Flexibility: While consistency is key, there are exceptions to every rule. Please use your best judgment—do not shoehorn code, large data structures, or complex expressions into these specific columns if doing so compromises readability or correctness. Clarity and accuracy always take priority.
-
-### Spacing and Tabs
-* **Use Spaces Only:** Do not use hard tab characters (\t) anywhere in the source code. All indentation and column alignments must be achieved using spaces.
-* **Editor Configuration:** Configure your text editor to automatically convert tabs to spaces to ensure a consistent layout across different platforms.
-
-### Header & Text Layout
-* **Header Borders:** Header border lines (e.g., ;****... and ;####...) must be exactly 90 characters long (1 semicolon + 89 asterisks/hashes).
-* **Word Wrap:** No text inside a comment block may exceed column 88.
-* **The ----> Rule:** Any header containing ----> must have a blank comment line (;) separating the title line from the explanation line below it.
-
-### Label Naming Conventions
-* **Internal Short Jumps:** Loops or jumps that are completely internal to a specific code block must not use random or arbitrary Lnnnn labels.
-* **Naming Structure:** Use the first four letters of the main routine's label followed by an incremental number.
-* **Example:** For a main routine labeled PrintString, internal jumps should be named Prin1, Prin2, etc.
+The goal of this project is to produce an accurate, buildable Z80 assembly codebase for preservation, study, and reverse engineering, preserving historical TERSE context while adhering to modern readability standards.
 
 ---
 
-## 2. Pattern Data Specifications
+## 🛠️ Build & Tools
 
-All Z80 assembly code patterns, graphics assets, and standard routines must adhere to these documentation standards to preserve original TERSE contextual history while keeping the codebase clean. **These specifications act as a superset and must be applied in addition to the General Code Rules.**
+* **Assembler:** `zmac` (Z80 Macro Cross Assembler)
+  * **[zmac v1.3](https://ballyalley.com/ml/ml_tools/Zmac13_win32.zip) — Preferred**
+  * [zmac v18oct2022](http://48k.ca/zmac.html)
+* **Target Hardware:** Midway / Bally Astrocade Hardware
+* **Primary Source:** `src/wow_disassembly.asm`
 
-### Pattern Section Guidelines
-When documenting individual graphic or data patterns, apply the following strict rules:
-
-* **Pattern Name:** The first line of the block must contain the pattern name and any title/info drawn directly from the original TERSE source code.
-* **Description & Context:** Include a plain-English description of what the pattern does. Incorporate original TERSE logic or context where meaningful.
-* **Set Relationships:** If a pattern is part of a larger, interconnected set of graphics (e.g., Worluk states, dungeon walls, player Worrior sprites), explicitly note that relationship.
-* **Omit Redundant Metadata:** Do not include byte-counting metadata (e.g., sprite bitmap size, object total size) in individual pattern comments. This technical detail belongs exclusively in the master programming documentation.
-
-### Data Block Size Tags
-Immediately above any DB data block, you must include a comment containing the exact SIZE keyword using the following format:
-
-```assembly
-; SIZE: WxH
+### Building the ROMs
+To assemble the source code into binary ROMs, run:
+```bash
+**Coming Soon**
 ```
 
-(Where W is the width in bytes, and H is the height in rows).
+---
+
+## 📁 Repository Structure
+
+```text
+├── src/                    # Z80 Assembly source files
+│   └── wow_disassembly.asm
+├── tools/                  # Build scripts, helpers, and sync utilities
+├── Docs/                   # Technical references & Info on the specific game
+│   ├── Z80_Coding_Style.md
+│   └── TERSE_Naming_Rules.md  
+└── README.md               # Game-specific overview (this file)
+```
+
+---
+
+## 📖 Coding Standards & Guidelines
+
+To maintain visual and structural consistency across all arcade disassembly repositories, source code edits should follow our shared project standards.
+
+| 🚨 A Note on Flexibility |
+| :--- |
+| **These formatting standards are meant for guidance, not to force you into a coding straitjacket.** While a consistent layout is highly encouraged as a best practice, you are free to make exceptions without consequence. If adhering to these specific columns compromises the readability of a complex routine or data block, or you just don't like the look of the code,  take the liberty to break the rule. **Readability and accuracy always come first.** |
+
+
+* **Z80 Coding Style & Layout** — Column alignments, spacing, and comment conventions.
+* **TERSE Naming Rules**        — Capitalization, label length, and internal jump conventions.
