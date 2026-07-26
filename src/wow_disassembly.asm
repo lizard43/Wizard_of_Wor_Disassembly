@@ -1,4 +1,4 @@
-            INCLUDE "WoW_Equates.include" ; EQU for the code
+            INCLUDE src/wow_equates.include ; EQU for the code
 
 ;*****************************************************************************
 ; SYSTEM BOOT & HARDWARE INITIALIZATION
