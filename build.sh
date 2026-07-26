@@ -2,7 +2,7 @@
 set -euo pipefail
 
 readonly ROM_SIZE=$((0x1000))
-readonly SOURCE_NAME="WoW_Disassembly.asm"
+readonly SOURCE_NAME="wow_disassembly.asm"
 readonly ZIP_NAME="wow.zip"
 
 readonly REPO_ROOT="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)"
@@ -93,8 +93,13 @@ assemble_source() {
   log "      zmac: $ZMAC_BIN"
 
   (
-    cd -- "$SOURCE_DIR"
-    "$ZMAC_BIN" --oo cim,lst "$SOURCE_NAME"
+    cd -- "$REPO_ROOT"
+    "$ZMAC_BIN" \
+      -I "$REPO_ROOT" \
+      -I "$SOURCE_DIR" \
+      --od "$BUILD_DIR" \
+      --oo cim,lst \
+      "$SOURCE_FILE"
   ) || fail "zmac failed. Review the assembler output above."
 
   [[ -s "$CIM_FILE" ]] ||
@@ -117,9 +122,9 @@ slice_roms() {
 
   cim_size="$(stat -c '%s' "$CIM_FILE")"
   (( cim_size > ROM_ADDRESSES[${#ROM_ADDRESSES[@]} - 1] )) ||
-    fail "Assembled image is too short for the Gorf ROM map: $cim_size bytes"
+    fail "Assembled image is too short for the ROM map: $cim_size bytes"
 
-  log "[3/4] Splitting the CPU image into 4 KiB Gorf ROMs"
+  log "[3/4] Splitting the CPU image into 4 KiB ROMs"
   log "      The video-memory gap at \$4000-\$7FFF is not packaged."
 
   for index in "${!ROM_NAMES[@]}"; do
@@ -181,7 +186,7 @@ main() {
   require_command zip
   ZMAC_BIN="$(resolve_zmac)"
 
-  log "Gorf ROM build"
+  log "ROM build"
   log "  source: $SOURCE_FILE"
   log "  output: $ROMS_DIR"
   log
@@ -196,7 +201,7 @@ main() {
 
   log
   log "Build complete."
-  log "  ROM files: $ROMS_DIR/gorf-{a..h}.bin"
+  log "  ROM files: $ROMS_DIR/wow.x{1..7}"
   log "  MAME ZIP:  $ZIP_FILE"
 }
 
