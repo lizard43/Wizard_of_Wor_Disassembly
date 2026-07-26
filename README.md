@@ -35,6 +35,29 @@ set ZMAC=C:\path\to\zmac.exe
 build.bat
 ```
 --- 
+### Building the ROMs ---> Linux
+
+The Linux build requires Bash, `zip`, and a Linux build of `zmac`. The build script searches for `zmac` in the following order:
+
+1. The executable named by the `ZMAC` environment variable.
+2. `tools/zmac` in the repository.
+3. `zmac` in `PATH`.
+
+From the repository root, make the script executable once and run it:
+
+```bash
+chmod +x build.sh
+./build.sh
+```
+
+To select a specific assembler executable:
+
+```bash
+ZMAC=/path/to/zmac ./build.sh
+```
+
+The script will automatically compile the assembly and deposit the final, ready-to-play binaries (`wow.x1` through `wow.x7`) and the packaged wow.zip into the `roms/` folder in your project root.
+---
 
 ### Optional SC-01 speech ROM
 The SC-01 speech ROM is not part of the reconstructed program source. If a file named `sc01.bin` exists in `roms/`, the build script automatically includes it in `roms/gorf.zip`. If the file is absent, the build continues and packages only the eight Gorf program ROMs.
