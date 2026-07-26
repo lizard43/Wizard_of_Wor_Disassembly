@@ -84,8 +84,11 @@ if %ERRORLEVEL% neq 0 (
 
 echo [4/4] Packaging roms\wow.zip...
 powershell -NoProfile -ExecutionPolicy Bypass -Command ^
-    "$romFiles = Get-ChildItem -Path 'roms\wow.x?';" ^
-    "Compress-Archive -Path $romFiles.FullName -DestinationPath 'roms\wow.zip' -Force"
+    "$filesToZip = [System.Collections.Generic.List[string]]::new();" ^
+    "(Get-ChildItem -Path 'roms\wow.x?').FullName | ForEach-Object { $filesToZip.Add($_) };" ^
+    "$speechRom = 'roms\sc01a.bin';" ^
+    "if (Test-Path $speechRom) { $filesToZip.Add((Get-Item $speechRom).FullName); Write-Host '  -> Including Votrax speech ROM (sc01a.bin)' };" ^
+    "Compress-Archive -Path $filesToZip -DestinationPath 'roms\wow.zip' -Force"
 
 if %ERRORLEVEL% neq 0 (
     echo ERROR: Packaging failed.
