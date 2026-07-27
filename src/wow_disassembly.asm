@@ -8317,1474 +8317,496 @@ L385C:      ld      (de),a
             sbc     a,h
             call    pe,L469C
             sbc     a,l
-;
-; At $389C starts pattern of Blue Worrior (demo screen) ???
-;
-L389C:      nop
-            nop
-            nop
-            ld      d,h
-            nop
-            nop
-            nop
-            inc     bc
-            dec     d
-            nop
-L38A6:      nop
-            nop
-            nop
-            dec     d
-            inc     b
-            nop
-            nop
-            dec     b
-            ld      d,h
-            nop
-            nop
-            nop
-            nop
-            ld      d,h
-            ld      d,b
-            nop
-            nop
-            nop
-            ld      d,l
-            ld      d,h
-            nop
-            nop
-            ld      bc,LD47D
-L38BF:      inc     b
-            ld      b,b
-            dec     b
-            ld      a,l
-            ret     nc
-            scf
-            ld      a,a
-            rst     38H
-            DB      $fd,$d0
-            inc     b
-            ld      b,b
-            rst     38H
-            push    af
-            ld      d,b
-            nop
-            nop
-            dec     b
-            ld      d,h
-            ld      d,b
-            nop
-            nop
-            nop
-            ld      d,l
-            nop
-            nop
-            nop
-            ld      bc,L0055
-            nop
-            nop
-            dec     b
-            ld      d,l
-            nop
-            nop
-            nop
-            dec     d
-L38E5:      dec     b
-            nop
-            nop
-            nop
-            ld      d,h
-            dec     b
-            ld      b,b
-            nop
-            nop
-            ld      d,b
-            ld      bc,L0040
-            dec     b
-            ld      d,b
-            dec     d
-            ld      b,b
-;
-; At $38F6 starts pattern of Yellow Worrior (demo screen) ???
-;
-L38F6:      nop
-            nop
-            nop
-            xor     b
-            nop
-            nop
-            nop
-            inc     bc
-            ld      hl,($0000)
-            nop
-            nop
-L3903:      ld      hl,(L0008)
-            nop
-            ld      a,(bc)
-            xor     b
-            nop
-            nop
-            nop
-            nop
-            xor     b
-            and     b
-            nop
-            nop
-            nop
-            xor     d
-            xor     b
-            nop
-            nop
-            ld      (bc),a
-            cp      (hl)
-            ret     pe
-            ex      af,af'
-            add     a,b
-            ld      a,(bc)
-            cp      (hl)
-            ret     po
-            dec     sp
-L391F:      cp      a
-            rst     38H
-            cp      $E0
-            ex      af,af'
-            add     a,b
-            rst     38H
-            jp      m,L00A0
-            nop
-            ld      a,(bc)
-            xor     b
-            and     b
-            nop
-            nop
-            nop
-            xor     d
-            nop
-            nop
-            nop
-            ld      (bc),a
-            xor     d
-            nop
-            nop
-            nop
-            ld      a,(bc)
-            xor     d
-            nop
-            nop
-            nop
-            ld      hl,(L000A)
-            nop
-            nop
-            xor     b
-            ld      a,(bc)
-            add     a,b
-            nop
-            nop
-            and     b
-            ld      (bc),a
-            add     a,b
-            nop
-            ld      a,(bc)
-            and     b
-            ld      hl,(L0080)
-            nop
-            nop
-            ld      d,h
-            nop
-            nop
-            nop
-            inc     bc
-            dec     d
-            nop
-            nop
-            nop
-            nop
-            dec     d
-            inc     b
-            nop
-            nop
-            dec     b
-            ld      d,h
-            nop
-            nop
-            nop
-            nop
-            ld      d,h
-            ld      d,b
-            nop
-            nop
-            nop
-            ld      d,l
-            ld      d,h
-            nop
-            nop
-            ld      bc,LD47D
-            inc     b
-            ld      b,b
-            dec     b
-            ld      a,l
-            ret     nc
-            scf
-            ld      a,a
-            rst     38H
-            DB      $fd,$d0
-            inc     b
-            ld      b,b
-            rst     38H
-            push    af
-            ld      d,b
-            nop
-            nop
-            dec     b
-            ld      d,h
-            ld      d,b
-            nop
-            nop
-            ld      bc,L0054
-            nop
-            nop
-            nop
-            ld      d,b
-            nop
-            nop
-            nop
-            nop
-            ld      d,b
-            nop
-            nop
-            nop
-            nop
-            ld      d,b
-            nop
-            nop
-            nop
-            nop
-            ld      d,b
-            nop
-            nop
-            nop
-            nop
-            ld      d,b
-            nop
-            nop
-            nop
-            dec     b
-            ld      d,b
-            nop
-L39AA:      nop
-            nop
-            nop
-            xor     b
-            nop
-            nop
-            nop
-            inc     bc
-            ld      hl,($0000)
-            nop
-            nop
-            ld      hl,(L0008)
-            nop
-            ld      a,(bc)
-            xor     b
-            nop
-            nop
-            nop
-            nop
-            xor     b
-            and     b
-            nop
-            nop
-            nop
-            xor     d
-            xor     b
-            nop
-            nop
-            ld      (bc),a
-            cp      (hl)
-            ret     pe
-            ex      af,af'
-            add     a,b
-            ld      a,(bc)
-            cp      (hl)
-            ret     po
-            dec     sp
-            cp      a
-            rst     38H
-            cp      $E0
-            ex      af,af'
-            add     a,b
-            rst     38H
-            jp      m,L00A0
-            nop
-            ld      a,(bc)
-            xor     b
-            and     b
-            nop
-            nop
-            ld      (bc),a
-            xor     b
-            nop
-            nop
-            nop
-            nop
-            and     b
-            nop
-            nop
-            nop
-            nop
-            and     b
-            nop
-            nop
-            nop
-            nop
-            and     b
-            nop
-            nop
-            nop
-            nop
-            and     b
-            nop
-            nop
-            nop
-            nop
-            and     b
-            nop
-            nop
-            nop
-            ld      a,(bc)
-            and     b
-            nop
-            nop
-            nop
-            nop
-            ld      d,h
-            nop
-            nop
-            nop
-            inc     bc
-            dec     d
-            nop
-            nop
-            nop
-L3A10:      nop
-            dec     d
-            inc     b
-            nop
-            nop
-            dec     b
-            ld      d,h
-            nop
-            nop
-            nop
-            nop
-            ld      d,h
-            ld      d,b
-            nop
-            nop
-            nop
-            ld      d,l
-            ld      d,h
-            nop
-            nop
-            ld      bc,LD47D
-            inc     b
-            ld      b,b
-            dec     b
-            ld      a,l
-            ret     nc
-            scf
-            ld      a,a
-            rst     38H
-            DB      $fd,$d0
-            inc     b
-            ld      b,b
-            rst     38H
-            push    af
-            ld      d,b
-            nop
-            nop
-L3A38:      dec     b
-            ld      d,h
-            ld      d,b
-            nop
-            nop
-            ld      bc,L0054
-            nop
-            nop
-            nop
-            ld      d,l
-            nop
-            nop
-            nop
-            nop
-            ld      d,l
-            ld      b,b
-            nop
-            nop
-            ld      bc,L4045
-            nop
-            nop
-            ld      bc,L5041
-            nop
-            nop
-            ld      bc,$1040
-            nop
-            nop
-            dec     d
-L3A5C:      ld      b,c
-            ld      d,b
-            nop
-            nop
-            nop
-            xor     b
-            nop
-            nop
-            nop
-            inc     bc
-            ld      hl,($0000)
-            nop
-            nop
-            ld      hl,(L0008)
-            nop
-            ld      a,(bc)
-            xor     b
-            nop
-            nop
-            nop
-            nop
-            xor     b
-            and     b
-            nop
-            nop
-            nop
-            xor     d
-            xor     b
-            nop
-            nop
-            ld      (bc),a
-            cp      (hl)
-            ret     pe
-            ex      af,af'
-            add     a,b
-            ld      a,(bc)
-            cp      (hl)
-            ret     po
-            dec     sp
-            cp      a
-            rst     38H
-            cp      $E0
-            ex      af,af'
-            add     a,b
-            rst     38H
-            jp      m,L00A0
-            nop
-            ld      a,(bc)
-            xor     b
-            and     b
-            nop
-            nop
-            ld      (bc),a
-            xor     b
-            nop
-            nop
-            nop
-            nop
-            xor     d
-            nop
-            nop
-            nop
-            nop
-            xor     d
-            add     a,b
-            nop
-            nop
-            ld      (bc),a
-            adc     a,d
-            add     a,b
-            nop
-            nop
-            ld      (bc),a
-            add     a,d
-            and     b
-            nop
-            nop
-            ld      (bc),a
-            add     a,b
-            jr      nz,L3AB4
-L3AB4:      nop
-            ld      hl,($A082)
-            nop
-            nop
-            inc     c
-            nop
-            nop
-            nop
-            nop
-            ld      hl,($0000)
-            nop
-            nop
-            inc     c
-            nop
-            nop
-            nop
-            nop
-            ld      hl,($0000)
-            nop
-            nop
-            inc     c
-            nop
-            nop
-            jr      nz,L3AD3
-L3AD3:      inc     c
-            nop
-            nop
-            jr      nz,L3AD8
-L3AD8:      inc     c
-            nop
-            nop
-            ld      hl,(L3C00)
-            nop
-L3ADF:      nop
-            ld      hl,(L3C80)
-            nop
-            nop
-            ld      (bc),a
-            and     b
-            cp      (hl)
-            ld      (bc),a
-            nop
-            nop
-            xor     d
-            cp      (hl)
-            add     a,d
-            jr      nc,L3AF0
-L3AF0:      ld      hl,($AAAA)
-            ex      af,af'
-            jr      nz,L3B20
-            cp      a
-            jp      pe,L22A8
-            xor     d
-            xor     a
-            jp      pe,L2AA8
-            xor     b
-            ld      hl,($A0A0)
-            ld      hl,($AF00)
-            ret     pe
-            nop
-            nop
-            nop
-            xor     d
-            xor     b
-            nop
-            nop
-L3B0E:      nop
-            nop
-            and     b
-            add     a,b
-            nop
-            nop
-            inc     c
-            nop
-            nop
-            nop
-            nop
-            dec     d
-            nop
-            nop
-            nop
-            nop
-            inc     c
-            nop
-L3B20:      nop
-            nop
-            nop
-            dec     d
-            nop
-            nop
-            nop
-            nop
-            inc     c
-            nop
-            nop
-L3B2B:      djnz    L3B2D
-L3B2D:      inc     c
-            nop
-            nop
-            djnz    L3B32
-L3B32:      inc     c
-            nop
-            nop
-            dec     d
-            nop
-            inc     a
-            nop
-            nop
-            dec     d
-            ld      b,b
-            inc     a
-            nop
-L3B3E:      nop
-            ld      bc,L7D50
-            ld      bc,$0000
-            ld      d,l
-            ld      a,l
-            ld      b,c
-            jr      nc,L3B4A
-L3B4A:      dec     d
-            ld      a,l
-            ld      d,l
-            inc     b
-            djnz    L3B65
-            ld      a,a
-            push    de
-            ld      d,h
-            ld      de,L5F55
-            push    de
-            ld      d,h
-            dec     d
-            ld      d,h
-            dec     d
-            ld      d,b
-            ld      d,b
-            dec     d
-            nop
-            ld      e,a
-            call    nc,$0000
-            nop
-            ld      d,l
-L3B65:      ld      d,h
-            nop
-            nop
-            nop
-            nop
-            ld      d,b
-            ld      b,b
-L3B6C:      nop
-            nop
-            inc     c
-            nop
-            nop
-            nop
-            nop
-L3B73:      ld      hl,($0000)
-            nop
-            nop
-            inc     c
-            nop
-            nop
-            nop
-            nop
-            ld      hl,($0000)
-            nop
-            nop
-            inc     c
-            nop
-            nop
-            nop
-            nop
-            inc     c
-            nop
-            nop
-            nop
-            nop
-            inc     c
-            nop
-            nop
-            nop
-            nop
-            inc     a
-            nop
-            nop
-            nop
-            nop
-            inc     a
-            nop
-            nop
-            jr      nz,L3B9B
-L3B9B:      cp      (hl)
-            ld      (bc),a
-            nop
-            jr      nz,L3BA2
-            cp      (hl)
-            add     a,d
-L3BA2:      jr      nc,L3BCE
-            xor     d
-            cp      (hl)
-            xor     d
-            ex      af,af'
-            ld      hl,(LBFAA)
-            jp      pe,L00A8
-            ld      (bc),a
-            xor     a
-            jp      pe,L00A8
-            nop
-            ld      hl,($A0A0)
-            nop
-            nop
-            xor     a
-            ret     pe
-            nop
-            nop
-            nop
-            xor     d
-            xor     b
-            nop
-            nop
-            nop
-            nop
-            and     b
-            nop
-            nop
-            nop
-            inc     c
-            nop
-            nop
-            nop
-            nop
-            dec     d
-L3BCE:      nop
-            nop
-            nop
-            nop
-            inc     c
-            nop
-            nop
-            nop
-            nop
-            dec     d
-            nop
-            nop
-            nop
-            nop
-            inc     c
-            nop
-            nop
-            nop
-            nop
-            inc     c
-            nop
-            nop
-            nop
-            nop
-            inc     c
-            nop
-            nop
-            nop
-            nop
-            inc     a
-            nop
-            nop
-            nop
-            nop
-            inc     a
-            nop
-            nop
-            djnz    L3BF5
-L3BF5:      ld      a,l
-            ld      bc,$1000
-            ld      bc,L417D
-            jr      nc,L3C13
-            ld      d,l
-            ld      a,l
-L3C00:      ld      d,l
-            inc     b
-            dec     d
-L3C03:      ld      d,l
-            ld      a,a
-            push    de
-            ld      d,h
-            nop
-            ld      bc,LD55F
-            ld      d,h
-            nop
-            nop
-            dec     d
-L3C0F:      ld      d,b
-            ld      d,b
-            nop
-            nop
-L3C13:      ld      e,a
-            call    nc,$0000
-            nop
-L3C18:      ld      d,l
-            ld      d,h
-            nop
-            nop
-            nop
-            nop
-L3C1E:      ld      d,b
-            nop
-            nop
-            nop
-            inc     c
-            nop
-            nop
-            nop
-            nop
-            ld      hl,($0000)
-            nop
-            nop
-            inc     c
-            nop
-            nop
-            nop
-            nop
-            ld      hl,($0000)
-            nop
-            nop
-            inc     c
-            nop
-            nop
-            nop
-            nop
-            inc     c
-L3C3C:      nop
-            nop
-            nop
-            nop
-            inc     c
-            nop
-            nop
-            nop
-            nop
-            inc     a
-            nop
-            nop
-            jr      nz,L3C4A
-L3C4A:      inc     a
-            nop
-            nop
-            jr      nz,L3C4F
-L3C4F:      cp      (hl)
-            ld      (bc),a
-            nop
-            ld      hl,(LBE82)
-            add     a,d
-            jr      nc,L3C82
-            xor     d
-            cp      (hl)
-            xor     d
-            ex      af,af'
-            nop
-            ld      hl,(LEABF)
-            xor     b
-            nop
-            xor     d
-            xor     a
-            jp      pe,L22A8
-            xor     b
-            ld      hl,($A0A0)
-            ld      ($AFA0),hl
-            ret     pe
-            nop
-            ld      hl,($AA00)
-            xor     b
-            nop
-            nop
-            nop
-            nop
-            and     b
-            add     a,b
-            nop
-            nop
-            inc     c
-            nop
-            nop
-            nop
-L3C80:      nop
-            dec     d
-L3C82:      nop
-            nop
-            nop
-            nop
-            inc     c
-            nop
-            nop
-            nop
-            nop
-            dec     d
-            nop
-            nop
-            nop
-            nop
-            inc     c
-            nop
-            nop
-            nop
-            nop
-            inc     c
-            nop
-            nop
-            nop
-            nop
-            inc     c
-            nop
-            nop
-            nop
-            nop
-            inc     a
-            nop
-            nop
-            djnz    L3CA4
-L3CA4:      inc     a
-            nop
-            nop
-            djnz    L3CA9
-L3CA9:      ld      a,l
-            ld      bc,$1500
-            ld      b,c
-            ld      a,l
-            ld      b,c
-            jr      nc,L3CC7
-            ld      d,l
-            ld      a,l
-            ld      d,l
-            inc     b
-            nop
-            dec     d
-            ld      a,a
-            push    de
-            ld      d,h
-            nop
-            ld      d,l
-            ld      e,a
-            push    de
-            ld      d,h
-            ld      de,$1554
-            ld      d,b
-            ld      d,b
-            ld      de,L5F50
-            call    nc,$1500
-            nop
-            ld      d,l
-            ld      d,h
-            nop
-            nop
-            nop
-            nop
-            ld      d,b
-            ld      b,b
-            nop
-            nop
-            nop
-            inc     bc
-            nop
-            nop
-            nop
-            nop
-            nop
-            jp      z,$0000
-            nop
-            ld      (bc),a
-            jp      z,$0000
-            nop
-            dec     bc
-            jp      pe,L0080
-            nop
-            ld      a,(bc)
-            jp      m,L0080
-            nop
-            dec     bc
-            jp      pe,L00A0
-            ld      (bc),a
-            ld      a,(bc)
-            jp      m,L02A8
-            ld      (bc),a
-            xor     e
-            jp      (hl)
-L3CFC:      jr      z,$3D08
-            adc     a,d
-            xor     d
-            ret     m
-            jr      z,$3D2B
-            xor     d
-            xor     d
-            xor     d
-            xor     b
-            nop
-            xor     d
-            xor     d
-            xor     d
-            xor     b
-            ld      ($AAAA),hl
-            xor     d
-            add     a,b
-            ld      hl,($AAAA)
-            xor     d
-            nop
-            nop
-            xor     d
-            xor     d
-            and     b
-            nop
-            nop
-            ld      hl,(memcheck)
-            ret     p
-            nop
-            ld      hl,(L0AA0)
-            call    m,L0A00
-            add     a,b
-            ex      af,af'
-            call    m,L0200
-            xor     d
-            xor     b
-            inc     c
-;
-; At $3D2F starts pattern of Thorwor (demo screen) ???
-;
-            nop
-            nop
-            nop
-            nop
-            ret     p
-            nop
-            ld      a,(bc)
-            nop
-            inc     bc
-            ret     nz
-            nop
-            jr      nz,L3CFC
-            rrca
-            ret     nz
-            nop
-            add     a,e
-            ret     p
-            inc     c
-            nop
-            nop
-            rrca
-            call    m,L000F
-            nop
-            inc     a
-            rst     38H
-            inc     bc
-            nop
-            nop
-            ret     p
-            rst     38H
-            inc     bc
-            ret     p
-            nop
-            pop     af
-            rst     38H
-            ret     nz
-            jr      nc,$3D67
-            rst     38H
-            rst     38H
-            ret     p
-            inc     a
-            ccf
-            rst     38H
-            rst     38H
-            rst     38H
-            call    m,LFF00
-            rst     38H
-            rst     38H
-            ret     p
-            inc     a
-            inc     bc
-            rst     38H
-            rst     38H
-            ret     p
-            ccf
-            rst     38H
-            rst     38H
-            rst     38H
-            ret     nz
-            nop
-            rst     38H
-            inc     c
-            jr      nc,$3D35
-            nop
-            nop
-            inc     c
-            jr      nc,$3D3A
-            nop
-            nop
-            inc     a
-            di
-            ret     nz
-            nop
-            nop
-            jr      nc,$3D46
-            nop
-            nop
-            nop
-            ld      d,c
-            ld      b,l
-            nop
-            nop
-            nop
-            nop
-            nop
-            ret     p
-            nop
-            ld      a,(bc)
-            nop
-            nop
-            ret     nz
-            nop
-            jr      nz,$3D56
-            nop
-            ret     nz
-            nop
-            add     a,e
-            ret     p
-            nop
-            ret     p
-            nop
-            rrca
-            call    m,L3000
-            nop
-            inc     a
-            rst     38H
-            nop
-            jr      nc,$3DA8
-            ret     p
-            rst     38H
-            nop
-            jr      nc,$3DB0
-            pop     af
-            rst     38H
-            ret     nz
-            inc     a
-            ccf
-            rst     38H
-            rst     38H
-            ret     p
-            inc     a
-            inc     a
-            ccf
-            rst     38H
-            rst     38H
-            call    m,L0F01
-            rst     38H
-            rst     38H
-            ret     p
-            nop
-            inc     bc
-            rst     38H
-            rst     38H
-            ret     p
-            ld      sp,LFF3F
-            rst     38H
-            ret     nz
-            ccf
-            rst     38H
-            call    z,LC030
-            inc     bc
-            call    m,L300C
-            ret     nz
-            nop
-            nop
-            inc     c
-            jr      nc,$3D99
-            nop
-            nop
-            inc     c
-            jr      nc,$3D9E
-            nop
-            nop
-            inc     d
-            ld      d,c
-            ld      b,b
-            nop
-            adc     a,b
-            inc     bc
-            call    m,$0000
-            ld      (bc),a
-            nop
-            rrca
-            ret     nz
-            nop
-            nop
-            ret     nz
-            nop
-            ret     nz
-            nop
-            inc     bc
-            ret     p
-            nop
-            ret     nz
-            nop
-            rst     38H
-            call    m,LC000
-            nop
-            inc     a
-            rst     38H
-            nop
-            ret     p
-            nop
-            ret     p
-            rst     38H
-            nop
-            jr      nc,$3E16
-            pop     af
-            rst     38H
-            ret     nz
-            inc     a
-            inc     a
-            ccf
-            rst     38H
-            ret     p
-            inc     a
-            ld      sp,LFF0F
-            rst     38H
-            call    m,L0301
-            rst     38H
-            rst     38H
-            ret     p
-            nop
-            inc     bc
-            rst     38H
-            rst     38H
-            ret     p
-            nop
-            rrca
-            rst     38H
-            rst     38H
-            ret     nz
-            ld      sp,LCC0F
-            jr      nc,$3DE9
-            inc     a
-            ccf
-            inc     c
-            jr      nc,$3DEE
-            rrca
-            call    m,L3C0F
-            ret     p
-            nop
-            nop
-            inc     bc
-            inc     c
-            jr      nc,$3E39
-            nop
-            dec     b
-            inc     d
-            ld      d,b
-            nop
-            rrca
-            jr      nc,$3E41
-            nop
-            nop
-            rrca
-            inc     a
-            nop
-            nop
-            nop
-            inc     c
-            inc     a
-            nop
-            nop
-            nop
-            inc     a
-            rst     38H
-            jp      nz,$0000
-            inc     a
-            rst     38H
-            ret     p
-            add     a,b
-            nop
-            inc     a
-            call    m,L203C
-            nop
-            ccf
-            DB      $fd,$0f
-            jr      nz,$3E71
-            rrca
-            rst     38H
-            rst     38H
-            ret     nz
-            rra
-            rrca
-            rst     38H
-            rst     38H
-            nop
-            inc     bc
-            rst     38H
-            rst     38H
-            call    m,$1000
-            rrca
-            rst     38H
-            ret     p
-            nop
-            rra
-            rrca
-            rst     38H
-            nop
-            nop
-            inc     bc
-            rst     38H
-            call    m,$0000
-            djnz    $3E8F
-            ret     p
-            rrca
-            ret     nz
-            rra
-            rrca
-            ret     p
-            call    m,L03F0
-            rst     38H
-            ret     p
-            ret     nz
-            call    m,L0300
-            rst     38H
-            ret     nz
-            inc     c
-            nop
-            nop
-            inc     a
-            nop
-            nop
-            nop
-            inc     a
-            inc     a
-            nop
-            nop
-            nop
-            jr      nc,$3EDB
-            nop
-            nop
-            nop
-            call    p,L004F
-            nop
-            nop
-            ret     p
-            rrca
-            jp      nz,$0000
-            call    m,LF03F
-            add     a,b
-            nop
-            call    m,L3CFC
-            jr      nz,$3EB6
-            ccf
-            DB      $fd,$0f
-            jr      nz,$3EBB
-            ccf
-            rst     38H
-            rst     38H
-            ret     nz
-            djnz    $3ED0
-            rst     38H
-            rst     38H
-            nop
-            rra
-            rst     38H
-            rst     38H
-            call    m,$0000
-            rrca
-            rst     38H
-            ret     p
-            nop
-            nop
-            rrca
-            rst     38H
-            ret     p
-            nop
-            rra
-            rst     38H
-            call    m,$0000
-            nop
-            rrca
-            ret     p
-            nop
-            nop
-            djnz    $3EEE
-            ret     p
-            nop
-            nop
-            rra
-            rst     38H
-            ret     p
-            inc     bc
-            call    m,L0300
-            rst     38H
-            rst     38H
-            inc     c
-            nop
-            nop
-            ccf
-            nop
-            nop
-            nop
-            ret     p
-            inc     a
-            nop
-            nop
-            inc     bc
-            ret     nz
-            rrca
-            nop
-            nop
-            inc     bc
-            djnz    $3F51
-            nop
-            nop
-            inc     bc
-            nop
-            inc     bc
-            ret     nz
-            ex      af,af'
-            inc     bc
-            ret     nz
-            rrca
-            ret     p
-            nop
-            inc     bc
-            call    m,L3C3C
-            ex      af,af'
-            nop
-            rst     38H
-            DB      $fd,$0f
-            jr      nz,$3F15
-            ccf
-            rst     38H
-            rst     38H
-            ret     nz
-            nop
-            rrca
-            rst     38H
-            rst     38H
-            nop
-            inc     de
-            rst     38H
-            rst     38H
-            call    m,L1F00
-            rrca
-            rst     38H
-            ret     p
-            inc     c
-            nop
-            rrca
-            rst     38H
-            nop
-            inc     c
-            inc     de
-            rst     38H
-            call    m,L0C00
-            rra
-            rrca
-            ret     p
-            nop
-            inc     a
-            nop
-            rrca
-            ret     p
-            nop
-            jr      nc,$3F50
-            rst     38H
-            ret     p
-            ccf
-            ret     p
-            rra
-            inc     bc
-            rst     38H
-            ret     p
-            nop
-            nop
-            nop
-            ccf
-            nop
-            nop
+;*******************************************************************************
+; WORRIOR_BLUE_1
+; 5 bytes/row = 20 pixels wide, 18 rows
+;*******************************************************************************
+WORRIOR_BLUE_1:
+        .DB      $00,$00,$00,$54,$00 ; . . . . . . . . . . . . 1 1 1 . . . . .
+        .DB      $00,$00,$03,$15,$00 ; . . . . . . . . . . . 3 . 1 1 1 . . . .
+        .DB      $00,$00,$00,$15,$04 ; . . . . . . . . . . . . . 1 1 1 . . 1 .
+        .DB      $00,$00,$05,$54,$00 ; . . . . . . . . . . 1 1 1 1 1 . . . . .
+        .DB      $00,$00,$00,$54,$50 ; . . . . . . . . . . . . 1 1 1 . 1 1 . .
+        .DB      $00,$00,$00,$55,$54 ; . . . . . . . . . . . . 1 1 1 1 1 1 1 .
+        .DB      $00,$00,$01,$7D,$D4 ; . . . . . . . . . . . 1 1 3 3 1 3 1 1 .
+        .DB      $04,$40,$05,$7D,$D0 ; . . 1 . 1 . . . . . 1 1 1 3 3 1 3 1 . .
+        .DB      $37,$7F,$FF,$FD,$D0 ; . 3 1 3 1 3 3 3 3 3 3 3 3 3 3 1 3 1 . .
+        .DB      $04,$40,$FF,$F5,$50 ; . . 1 . 1 . . . 3 3 3 3 3 3 1 1 1 1 . .
+        .DB      $00,$00,$05,$54,$50 ; . . . . . . . . . . 1 1 1 1 1 . 1 1 . .
+        .DB      $00,$00,$00,$55,$00 ; . . . . . . . . . . . . 1 1 1 1 . . . .
+        .DB      $00,$00,$01,$55,$00 ; . . . . . . . . . . . 1 1 1 1 1 . . . .
+        .DB      $00,$00,$05,$55,$00 ; . . . . . . . . . . 1 1 1 1 1 1 . . . .
+        .DB      $00,$00,$15,$05,$00 ; . . . . . . . . . 1 1 1 . . 1 1 . . . .
+        .DB      $00,$00,$54,$05,$40 ; . . . . . . . . 1 1 1 . . . 1 1 1 . . .
+        .DB      $00,$00,$50,$01,$40 ; . . . . . . . . 1 1 . . . . . 1 1 . . .
+        .DB      $00,$05,$50,$15,$40 ; . . . . . . 1 1 1 1 . . . 1 1 1 1 . . .
+
+; Legacy labels referenced elsewhere in the disassembly.
+L389C                    EQU     WORRIOR_BLUE_1
+L38BF                    EQU     WORRIOR_BLUE_1 + $23
+L38E5                    EQU     WORRIOR_BLUE_1 + $49
+
+;*******************************************************************************
+; WORRIOR_YELLOW_1
+; 5 bytes/row = 20 pixels wide, 18 rows
+;*******************************************************************************
+WORRIOR_YELLOW_1:
+        .DB      $00,$00,$00,$A8,$00 ; . . . . . . . . . . . . 2 2 2 . . . . .
+        .DB      $00,$00,$03,$2A,$00 ; . . . . . . . . . . . 3 . 2 2 2 . . . .
+        .DB      $00,$00,$00,$2A,$08 ; . . . . . . . . . . . . . 2 2 2 . . 2 .
+        .DB      $00,$00,$0A,$A8,$00 ; . . . . . . . . . . 2 2 2 2 2 . . . . .
+        .DB      $00,$00,$00,$A8,$A0 ; . . . . . . . . . . . . 2 2 2 . 2 2 . .
+        .DB      $00,$00,$00,$AA,$A8 ; . . . . . . . . . . . . 2 2 2 2 2 2 2 .
+        .DB      $00,$00,$02,$BE,$E8 ; . . . . . . . . . . . 2 2 3 3 2 3 2 2 .
+        .DB      $08,$80,$0A,$BE,$E0 ; . . 2 . 2 . . . . . 2 2 2 3 3 2 3 2 . .
+        .DB      $3B,$BF,$FF,$FE,$E0 ; . 3 2 3 2 3 3 3 3 3 3 3 3 3 3 2 3 2 . .
+        .DB      $08,$80,$FF,$FA,$A0 ; . . 2 . 2 . . . 3 3 3 3 3 3 2 2 2 2 . .
+        .DB      $00,$00,$0A,$A8,$A0 ; . . . . . . . . . . 2 2 2 2 2 . 2 2 . .
+        .DB      $00,$00,$00,$AA,$00 ; . . . . . . . . . . . . 2 2 2 2 . . . .
+        .DB      $00,$00,$02,$AA,$00 ; . . . . . . . . . . . 2 2 2 2 2 . . . .
+        .DB      $00,$00,$0A,$AA,$00 ; . . . . . . . . . . 2 2 2 2 2 2 . . . .
+        .DB      $00,$00,$2A,$0A,$00 ; . . . . . . . . . 2 2 2 . . 2 2 . . . .
+        .DB      $00,$00,$A8,$0A,$80 ; . . . . . . . . 2 2 2 . . . 2 2 2 . . .
+        .DB      $00,$00,$A0,$02,$80 ; . . . . . . . . 2 2 . . . . . 2 2 . . .
+        .DB      $00,$0A,$A0,$2A,$80 ; . . . . . . 2 2 2 2 . . . 2 2 2 2 . . .
+
+;*******************************************************************************
+; WORRIOR_BLUE_2
+; 5 bytes/row = 20 pixels wide, 18 rows
+;*******************************************************************************
+WORRIOR_BLUE_2:
+        .DB      $00,$00,$00,$54,$00 ; . . . . . . . . . . . . 1 1 1 . . . . .
+        .DB      $00,$00,$03,$15,$00 ; . . . . . . . . . . . 3 . 1 1 1 . . . .
+        .DB      $00,$00,$00,$15,$04 ; . . . . . . . . . . . . . 1 1 1 . . 1 .
+        .DB      $00,$00,$05,$54,$00 ; . . . . . . . . . . 1 1 1 1 1 . . . . .
+        .DB      $00,$00,$00,$54,$50 ; . . . . . . . . . . . . 1 1 1 . 1 1 . .
+        .DB      $00,$00,$00,$55,$54 ; . . . . . . . . . . . . 1 1 1 1 1 1 1 .
+        .DB      $00,$00,$01,$7D,$D4 ; . . . . . . . . . . . 1 1 3 3 1 3 1 1 .
+        .DB      $04,$40,$05,$7D,$D0 ; . . 1 . 1 . . . . . 1 1 1 3 3 1 3 1 . .
+        .DB      $37,$7F,$FF,$FD,$D0 ; . 3 1 3 1 3 3 3 3 3 3 3 3 3 3 1 3 1 . .
+        .DB      $04,$40,$FF,$F5,$50 ; . . 1 . 1 . . . 3 3 3 3 3 3 1 1 1 1 . .
+        .DB      $00,$00,$05,$54,$50 ; . . . . . . . . . . 1 1 1 1 1 . 1 1 . .
+        .DB      $00,$00,$01,$54,$00 ; . . . . . . . . . . . 1 1 1 1 . . . . .
+        .DB      $00,$00,$00,$50,$00 ; . . . . . . . . . . . . 1 1 . . . . . .
+        .DB      $00,$00,$00,$50,$00 ; . . . . . . . . . . . . 1 1 . . . . . .
+        .DB      $00,$00,$00,$50,$00 ; . . . . . . . . . . . . 1 1 . . . . . .
+        .DB      $00,$00,$00,$50,$00 ; . . . . . . . . . . . . 1 1 . . . . . .
+        .DB      $00,$00,$00,$50,$00 ; . . . . . . . . . . . . 1 1 . . . . . .
+        .DB      $00,$00,$05,$50,$00 ; . . . . . . . . . . 1 1 1 1 . . . . . .
+
+; Legacy labels referenced elsewhere in the disassembly.
+L38F6                    EQU     WORRIOR_YELLOW_1
+L3903                    EQU     WORRIOR_YELLOW_1 + $0D
+L391F                    EQU     WORRIOR_YELLOW_1 + $29
+
+;*******************************************************************************
+; WORRIOR_YELLOW_2
+; 5 bytes/row = 20 pixels wide, 18 rows
+;*******************************************************************************
+WORRIOR_YELLOW_2:
+        .DB      $00,$00,$00,$A8,$00 ; . . . . . . . . . . . . 2 2 2 . . . . .
+        .DB      $00,$00,$03,$2A,$00 ; . . . . . . . . . . . 3 . 2 2 2 . . . .
+        .DB      $00,$00,$00,$2A,$08 ; . . . . . . . . . . . . . 2 2 2 . . 2 .
+        .DB      $00,$00,$0A,$A8,$00 ; . . . . . . . . . . 2 2 2 2 2 . . . . .
+        .DB      $00,$00,$00,$A8,$A0 ; . . . . . . . . . . . . 2 2 2 . 2 2 . .
+        .DB      $00,$00,$00,$AA,$A8 ; . . . . . . . . . . . . 2 2 2 2 2 2 2 .
+        .DB      $00,$00,$02,$BE,$E8 ; . . . . . . . . . . . 2 2 3 3 2 3 2 2 .
+        .DB      $08,$80,$0A,$BE,$E0 ; . . 2 . 2 . . . . . 2 2 2 3 3 2 3 2 . .
+        .DB      $3B,$BF,$FF,$FE,$E0 ; . 3 2 3 2 3 3 3 3 3 3 3 3 3 3 2 3 2 . .
+        .DB      $08,$80,$FF,$FA,$A0 ; . . 2 . 2 . . . 3 3 3 3 3 3 2 2 2 2 . .
+        .DB      $00,$00,$0A,$A8,$A0 ; . . . . . . . . . . 2 2 2 2 2 . 2 2 . .
+        .DB      $00,$00,$02,$A8,$00 ; . . . . . . . . . . . 2 2 2 2 . . . . .
+        .DB      $00,$00,$00,$A0,$00 ; . . . . . . . . . . . . 2 2 . . . . . .
+        .DB      $00,$00,$00,$A0,$00 ; . . . . . . . . . . . . 2 2 . . . . . .
+        .DB      $00,$00,$00,$A0,$00 ; . . . . . . . . . . . . 2 2 . . . . . .
+        .DB      $00,$00,$00,$A0,$00 ; . . . . . . . . . . . . 2 2 . . . . . .
+        .DB      $00,$00,$00,$A0,$00 ; . . . . . . . . . . . . 2 2 . . . . . .
+        .DB      $00,$00,$0A,$A0,$00 ; . . . . . . . . . . 2 2 2 2 . . . . . .
+
+; Legacy labels referenced elsewhere in the disassembly.
+L39AA                    EQU     WORRIOR_YELLOW_2
+
+;*******************************************************************************
+; WORRIOR_BLUE_3
+; 5 bytes/row = 20 pixels wide, 18 rows
+;*******************************************************************************
+WORRIOR_BLUE_3:
+        .DB      $00,$00,$00,$54,$00 ; . . . . . . . . . . . . 1 1 1 . . . . .
+        .DB      $00,$00,$03,$15,$00 ; . . . . . . . . . . . 3 . 1 1 1 . . . .
+        .DB      $00,$00,$00,$15,$04 ; . . . . . . . . . . . . . 1 1 1 . . 1 .
+        .DB      $00,$00,$05,$54,$00 ; . . . . . . . . . . 1 1 1 1 1 . . . . .
+        .DB      $00,$00,$00,$54,$50 ; . . . . . . . . . . . . 1 1 1 . 1 1 . .
+        .DB      $00,$00,$00,$55,$54 ; . . . . . . . . . . . . 1 1 1 1 1 1 1 .
+        .DB      $00,$00,$01,$7D,$D4 ; . . . . . . . . . . . 1 1 3 3 1 3 1 1 .
+        .DB      $04,$40,$05,$7D,$D0 ; . . 1 . 1 . . . . . 1 1 1 3 3 1 3 1 . .
+        .DB      $37,$7F,$FF,$FD,$D0 ; . 3 1 3 1 3 3 3 3 3 3 3 3 3 3 1 3 1 . .
+        .DB      $04,$40,$FF,$F5,$50 ; . . 1 . 1 . . . 3 3 3 3 3 3 1 1 1 1 . .
+        .DB      $00,$00,$05,$54,$50 ; . . . . . . . . . . 1 1 1 1 1 . 1 1 . .
+        .DB      $00,$00,$01,$54,$00 ; . . . . . . . . . . . 1 1 1 1 . . . . .
+        .DB      $00,$00,$00,$55,$00 ; . . . . . . . . . . . . 1 1 1 1 . . . .
+        .DB      $00,$00,$00,$55,$40 ; . . . . . . . . . . . . 1 1 1 1 1 . . .
+        .DB      $00,$00,$01,$45,$40 ; . . . . . . . . . . . 1 1 . 1 1 1 . . .
+        .DB      $00,$00,$01,$41,$50 ; . . . . . . . . . . . 1 1 . . 1 1 1 . .
+        .DB      $00,$00,$01,$40,$10 ; . . . . . . . . . . . 1 1 . . . . 1 . .
+        .DB      $00,$00,$15,$41,$50 ; . . . . . . . . . 1 1 1 1 . . 1 1 1 . .
+
+; Legacy labels referenced elsewhere in the disassembly.
+L3A10                    EQU     WORRIOR_BLUE_3 + $0C
+L3A38                    EQU     WORRIOR_BLUE_3 + $34
+
+;*******************************************************************************
+; WORRIOR_YELLOW_3
+; 5 bytes/row = 20 pixels wide, 18 rows
+;*******************************************************************************
+WORRIOR_YELLOW_3:
+        .DB      $00,$00,$00,$A8,$00 ; . . . . . . . . . . . . 2 2 2 . . . . .
+        .DB      $00,$00,$03,$2A,$00 ; . . . . . . . . . . . 3 . 2 2 2 . . . .
+        .DB      $00,$00,$00,$2A,$08 ; . . . . . . . . . . . . . 2 2 2 . . 2 .
+        .DB      $00,$00,$0A,$A8,$00 ; . . . . . . . . . . 2 2 2 2 2 . . . . .
+        .DB      $00,$00,$00,$A8,$A0 ; . . . . . . . . . . . . 2 2 2 . 2 2 . .
+        .DB      $00,$00,$00,$AA,$A8 ; . . . . . . . . . . . . 2 2 2 2 2 2 2 .
+        .DB      $00,$00,$02,$BE,$E8 ; . . . . . . . . . . . 2 2 3 3 2 3 2 2 .
+        .DB      $08,$80,$0A,$BE,$E0 ; . . 2 . 2 . . . . . 2 2 2 3 3 2 3 2 . .
+        .DB      $3B,$BF,$FF,$FE,$E0 ; . 3 2 3 2 3 3 3 3 3 3 3 3 3 3 2 3 2 . .
+        .DB      $08,$80,$FF,$FA,$A0 ; . . 2 . 2 . . . 3 3 3 3 3 3 2 2 2 2 . .
+        .DB      $00,$00,$0A,$A8,$A0 ; . . . . . . . . . . 2 2 2 2 2 . 2 2 . .
+        .DB      $00,$00,$02,$A8,$00 ; . . . . . . . . . . . 2 2 2 2 . . . . .
+        .DB      $00,$00,$00,$AA,$00 ; . . . . . . . . . . . . 2 2 2 2 . . . .
+        .DB      $00,$00,$00,$AA,$80 ; . . . . . . . . . . . . 2 2 2 2 2 . . .
+        .DB      $00,$00,$02,$8A,$80 ; . . . . . . . . . . . 2 2 . 2 2 2 . . .
+        .DB      $00,$00,$02,$82,$A0 ; . . . . . . . . . . . 2 2 . . 2 2 2 . .
+        .DB      $00,$00,$02,$80,$20 ; . . . . . . . . . . . 2 2 . . . . 2 . .
+        .DB      $00,$00,$2A,$82,$A0 ; . . . . . . . . . 2 2 2 2 . . 2 2 2 . .
+
+;*******************************************************************************
+; WORRIOR_YELLOW_1_UP
+; 5 bytes/row = 20 pixels wide, 18 rows
+;*******************************************************************************
+WORRIOR_YELLOW_1_UP:
+        .DB      $00,$00,$0C,$00,$00 ; . . . . . . . . . . 3 . . . . . . . . .
+        .DB      $00,$00,$2A,$00,$00 ; . . . . . . . . . 2 2 2 . . . . . . . .
+        .DB      $00,$00,$0C,$00,$00 ; . . . . . . . . . . 3 . . . . . . . . .
+        .DB      $00,$00,$2A,$00,$00 ; . . . . . . . . . 2 2 2 . . . . . . . .
+        .DB      $00,$00,$0C,$00,$00 ; . . . . . . . . . . 3 . . . . . . . . .
+        .DB      $20,$00,$0C,$00,$00 ; . 2 . . . . . . . . 3 . . . . . . . . .
+        .DB      $20,$00,$0C,$00,$00 ; . 2 . . . . . . . . 3 . . . . . . . . .
+        .DB      $2A,$00,$3C,$00,$00 ; . 2 2 2 . . . . . 3 3 . . . . . . . . .
+        .DB      $2A,$80,$3C,$00,$00 ; . 2 2 2 2 . . . . 3 3 . . . . . . . . .
+        .DB      $02,$A0,$BE,$02,$00 ; . . . 2 2 2 . . 2 3 3 2 . . . 2 . . . .
+        .DB      $00,$AA,$BE,$82,$30 ; . . . . 2 2 2 2 2 3 3 2 2 . . 2 . 3 . .
+        .DB      $00,$2A,$AA,$AA,$08 ; . . . . . 2 2 2 2 2 2 2 2 2 2 2 . . 2 .
+        .DB      $20,$2A,$BF,$EA,$A8 ; . 2 . . . 2 2 2 2 3 3 3 3 2 2 2 2 2 2 .
+        .DB      $22,$AA,$AF,$EA,$A8 ; . 2 . 2 2 2 2 2 2 2 3 3 3 2 2 2 2 2 2 .
+        .DB      $2A,$A8,$2A,$A0,$A0 ; . 2 2 2 2 2 2 . . 2 2 2 2 2 . . 2 2 . .
+        .DB      $2A,$00,$AF,$E8,$00 ; . 2 2 2 . . . . 2 2 3 3 3 2 2 . . . . .
+        .DB      $00,$00,$AA,$A8,$00 ; . . . . . . . . 2 2 2 2 2 2 2 . . . . .
+        .DB      $00,$00,$00,$A0,$80 ; . . . . . . . . . . . . 2 2 . . 2 . . .
+
+; Legacy labels referenced elsewhere in the disassembly.
+L3ADF                    EQU     WORRIOR_YELLOW_1_UP + $27
+L3B0E                    EQU     WORRIOR_YELLOW_1_UP + $56
+
+;*******************************************************************************
+; WORRIOR_BLUE_1_UP
+; 5 bytes/row = 20 pixels wide, 18 rows
+;*******************************************************************************
+WORRIOR_BLUE_1_UP:
+        .DB      $00,$00,$0C,$00,$00 ; . . . . . . . . . . 3 . . . . . . . . .
+        .DB      $00,$00,$15,$00,$00 ; . . . . . . . . . 1 1 1 . . . . . . . .
+        .DB      $00,$00,$0C,$00,$00 ; . . . . . . . . . . 3 . . . . . . . . .
+        .DB      $00,$00,$15,$00,$00 ; . . . . . . . . . 1 1 1 . . . . . . . .
+        .DB      $00,$00,$0C,$00,$00 ; . . . . . . . . . . 3 . . . . . . . . .
+        .DB      $10,$00,$0C,$00,$00 ; . 1 . . . . . . . . 3 . . . . . . . . .
+        .DB      $10,$00,$0C,$00,$00 ; . 1 . . . . . . . . 3 . . . . . . . . .
+        .DB      $15,$00,$3C,$00,$00 ; . 1 1 1 . . . . . 3 3 . . . . . . . . .
+        .DB      $15,$40,$3C,$00,$00 ; . 1 1 1 1 . . . . 3 3 . . . . . . . . .
+        .DB      $01,$50,$7D,$01,$00 ; . . . 1 1 1 . . 1 3 3 1 . . . 1 . . . .
+        .DB      $00,$55,$7D,$41,$30 ; . . . . 1 1 1 1 1 3 3 1 1 . . 1 . 3 . .
+        .DB      $00,$15,$7D,$55,$04 ; . . . . . 1 1 1 1 3 3 1 1 1 1 1 . . 1 .
+        .DB      $10,$15,$7F,$D5,$54 ; . 1 . . . 1 1 1 1 3 3 3 3 1 1 1 1 1 1 .
+        .DB      $11,$55,$5F,$D5,$54 ; . 1 . 1 1 1 1 1 1 1 3 3 3 1 1 1 1 1 1 .
+        .DB      $15,$54,$15,$50,$50 ; . 1 1 1 1 1 1 . . 1 1 1 1 1 . . 1 1 . .
+        .DB      $15,$00,$5F,$D4,$00 ; . 1 1 1 . . . . 1 1 3 3 3 1 1 . . . . .
+        .DB      $00,$00,$55,$54,$00 ; . . . . . . . . 1 1 1 1 1 1 1 . . . . .
+        .DB      $00,$00,$00,$50,$40 ; . . . . . . . . . . . . 1 1 . . 1 . . .
+
+; Legacy labels referenced elsewhere in the disassembly.
+L3B3E                    EQU     WORRIOR_BLUE_1_UP + $2C
+
+;*******************************************************************************
+; WORRIOR_YELLOW_2_UP
+; 5 bytes/row = 20 pixels wide, 18 rows
+;*******************************************************************************
+WORRIOR_YELLOW_2_UP:
+        .DB      $00,$00,$0C,$00,$00 ; . . . . . . . . . . 3 . . . . . . . . .
+        .DB      $00,$00,$2A,$00,$00 ; . . . . . . . . . 2 2 2 . . . . . . . .
+        .DB      $00,$00,$0C,$00,$00 ; . . . . . . . . . . 3 . . . . . . . . .
+        .DB      $00,$00,$2A,$00,$00 ; . . . . . . . . . 2 2 2 . . . . . . . .
+        .DB      $00,$00,$0C,$00,$00 ; . . . . . . . . . . 3 . . . . . . . . .
+        .DB      $00,$00,$0C,$00,$00 ; . . . . . . . . . . 3 . . . . . . . . .
+        .DB      $00,$00,$0C,$00,$00 ; . . . . . . . . . . 3 . . . . . . . . .
+        .DB      $00,$00,$3C,$00,$00 ; . . . . . . . . . 3 3 . . . . . . . . .
+        .DB      $00,$00,$3C,$00,$00 ; . . . . . . . . . 3 3 . . . . . . . . .
+        .DB      $20,$00,$BE,$02,$00 ; . 2 . . . . . . 2 3 3 2 . . . 2 . . . .
+        .DB      $20,$02,$BE,$82,$30 ; . 2 . . . . . 2 2 3 3 2 2 . . 2 . 3 . .
+        .DB      $2A,$AA,$BE,$AA,$08 ; . 2 2 2 2 2 2 2 2 3 3 2 2 2 2 2 . . 2 .
+        .DB      $2A,$AA,$BF,$EA,$A8 ; . 2 2 2 2 2 2 2 2 3 3 3 3 2 2 2 2 2 2 .
+        .DB      $00,$02,$AF,$EA,$A8 ; . . . . . . . 2 2 2 3 3 3 2 2 2 2 2 2 .
+        .DB      $00,$00,$2A,$A0,$A0 ; . . . . . . . . . 2 2 2 2 2 . . 2 2 . .
+        .DB      $00,$00,$AF,$E8,$00 ; . . . . . . . . 2 2 3 3 3 2 2 . . . . .
+        .DB      $00,$00,$AA,$A8,$00 ; . . . . . . . . 2 2 2 2 2 2 2 . . . . .
+        .DB      $00,$00,$00,$A0,$00 ; . . . . . . . . . . . . 2 2 . . . . . .
+
+; Legacy labels referenced elsewhere in the disassembly.
+L3B6C                    EQU     WORRIOR_YELLOW_2_UP
+L3B73                    EQU     WORRIOR_YELLOW_2_UP + $07
+
+;*******************************************************************************
+; WORRIOR_BLUE_2_UP
+; 5 bytes/row = 20 pixels wide, 18 rows
+;*******************************************************************************
+WORRIOR_BLUE_2_UP:
+        .DB      $00,$00,$0C,$00,$00 ; . . . . . . . . . . 3 . . . . . . . . .
+        .DB      $00,$00,$15,$00,$00 ; . . . . . . . . . 1 1 1 . . . . . . . .
+        .DB      $00,$00,$0C,$00,$00 ; . . . . . . . . . . 3 . . . . . . . . .
+        .DB      $00,$00,$15,$00,$00 ; . . . . . . . . . 1 1 1 . . . . . . . .
+        .DB      $00,$00,$0C,$00,$00 ; . . . . . . . . . . 3 . . . . . . . . .
+        .DB      $00,$00,$0C,$00,$00 ; . . . . . . . . . . 3 . . . . . . . . .
+        .DB      $00,$00,$0C,$00,$00 ; . . . . . . . . . . 3 . . . . . . . . .
+        .DB      $00,$00,$3C,$00,$00 ; . . . . . . . . . 3 3 . . . . . . . . .
+        .DB      $00,$00,$3C,$00,$00 ; . . . . . . . . . 3 3 . . . . . . . . .
+        .DB      $10,$00,$7D,$01,$00 ; . 1 . . . . . . 1 3 3 1 . . . 1 . . . .
+        .DB      $10,$01,$7D,$41,$30 ; . 1 . . . . . 1 1 3 3 1 1 . . 1 . 3 . .
+        .DB      $15,$55,$7D,$55,$04 ; . 1 1 1 1 1 1 1 1 3 3 1 1 1 1 1 . . 1 .
+        .DB      $15,$55,$7F,$D5,$54 ; . 1 1 1 1 1 1 1 1 3 3 3 3 1 1 1 1 1 1 .
+        .DB      $00,$01,$5F,$D5,$54 ; . . . . . . . 1 1 1 3 3 3 1 1 1 1 1 1 .
+        .DB      $00,$00,$15,$50,$50 ; . . . . . . . . . 1 1 1 1 1 . . 1 1 . .
+        .DB      $00,$00,$5F,$D4,$00 ; . . . . . . . . 1 1 3 3 3 1 1 . . . . .
+        .DB      $00,$00,$55,$54,$00 ; . . . . . . . . 1 1 1 1 1 1 1 . . . . .
+        .DB      $00,$00,$00,$50,$00 ; . . . . . . . . . . . . 1 1 . . . . . .
+
+; Legacy labels referenced elsewhere in the disassembly.
+L3C03                    EQU     WORRIOR_BLUE_2_UP + $3D
+L3C18                    EQU     WORRIOR_BLUE_2_UP + $52
+L3C1E                    EQU     WORRIOR_BLUE_2_UP + $58
+
+;*******************************************************************************
+; WORRIOR_YELLOW_3_UP
+; 5 bytes/row = 20 pixels wide, 18 rows
+;*******************************************************************************
+WORRIOR_YELLOW_3_UP:
+        .DB      $00,$00,$0C,$00,$00 ; . . . . . . . . . . 3 . . . . . . . . .
+        .DB      $00,$00,$2A,$00,$00 ; . . . . . . . . . 2 2 2 . . . . . . . .
+        .DB      $00,$00,$0C,$00,$00 ; . . . . . . . . . . 3 . . . . . . . . .
+        .DB      $00,$00,$2A,$00,$00 ; . . . . . . . . . 2 2 2 . . . . . . . .
+        .DB      $00,$00,$0C,$00,$00 ; . . . . . . . . . . 3 . . . . . . . . .
+        .DB      $00,$00,$0C,$00,$00 ; . . . . . . . . . . 3 . . . . . . . . .
+        .DB      $00,$00,$0C,$00,$00 ; . . . . . . . . . . 3 . . . . . . . . .
+        .DB      $00,$00,$3C,$00,$00 ; . . . . . . . . . 3 3 . . . . . . . . .
+        .DB      $20,$00,$3C,$00,$00 ; . 2 . . . . . . . 3 3 . . . . . . . . .
+        .DB      $20,$00,$BE,$02,$00 ; . 2 . . . . . . 2 3 3 2 . . . 2 . . . .
+        .DB      $2A,$82,$BE,$82,$30 ; . 2 2 2 2 . . 2 2 3 3 2 2 . . 2 . 3 . .
+        .DB      $2A,$AA,$BE,$AA,$08 ; . 2 2 2 2 2 2 2 2 3 3 2 2 2 2 2 . . 2 .
+        .DB      $00,$2A,$BF,$EA,$A8 ; . . . . . 2 2 2 2 3 3 3 3 2 2 2 2 2 2 .
+        .DB      $00,$AA,$AF,$EA,$A8 ; . . . . 2 2 2 2 2 2 3 3 3 2 2 2 2 2 2 .
+        .DB      $22,$A8,$2A,$A0,$A0 ; . 2 . 2 2 2 2 . . 2 2 2 2 2 . . 2 2 . .
+        .DB      $22,$A0,$AF,$E8,$00 ; . 2 . 2 2 2 . . 2 2 3 3 3 2 2 . . . . .
+        .DB      $2A,$00,$AA,$A8,$00 ; . 2 2 2 . . . . 2 2 2 2 2 2 2 . . . . .
+        .DB      $00,$00,$00,$A0,$80 ; . . . . . . . . . . . . 2 2 . . 2 . . .
+
+;*******************************************************************************
+; WORRIOR_BLUE_3_UP
+; 5 bytes/row = 20 pixels wide, 18 rows
+;*******************************************************************************
+WORRIOR_BLUE_3_UP:
+        .DB      $00,$00,$0C,$00,$00 ; . . . . . . . . . . 3 . . . . . . . . .
+        .DB      $00,$00,$15,$00,$00 ; . . . . . . . . . 1 1 1 . . . . . . . .
+        .DB      $00,$00,$0C,$00,$00 ; . . . . . . . . . . 3 . . . . . . . . .
+        .DB      $00,$00,$15,$00,$00 ; . . . . . . . . . 1 1 1 . . . . . . . .
+        .DB      $00,$00,$0C,$00,$00 ; . . . . . . . . . . 3 . . . . . . . . .
+        .DB      $00,$00,$0C,$00,$00 ; . . . . . . . . . . 3 . . . . . . . . .
+        .DB      $00,$00,$0C,$00,$00 ; . . . . . . . . . . 3 . . . . . . . . .
+        .DB      $00,$00,$3C,$00,$00 ; . . . . . . . . . 3 3 . . . . . . . . .
+        .DB      $10,$00,$3C,$00,$00 ; . 1 . . . . . . . 3 3 . . . . . . . . .
+        .DB      $10,$00,$7D,$01,$00 ; . 1 . . . . . . 1 3 3 1 . . . 1 . . . .
+        .DB      $15,$41,$7D,$41,$30 ; . 1 1 1 1 . . 1 1 3 3 1 1 . . 1 . 3 . .
+        .DB      $15,$55,$7D,$55,$04 ; . 1 1 1 1 1 1 1 1 3 3 1 1 1 1 1 . . 1 .
+        .DB      $00,$15,$7F,$D5,$54 ; . . . . . 1 1 1 1 3 3 3 3 1 1 1 1 1 1 .
+        .DB      $00,$55,$5F,$D5,$54 ; . . . . 1 1 1 1 1 1 3 3 3 1 1 1 1 1 1 .
+        .DB      $11,$54,$15,$50,$50 ; . 1 . 1 1 1 1 . . 1 1 1 1 1 . . 1 1 . .
+        .DB      $11,$50,$5F,$D4,$00 ; . 1 . 1 1 1 . . 1 1 3 3 3 1 1 . . . . .
+        .DB      $15,$00,$55,$54,$00 ; . 1 1 1 . . . . 1 1 1 1 1 1 1 . . . . .
+        .DB      $00,$00,$00,$50,$40 ; . . . . . . . . . . . . 1 1 . . 1 . . .
+
+            nop
+;*******************************************************************************
+; GARWOR_3_UP
+; 5 bytes/row = 20 pixels wide, 18 rows
+;*******************************************************************************
+GARWOR_3_UP:
+        .DB      $00,$00,$03,$00,$00 ; . . . . . . . . . . . 3 . . . . . . . .
+        .DB      $00,$00,$00,$CA,$00 ; . . . . . . . . . . . . 3 . 2 2 . . . .
+        .DB      $00,$00,$02,$CA,$00 ; . . . . . . . . . . . 2 3 . 2 2 . . . .
+        .DB      $00,$00,$0B,$EA,$80 ; . . . . . . . . . . 2 3 3 2 2 2 2 . . .
+        .DB      $00,$00,$0A,$FA,$80 ; . . . . . . . . . . 2 2 3 3 2 2 2 . . .
+        .DB      $00,$00,$0B,$EA,$A0 ; . . . . . . . . . . 2 3 3 2 2 2 2 2 . .
+        .DB      $00,$02,$0A,$FA,$A8 ; . . . . . . . 2 . . 2 2 3 3 2 2 2 2 2 .
+        .DB      $02,$02,$AB,$E9,$28 ; . . . 2 . . . 2 2 2 2 3 3 2 2 1 . 2 2 .
+        .DB      $0A,$8A,$AA,$F8,$28 ; . . 2 2 2 . 2 2 2 2 2 2 3 3 2 . . 2 2 .
+        .DB      $28,$AA,$AA,$AA,$A8 ; . 2 2 . 2 2 2 2 2 2 2 2 2 2 2 2 2 2 2 .
+        .DB      $00,$AA,$AA,$AA,$A8 ; . . . . 2 2 2 2 2 2 2 2 2 2 2 2 2 2 2 .
+        .DB      $22,$AA,$AA,$AA,$80 ; . 2 . 2 2 2 2 2 2 2 2 2 2 2 2 2 2 . . .
+        .DB      $2A,$AA,$AA,$AA,$00 ; . 2 2 2 2 2 2 2 2 2 2 2 2 2 2 2 . . . .
+        .DB      $00,$AA,$AA,$A0,$00 ; . . . . 2 2 2 2 2 2 2 2 2 2 . . . . . .
+        .DB      $00,$2A,$AA,$00,$F0 ; . . . . . 2 2 2 2 2 2 2 . . . . 3 3 . .
+        .DB      $00,$2A,$A0,$0A,$FC ; . . . . . 2 2 2 2 2 . . . . 2 2 3 3 3 .
+        .DB      $00,$0A,$80,$08,$FC ; . . . . . . 2 2 2 . . . . . 2 . 3 3 3 .
+        .DB      $00,$02,$AA,$A8,$0C ; . . . . . . . 2 2 2 2 2 2 2 2 . . . 3 .
+
+;*******************************************************************************
+; THORWOR_1
+; 5 bytes/row = 20 pixels wide, 18 rows
+;*******************************************************************************
+THORWOR_1:
+        .DB      $00,$00,$00,$00,$F0 ; . . . . . . . . . . . . . . . . 3 3 . .
+        .DB      $00,$0A,$00,$03,$C0 ; . . . . . . 2 2 . . . . . . . 3 3 . . .
+        .DB      $00,$20,$C0,$0F,$C0 ; . . . . . 2 . . 3 . . . . . 3 3 3 . . .
+        .DB      $00,$83,$F0,$0C,$00 ; . . . . 2 . . 3 3 3 . . . . 3 . . . . .
+        .DB      $00,$0F,$FC,$0F,$00 ; . . . . . . 3 3 3 3 3 . . . 3 3 . . . .
+        .DB      $00,$3C,$FF,$03,$00 ; . . . . . 3 3 . 3 3 3 3 . . . 3 . . . .
+        .DB      $00,$F0,$FF,$03,$F0 ; . . . . 3 3 . . 3 3 3 3 . . . 3 3 3 . .
+        .DB      $00,$F1,$FF,$C0,$30 ; . . . . 3 3 . 1 3 3 3 3 3 . . . . 3 . .
+        .DB      $0F,$FF,$FF,$F0,$3C ; . . 3 3 3 3 3 3 3 3 3 3 3 3 . . . 3 3 .
+        .DB      $3F,$FF,$FF,$FF,$FC ; . 3 3 3 3 3 3 3 3 3 3 3 3 3 3 3 3 3 3 .
+        .DB      $00,$FF,$FF,$FF,$F0 ; . . . . 3 3 3 3 3 3 3 3 3 3 3 3 3 3 . .
+        .DB      $3C,$03,$FF,$FF,$F0 ; . 3 3 . . . . 3 3 3 3 3 3 3 3 3 3 3 . .
+        .DB      $3F,$FF,$FF,$FF,$C0 ; . 3 3 3 3 3 3 3 3 3 3 3 3 3 3 3 3 . . .
+        .DB      $00,$FF,$0C,$30,$C0 ; . . . . 3 3 3 3 . . 3 . . 3 . . 3 . . .
+        .DB      $00,$00,$0C,$30,$C0 ; . . . . . . . . . . 3 . . 3 . . 3 . . .
+        .DB      $00,$00,$3C,$F3,$C0 ; . . . . . . . . . 3 3 . 3 3 . 3 3 . . .
+        .DB      $00,$00,$30,$C3,$00 ; . . . . . . . . . 3 . . 3 . . 3 . . . .
+        .DB      $00,$00,$51,$45,$00 ; . . . . . . . . 1 1 . 1 1 . 1 1 . . . .
+
+;*******************************************************************************
+; THORWOR_2
+; 5 bytes/row = 20 pixels wide, 18 rows
+;*******************************************************************************
+THORWOR_2:
+        .DB      $00,$00,$00,$00,$F0 ; . . . . . . . . . . . . . . . . 3 3 . .
+        .DB      $00,$0A,$00,$00,$C0 ; . . . . . . 2 2 . . . . . . . . 3 . . .
+        .DB      $00,$20,$C0,$00,$C0 ; . . . . . 2 . . 3 . . . . . . . 3 . . .
+        .DB      $00,$83,$F0,$00,$F0 ; . . . . 2 . . 3 3 3 . . . . . . 3 3 . .
+        .DB      $00,$0F,$FC,$00,$30 ; . . . . . . 3 3 3 3 3 . . . . . . 3 . .
+        .DB      $00,$3C,$FF,$00,$30 ; . . . . . 3 3 . 3 3 3 3 . . . . . 3 . .
+        .DB      $00,$F0,$FF,$00,$30 ; . . . . 3 3 . . 3 3 3 3 . . . . . 3 . .
+        .DB      $03,$F1,$FF,$C0,$3C ; . . . 3 3 3 . 1 3 3 3 3 3 . . . . 3 3 .
+        .DB      $3F,$FF,$FF,$F0,$3C ; . 3 3 3 3 3 3 3 3 3 3 3 3 3 . . . 3 3 .
+        .DB      $3C,$3F,$FF,$FF,$FC ; . 3 3 . . 3 3 3 3 3 3 3 3 3 3 3 3 3 3 .
+        .DB      $01,$0F,$FF,$FF,$F0 ; . . . 1 . . 3 3 3 3 3 3 3 3 3 3 3 3 . .
+        .DB      $00,$03,$FF,$FF,$F0 ; . . . . . . . 3 3 3 3 3 3 3 3 3 3 3 . .
+        .DB      $31,$3F,$FF,$FF,$C0 ; . 3 . 1 . 3 3 3 3 3 3 3 3 3 3 3 3 . . .
+        .DB      $3F,$FF,$CC,$30,$C0 ; . 3 3 3 3 3 3 3 3 . 3 . . 3 . . 3 . . .
+        .DB      $03,$FC,$0C,$30,$C0 ; . . . 3 3 3 3 . . . 3 . . 3 . . 3 . . .
+        .DB      $00,$00,$0C,$30,$C0 ; . . . . . . . . . . 3 . . 3 . . 3 . . .
+        .DB      $00,$00,$0C,$30,$C0 ; . . . . . . . . . . 3 . . 3 . . 3 . . .
+        .DB      $00,$00,$14,$51,$40 ; . . . . . . . . . 1 1 . 1 1 . 1 1 . . .
+
+;*******************************************************************************
+; THORWOR_3
+; 5 bytes/row = 20 pixels wide, 18 rows
+;*******************************************************************************
+THORWOR_3:
+        .DB      $00,$88,$03,$FC,$00 ; . . . . 2 . 2 . . . . 3 3 3 3 . . . . .
+        .DB      $00,$02,$00,$0F,$C0 ; . . . . . . . 2 . . . . . . 3 3 3 . . .
+        .DB      $00,$00,$C0,$00,$C0 ; . . . . . . . . 3 . . . . . . . 3 . . .
+        .DB      $00,$03,$F0,$00,$C0 ; . . . . . . . 3 3 3 . . . . . . 3 . . .
+        .DB      $00,$FF,$FC,$00,$C0 ; . . . . 3 3 3 3 3 3 3 . . . . . 3 . . .
+        .DB      $00,$3C,$FF,$00,$F0 ; . . . . . 3 3 . 3 3 3 3 . . . . 3 3 . .
+        .DB      $00,$F0,$FF,$00,$30 ; . . . . 3 3 . . 3 3 3 3 . . . . . 3 . .
+        .DB      $0F,$F1,$FF,$C0,$3C ; . . 3 3 3 3 . 1 3 3 3 3 3 . . . . 3 3 .
+        .DB      $3C,$3F,$FF,$F0,$3C ; . 3 3 . . 3 3 3 3 3 3 3 3 3 . . . 3 3 .
+        .DB      $31,$0F,$FF,$FF,$FC ; . 3 . 1 . . 3 3 3 3 3 3 3 3 3 3 3 3 3 .
+        .DB      $01,$03,$FF,$FF,$F0 ; . . . 1 . . . 3 3 3 3 3 3 3 3 3 3 3 . .
+        .DB      $00,$03,$FF,$FF,$F0 ; . . . . . . . 3 3 3 3 3 3 3 3 3 3 3 . .
+        .DB      $00,$0F,$FF,$FF,$C0 ; . . . . . . 3 3 3 3 3 3 3 3 3 3 3 . . .
+        .DB      $31,$0F,$CC,$30,$C0 ; . 3 . 1 . . 3 3 3 . 3 . . 3 . . 3 . . .
+        .DB      $3C,$3F,$0C,$30,$C0 ; . 3 3 . . 3 3 3 . . 3 . . 3 . . 3 . . .
+        .DB      $0F,$FC,$0F,$3C,$F0 ; . . 3 3 3 3 3 . . . 3 3 . 3 3 . 3 3 . .
+        .DB      $00,$00,$03,$0C,$30 ; . . . . . . . . . . . 3 . . 3 . . 3 . .
+        .DB      $00,$00,$05,$14,$50 ; . . . . . . . . . . 1 1 . 1 1 . 1 1 . .
+
+;*******************************************************************************
+; THORWOR_1_UP
+; 5 bytes/row = 20 pixels wide, 18 rows
+;*******************************************************************************
+THORWOR_1_UP:
+        .DB      $00,$0F,$30,$00,$00 ; . . . . . . 3 3 . 3 . . . . . . . . . .
+        .DB      $00,$0F,$3C,$00,$00 ; . . . . . . 3 3 . 3 3 . . . . . . . . .
+        .DB      $00,$0C,$3C,$00,$00 ; . . . . . . 3 . . 3 3 . . . . . . . . .
+        .DB      $00,$3C,$FF,$C2,$00 ; . . . . . 3 3 . 3 3 3 3 3 . . 2 . . . .
+        .DB      $00,$3C,$FF,$F0,$80 ; . . . . . 3 3 . 3 3 3 3 3 3 . . 2 . . .
+        .DB      $00,$3C,$FC,$3C,$20 ; . . . . . 3 3 . 3 3 3 . . 3 3 . . 2 . .
+        .DB      $00,$3F,$FD,$0F,$20 ; . . . . . 3 3 3 3 3 3 1 . . 3 3 . 2 . .
+        .DB      $10,$0F,$FF,$FF,$C0 ; . 1 . . . . 3 3 3 3 3 3 3 3 3 3 3 . . .
+        .DB      $1F,$0F,$FF,$FF,$00 ; . 1 3 3 . . 3 3 3 3 3 3 3 3 3 3 . . . .
+        .DB      $03,$FF,$FF,$FC,$00 ; . . . 3 3 3 3 3 3 3 3 3 3 3 3 . . . . .
+        .DB      $10,$0F,$FF,$F0,$00 ; . 1 . . . . 3 3 3 3 3 3 3 3 . . . . . .
+        .DB      $1F,$0F,$FF,$00,$00 ; . 1 3 3 . . 3 3 3 3 3 3 . . . . . . . .
+        .DB      $03,$FF,$FC,$00,$00 ; . . . 3 3 3 3 3 3 3 3 . . . . . . . . .
+        .DB      $10,$0F,$F0,$0F,$C0 ; . 1 . . . . 3 3 3 3 . . . . 3 3 3 . . .
+        .DB      $1F,$0F,$F0,$FC,$F0 ; . 1 3 3 . . 3 3 3 3 . . 3 3 3 . 3 3 . .
+        .DB      $03,$FF,$F0,$C0,$FC ; . . . 3 3 3 3 3 3 3 . . 3 . . . 3 3 3 .
+        .DB      $00,$03,$FF,$C0,$0C ; . . . . . . . 3 3 3 3 3 3 . . . . . 3 .
+        .DB      $00,$00,$3C,$00,$00 ; . . . . . . . . . 3 3 . . . . . . . . .
+
+;*******************************************************************************
+; THORWOR_2_UP
+; 5 bytes/row = 20 pixels wide, 18 rows
+;*******************************************************************************
+THORWOR_2_UP:
+        .DB      $00,$3C,$3C,$00,$00 ; . . . . . 3 3 . . 3 3 . . . . . . . . .
+        .DB      $00,$30,$3C,$00,$00 ; . . . . . 3 . . . 3 3 . . . . . . . . .
+        .DB      $00,$F4,$4F,$00,$00 ; . . . . 3 3 1 . 1 . 3 3 . . . . . . . .
+        .DB      $00,$F0,$0F,$C2,$00 ; . . . . 3 3 . . . . 3 3 3 . . 2 . . . .
+        .DB      $00,$FC,$3F,$F0,$80 ; . . . . 3 3 3 . . 3 3 3 3 3 . . 2 . . .
+        .DB      $00,$FC,$FC,$3C,$20 ; . . . . 3 3 3 . 3 3 3 . . 3 3 . . 2 . .
+        .DB      $00,$3F,$FD,$0F,$20 ; . . . . . 3 3 3 3 3 3 1 . . 3 3 . 2 . .
+        .DB      $00,$3F,$FF,$FF,$C0 ; . . . . . 3 3 3 3 3 3 3 3 3 3 3 3 . . .
+        .DB      $10,$0F,$FF,$FF,$00 ; . 1 . . . . 3 3 3 3 3 3 3 3 3 3 . . . .
+        .DB      $1F,$FF,$FF,$FC,$00 ; . 1 3 3 3 3 3 3 3 3 3 3 3 3 3 . . . . .
+        .DB      $00,$0F,$FF,$F0,$00 ; . . . . . . 3 3 3 3 3 3 3 3 . . . . . .
+        .DB      $00,$0F,$FF,$F0,$00 ; . . . . . . 3 3 3 3 3 3 3 3 . . . . . .
+        .DB      $1F,$FF,$FC,$00,$00 ; . 1 3 3 3 3 3 3 3 3 3 . . . . . . . . .
+        .DB      $00,$0F,$F0,$00,$00 ; . . . . . . 3 3 3 3 . . . . . . . . . .
+        .DB      $10,$0F,$F0,$00,$00 ; . 1 . . . . 3 3 3 3 . . . . . . . . . .
+        .DB      $1F,$FF,$F0,$03,$FC ; . 1 3 3 3 3 3 3 3 3 . . . . . 3 3 3 3 .
+        .DB      $00,$03,$FF,$FF,$0C ; . . . . . . . 3 3 3 3 3 3 3 3 3 . . 3 .
+        .DB      $00,$00,$3F,$00,$00 ; . . . . . . . . . 3 3 3 . . . . . . . .
+
+;*******************************************************************************
+; THORWOR_3_UP
+; 5 bytes/row = 20 pixels wide, 18 rows
+;*******************************************************************************
+THORWOR_3_UP:
+        .DB      $00,$F0,$3C,$00,$00 ; . . . . 3 3 . . . 3 3 . . . . . . . . .
+        .DB      $03,$C0,$0F,$00,$00 ; . . . 3 3 . . . . . 3 3 . . . . . . . .
+        .DB      $03,$10,$53,$00,$00 ; . . . 3 . 1 . . 1 1 . 3 . . . . . . . .
+        .DB      $03,$00,$03,$C0,$08 ; . . . 3 . . . . . . . 3 3 . . . . . 2 .
+        .DB      $03,$C0,$0F,$F0,$00 ; . . . 3 3 . . . . . 3 3 3 3 . . . . . .
+        .DB      $03,$FC,$3C,$3C,$08 ; . . . 3 3 3 3 . . 3 3 . . 3 3 . . . 2 .
+        .DB      $00,$FF,$FD,$0F,$20 ; . . . . 3 3 3 3 3 3 3 1 . . 3 3 . 2 . .
+        .DB      $00,$3F,$FF,$FF,$C0 ; . . . . . 3 3 3 3 3 3 3 3 3 3 3 3 . . .
+        .DB      $00,$0F,$FF,$FF,$00 ; . . . . . . 3 3 3 3 3 3 3 3 3 3 . . . .
+        .DB      $13,$FF,$FF,$FC,$00 ; . 1 . 3 3 3 3 3 3 3 3 3 3 3 3 . . . . .
+        .DB      $1F,$0F,$FF,$F0,$0C ; . 1 3 3 . . 3 3 3 3 3 3 3 3 . . . . 3 .
+        .DB      $00,$0F,$FF,$00,$0C ; . . . . . . 3 3 3 3 3 3 . . . . . . 3 .
+        .DB      $13,$FF,$FC,$00,$0C ; . 1 . 3 3 3 3 3 3 3 3 . . . . . . . 3 .
+        .DB      $1F,$0F,$F0,$00,$3C ; . 1 3 3 . . 3 3 3 3 . . . . . . . 3 3 .
+        .DB      $00,$0F,$F0,$00,$30 ; . . . . . . 3 3 3 3 . . . . . . . 3 . .
+        .DB      $13,$FF,$F0,$3F,$F0 ; . 1 . 3 3 3 3 3 3 3 . . . 3 3 3 3 3 . .
+        .DB      $1F,$03,$FF,$F0,$00 ; . 1 3 3 . . . 3 3 3 3 3 3 3 . . . . . .
+        .DB      $00,$00,$3F,$00,$00 ; . . . . . . . . . 3 3 3 . . . . . . . .
+
             nop
             and     b
             sbc     a,l
@@ -13777,326 +12799,126 @@ L95D7:      ld      b,(hl)
             ld      (hl),$00
 
             DB      $ff,$ff,$ff,$ff,$ff
+;*******************************************************************************
+; GARWOR_1
+; 5 bytes/row = 20 pixels wide, 18 rows
+;*******************************************************************************
+GARWOR_1:
+        .DB      $00,$00,$00,$03,$C0 ; . . . . . . . . . . . . . . . 3 3 . . .
+        .DB      $00,$02,$AA,$00,$FC ; . . . . . . . 2 2 2 2 2 . . . . 3 3 3 .
+        .DB      $00,$0A,$AA,$80,$3C ; . . . . . . 2 2 2 2 2 2 2 . . . . 3 3 .
+        .DB      $00,$AA,$0A,$A0,$08 ; . . . . 2 2 2 2 . . 2 2 2 2 . . . . 2 .
+        .DB      $0A,$AA,$4A,$A8,$08 ; . . 2 2 2 2 2 2 1 . 2 2 2 2 2 . . . 2 .
+        .DB      $0A,$AA,$AA,$AA,$08 ; . . 2 2 2 2 2 2 2 2 2 2 2 2 2 2 . . 2 .
+        .DB      $00,$BB,$AA,$AA,$08 ; . . . . 2 3 2 3 2 2 2 2 2 2 2 2 . . 2 .
+        .DB      $0F,$FF,$AA,$AA,$88 ; . . 3 3 3 3 3 3 2 2 2 2 2 2 2 2 2 . 2 .
+        .DB      $32,$EE,$8A,$AA,$88 ; . 3 . 2 3 2 3 2 2 . 2 2 2 2 2 2 2 . 2 .
+        .DB      $00,$AA,$2A,$AA,$88 ; . . . . 2 2 2 2 . 2 2 2 2 2 2 2 2 . 2 .
+        .DB      $00,$00,$2A,$AA,$A8 ; . . . . . . . . . 2 2 2 2 2 2 2 2 2 2 .
+        .DB      $00,$00,$AA,$AA,$A8 ; . . . . . . . . 2 2 2 2 2 2 2 2 2 2 2 .
+        .DB      $00,$0A,$AA,$AA,$A0 ; . . . . . . 2 2 2 2 2 2 2 2 2 2 2 2 . .
+        .DB      $00,$20,$2A,$AA,$80 ; . . . . . 2 . . . 2 2 2 2 2 2 2 2 . . .
+        .DB      $00,$00,$0A,$A8,$00 ; . . . . . . . . . . 2 2 2 2 2 . . . . .
+        .DB      $00,$00,$0A,$82,$00 ; . . . . . . . . . . 2 2 2 . . 2 . . . .
+        .DB      $00,$00,$0A,$02,$00 ; . . . . . . . . . . 2 2 . . . 2 . . . .
+        .DB      $00,$00,$A8,$0A,$00 ; . . . . . . . . 2 2 2 . . . 2 2 . . . .
 
-;******************************************************************************
-; At $9600 starts pattern of Garwor (demo screen) ???
-;******************************************************************************
+;*******************************************************************************
+; GARWOR_2
+; 5 bytes/row = 20 pixels wide, 18 rows
+;*******************************************************************************
+GARWOR_2:
+        .DB      $00,$0A,$A8,$00,$3C ; . . . . . . 2 2 2 2 2 . . . . . . 3 3 .
+        .DB      $00,$2A,$A8,$03,$F0 ; . . . . . 2 2 2 2 2 2 . . . . 3 3 3 . .
+        .DB      $02,$A8,$2A,$03,$C0 ; . . . 2 2 2 2 . . 2 2 2 . . . 3 3 . . .
+        .DB      $2A,$A9,$2A,$82,$00 ; . 2 2 2 2 2 2 1 . 2 2 2 2 . . 2 . . . .
+        .DB      $2A,$AA,$AA,$82,$00 ; . 2 2 2 2 2 2 2 2 2 2 2 2 . . 2 . . . .
+        .DB      $02,$EE,$EA,$A2,$A8 ; . . . 2 3 2 3 2 3 2 2 2 2 2 . 2 2 2 2 .
+        .DB      $03,$FF,$EA,$A0,$08 ; . . . 3 3 3 3 3 3 2 2 2 2 2 . . . . 2 .
+        .DB      $0B,$BB,$AA,$A8,$08 ; . . 2 3 2 3 2 3 2 2 2 2 2 2 2 . . . 2 .
+        .DB      $02,$AA,$AA,$AA,$28 ; . . . 2 2 2 2 2 2 2 2 2 2 2 2 2 . 2 2 .
+        .DB      $00,$02,$AA,$AA,$20 ; . . . . . . . 2 2 2 2 2 2 2 2 2 . 2 . .
+        .DB      $00,$02,$AA,$AA,$A0 ; . . . . . . . 2 2 2 2 2 2 2 2 2 2 2 . .
+        .DB      $00,$02,$AA,$AA,$A0 ; . . . . . . . 2 2 2 2 2 2 2 2 2 2 2 . .
+        .DB      $00,$08,$AA,$AA,$80 ; . . . . . . 2 . 2 2 2 2 2 2 2 2 2 . . .
+        .DB      $00,$20,$AA,$AA,$00 ; . . . . . 2 . . 2 2 2 2 2 2 2 2 . . . .
+        .DB      $00,$00,$2A,$A0,$00 ; . . . . . . . . . 2 2 2 2 2 . . . . . .
+        .DB      $00,$00,$0A,$0A,$80 ; . . . . . . . . . . 2 2 . . 2 2 2 . . .
+        .DB      $00,$00,$02,$00,$80 ; . . . . . . . . . . . 2 . . . . 2 . . .
+        .DB      $00,$00,$2A,$00,$00 ; . . . . . . . . . 2 2 2 . . . . . . . .
 
+;*******************************************************************************
+; GARWOR_3
+; 5 bytes/row = 20 pixels wide, 18 rows
+;*******************************************************************************
+GARWOR_3:
+        .DB      $00,$02,$AA,$00,$FC ; . . . . . . . 2 2 2 2 2 . . . . 3 3 3 .
+        .DB      $00,$0A,$AA,$03,$F0 ; . . . . . . 2 2 2 2 2 2 . . . 3 3 3 . .
+        .DB      $00,$AA,$0A,$83,$F0 ; . . . . 2 2 2 2 . . 2 2 2 . . 3 3 3 . .
+        .DB      $0A,$AA,$4A,$A0,$80 ; . . 2 2 2 2 2 2 1 . 2 2 2 2 . . 2 . . .
+        .DB      $0A,$AA,$AA,$A0,$A8 ; . . 2 2 2 2 2 2 2 2 2 2 2 2 . . 2 2 2 .
+        .DB      $00,$BB,$BA,$A8,$08 ; . . . . 2 3 2 3 2 3 2 2 2 2 2 . . . 2 .
+        .DB      $0F,$FF,$FA,$A8,$08 ; . . 3 3 3 3 3 3 3 3 2 2 2 2 2 . . . 2 .
+        .DB      $32,$EE,$EA,$AA,$08 ; . 3 . 2 3 2 3 2 3 2 2 2 2 2 2 2 . . 2 .
+        .DB      $00,$AA,$AA,$AA,$08 ; . . . . 2 2 2 2 2 2 2 2 2 2 2 2 . . 2 .
+        .DB      $00,$00,$AA,$AA,$88 ; . . . . . . . . 2 2 2 2 2 2 2 2 2 . 2 .
+        .DB      $00,$00,$AA,$AA,$A8 ; . . . . . . . . 2 2 2 2 2 2 2 2 2 2 2 .
+        .DB      $00,$02,$AA,$AA,$A8 ; . . . . . . . 2 2 2 2 2 2 2 2 2 2 2 2 .
+        .DB      $00,$00,$2A,$AA,$A0 ; . . . . . . . . . 2 2 2 2 2 2 2 2 2 . .
+        .DB      $00,$00,$0A,$AA,$80 ; . . . . . . . . . . 2 2 2 2 2 2 2 . . .
+        .DB      $00,$00,$2A,$A8,$00 ; . . . . . . . . . 2 2 2 2 2 2 . . . . .
+        .DB      $00,$00,$A0,$A0,$00 ; . . . . . . . . 2 2 . . 2 2 . . . . . .
+        .DB      $00,$00,$28,$20,$00 ; . . . . . . . . . 2 2 . . 2 . . . . . .
+        .DB      $00,$00,$08,$A0,$00 ; . . . . . . . . . . 2 . 2 2 . . . . . .
 
-            DB      $00,$00,$00,$03,$C0 ; . . . . . . . . . . . . . . . 3 3 . . .
-            DB      $00,$02,$AA,$00,$FC ; . . . . . . . 2 2 2 2 2 . . . . 3 3 3 .
-            DB      $00,$0A,$AA,$80,$3C ; . . . . . . 2 2 2 2 . . . . . . 3 3 3 .
-            DB      $00,$AA,$0A,$A0,$08 ; . . . . 2 2 2 2 . . 2 2 2 2 . . . . 2 .
-            DB      $0A,$AA,$4A,$A8,$08 ; . . 2 2 2 2 2 2 1 . 2 2 2 2 . . . . 2 .
-            DB      $0A,$AA,$AA,$AA,$08 ; . . 2 2 2 2 2 2 2 2 2 2 2 2 2 2 . . 2 .
-            DB      $00,$BB,$AA,$AA,$08 ; . . . . 2 3 2 3 2 2 2 2 2 2 2 2 . . 2 .
-            DB      $0F,$FF,$AA,$AA,$88 ; . . 3 3 3 3 3 3 2 2 2 2 2 2 2 2 2 . 2 .
-            DB      $32,$EE,$8A,$AA,$88 ; . 3 . 2 3 2 3 2 2 . 2 2 2 2 2 2 2 . 2 .
-            DB      $00,$AA,$2A,$AA,$88 ; . . . . 2 2 2 2 . 2 2 2 2 2 2 2 2 . 2 .
-            DB      $00,$00,$2A,$AA,$A8 ; . . . . . . . . . 2 2 2 2 2 2 2 2 2 2 .
-            DB      $00,$00,$AA,$AA,$A8 ; . . . . . . . . 2 2 2 2 2 2 2 2 2 2 2 .
-            DB      $00,$0A,$AA,$AA,$A0 ; . . . . . . 2 2 2 2 2 2 2 2 2 2 2 2 . .
-            DB      $00,$20,$2A,$AA,$80 ; . . . . . 2 . . 2 . 2 2 2 2 2 2 2 . . .
-            DB      $00,$00,$0A,$A8,$00 ; . . . . . . . . . . 2 2 2 2 2 . . . . .
-            DB      $00,$00,$0A,$82,$00 ; . . . . . . . . . . 2 2 2 . . 2 . . . .
-            DB      $00,$00,$0A,$02,$00 ; . . . . . . . . . . 2 2 . . . 2 . . . .
-            DB      $00,$00,$A8,$0A,$00 ; . . . . . . . . 2 2 2 . . . 2 2 . . . .
+;*******************************************************************************
+; GARWOR_1_UP
+; 5 bytes/row = 20 pixels wide, 18 rows
+;*******************************************************************************
+GARWOR_1_UP:
+        .DB      $00,$00,$0C,$00,$00 ; . . . . . . . . . . 3 . . . . . . . . .
+        .DB      $00,$00,$03,$28,$00 ; . . . . . . . . . . . 3 . 2 2 . . . . .
+        .DB      $00,$00,$0B,$28,$00 ; . . . . . . . . . . 2 3 . 2 2 . . . . .
+        .DB      $00,$00,$2F,$AA,$00 ; . . . . . . . . . 2 3 3 2 2 2 2 . . . .
+        .DB      $00,$20,$2B,$EA,$00 ; . . . . . 2 . . . 2 2 3 3 2 2 2 . . . .
+        .DB      $00,$08,$2F,$AA,$80 ; . . . . . . 2 . . 2 3 3 2 2 2 2 2 . . .
+        .DB      $00,$08,$2B,$EA,$A0 ; . . . . . . 2 . . 2 2 3 3 2 2 2 2 2 . .
+        .DB      $20,$0A,$0A,$A4,$A0 ; . 2 . . . . 2 2 . . 2 2 2 2 1 . 2 2 . .
+        .DB      $20,$2A,$A2,$A0,$A0 ; . 2 . . . 2 2 2 2 2 . 2 2 2 . . 2 2 . .
+        .DB      $2A,$AA,$AA,$AA,$A0 ; . 2 2 2 2 2 2 2 2 2 2 2 2 2 2 2 2 2 . .
+        .DB      $0A,$AA,$AA,$AA,$A0 ; . . 2 2 2 2 2 2 2 2 2 2 2 2 2 2 2 2 . .
+        .DB      $02,$AA,$AA,$AA,$80 ; . . . 2 2 2 2 2 2 2 2 2 2 2 2 2 2 . . .
+        .DB      $00,$AA,$AA,$AA,$00 ; . . . . 2 2 2 2 2 2 2 2 2 2 2 2 . . . .
+        .DB      $20,$AA,$AA,$A8,$00 ; . 2 . . 2 2 2 2 2 2 2 2 2 2 2 . . . . .
+        .DB      $2A,$2A,$AA,$A0,$0C ; . 2 2 2 . 2 2 2 2 2 2 2 2 2 . . . . 3 .
+        .DB      $00,$2A,$AA,$00,$3C ; . . . . . 2 2 2 2 2 2 2 . . . . . 3 3 .
+        .DB      $00,$0A,$80,$00,$F0 ; . . . . . . 2 2 2 . . . . . . . 3 3 . .
+        .DB      $00,$02,$AA,$AA,$F0 ; . . . . . . . 2 2 2 2 2 2 2 2 2 3 3 . .
 
-; ------------------------------------------------------------------------------------
+;*******************************************************************************
+; GARWOR_2_UP
+; 5 bytes/row = 20 pixels wide, 18 rows
+;*******************************************************************************
+GARWOR_2_UP:
+        .DB      $00,$00,$00,$0A,$00 ; . . . . . . . . . . . . . . 2 2 . . . .
+        .DB      $00,$00,$02,$0A,$00 ; . . . . . . . . . . . 2 . . 2 2 . . . .
+        .DB      $00,$00,$0B,$EA,$80 ; . . . . . . . . . . 2 3 3 2 2 2 2 . . .
+        .DB      $00,$00,$0A,$FA,$80 ; . . . . . . . . . . 2 2 3 3 2 2 2 . . .
+        .DB      $00,$20,$0B,$EA,$A0 ; . . . . . 2 . . . . 2 3 3 2 2 2 2 2 . .
+        .DB      $00,$08,$0A,$FA,$A8 ; . . . . . . 2 . . . 2 2 3 3 2 2 2 2 2 .
+        .DB      $00,$02,$AB,$E9,$28 ; . . . . . . . 2 2 2 2 3 3 2 2 1 . 2 2 .
+        .DB      $00,$2A,$AA,$F8,$28 ; . . . . . 2 2 2 2 2 2 2 3 3 2 . . 2 2 .
+        .DB      $20,$AA,$AA,$AA,$A8 ; . 2 . . 2 2 2 2 2 2 2 2 2 2 2 2 2 2 2 .
+        .DB      $22,$AA,$AA,$AA,$A8 ; . 2 . 2 2 2 2 2 2 2 2 2 2 2 2 2 2 2 2 .
+        .DB      $2A,$AA,$AA,$AA,$80 ; . 2 2 2 2 2 2 2 2 2 2 2 2 2 2 2 2 . . .
+        .DB      $00,$AA,$AA,$AA,$00 ; . . . . 2 2 2 2 2 2 2 2 2 2 2 2 . . . .
+        .DB      $00,$AA,$AA,$A0,$00 ; . . . . 2 2 2 2 2 2 2 2 2 2 . . . . . .
+        .DB      $02,$2A,$AA,$00,$00 ; . . . 2 . 2 2 2 2 2 2 2 . . . . . . . .
+        .DB      $02,$2A,$A8,$2A,$F0 ; . . . 2 . 2 2 2 2 2 2 . . 2 2 2 3 3 . .
+        .DB      $0A,$0A,$80,$20,$F0 ; . . 2 2 . . 2 2 2 . . . . 2 . . 3 3 . .
+        .DB      $00,$02,$A8,$20,$3C ; . . . . . . . 2 2 2 2 . . 2 . . . 3 3 .
+        .DB      $00,$00,$0A,$A0,$0C ; . . . . . . . . . . 2 2 2 2 . . . . 3 .
 
-            nop
-            ld      a,(bc)
-            xor     b
-            nop
-            inc     a
-            nop
-            ld      hl,(L03A8)
-            ret     p
-            ld      (bc),a
-            xor     b
-            ld      hl,(LC003)
-            ld      hl,(L2AA9)
-            add     a,d
-            nop
-            ld      hl,($AAAA)
-            add     a,d
-            nop
-            ld      (bc),a
-            xor     $EA
-            and     d
-            xor     b
-            inc     bc
-            rst     38H
-            jp      pe,L08A0
-            dec     bc
-            cp      e
-            xor     d
-            xor     b
-            ex      af,af'
-            ld      (bc),a
-            xor     d
-            xor     d
-            xor     d
-            jr      z,$9688
-            ld      (bc),a
-            xor     d
-            xor     d
-            jr      nz,$968D
-            ld      (bc),a
-            xor     d
-            xor     d
-            and     b
-            nop
-            ld      (bc),a
-            xor     d
-            xor     d
-            and     b
-            nop
-            ex      af,af'
-            xor     d
-            xor     d
-            add     a,b
-            nop
-            jr      nz,$9648
-            xor     d
-            nop
-            nop
-            nop
-            ld      hl,(L00A0)
-            nop
-            nop
-            ld      a,(bc)
-            ld      a,(bc)
-            add     a,b
-            nop
-            nop
-            ld      (bc),a
-            nop
-            add     a,b
-            nop
-            nop
-            ld      hl,($0000)
-            nop
-            ld      (bc),a
-            xor     d
-            nop
-            call    m,L0A00
-            xor     d
-            inc     bc
-            ret     p
-            nop
-            xor     d
-            ld      a,(bc)
-            add     a,e
-            ret     p
-            ld      a,(bc)
-            xor     d
-            ld      c,d
-            and     b
-            add     a,b
-            ld      a,(bc)
-            xor     d
-            xor     d
-            and     b
-            xor     b
-            nop
-            cp      e
-            cp      d
-            xor     b
-            ex      af,af'
-            rrca
-            rst     38H
-            jp      m,L08A8
-            ld      (LEAEE),a
-            xor     d
-            ex      af,af'
-            nop
-            xor     d
-            xor     d
-            xor     d
-            ex      af,af'
-            nop
-            nop
-            xor     d
-            xor     d
-            adc     a,b
-            nop
-            nop
-            xor     d
-            xor     d
-            xor     b
-            nop
-            ld      (bc),a
-            xor     d
-            xor     d
-            xor     b
-            nop
-            nop
-            ld      hl,($A0AA)
-            nop
-            nop
-            ld      a,(bc)
-            xor     d
-            add     a,b
-            nop
-            nop
-            ld      hl,(L00A8)
-            nop
-            nop
-            and     b
-            and     b
-            nop
-            nop
-            nop
-            jr      z,$9728
-            nop
-            nop
-            nop
-            ex      af,af'
-            and     b
-            nop
-            nop
-            nop
-            inc     c
-            nop
-            nop
-            nop
-            nop
-            inc     bc
-            jr      z,$9718
-            nop
-            nop
-            dec     bc
-            jr      z,$971D
-            nop
-            nop
-            cpl
-            xor     d
-            nop
-            nop
-            jr      nz,$9750
-            jp      pe,$0000
-            ex      af,af'
-            cpl
-            xor     d
-            add     a,b
-            nop
-            ex      af,af'
-            dec     hl
-            jp      pe,L20A0
-            ld      a,(bc)
-            ld      a,(bc)
-            and     h
-            and     b
-            jr      nz,$9762
-            and     d
-            and     b
-            and     b
-            ld      hl,($AAAA)
-            xor     d
-            and     b
-            ld      a,(bc)
-            xor     d
-            xor     d
-            xor     d
-            and     b
-            ld      (bc),a
-            xor     d
-            xor     d
-            xor     d
-            add     a,b
-            nop
-            xor     d
-            xor     d
-            xor     d
-            nop
-            jr      nz,$96FB
-            xor     d
-            xor     b
-            nop
-            ld      hl,($AA2A)
-            and     b
-            inc     c
-            nop
-            ld      hl,(memcheck)
-            inc     a
-            nop
-            ld      a,(bc)
-            add     a,b
-            nop
-            ret     p
-            nop
-            ld      (bc),a
-            xor     d
-            xor     d
-            ret     p
-            nop
-            nop
-            nop
-            ld      a,(bc)
-            nop
-            nop
-            nop
-            ld      (bc),a
-            ld      a,(bc)
-            nop
-            nop
-            nop
-            dec     bc
-            jp      pe,L0080
-            nop
-            ld      a,(bc)
-            jp      m,L0080
-            jr      nz,$978A
-            jp      pe,L00A0
-            ex      af,af'
-            ld      a,(bc)
-            jp      m,L00A8
-            ld      (bc),a
-            xor     e
-            jp      (hl)
-            jr      z,$978C
-            ld      hl,(LF8AA)
-            jr      z,$97B1
-            xor     d
-            xor     d
-            xor     d
-            xor     b
-            ld      ($AAAA),hl
-            xor     d
-            xor     b
-            ld      hl,($AAAA)
-            xor     d
-            add     a,b
-            nop
-            xor     d
-            xor     d
-            xor     d
-            nop
-            nop
-            xor     d
-            xor     d
-            and     b
-            nop
-            ld      (bc),a
-            ld      hl,(memcheck)
-            nop
-            ld      (bc),a
-            ld      hl,(L2AA8)
-            ret     p
-            ld      a,(bc)
-            ld      a,(bc)
-            add     a,b
-            jr      nz,$97A8
-            nop
-            ld      (bc),a
-            xor     b
-            jr      nz,$97F9
-            nop
-            nop
-            ld      a,(bc)
-            and     b
-            inc     c
 
 ; ----> Block of 62 $ff
 
@@ -14107,4401 +12929,1595 @@ L95D7:      ld      b,(hl)
             DB      $ff,$ff,$ff,$ff,$ff,$ff,$ff,$ff,$ff,$ff
             DB      $ff,$ff,$ff,$ff,$ff,$ff,$ff,$ff,$ff,$ff
             DB      $ff,$ff
+;*******************************************************************************
+; WORRIOR_BLUE_FIRE_1_UP
+; 5 bytes/row = 20 pixels wide, 18 rows
+;*******************************************************************************
+WORRIOR_BLUE_FIRE_1_UP:
+        .DB      $00,$00,$0E,$30,$00 ; . . . . . . . . . . 3 2 . 3 . . . . . .
+        .DB      $00,$00,$0A,$B0,$00 ; . . . . . . . . . . 2 2 2 3 . . . . . .
+        .DB      $00,$00,$0A,$88,$00 ; . . . . . . . . . . 2 2 2 . 2 . . . . .
+        .DB      $00,$00,$02,$00,$00 ; . . . . . . . . . . . 2 . . . . . . . .
+        .DB      $00,$10,$03,$00,$00 ; . . . . . 1 . . . . . 3 . . . . . . . .
+        .DB      $01,$40,$05,$40,$00 ; . . . 1 1 . . . . . 1 1 1 . . . . . . .
+        .DB      $05,$00,$03,$00,$00 ; . . 1 1 . . . . . . . 3 . . . . . . . .
+        .DB      $05,$40,$05,$40,$00 ; . . 1 1 1 . . . . . 1 1 1 . . . . . . .
+        .DB      $05,$50,$03,$00,$00 ; . . 1 1 1 1 . . . . . 3 . . . . . . . .
+        .DB      $00,$54,$03,$00,$00 ; . . . . 1 1 1 . . . . 3 . . . . . . . .
+        .DB      $00,$15,$0F,$01,$00 ; . . . . . 1 1 1 . . 3 3 . . . 1 . . . .
+        .DB      $00,$05,$5F,$41,$30 ; . . . . . . 1 1 1 1 3 3 1 . . 1 . 3 . .
+        .DB      $10,$55,$5F,$55,$04 ; . 1 . . 1 1 1 1 1 1 3 3 1 1 1 1 . . 1 .
+        .DB      $11,$55,$5F,$75,$54 ; . 1 . 1 1 1 1 1 1 1 3 3 1 3 1 1 1 1 1 .
+        .DB      $15,$55,$5F,$F5,$54 ; . 1 1 1 1 1 1 1 1 1 3 3 3 3 1 1 1 1 1 .
+        .DB      $15,$05,$57,$D0,$50 ; . 1 1 1 . . 1 1 1 1 1 3 3 1 . . 1 1 . .
+        .DB      $00,$00,$55,$54,$00 ; . . . . . . . . 1 1 1 1 1 1 1 . . . . .
+        .DB      $00,$00,$55,$54,$30 ; . . . . . . . . 1 1 1 1 1 1 1 . . 3 . .
 
-; ----> Begin character data again
+;*******************************************************************************
+; WORRIOR_BLUE_FIRE_2_UP
+; 5 bytes/row = 20 pixels wide, 18 rows
+;*******************************************************************************
+WORRIOR_BLUE_FIRE_2_UP:
+        .DB      $00,$00,$00,$0C,$CC ; . . . . . . . . . . . . . . 3 . 3 . 3 .
+        .DB      $00,$00,$0C,$02,$B0 ; . . . . . . . . . . 3 . . . . 2 2 3 . .
+        .DB      $00,$00,$00,$02,$AC ; . . . . . . . . . . . . . . . 2 2 2 3 .
+        .DB      $00,$01,$00,$82,$A0 ; . . . . . . . 1 . . . . 2 . . 2 2 2 . .
+        .DB      $00,$14,$00,$02,$80 ; . . . . . 1 1 . . . . . . . . 2 2 . . .
+        .DB      $00,$50,$00,$1C,$00 ; . . . . 1 1 . . . . . . . 1 3 . . . . .
+        .DB      $00,$50,$00,$74,$00 ; . . . . 1 1 . . . . . . 1 3 1 . . . . .
+        .DB      $00,$14,$00,$D0,$00 ; . . . . . 1 1 . . . . . 3 1 . . . . . .
+        .DB      $00,$15,$03,$C0,$00 ; . . . . . 1 1 1 . . . 3 3 . . . . . . .
+        .DB      $00,$05,$0F,$00,$00 ; . . . . . . 1 1 . . 3 3 . . . . . . . .
+        .DB      $10,$05,$0F,$00,$00 ; . 1 . . . . 1 1 . . 3 3 . . . . . . . .
+        .DB      $10,$05,$7C,$01,$00 ; . 1 . . . . 1 1 1 3 3 . . . . 1 . . . .
+        .DB      $10,$05,$7D,$01,$30 ; . 1 . . . . 1 1 1 3 3 1 . . . 1 . 3 . .
+        .DB      $15,$05,$7D,$45,$04 ; . 1 1 1 . . 1 1 1 3 3 1 1 . 1 1 . . 1 .
+        .DB      $15,$55,$7F,$55,$54 ; . 1 1 1 1 1 1 1 1 3 3 3 1 1 1 1 1 1 1 .
+        .DB      $05,$55,$5F,$D5,$54 ; . . 1 1 1 1 1 1 1 1 3 3 3 1 1 1 1 1 1 .
+        .DB      $00,$55,$57,$54,$50 ; . . . . 1 1 1 1 1 1 1 3 1 1 1 . 1 1 . .
+        .DB      $00,$00,$55,$50,$30 ; . . . . . . . . 1 1 1 1 1 1 . . . 3 . .
 
-            nop
-            nop
-            ld      c,$30
-            nop
-            nop
-            nop
-            ld      a,(bc)
-            or      b
-            nop
-            nop
-            nop
-            ld      a,(bc)
-            adc     a,b
-            nop
-            nop
-            nop
-            ld      (bc),a
-            nop
-            nop
-            nop
-            djnz    $981A
-            nop
-            nop
-            ld      bc,$0540
-            ld      b,b
-            nop
-            dec     b
-            nop
-            inc     bc
-            nop
-            nop
-            dec     b
-            ld      b,b
-            dec     b
-            ld      b,b
-            nop
-            dec     b
-            ld      d,b
-            inc     bc
-            nop
-            nop
-            nop
-            ld      d,h
-            inc     bc
-            nop
-            nop
-            nop
-            dec     d
-            rrca
-            ld      bc,$0000
-            dec     b
-            ld      e,a
-            ld      b,c
-            jr      nc,$984D
-            ld      d,l
-            ld      e,a
-            ld      d,l
-            inc     b
-            ld      de,L5F55
-            ld      (hl),l
-            ld      d,h
-            dec     d
-            ld      d,l
-            ld      e,a
-            push    af
-            ld      d,h
-            dec     d
-            dec     b
-            ld      d,a
-            ret     nc
-            ld      d,b
-            nop
-            nop
-            ld      d,l
-            ld      d,h
-            nop
-            nop
-            nop
-            ld      d,l
-            ld      d,h
-            jr      nc,$985B
-            nop
-            nop
-            inc     c
-            call    z,$0000
-            inc     c
-            ld      (bc),a
-            or      b
-            nop
-            nop
-            nop
-            ld      (bc),a
-            xor     h
-            nop
-            ld      bc,L8200
-            and     b
-            nop
-            inc     d
-            nop
-            ld      (bc),a
-            add     a,b
-            nop
-            ld      d,b
-            nop
-            inc     e
-            nop
-            nop
-            ld      d,b
-            nop
-            ld      (hl),h
-            nop
-            nop
-            inc     d
-            nop
-            ret     nc
-            nop
-            nop
-            dec     d
-            inc     bc
-            ret     nz
-            nop
-            nop
-            dec     b
-            rrca
-            nop
-            nop
-            djnz    $9893
-            rrca
-            nop
-            nop
-            djnz    $9898
-            ld      a,h
-            ld      bc,$1000
-            dec     b
-            ld      a,l
-            ld      bc,$1530
-            dec     b
-            ld      a,l
-            ld      b,l
-            inc     b
-            dec     d
-            ld      d,l
-            ld      a,a
-            ld      d,l
-            ld      d,h
-            dec     b
-            ld      d,l
-            ld      e,a
-            push    de
-            ld      d,h
-            nop
-            ld      d,l
-            ld      d,a
-            ld      d,h
-            ld      d,b
-            nop
-            nop
-            ld      d,l
-            ld      d,b
-            jr      nc,$98B5
-            nop
-            nop
-            jr      nc,$9839
-            nop
-            nop
-            nop
-            ret     z
-            inc     c
-            nop
-            nop
-            nop
-            ld      hl,(L00C0)
-            nop
-            nop
-            ld      hl,($0000)
-            inc     b
-            nop
-            jr      z,$98CD
-            nop
-            ld      d,b
-            ld      bc,$08C0
-            ld      bc,$0340
-            ld      b,e
-            nop
-            ld      bc,L0F50
-            ret     nz
-            nop
-            nop
-            ld      d,h
-            rrca
-            nop
-            nop
-            nop
-            dec     d
-            rrca
-            nop
-            nop
-            djnz    $98ED
-            ccf
-            nop
-            nop
-            djnz    $98F2
-            ld      a,h
-            ld      bc,$1000
-            dec     b
-            ld      a,l
-            ld      b,c
-            jr      nc,$990B
-            ld      d,l
-            ld      a,l
-            ld      d,l
-            inc     b
-            dec     d
-            ld      d,l
-            ld      a,a
-            ld      d,l
-            ld      d,h
-            nop
-            ld      d,l
-            ld      e,a
-            push    de
-            ld      d,h
-            nop
-            nop
-            ld      d,a
-            ld      d,b
-            ld      d,b
-            nop
-            nop
-            ld      d,l
-            ld      d,h
-            jr      nc,$990F
-            nop
-            ld      c,$30
-            nop
-            nop
-            nop
-            ld      a,(bc)
-            or      b
-            nop
-            nop
-            nop
-            ld      a,(bc)
-            adc     a,b
-            jr      nz,$991E
-            nop
-            ld      (bc),a
-            nop
-            nop
-            nop
-            nop
-            inc     bc
-            nop
-            ret     nz
-            nop
-            ld      b,b
-            dec     b
-            ld      b,b
-            nop
-            ld      bc,$0340
-            nop
-            nop
-            dec     b
-            nop
-            dec     b
-            ld      b,b
-            nop
-            dec     b
-            ld      d,b
-            inc     bc
-            nop
-            nop
-            nop
-            ld      d,l
-            inc     bc
-            nop
-            nop
-            nop
-            dec     d
-            rrca
-            ld      bc,$0000
-            dec     b
-            ld      e,a
-            ld      b,c
-            jr      nc,$995B
-            dec     b
-            ld      e,a
-            ld      d,l
-            inc     b
-            djnz    $99A6
-            ld      e,a
-            ld      (hl),l
-            ld      d,h
-            dec     d
-            ld      d,l
-            ld      e,a
-            push    af
-            ld      d,h
-            dec     d
-            ld      d,l
-            ld      d,a
-            ret     nc
-            ld      d,b
-            nop
-            nop
-            ld      d,l
-            ld      d,h
-            nop
-            nop
-            nop
-            ld      d,l
-            ld      d,h
-            jr      nc,$9969
-            nop
-            nop
-            dec     d
-            nop
-            nop
-            nop
-            nop
-            push    bc
-            ld      c,h
-            nop
-            nop
-            nop
-            dec     b
-            ld      b,b
-            nop
-            nop
-            ld      bc,L0055
-            ld      (bc),a
-            nop
-            nop
-            dec     d
-            inc     d
-            inc     a
-            nop
-            nop
-            rra
-            ld      d,h
-            ld      a,(bc)
-            inc     b
-            ld      b,b
-            ld      d,a
-            call    nc,LB72A
-            ld      a,a
-            rst     38H
-            call    nc,L043A            ; ??? This is in the middle of a string!
-            ld      b,e
-            rst     38H
-            ld      d,h
-            nop
-            nop
-            nop
-            ld      d,l
-            ld      d,h
-            nop
-            nop
-            nop
-            ld      d,l
-            ld      d,h
-            nop
-            nop
-            ld      bc,L4055
-            nop
-            nop
-            dec     b
-            ld      d,l
-            ld      b,b
-            nop
-            djnz    $99C1
-            dec     d
-            nop
-            nop
-            inc     b
-            ld      d,h
-            dec     d
-            nop
-            nop
-            dec     b
-            ld      d,b
-            dec     b
-            ld      b,b
-            nop
-            ld      bc,L0140
-            ld      b,b
-            nop
-            nop
-            nop
-            dec     d
-            ld      b,b
-            inc     sp
-            nop
-            nop
-            dec     b
-            ld      b,b
-            ld      c,$80
-            nop
-            ld      sp,L3A5C
-            and     b
-            nop
-            ld      bc,L0A50
-            and     b
-            nop
-            ld      d,l
-            ld      b,b
-            jr      nc,$99E5
-            nop
-            dec     b
-            ld      d,b
-            nop
-            rlca
-            ld      b,b
-            ld      bc,L0054
-            add     a,c
-            ret     p
-            dec     b
-            call    nc,$0000
-            ccf
-            rla
-            call    p,L000C
-            rrca
-            rst     38H
-            call    nc,$0000
-            nop
-            rst     38H
-            ld      d,h
-            nop
-            nop
-            nop
-            ld      d,l
-            ld      d,h
-            nop
-            ld      b,b
-            dec     d
-            ld      d,l
-            ld      d,b
-            nop
-            djnz    $9A56
-            ld      d,l
-            ld      d,b
-            nop
-            dec     d
-            ld      d,b
-            ld      bc,L0050
-            dec     b
-            nop
-            ld      bc,L0050
-            nop
-            nop
-            dec     b
-            ld      b,b
-            nop
-            nop
-            nop
-            dec     b
-            ld      b,b
-            nop
-            nop
-            ld      bc,L0055
-            inc     c
-            ex      af,af'
-            nop
-            dec     b
-            ld      b,b
-            nop
-            nop
-            nop
-            ld      sp,L235C
-            nop
-            nop
-            ld      bc,L0250
-            add     a,e
-            nop
-            ld      d,l
-            ld      b,b
-            ld      a,(bc)
-            and     b
-            nop
-            dec     b
-            ld      b,h
-            ld      (L00A0),a
-            dec     b
-            ld      d,h
-            inc     c
-            dec     c
-            ret     nz
-            dec     d
-            call    nc,L0700
-            rst     38H
-            rla
-            call    p,$0000
-            rst     38H
-            rst     38H
-            call    nc,$0000
-            inc     bc
-            rst     38H
-            ld      d,h
-            nop
-            nop
-            nop
-            ld      d,l
-            ld      d,h
-            nop
-            nop
-            dec     b
-            ld      d,l
-            ld      b,b
-            nop
-            djnz    $9A70
-            ld      d,l
-            ld      b,b
-            nop
-            inc     b
-            ld      d,h
-            dec     b
-            ld      b,b
-            nop
-            dec     b
-            ld      d,b
-            dec     b
-            ld      b,b
-            nop
-            ld      bc,$0540
-            nop
-            nop
-            nop
-            nop
-            dec     b
-            nop
-            nop
-            nop
-            ld      bc,L0055
-            nop
-            nop
-            nop
-            dec     d
-            nop
-            ld      (bc),a
-            nop
-            nop
-            push    bc
-            ld      c,h
-            nop
-            jr      nc,$9A83
-            dec     b
-            ld      b,b
-            nop
-            nop
-            ld      bc,L0055
-            ld      (bc),a
-            nop
-            nop
-            dec     d
-            inc     d
-            inc     a
-            nop
-            nop
-            rra
-            ld      d,h
-            ld      a,(bc)
-            inc     b
-            ld      b,b
-            ld      d,a
-            call    nc,LB72A
-            ld      a,a
-            rst     38H
-            call    nc,L043A            ; ??? This is in the middle of a string!
-            ld      b,e
-            rst     38H
-            ld      d,h
-            nop
-            nop
-            nop
-            ld      d,l
-            ld      d,h
-            nop
-            nop
-            nop
-            ld      d,l
-            ld      d,h
-            nop
-            nop
-            dec     b
-            ld      d,l
-            ld      b,b
-            nop
-            nop
-            dec     b
-            ld      d,l
-            ld      b,b
-            nop
-            nop
-            dec     d
-            dec     b
-            ld      b,b
-            nop
-            dec     b
-            inc     d
-            dec     b
-            ld      b,b
-            nop
-            ld      bc,L0150
-            ld      b,b
-            nop
-            nop
-            ld      d,b
-            ld      bc,L0040
-            nop
-            nop
-            dec     d
-            ld      b,b
-            nop
-            nop
-            ld      c,$30
-            nop
-            nop
-            nop
-            ld      a,(bc)
-            or      b
-            nop
-            nop
-            nop
-            ld      a,(bc)
-            adc     a,b
-            nop
-            nop
-            nop
-            ld      (bc),a
-            nop
-            nop
-            nop
-            jr      nz,$9AEA
-            nop
-            nop
-            ld      (bc),a
-            add     a,b
-            ld      a,(bc)
-            add     a,b
-            nop
-            ld      a,(bc)
-            nop
-            inc     bc
-            nop
-            nop
-            ld      a,(bc)
-            add     a,b
-            ld      a,(bc)
-            add     a,b
-            nop
-            ld      a,(bc)
-            and     b
-            inc     bc
-            nop
-            nop
-            nop
-            xor     b
-            inc     bc
-            nop
-            nop
-            nop
-            ld      hl,(L020F)
-            nop
-            nop
-            ld      a,(bc)
-            xor     a
-            add     a,d
-            jr      nc,$9B2D
-            xor     d
-            xor     a
-            xor     d
-            ex      af,af'
-            ld      ($AFAA),hl
-            cp      d
-            xor     b
-            ld      hl,($AFAA)
-            jp      m,L2AA8
-            ld      a,(bc)
-            xor     e
-            ret     po
-            and     b
-            nop
-            nop
-            xor     d
-            xor     b
-            nop
-            nop
-            nop
-            xor     d
-            xor     b
-            jr      nc,$9B2B
-            nop
-            nop
-            inc     c
-            call    z,$0000
-            inc     c
-            ld      (bc),a
-            or      b
-            nop
-            nop
-            nop
-            ld      (bc),a
-            xor     h
-            nop
-            ld      (bc),a
-            nop
-            ld      b,d
-            and     b
-            nop
-            jr      z,$9B41
-            ld      (bc),a
-            add     a,b
-            nop
-            and     b
-            nop
-            inc     l
-            nop
-            nop
-            and     b
-            nop
-            cp      b
-            inc     b
-            nop
-            jr      z,$9B50
-            ret     po
-            nop
-            nop
-            ld      hl,(LC003)
-            nop
-            nop
-            ld      a,(bc)
-            rrca
-            nop
-            nop
-            jr      nz,$9B68
-            rrca
-            nop
-            nop
-            jr      nz,$9B6D
-            cp      h
-            ld      (bc),a
-            nop
-            jr      nz,$9B72
-            cp      (hl)
-            ld      (bc),a
-            jr      nc,$9B96
-            ld      a,(bc)
-            cp      (hl)
-            adc     a,d
-            ex      af,af'
-            ld      hl,(LBFAA)
-            xor     d
-            xor     b
-            ld      a,(bc)
-            xor     d
-            xor     a
-            jp      pe,L00A8
-            xor     d
-            xor     e
-            xor     b
-            and     b
-            nop
-            nop
-            xor     d
-            and     b
-            jr      nc,$9B85
-            nop
-            nop
-            jr      nc,$9B09
-            nop
-            nop
-            nop
-            ld      c,b
-            inc     b
-            nop
-            nop
-            nop
-            ld      hl,(L00C0)
-            nop
-            nop
-            ld      hl,($0000)
-            ex      af,af'
-            nop
-            jr      z,$9B9D
-            nop
-            and     b
-            ld      (bc),a
-            ret     nz
-            ex      af,af'
-            ld      (bc),a
-            add     a,b
-            inc     bc
-            add     a,e
-            nop
-            ld      (bc),a
-            and     b
-            rrca
-            ret     nz
-            nop
-            nop
-            xor     b
-            rrca
-            nop
-            nop
-            nop
-            ld      hl,(L000F)
-            nop
-            jr      nz,$9BC2
-            ccf
-            nop
-            nop
-            jr      nz,$9BC7
-            cp      h
-            ld      (bc),a
-            nop
-            jr      nz,$9BCC
-            cp      (hl)
-            add     a,d
-            jr      nc,$9BF0
-            xor     d
-            cp      (hl)
-            xor     d
-            ex      af,af'
-            ld      hl,(LBFAA)
-            xor     d
-            xor     b
-            nop
-            xor     d
-            xor     a
-            jp      pe,L00A8
-            nop
-            xor     e
-            and     b
-            and     b
-            nop
-            nop
-            xor     d
-            xor     b
-            jr      nc,$9BDF
-            nop
-            ld      c,$30
-            nop
-            nop
-            nop
-            ld      c,d
-            or      b
-            nop
-            nop
-            nop
-            ld      a,(bc)
-            adc     a,b
-            jr      nz,$9BEE
-            nop
-            ld      (bc),a
-            nop
-            nop
-            nop
-            nop
-            inc     bc
-            nop
-            ret     nz
-            nop
-            add     a,b
-            ld      a,(bc)
-            add     a,b
-            nop
-            ld      (bc),a
-            add     a,b
-            inc     bc
-            nop
-            nop
-            ld      a,(bc)
-            nop
-            ld      a,(bc)
-            add     a,b
-            nop
-            ld      a,(bc)
-            and     b
-            inc     bc
-            nop
-            nop
-            nop
-            xor     d
-            inc     bc
-            nop
-            nop
-            nop
-            ld      hl,(L020F)
-            nop
-            nop
-            ld      a,(bc)
-            xor     a
-            add     a,d
-            jr      nc,$9C3B
-            ld      a,(bc)
-            xor     a
-            xor     d
-            ex      af,af'
-            jr      nz,$9BCB
-            xor     a
-            cp      d
-            xor     b
-            ld      hl,($AFAA)
-            jp      m,L2AA8
-            xor     d
-            xor     e
-            ret     po
-            and     b
-            nop
-            nop
-            xor     d
-            xor     b
-            nop
-            nop
-            nop
-            xor     d
-            xor     b
+;*******************************************************************************
+; WORRIOR_BLUE_FIRE_3_UP
+; 5 bytes/row = 20 pixels wide, 18 rows
+;*******************************************************************************
+WORRIOR_BLUE_FIRE_3_UP:
+        .DB      $00,$00,$00,$30,$80 ; . . . . . . . . . . . . . 3 . . 2 . . .
+        .DB      $00,$00,$00,$C8,$0C ; . . . . . . . . . . . . 3 . 2 . . . 3 .
+        .DB      $00,$00,$00,$2A,$C0 ; . . . . . . . . . . . . . 2 2 2 3 . . .
+        .DB      $00,$00,$00,$2A,$00 ; . . . . . . . . . . . . . 2 2 2 . . . .
+        .DB      $00,$04,$00,$28,$00 ; . . . . . . 1 . . . . . . 2 2 . . . . .
+        .DB      $00,$50,$01,$C0,$08 ; . . . . 1 1 . . . . . 1 3 . . . . . 2 .
+        .DB      $01,$40,$03,$43,$00 ; . . . 1 1 . . . . . . 3 1 . . 3 . . . .
+        .DB      $01,$50,$0F,$C0,$00 ; . . . 1 1 1 . . . . 3 3 3 . . . . . . .
+        .DB      $00,$54,$0F,$00,$00 ; . . . . 1 1 1 . . . 3 3 . . . . . . . .
+        .DB      $00,$15,$0F,$00,$00 ; . . . . . 1 1 1 . . 3 3 . . . . . . . .
+        .DB      $10,$05,$3F,$00,$00 ; . 1 . . . . 1 1 . 3 3 3 . . . . . . . .
+        .DB      $10,$05,$7C,$01,$00 ; . 1 . . . . 1 1 1 3 3 . . . . 1 . . . .
+        .DB      $10,$05,$7D,$41,$30 ; . 1 . . . . 1 1 1 3 3 1 1 . . 1 . 3 . .
+        .DB      $15,$55,$7D,$55,$04 ; . 1 1 1 1 1 1 1 1 3 3 1 1 1 1 1 . . 1 .
+        .DB      $15,$55,$7F,$55,$54 ; . 1 1 1 1 1 1 1 1 3 3 3 1 1 1 1 1 1 1 .
+        .DB      $00,$55,$5F,$D5,$54 ; . . . . 1 1 1 1 1 1 3 3 3 1 1 1 1 1 1 .
+        .DB      $00,$00,$57,$50,$50 ; . . . . . . . . 1 1 1 3 1 1 . . 1 1 . .
+        .DB      $00,$00,$55,$54,$30 ; . . . . . . . . 1 1 1 1 1 1 1 . . 3 . .
 
+;*******************************************************************************
+; WORRIOR_BLUE_FIRE_4_UP
+; 5 bytes/row = 20 pixels wide, 18 rows
+;*******************************************************************************
+WORRIOR_BLUE_FIRE_4_UP:
+        .DB      $00,$00,$0E,$30,$00 ; . . . . . . . . . . 3 2 . 3 . . . . . .
+        .DB      $00,$00,$0A,$B0,$00 ; . . . . . . . . . . 2 2 2 3 . . . . . .
+        .DB      $00,$00,$0A,$88,$20 ; . . . . . . . . . . 2 2 2 . 2 . . 2 . .
+        .DB      $00,$00,$02,$00,$00 ; . . . . . . . . . . . 2 . . . . . . . .
+        .DB      $00,$00,$03,$00,$C0 ; . . . . . . . . . . . 3 . . . . 3 . . .
+        .DB      $00,$40,$05,$40,$00 ; . . . . 1 . . . . . 1 1 1 . . . . . . .
+        .DB      $01,$40,$03,$00,$00 ; . . . 1 1 . . . . . . 3 . . . . . . . .
+        .DB      $05,$00,$05,$40,$00 ; . . 1 1 . . . . . . 1 1 1 . . . . . . .
+        .DB      $05,$50,$03,$00,$00 ; . . 1 1 1 1 . . . . . 3 . . . . . . . .
+        .DB      $00,$55,$03,$00,$00 ; . . . . 1 1 1 1 . . . 3 . . . . . . . .
+        .DB      $00,$15,$0F,$01,$00 ; . . . . . 1 1 1 . . 3 3 . . . 1 . . . .
+        .DB      $00,$05,$5F,$41,$30 ; . . . . . . 1 1 1 1 3 3 1 . . 1 . 3 . .
+        .DB      $10,$05,$5F,$55,$04 ; . 1 . . . . 1 1 1 1 3 3 1 1 1 1 . . 1 .
+        .DB      $10,$55,$5F,$75,$54 ; . 1 . . 1 1 1 1 1 1 3 3 1 3 1 1 1 1 1 .
+        .DB      $15,$55,$5F,$F5,$54 ; . 1 1 1 1 1 1 1 1 1 3 3 3 3 1 1 1 1 1 .
+        .DB      $15,$55,$57,$D0,$50 ; . 1 1 1 1 1 1 1 1 1 1 3 3 1 . . 1 1 . .
+        .DB      $00,$00,$55,$54,$00 ; . . . . . . . . 1 1 1 1 1 1 1 . . . . .
+        .DB      $00,$00,$55,$54,$30 ; . . . . . . . . 1 1 1 1 1 1 1 . . 3 . .
 
-            DB      $30, $00, $00, $00, $2A
-            DB      $00, $00, $00, $00, $CA
-            DB      $8C, $00, $00, $00, $0A
-            DB      $80, $00, $00, $02, $AA
-            DB      $00, $02, $00, $00, $2A
-            DB      $28, $3C, $00, $00, $2F
-            DB      $A8, $0A, $08, $80, $AB
-            DB      $E8, $2A, $BB, $BF, $FF
-            DB      $E8, $3A, $08, $83, $FF
-            DB      $A8, $00, $00, $00, $AA
-            DB      $A8, $00, $00, $00, $AA
-            DB      $A8, $00, $00, $02, $AA
-            DB      $80, $00, $00, $0A, $AA
-            DB      $80, $00, $20, $2A, $2A
-            DB      $00, $00, $08, $A8, $2A
-            DB      $00, $00, $0A, $A0, $0A
-            DB      $80, $00, $02, $80, $02
-            DB      $80, $00, $00, $00, $2A
+;*******************************************************************************
+; WORRIOR_BLUE_FIRE_1
+; 5 bytes/row = 20 pixels wide, 18 rows
+;*******************************************************************************
+WORRIOR_BLUE_FIRE_1:
+        .DB      $00,$00,$00,$15,$00 ; . . . . . . . . . . . . . 1 1 1 . . . .
+        .DB      $00,$00,$00,$C5,$4C ; . . . . . . . . . . . . 3 . 1 1 1 . 3 .
+        .DB      $00,$00,$00,$05,$40 ; . . . . . . . . . . . . . . 1 1 1 . . .
+        .DB      $00,$00,$01,$55,$00 ; . . . . . . . . . . . 1 1 1 1 1 . . . .
+        .DB      $02,$00,$00,$15,$14 ; . . . 2 . . . . . . . . . 1 1 1 . 1 1 .
+        .DB      $3C,$00,$00,$1F,$54 ; . 3 3 . . . . . . . . . . 1 3 3 1 1 1 .
+        .DB      $0A,$04,$40,$57,$D4 ; . . 2 2 . . 1 . 1 . . . 1 1 1 3 3 1 1 .
+        .DB      $2A,$B7,$7F,$FF,$D4 ; . 2 2 2 2 3 1 3 1 3 3 3 3 3 3 3 3 1 1 .
+        .DB      $3A,$04,$43,$FF,$54 ; . 3 2 2 . . 1 . 1 . . 3 3 3 3 3 1 1 1 .
+        .DB      $00,$00,$00,$55,$54 ; . . . . . . . . . . . . 1 1 1 1 1 1 1 .
+        .DB      $00,$00,$00,$55,$54 ; . . . . . . . . . . . . 1 1 1 1 1 1 1 .
+        .DB      $00,$00,$01,$55,$40 ; . . . . . . . . . . . 1 1 1 1 1 1 . . .
+        .DB      $00,$00,$05,$55,$40 ; . . . . . . . . . . 1 1 1 1 1 1 1 . . .
+        .DB      $00,$10,$15,$15,$00 ; . . . . . 1 . . . 1 1 1 . 1 1 1 . . . .
+        .DB      $00,$04,$54,$15,$00 ; . . . . . . 1 . 1 1 1 . . 1 1 1 . . . .
+        .DB      $00,$05,$50,$05,$40 ; . . . . . . 1 1 1 1 . . . . 1 1 1 . . .
+        .DB      $00,$01,$40,$01,$40 ; . . . . . . . 1 1 . . . . . . 1 1 . . .
+        .DB      $00,$00,$00,$15,$40 ; . . . . . . . . . . . . . 1 1 1 1 . . .
 
+;*******************************************************************************
+; WORRIOR_BLUE_FIRE_2
+; 5 bytes/row = 20 pixels wide, 18 rows
+;*******************************************************************************
+WORRIOR_BLUE_FIRE_2:
+        .DB      $33,$00,$00,$05,$40 ; . 3 . 3 . . . . . . . . . . 1 1 1 . . .
+        .DB      $0E,$80,$00,$31,$5C ; . . 3 2 2 . . . . . . . . 3 . 1 1 1 3 .
+        .DB      $3A,$A0,$00,$01,$50 ; . 3 2 2 2 2 . . . . . . . . . 1 1 1 . .
+        .DB      $0A,$A0,$00,$55,$40 ; . . 2 2 2 2 . . . . . . 1 1 1 1 1 . . .
+        .DB      $30,$0D,$00,$05,$50 ; . 3 . . . . 3 1 . . . . . . 1 1 1 1 . .
+        .DB      $00,$07,$40,$01,$54 ; . . . . . . 1 3 1 . . . . . . 1 1 1 1 .
+        .DB      $00,$81,$F0,$05,$D4 ; . . . . 2 . . 1 3 3 . . . . 1 1 3 1 1 .
+        .DB      $00,$00,$3F,$17,$F4 ; . . . . . . . . . 3 3 3 . 1 1 3 3 3 1 .
+        .DB      $0C,$00,$0F,$FF,$D4 ; . . 3 . . . . . . . 3 3 3 3 3 3 3 1 1 .
+        .DB      $00,$00,$00,$FF,$54 ; . . . . . . . . . . . . 3 3 3 3 1 1 1 .
+        .DB      $00,$00,$00,$55,$54 ; . . . . . . . . . . . . 1 1 1 1 1 1 1 .
+        .DB      $00,$40,$15,$55,$50 ; . . . . 1 . . . . 1 1 1 1 1 1 1 1 1 . .
+        .DB      $00,$10,$55,$55,$50 ; . . . . . 1 . . 1 1 1 1 1 1 1 1 1 1 . .
+        .DB      $00,$15,$50,$01,$50 ; . . . . . 1 1 1 1 1 . . . . . 1 1 1 . .
+        .DB      $00,$05,$00,$01,$50 ; . . . . . . 1 1 . . . . . . . 1 1 1 . .
+        .DB      $00,$00,$00,$05,$40 ; . . . . . . . . . . . . . . 1 1 1 . . .
+        .DB      $00,$00,$00,$05,$40 ; . . . . . . . . . . . . . . 1 1 1 . . .
+        .DB      $00,$00,$01,$55,$00 ; . . . . . . . . . . . 1 1 1 1 1 . . . .
 
+;*******************************************************************************
+; WORRIOR_BLUE_FIRE_3
+; 5 bytes/row = 20 pixels wide, 18 rows
+;*******************************************************************************
+WORRIOR_BLUE_FIRE_3:
+        .DB      $0C,$08,$00,$05,$40 ; . . 3 . . . 2 . . . . . . . 1 1 1 . . .
+        .DB      $00,$00,$00,$31,$5C ; . . . . . . . . . . . . . 3 . 1 1 1 3 .
+        .DB      $23,$00,$00,$01,$50 ; . 2 . 3 . . . . . . . . . . . 1 1 1 . .
+        .DB      $02,$83,$00,$55,$40 ; . . . 2 2 . . 3 . . . . 1 1 1 1 1 . . .
+        .DB      $0A,$A0,$00,$05,$44 ; . . 2 2 2 2 . . . . . . . . 1 1 1 . 1 .
+        .DB      $32,$A0,$00,$05,$54 ; . 3 . 2 2 2 . . . . . . . . 1 1 1 1 1 .
+        .DB      $0C,$0D,$C0,$15,$D4 ; . . 3 . . . 3 1 3 . . . . 1 1 1 3 1 1 .
+        .DB      $00,$07,$FF,$17,$F4 ; . . . . . . 1 3 3 3 3 3 . 1 1 3 3 3 1 .
+        .DB      $00,$00,$FF,$FF,$D4 ; . . . . . . . . 3 3 3 3 3 3 3 3 3 1 1 .
+        .DB      $00,$00,$03,$FF,$54 ; . . . . . . . . . . . 3 3 3 3 3 1 1 1 .
+        .DB      $00,$00,$00,$55,$54 ; . . . . . . . . . . . . 1 1 1 1 1 1 1 .
+        .DB      $00,$00,$05,$55,$40 ; . . . . . . . . . . 1 1 1 1 1 1 1 . . .
+        .DB      $00,$10,$15,$55,$40 ; . . . . . 1 . . . 1 1 1 1 1 1 1 1 . . .
+        .DB      $00,$04,$54,$05,$40 ; . . . . . . 1 . 1 1 1 . . . 1 1 1 . . .
+        .DB      $00,$05,$50,$05,$40 ; . . . . . . 1 1 1 1 . . . . 1 1 1 . . .
+        .DB      $00,$01,$40,$05,$00 ; . . . . . . . 1 1 . . . . . 1 1 . . . .
+        .DB      $00,$00,$00,$05,$00 ; . . . . . . . . . . . . . . 1 1 . . . .
+        .DB      $00,$00,$01,$55,$00 ; . . . . . . . . . . . 1 1 1 1 1 . . . .
 
-            DB      $80, $33, $01, $00, $0A
-            DB      $80, $0E, $80, $00, $32
-            DB      $AC, $3A, $A0, $00, $02
-            DB      $A0, $0A, $A0, $00, $AA
-            DB      $80, $30, $0E, $00, $0A
-            DB      $A0, $00, $0B, $80, $02
-            DB      $A8, $00, $42, $F0, $0A
-            DB      $E8, $00, $00, $3F, $2B
-            DB      $F8, $0C, $00, $0F, $FF
-            DB      $E8, $00, $00, $00, $FF
-            DB      $A8, $00, $00, $00, $AA
-            DB      $A8, $00, $80, $2A, $AA
-            DB      $A0, $00, $20, $AA, $AA
-            DB      $A0, $00, $2A, $A0, $02
-            DB      $A0, $00, $0A, $00, $02
-            DB      $A0, $00, $00, $00, $0A
-            DB      $80, $00, $00, $00, $0A
-            DB      $80, $00, $00, $02, $AA
+;*******************************************************************************
+; WORRIOR_BLUE_FIRE_4
+; 5 bytes/row = 20 pixels wide, 18 rows
+;*******************************************************************************
+WORRIOR_BLUE_FIRE_4:
+        .DB      $00,$00,$00,$15,$00 ; . . . . . . . . . . . . . 1 1 1 . . . .
+        .DB      $02,$00,$00,$C5,$4C ; . . . 2 . . . . . . . . 3 . 1 1 1 . 3 .
+        .DB      $00,$30,$00,$05,$40 ; . . . . . 3 . . . . . . . . 1 1 1 . . .
+        .DB      $00,$00,$01,$55,$00 ; . . . . . . . . . . . 1 1 1 1 1 . . . .
+        .DB      $02,$00,$00,$15,$14 ; . . . 2 . . . . . . . . . 1 1 1 . 1 1 .
+        .DB      $3C,$00,$00,$1F,$54 ; . 3 3 . . . . . . . . . . 1 3 3 1 1 1 .
+        .DB      $0A,$04,$40,$57,$D4 ; . . 2 2 . . 1 . 1 . . . 1 1 1 3 3 1 1 .
+        .DB      $2A,$B7,$7F,$FF,$D4 ; . 2 2 2 2 3 1 3 1 3 3 3 3 3 3 3 3 1 1 .
+        .DB      $3A,$04,$43,$FF,$54 ; . 3 2 2 . . 1 . 1 . . 3 3 3 3 3 1 1 1 .
+        .DB      $00,$00,$00,$55,$54 ; . . . . . . . . . . . . 1 1 1 1 1 1 1 .
+        .DB      $00,$00,$00,$55,$54 ; . . . . . . . . . . . . 1 1 1 1 1 1 1 .
+        .DB      $00,$00,$05,$55,$40 ; . . . . . . . . . . 1 1 1 1 1 1 1 . . .
+        .DB      $00,$00,$05,$55,$40 ; . . . . . . . . . . 1 1 1 1 1 1 1 . . .
+        .DB      $00,$00,$15,$05,$40 ; . . . . . . . . . 1 1 1 . . 1 1 1 . . .
+        .DB      $00,$05,$14,$05,$40 ; . . . . . . 1 1 . 1 1 . . . 1 1 1 . . .
+        .DB      $00,$01,$50,$01,$40 ; . . . . . . . 1 1 1 . . . . . 1 1 . . .
+        .DB      $00,$00,$50,$01,$40 ; . . . . . . . . 1 1 . . . . . 1 1 . . .
+        .DB      $00,$00,$00,$15,$40 ; . . . . . . . . . . . . . 1 1 1 1 . . .
 
+;*******************************************************************************
+; WORRIOR_YELLOW_FIRE_1_UP
+; 5 bytes/row = 20 pixels wide, 18 rows
+;*******************************************************************************
+WORRIOR_YELLOW_FIRE_1_UP:
+        .DB      $00,$00,$0E,$30,$00 ; . . . . . . . . . . 3 2 . 3 . . . . . .
+        .DB      $00,$00,$0A,$B0,$00 ; . . . . . . . . . . 2 2 2 3 . . . . . .
+        .DB      $00,$00,$0A,$88,$00 ; . . . . . . . . . . 2 2 2 . 2 . . . . .
+        .DB      $00,$00,$02,$00,$00 ; . . . . . . . . . . . 2 . . . . . . . .
+        .DB      $00,$20,$03,$00,$00 ; . . . . . 2 . . . . . 3 . . . . . . . .
+        .DB      $02,$80,$0A,$80,$00 ; . . . 2 2 . . . . . 2 2 2 . . . . . . .
+        .DB      $0A,$00,$03,$00,$00 ; . . 2 2 . . . . . . . 3 . . . . . . . .
+        .DB      $0A,$80,$0A,$80,$00 ; . . 2 2 2 . . . . . 2 2 2 . . . . . . .
+        .DB      $0A,$A0,$03,$00,$00 ; . . 2 2 2 2 . . . . . 3 . . . . . . . .
+        .DB      $00,$A8,$03,$00,$00 ; . . . . 2 2 2 . . . . 3 . . . . . . . .
+        .DB      $00,$2A,$0F,$02,$00 ; . . . . . 2 2 2 . . 3 3 . . . 2 . . . .
+        .DB      $00,$0A,$AF,$82,$30 ; . . . . . . 2 2 2 2 3 3 2 . . 2 . 3 . .
+        .DB      $20,$AA,$AF,$AA,$08 ; . 2 . . 2 2 2 2 2 2 3 3 2 2 2 2 . . 2 .
+        .DB      $22,$AA,$AF,$BA,$A8 ; . 2 . 2 2 2 2 2 2 2 3 3 2 3 2 2 2 2 2 .
+        .DB      $2A,$AA,$AF,$FA,$A8 ; . 2 2 2 2 2 2 2 2 2 3 3 3 3 2 2 2 2 2 .
+        .DB      $2A,$0A,$AB,$E0,$A0 ; . 2 2 2 . . 2 2 2 2 2 3 3 2 . . 2 2 . .
+        .DB      $00,$00,$AA,$A8,$00 ; . . . . . . . . 2 2 2 2 2 2 2 . . . . .
+        .DB      $00,$00,$AA,$A8,$30 ; . . . . . . . . 2 2 2 2 2 2 2 . . 3 . .
 
-            DB      $00, $04, $08, $00, $0A
-            DB      $80, $00, $00, $00, $32
-            DB      $AC, $23, $00, $00, $02
-            DB      $A0, $02, $83, $00, $AA
-            DB      $80, $0A, $A0, $00, $0A
-            DB      $88, $32, $A0, $00, $0A
-            DB      $A8, $04, $0E, $C0, $2A
-            DB      $E8, $00, $0B, $FF, $2B
-            DB      $F8, $00, $00, $FF, $FF
-            DB      $E8, $00, $00, $03, $FF
-            DB      $A8, $00, $00, $00, $AA
-            DB      $A8, $00, $00, $0A, $AA
-            DB      $80, $00, $20, $2A, $AA
-            DB      $80, $00, $08, $A8, $0A
-            DB      $80, $00, $0A, $A0, $0A
-            DB      $80, $00, $02, $80, $0A
-            DB      $00, $00, $00, $00, $0A
-            DB      $00, $00, $00, $02, $AA
-            nop
-            nop
-            nop
-            nop
-            ld      hl,(L0200)
-            nop
-            nop
-            jp      z,L008C
-            jr      nc,$9D53
-            ld      a,(bc)
-            add     a,b
-            nop
-            nop
-            ld      (bc),a
-            xor     d
-            nop
-            ld      (bc),a
-            nop
-            nop
-            ld      hl,(L3C28)
-            nop
-            nop
-            cpl
-            xor     b
-            ld      a,(bc)
-            ex      af,af'
-            add     a,b
-            xor     e
-            ret     pe
-            ld      hl,(LBFBB)
-            rst     38H
-            ret     pe
-            ld      a,($8308)
-            rst     38H
-            xor     b
-            nop
-            nop
-            nop
-            xor     d
-            xor     b
-            inc     b
-            nop
-            nop
-            xor     d
-            xor     b
-            nop
-            nop
-            ld      a,(bc)
-            xor     d
-            add     a,b
-            nop
-            nop
-            ld      a,(bc)
-            xor     d
-            add     a,b
-            nop
-            nop
-            ld      hl,(L800A)
-            nop
-            ld      a,(bc)
-            jr      z,$9D9A
-            add     a,b
-            nop
-            ld      (bc),a
-            and     b
-            ld      (bc),a
-            add     a,b
-            nop
-            nop
-            and     b
-            ld      (bc),a
-            add     a,b
-            nop
-            nop
-            nop
-            ld      hl,(L0080)
-            nop
-            dec     b
-            ld      b,b
-            nop
-            nop
-            nop
-            dec     d
-            ld      b,b
-            nop
-            djnz    $9DB1
-            dec     d
-            ld      b,b
-            nop
-            djnz    $9E06
-            dec     d
-            ld      d,b
-            nop
-            ld      de,$1555
-            call    nc,$1500
-            ld      d,h
-            dec     b
-            call    p,L1400
-            djnz    $9DC6
-            call    p,$1000
-            ld      d,b
-            ld      d,l
-            ld      d,h
-            nop
-            ld      bc,L5555
-            ld      d,h
-            nop
-            ld      bc,L5555
-            ld      d,h
-            nop
-            ld      bc,L0155
-            ld      b,c
-            nop
-            ld      bc,L0155
-            djnz    $9DDC
-            ld      bc,L4054
-            nop
-            nop
-            djnz    $9DF3
-            djnz    $9DE5
-            nop
-            dec     d
-            ld      d,h
-            dec     b
-            ld      d,l
-            ld      d,b
-            ld      de,L0154
-            ld      d,l
-            ld      d,h
-            djnz    $9E47
-            nop
-            ld      d,l
-            ld      d,b
-            djnz    $9DFC
-            nop
-            dec     b
-            nop
-;******************************************************************************************
-; BURWOR - FRAME 3 (Facing Right, red eyes 3 on the right side)
-; SIZE: 5x18
-;******************************************************************************************
-PATTERN_9DFA:
-            DB      $00,$00,$00,$45,$00 ; . . . . . . . . . . . . 1 . 1 1 . . . .
-            DB      $01,$01,$01,$55,$00 ; . . . 1 . . . 1 . . . 1 1 1 1 1 . . . .
-            DB      $01,$05,$41,$45,$00 ; . . . 1 . . 1 1 1 . . 1 1 . 1 1 . . . .
-            DB      $01,$15,$41,$55,$40 ; . . . 1 . 1 1 1 1 . . 1 1 1 1 1 1 . . .
-            DB      $01,$55,$41,$47,$50 ; . . . 1 1 1 1 1 1 . . 1 1 . 1 3 1 1 . .
-            DB      $01,$41,$40,$57,$D0 ; . . . 1 1 . . 1 1 . . . 1 1 3 3 3 1 . .
-            DB      $01,$01,$40,$57,$D0 ; . . . 1 . . . 1 1 . . . 1 1 3 3 3 1 . .
-            DB      $00,$05,$55,$55,$50 ; . . . . . . 1 1 1 1 1 1 1 1 1 1 1 1 . .
-            DB      $00,$05,$55,$55,$50 ; . . . . . . 1 1 1 1 1 1 1 1 1 1 1 1 . .
-            DB      $00,$05,$55,$55,$50 ; . . . . . . 1 1 1 1 1 1 1 1 1 1 1 1 . .
-            DB      $00,$05,$51,$15,$10 ; . . . . . . 1 1 1 1 . 1 . 1 1 1 . 1 . .
-            DB      $00,$05,$40,$11,$00 ; . . . . . . 1 1 1 . . . . 1 . 1 . . . .
-            DB      $00,$15,$50,$00,$00 ; . . . . . 1 1 1 1 1 . . . . . . . . . .
-            DB      $04,$55,$45,$00,$00 ; . . 1 . 1 1 1 1 1 . 1 1 . . . . . . . .
-            DB      $05,$55,$01,$51,$40 ; . . 1 1 1 1 1 1 . . . 1 . 1 1 . 1 1 . .
-            DB      $04,$14,$00,$55,$50 ; . . 1 . . 1 1 . . . . . 1 1 1 1 1 1 . .
-            DB      $10,$00,$00,$15,$54 ; . 1 . . . . . . . . . . . 1 1 1 1 1 1 .
-            DB      $10,$00,$00,$05,$44 ; . 1 . . . . . . . . . . . . 1 1 1 . 1 .
+;*******************************************************************************
+; WORRIOR_YELLOW_FIRE_2_UP
+; 5 bytes/row = 20 pixels wide, 18 rows
+;*******************************************************************************
+WORRIOR_YELLOW_FIRE_2_UP:
+        .DB      $00,$00,$00,$0C,$CC ; . . . . . . . . . . . . . . 3 . 3 . 3 .
+        .DB      $00,$00,$0C,$02,$B0 ; . . . . . . . . . . 3 . . . . 2 2 3 . .
+        .DB      $00,$00,$00,$02,$AC ; . . . . . . . . . . . . . . . 2 2 2 3 .
+        .DB      $00,$02,$00,$42,$A0 ; . . . . . . . 2 . . . . 1 . . 2 2 2 . .
+        .DB      $00,$28,$00,$02,$80 ; . . . . . 2 2 . . . . . . . . 2 2 . . .
+        .DB      $00,$A0,$00,$2C,$00 ; . . . . 2 2 . . . . . . . 2 3 . . . . .
+        .DB      $00,$A0,$00,$B8,$04 ; . . . . 2 2 . . . . . . 2 3 2 . . . 1 .
+        .DB      $00,$28,$00,$E0,$00 ; . . . . . 2 2 . . . . . 3 2 . . . . . .
+        .DB      $00,$2A,$03,$C0,$00 ; . . . . . 2 2 2 . . . 3 3 . . . . . . .
+        .DB      $00,$0A,$0F,$00,$00 ; . . . . . . 2 2 . . 3 3 . . . . . . . .
+        .DB      $20,$0A,$0F,$00,$00 ; . 2 . . . . 2 2 . . 3 3 . . . . . . . .
+        .DB      $20,$0A,$BC,$02,$00 ; . 2 . . . . 2 2 2 3 3 . . . . 2 . . . .
+        .DB      $20,$0A,$BE,$02,$30 ; . 2 . . . . 2 2 2 3 3 2 . . . 2 . 3 . .
+        .DB      $2A,$0A,$BE,$8A,$08 ; . 2 2 2 . . 2 2 2 3 3 2 2 . 2 2 . . 2 .
+        .DB      $2A,$AA,$BF,$AA,$A8 ; . 2 2 2 2 2 2 2 2 3 3 3 2 2 2 2 2 2 2 .
+        .DB      $0A,$AA,$AF,$EA,$A8 ; . . 2 2 2 2 2 2 2 2 3 3 3 2 2 2 2 2 2 .
+        .DB      $00,$AA,$AB,$A8,$A0 ; . . . . 2 2 2 2 2 2 2 3 2 2 2 . 2 2 . .
+        .DB      $00,$00,$AA,$A0,$30 ; . . . . . . . . 2 2 2 2 2 2 . . . 3 . .
 
-;******************************************************************************************
-; BURWOR - FRAME 2 (Facing Right)
-; SIZE: 5x18
-;******************************************************************************************
-PATTERN_9E54:
-            DB      $04,$00,$00,$01,$40 ; . . 1 . . . . . . . . . . . . 1 1 . . .
-            DB      $01,$01,$00,$45,$40 ; . . . 1 . . . 1 . . . . 1 . 1 1 1 . . .
-            DB      $00,$45,$40,$41,$40 ; . . . . 1 . 1 1 1 . . . 1 . . 1 1 . . .
-            DB      $00,$55,$40,$45,$50 ; . . . . 1 1 1 1 1 . . . 1 . 1 1 1 1 . .
-            DB      $00,$51,$50,$41,$D4 ; . . . . 1 1 . 1 1 1 . . 1 . . 1 3 1 1 .
-            DB      $00,$40,$50,$15,$F4 ; . . . . 1 . . . 1 1 . . . 1 1 1 3 3 1 .
-            DB      $00,$00,$54,$15,$F4 ; . . . . . . . . 1 1 1 . . 1 1 1 3 3 1 .
-            DB      $00,$00,$55,$55,$54 ; . . . . . . . . 1 1 1 1 1 1 1 1 1 1 1 .
-            DB      $00,$00,$55,$55,$54 ; . . . . . . . . 1 1 1 1 1 1 1 1 1 1 1 .
-            DB      $00,$00,$55,$55,$54 ; . . . . . . . . 1 1 1 1 1 1 1 1 1 1 1 .
-            DB      $00,$00,$54,$45,$44 ; . . . . . . . . 1 1 1 . 1 . 1 1 1 . 1 .
-            DB      $00,$00,$50,$04,$40 ; . . . . . . . . 1 1 . . . . 1 . 1 . . .
-            DB      $00,$40,$54,$00,$00 ; . . . . 1 . . . 1 1 1 . . . . . . . . .
-            DB      $00,$51,$51,$05,$50 ; . . . . 1 1 . 1 1 1 . 1 . . 1 1 1 1 . .
-            DB      $00,$55,$40,$55,$54 ; . . . . 1 1 1 1 1 . . . 1 1 1 1 1 1 1 .
-            DB      $00,$45,$40,$50,$54 ; . . . . 1 . 1 1 1 . . . 1 1 . . 1 1 1 .
-            DB      $01,$01,$00,$00,$14 ; . . . 1 . . . 1 . . . . . . . . . 1 1 .
-            DB      $04,$00,$00,$00,$10 ; . . 1 . . . . . . . . . . . . . . 1 . .
+;*******************************************************************************
+; WORRIOR_YELLOW_FIRE_3_UP
+; 5 bytes/row = 20 pixels wide, 18 rows
+;*******************************************************************************
+WORRIOR_YELLOW_FIRE_3_UP:
+        .DB      $00,$00,$00,$30,$80 ; . . . . . . . . . . . . . 3 . . 2 . . .
+        .DB      $00,$00,$00,$48,$04 ; . . . . . . . . . . . . 1 . 2 . . . 1 .
+        .DB      $00,$00,$00,$2A,$C0 ; . . . . . . . . . . . . . 2 2 2 3 . . .
+        .DB      $00,$00,$00,$2A,$00 ; . . . . . . . . . . . . . 2 2 2 . . . .
+        .DB      $00,$08,$00,$28,$00 ; . . . . . . 2 . . . . . . 2 2 . . . . .
+        .DB      $00,$A0,$02,$C0,$08 ; . . . . 2 2 . . . . . 2 3 . . . . . 2 .
+        .DB      $02,$80,$03,$83,$00 ; . . . 2 2 . . . . . . 3 2 . . 3 . . . .
+        .DB      $02,$A0,$0F,$C0,$00 ; . . . 2 2 2 . . . . 3 3 3 . . . . . . .
+        .DB      $00,$A8,$0F,$00,$00 ; . . . . 2 2 2 . . . 3 3 . . . . . . . .
+        .DB      $00,$2A,$0F,$00,$00 ; . . . . . 2 2 2 . . 3 3 . . . . . . . .
+        .DB      $20,$0A,$3F,$00,$00 ; . 2 . . . . 2 2 . 3 3 3 . . . . . . . .
+        .DB      $20,$0A,$BC,$02,$00 ; . 2 . . . . 2 2 2 3 3 . . . . 2 . . . .
+        .DB      $20,$0A,$BE,$82,$30 ; . 2 . . . . 2 2 2 3 3 2 2 . . 2 . 3 . .
+        .DB      $2A,$AA,$BE,$AA,$08 ; . 2 2 2 2 2 2 2 2 3 3 2 2 2 2 2 . . 2 .
+        .DB      $2A,$AA,$BF,$AA,$A8 ; . 2 2 2 2 2 2 2 2 3 3 3 2 2 2 2 2 2 2 .
+        .DB      $00,$AA,$AF,$EA,$A8 ; . . . . 2 2 2 2 2 2 3 3 3 2 2 2 2 2 2 .
+        .DB      $00,$00,$AB,$A0,$A0 ; . . . . . . . . 2 2 2 3 2 2 . . 2 2 . .
+        .DB      $00,$00,$AA,$A8,$30 ; . . . . . . . . 2 2 2 2 2 2 2 . . 3 . .
 
-;*****************************************************************************************
-; BURWOR - FRAME 1 (Facing Left, red eyes 3 on the left side) Decoded by Adam Trionfo - 01/08/2017
-; SIZE: 5x18
-;*****************************************************************************************
-PATTERN_9EAE:
-            DB      $00,$00,$00,$00,$40 ; . . . . . . . . . . . . . . . . 1 . . .
-            DB      $00,$00,$00,$01,$50 ; . . . . . . . . . . . . . . . 1 1 1 . .
-            DB      $00,$00,$00,$01,$50 ; . . . . . . . . . . . . . . . 1 1 1 . .
-            DB      $00,$00,$01,$01,$54 ; . . . . . . . . . . . 1 . . . 1 1 1 1 .
-            DB      $00,$15,$54,$01,$54 ; . . . . . 1 1 1 1 1 1 . . . . 1 1 1 1 .
-            DB      $00,$5F,$54,$41,$50 ; . . . . 1 1 3 3 1 1 1 . 1 . . 1 1 1 . .
-            DB      $15,$7F,$55,$01,$50 ; . 1 1 1 1 3 3 3 1 1 1 1 . . . 1 1 1 . .
-            DB      $15,$55,$55,$41,$40 ; . 1 1 1 1 1 1 1 1 1 1 1 1 . . 1 1 . . .
-            DB      $15,$55,$54,$01,$00 ; . 1 1 1 1 1 1 1 1 1 1 . . . . 1 . . . .
-            DB      $05,$50,$54,$04,$00 ; . . 1 1 1 1 . . 1 1 1 . . . 1 . . . . .
-            DB      $00,$00,$54,$10,$00 ; . . . . . . . . 1 1 1 . . 1 . . . . . .
-            DB      $01,$50,$15,$40,$14 ; . . . 1 1 1 . . . 1 1 1 1 . . . . 1 1 .
-            DB      $01,$54,$15,$51,$54 ; . . . 1 1 1 1 . . 1 1 1 1 1 . 1 1 1 1 .
-            DB      $00,$55,$55,$55,$50 ; . . . . 1 1 1 1 1 1 1 1 1 1 1 1 1 1 . .
-            DB      $00,$54,$55,$51,$50 ; . . . . 1 1 1 . 1 1 1 1 1 1 . 1 1 1 . .
-            DB      $00,$14,$15,$51,$40 ; . . . . . 1 1 . . 1 1 1 1 1 . 1 1 . . .
-            DB      $00,$05,$00,$01,$00 ; . . . . . . 1 1 . . . . . . . 1 . . . .
-            DB      $01,$55,$40,$05,$54 ; . . . 1 1 1 1 1 1 . . . . . 1 1 1 1 1 .
+;*******************************************************************************
+; WORRIOR_YELLOW_FIRE_4_UP
+; 5 bytes/row = 20 pixels wide, 18 rows
+;*******************************************************************************
+WORRIOR_YELLOW_FIRE_4_UP:
+        .DB      $00,$00,$0E,$30,$00 ; . . . . . . . . . . 3 2 . 3 . . . . . .
+        .DB      $00,$00,$4A,$B0,$00 ; . . . . . . . . 1 . 2 2 2 3 . . . . . .
+        .DB      $00,$00,$0A,$88,$20 ; . . . . . . . . . . 2 2 2 . 2 . . 2 . .
+        .DB      $00,$00,$02,$00,$00 ; . . . . . . . . . . . 2 . . . . . . . .
+        .DB      $00,$00,$03,$00,$C0 ; . . . . . . . . . . . 3 . . . . 3 . . .
+        .DB      $00,$80,$0A,$80,$00 ; . . . . 2 . . . . . 2 2 2 . . . . . . .
+        .DB      $02,$80,$03,$00,$00 ; . . . 2 2 . . . . . . 3 . . . . . . . .
+        .DB      $0A,$00,$0A,$80,$00 ; . . 2 2 . . . . . . 2 2 2 . . . . . . .
+        .DB      $0A,$A0,$03,$00,$00 ; . . 2 2 2 2 . . . . . 3 . . . . . . . .
+        .DB      $00,$AA,$03,$00,$00 ; . . . . 2 2 2 2 . . . 3 . . . . . . . .
+        .DB      $00,$2A,$0F,$02,$00 ; . . . . . 2 2 2 . . 3 3 . . . 2 . . . .
+        .DB      $00,$0A,$AF,$82,$30 ; . . . . . . 2 2 2 2 3 3 2 . . 2 . 3 . .
+        .DB      $20,$0A,$AF,$AA,$08 ; . 2 . . . . 2 2 2 2 3 3 2 2 2 2 . . 2 .
+        .DB      $20,$AA,$AF,$BA,$A8 ; . 2 . . 2 2 2 2 2 2 3 3 2 3 2 2 2 2 2 .
+        .DB      $2A,$AA,$AF,$FA,$A8 ; . 2 2 2 2 2 2 2 2 2 3 3 3 3 2 2 2 2 2 .
+        .DB      $2A,$AA,$AB,$E0,$A0 ; . 2 2 2 2 2 2 2 2 2 2 3 3 2 . . 2 2 . .
+        .DB      $00,$00,$AA,$A8,$00 ; . . . . . . . . 2 2 2 2 2 2 2 . . . . .
+        .DB      $00,$00,$AA,$A8,$30 ; . . . . . . . . 2 2 2 2 2 2 2 . . 3 . .
 
-;*****************************************************************************************
-; BURWOR - FRAME 2 (Facing Left)
-; SIZE: 5x18
-;*****************************************************************************************
-PATTERN_9F08:
-            DB      $00,$00,$00,$00,$14 ; . . . . . . . . . . . . . . . . . 1 1 .
-            DB      $00,$15,$55,$00,$50 ; . . . . . 1 1 1 1 1 1 1 . . . . 1 1 . .
-            DB      $00,$5F,$54,$01,$54 ; . . . . 1 1 3 3 1 1 1 . . . . 1 1 1 1 .
-            DB      $15,$7F,$55,$41,$54 ; . 1 1 1 1 3 3 3 1 1 1 1 1 . . 1 1 1 1 .
-            DB      $15,$55,$55,$00,$54 ; . 1 1 1 1 1 1 1 1 1 1 1 . . . . 1 1 1 .
-            DB      $04,$45,$55,$41,$50 ; . . 1 . 1 . 1 1 1 1 1 1 1 . . 1 1 1 . .
-            DB      $15,$55,$54,$01,$40 ; . 1 1 1 1 1 1 1 1 1 1 . . . . 1 1 . . .
-            DB      $05,$50,$55,$05,$00 ; . . 1 1 1 1 . . 1 1 1 1 . . 1 1 . . . .
-            DB      $00,$00,$54,$04,$00 ; . . . . . . . . 1 1 1 . . . . 1 . . . .
-            DB      $00,$00,$55,$10,$00 ; . . . . . . . . 1 1 1 1 . 1 . . . . . .
-            DB      $01,$55,$55,$54,$00 ; . . . 1 1 1 1 1 1 1 1 1 1 1 1 . . . . .
-            DB      $05,$55,$55,$55,$00 ; . . 1 1 1 1 1 1 1 1 1 1 1 1 1 1 . . . .
-            DB      $01,$50,$55,$55,$40 ; . . . 1 1 1 . . 1 1 1 1 1 1 1 1 1 . . .
-            DB      $00,$50,$00,$15,$40 ; . . . . 1 1 . . . . . . . 1 1 1 1 . . .
-            DB      $00,$14,$00,$05,$00 ; . . . . . 1 1 . . . . . . . 1 1 . . . .
-            DB      $05,$55,$00,$01,$00 ; . . 1 1 1 1 1 1 . . . . . . . 1 . . . .
-            DB      $00,$00,$00,$05,$40 ; . . . . . . . . . . . . . . 1 1 1 . . .
-            DB      $00,$00,$00,$00,$14 ; . . . . . . . . . . . . . . . . . 1 1 .
+;*******************************************************************************
+; WORRIOR_YELLOW_FIRE_1
+; 5 bytes/row = 20 pixels wide, 18 rows
+;*******************************************************************************
+WORRIOR_YELLOW_FIRE_1:
+        .DB      $00,$00,$00,$2A,$00 ; . . . . . . . . . . . . . 2 2 2 . . . .
+        .DB      $00,$00,$00,$CA,$8C ; . . . . . . . . . . . . 3 . 2 2 2 . 3 .
+        .DB      $00,$00,$00,$0A,$80 ; . . . . . . . . . . . . . . 2 2 2 . . .
+        .DB      $00,$00,$02,$AA,$00 ; . . . . . . . . . . . 2 2 2 2 2 . . . .
+        .DB      $02,$00,$00,$2A,$28 ; . . . 2 . . . . . . . . . 2 2 2 . 2 2 .
+        .DB      $3C,$00,$00,$2F,$A8 ; . 3 3 . . . . . . . . . . 2 3 3 2 2 2 .
+        .DB      $0A,$08,$80,$AB,$E8 ; . . 2 2 . . 2 . 2 . . . 2 2 2 3 3 2 2 .
+        .DB      $2A,$BB,$BF,$FF,$E8 ; . 2 2 2 2 3 2 3 2 3 3 3 3 3 3 3 3 2 2 .
+        .DB      $3A,$08,$83,$FF,$A8 ; . 3 2 2 . . 2 . 2 . . 3 3 3 3 3 2 2 2 .
+        .DB      $00,$00,$00,$AA,$A8 ; . . . . . . . . . . . . 2 2 2 2 2 2 2 .
+        .DB      $00,$00,$00,$AA,$A8 ; . . . . . . . . . . . . 2 2 2 2 2 2 2 .
+        .DB      $00,$00,$02,$AA,$80 ; . . . . . . . . . . . 2 2 2 2 2 2 . . .
+        .DB      $00,$00,$0A,$AA,$80 ; . . . . . . . . . . 2 2 2 2 2 2 2 . . .
+        .DB      $00,$20,$2A,$2A,$00 ; . . . . . 2 . . . 2 2 2 . 2 2 2 . . . .
+        .DB      $00,$08,$A8,$2A,$00 ; . . . . . . 2 . 2 2 2 . . 2 2 2 . . . .
+        .DB      $00,$0A,$A0,$0A,$80 ; . . . . . . 2 2 2 2 . . . . 2 2 2 . . .
+        .DB      $00,$02,$80,$02,$80 ; . . . . . . . 2 2 . . . . . . 2 2 . . .
+        .DB      $00,$00,$00,$2A,$80 ; . . . . . . . . . . . . . 2 2 2 2 . . .
 
-;*****************************************************************************************
-; BURWOR - FRAME 3 (Facing Left)
-; SIZE: 5x18
-;*****************************************************************************************
-PATTERN_9F62:
-            DB      $00,$15,$55,$01,$50 ; . . . . . 1 1 1 1 1 1 1 . . . 1 1 1 . .
-            DB      $00,$5F,$54,$05,$54 ; . . . . 1 1 3 3 1 1 1 . . . 1 1 1 1 1 .
-            DB      $15,$7F,$55,$45,$40 ; . 1 1 1 1 3 3 3 1 1 1 1 1 . 1 1 1 . . .
-            DB      $15,$55,$55,$05,$00 ; . 1 1 1 1 1 1 1 1 1 1 1 . . 1 1 . . . .
-            DB      $04,$45,$55,$45,$00 ; . . 1 . 1 . 1 1 1 1 1 1 1 . 1 1 . . . .
-            DB      $00,$05,$54,$01,$40 ; . . . . . . 1 1 1 1 1 . . . . 1 1 . . .
-            DB      $05,$50,$55,$01,$40 ; . . 1 1 1 1 . . 1 1 1 1 . . . 1 1 . . .
-            DB      $00,$00,$54,$04,$00 ; . . . . . . . . 1 1 1 . . . . 1 . . . .
-            DB      $00,$01,$55,$10,$00 ; . . . . . . . 1 1 1 1 1 . 1 . . . . . .
-            DB      $00,$15,$55,$54,$00 ; . . . . . 1 1 1 1 1 1 1 1 1 1 . . . . .
-            DB      $01,$55,$55,$55,$40 ; . . . 1 1 1 1 1 1 1 1 1 1 1 1 1 1 . . .
-            DB      $05,$50,$00,$05,$50 ; . . 1 1 1 1 . . . . . . . . 1 1 1 1 . .
-            DB      $01,$40,$00,$01,$40 ; . . . 1 1 . . . . . . . . . . 1 1 . . .
-            DB      $00,$50,$00,$05,$00 ; . . . . 1 1 . . . . . . . . 1 1 . . . .
-            DB      $01,$54,$00,$15,$40 ; . . . 1 1 1 1 . . . . . . 1 1 1 1 . . .
-            DB      $04,$00,$00,$00,$10 ; . . 1 . . . . . . . . . . . . . . 1 . .
-            DB      $10,$00,$00,$00,$04 ; . 1 . . . . . . . . . . . . . . . . 1 .
-            DB      $00,$00,$00,$00,$00 ; . . . . . . . . . . . . . . . . . . . .
+;*******************************************************************************
+; WORRIOR_YELLOW_FIRE_2
+; 5 bytes/row = 20 pixels wide, 18 rows
+;*******************************************************************************
+WORRIOR_YELLOW_FIRE_2:
+        .DB      $33,$01,$00,$0A,$80 ; . 3 . 3 . . . 1 . . . . . . 2 2 2 . . .
+        .DB      $0E,$80,$00,$32,$AC ; . . 3 2 2 . . . . . . . . 3 . 2 2 2 3 .
+        .DB      $3A,$A0,$00,$02,$A0 ; . 3 2 2 2 2 . . . . . . . . . 2 2 2 . .
+        .DB      $0A,$A0,$00,$AA,$80 ; . . 2 2 2 2 . . . . . . 2 2 2 2 2 . . .
+        .DB      $30,$0E,$00,$0A,$A0 ; . 3 . . . . 3 2 . . . . . . 2 2 2 2 . .
+        .DB      $00,$0B,$80,$02,$A8 ; . . . . . . 2 3 2 . . . . . . 2 2 2 2 .
+        .DB      $00,$42,$F0,$0A,$E8 ; . . . . 1 . . 2 3 3 . . . . 2 2 3 2 2 .
+        .DB      $00,$00,$3F,$2B,$F8 ; . . . . . . . . . 3 3 3 . 2 2 3 3 3 2 .
+        .DB      $0C,$00,$0F,$FF,$E8 ; . . 3 . . . . . . . 3 3 3 3 3 3 3 2 2 .
+        .DB      $00,$00,$00,$FF,$A8 ; . . . . . . . . . . . . 3 3 3 3 2 2 2 .
+        .DB      $00,$00,$00,$AA,$A8 ; . . . . . . . . . . . . 2 2 2 2 2 2 2 .
+        .DB      $00,$80,$2A,$AA,$A0 ; . . . . 2 . . . . 2 2 2 2 2 2 2 2 2 . .
+        .DB      $00,$20,$AA,$AA,$A0 ; . . . . . 2 . . 2 2 2 2 2 2 2 2 2 2 . .
+        .DB      $00,$2A,$A0,$02,$A0 ; . . . . . 2 2 2 2 2 . . . . . 2 2 2 . .
+        .DB      $00,$0A,$00,$02,$A0 ; . . . . . . 2 2 . . . . . . . 2 2 2 . .
+        .DB      $00,$00,$00,$0A,$80 ; . . . . . . . . . . . . . . 2 2 2 . . .
+        .DB      $00,$00,$00,$0A,$80 ; . . . . . . . . . . . . . . 2 2 2 . . .
+        .DB      $00,$00,$02,$AA,$00 ; . . . . . . . . . . . 2 2 2 2 2 . . . .
 
-;*****************************************************************************************
-; GARWOR (Facing Left) - FRAME 1 - Found at $9FBC
-; SIZE: 5x18
-;*****************************************************************************************
-PATTERN_9FBC:
-            DB      $00,$00,$CC,$00,$00 ; . . . . . . . . 3 . 3 . . . . . . . . .
-            DB      $00,$00,$07,$50,$00 ; . . . . . . . . . . 0 1 3 1 . . . . . .
-            DB      $10,$05,$15,$50,$00 ; . 1 . . . . 1 1 . 1 1 1 1 1 . . . . . .
-            DB      $10,$55,$17,$50,$00 ; . 1 . . 1 1 1 1 . 1 1 3 1 1 . . . . . .
-            DB      $11,$55,$15,$54,$00 ; . 1 . 1 1 1 1 1 . 1 1 1 1 1 1 . . . . .
-            DB      $15,$54,$17,$75,$00 ; . 1 1 1 1 1 1 . . 1 1 3 1 3 1 1 . . . .
-            DB      $14,$10,$05,$7D,$00 ; . 1 1 . . 1 . . . . 1 1 1 3 3 1 . . . .
-            DB      $10,$50,$05,$7D,$00 ; . 1 . . 1 1 . . . . 1 1 1 3 3 1 . . . .
-            DB      $01,$55,$55,$55,$00 ; . . . 1 1 1 1 1 1 1 1 1 1 1 1 1 . . . .
-            DB      $01,$55,$55,$55,$00 ; . . . 1 1 1 1 1 1 1 1 1 1 1 1 1 . . . .
-            DB      $01,$55,$55,$55,$00 ; . . . 1 1 1 1 1 1 1 1 1 1 1 1 1 . . . .
-            DB      $01,$55,$41,$50,$40 ; . . . 1 1 1 1 1 1 . . 1 1 1 . . 1 . . .
-            DB      $01,$55,$01,$04,$00 ; . . . 1 1 1 1 1 . . . 1 . . . 1 . . . .
-            DB      $10,$10,$40,$00,$00 ; . 1 . . . 1 . . 1 . . . . . . . . . . .
-            DB      $15,$54,$15,$55,$50 ; . 1 1 1 1 1 1 . . 1 1 1 1 1 1 1 1 1 . .
-            DB      $11,$54,$05,$55,$54 ; . 1 . 1 1 1 1 . . . 1 1 1 1 1 1 1 1 1 .
-            DB      $10,$55,$01,$55,$50 ; . 1 . . 1 1 1 1 . . . 1 1 1 1 1 1 1 . .
-            DB      $10,$05,$00,$15,$00 ; . 1 . . . . 1 1 . . . . . 1 1 1 . . . .
+;*******************************************************************************
+; WORRIOR_YELLOW_FIRE_3
+; 5 bytes/row = 20 pixels wide, 18 rows
+;*******************************************************************************
+WORRIOR_YELLOW_FIRE_3:
+        .DB      $04,$08,$00,$0A,$80 ; . . 1 . . . 2 . . . . . . . 2 2 2 . . .
+        .DB      $00,$00,$00,$32,$AC ; . . . . . . . . . . . . . 3 . 2 2 2 3 .
+        .DB      $23,$00,$00,$02,$A0 ; . 2 . 3 . . . . . . . . . . . 2 2 2 . .
+        .DB      $02,$83,$00,$AA,$80 ; . . . 2 2 . . 3 . . . . 2 2 2 2 2 . . .
+        .DB      $0A,$A0,$00,$0A,$88 ; . . 2 2 2 2 . . . . . . . . 2 2 2 . 2 .
+        .DB      $32,$A0,$00,$0A,$A8 ; . 3 . 2 2 2 . . . . . . . . 2 2 2 2 2 .
+        .DB      $04,$0E,$C0,$2A,$E8 ; . . 1 . . . 3 2 3 . . . . 2 2 2 3 2 2 .
+        .DB      $00,$0B,$FF,$2B,$F8 ; . . . . . . 2 3 3 3 3 3 . 2 2 3 3 3 2 .
+        .DB      $00,$00,$FF,$FF,$E8 ; . . . . . . . . 3 3 3 3 3 3 3 3 3 2 2 .
+        .DB      $00,$00,$03,$FF,$A8 ; . . . . . . . . . . . 3 3 3 3 3 2 2 2 .
+        .DB      $00,$00,$00,$AA,$A8 ; . . . . . . . . . . . . 2 2 2 2 2 2 2 .
+        .DB      $00,$00,$0A,$AA,$80 ; . . . . . . . . . . 2 2 2 2 2 2 2 . . .
+        .DB      $00,$20,$2A,$AA,$80 ; . . . . . 2 . . . 2 2 2 2 2 2 2 2 . . .
+        .DB      $00,$08,$A8,$0A,$80 ; . . . . . . 2 . 2 2 2 . . . 2 2 2 . . .
+        .DB      $00,$0A,$A0,$0A,$80 ; . . . . . . 2 2 2 2 . . . . 2 2 2 . . .
+        .DB      $00,$02,$80,$0A,$00 ; . . . . . . . 2 2 . . . . . 2 2 . . . .
+        .DB      $00,$00,$00,$0A,$00 ; . . . . . . . . . . . . . . 2 2 . . . .
+        .DB      $00,$00,$02,$AA,$00 ; . . . . . . . . . . . 2 2 2 2 2 . . . .
 
-;*****************************************************************************************
-; Garwor (Facing Right) - FRAME 2 - Found at $A016
-; SIZE: 5x18
-;*****************************************************************************************
-PATTERN_A016:
-            DB      $30,$00,$CC,$00,$00 ; . 3 . . . . . . 3 . 3 . . . . . . . . .
-            DB      $00,$C0,$0F,$50,$00 ; . . . . 3 . . . . . 3 3 1 1 . . . . . .
-            DB      $10,$05,$1D,$50,$00 ; . 1 . . . . 1 1 . 1 3 1 1 1 . . . . . .
-            DB      $10,$55,$1F,$50,$00 ; . 1 . . 1 1 1 1 . 1 3 3 1 1 . . . . . .
-            DB      $11,$55,$1D,$54,$00 ; . 1 . 1 1 1 1 1 . 1 3 1 1 1 1 . . . . .
-            DB      $15,$54,$1D,$75,$00 ; . 1 1 1 1 1 1 . . 1 3 1 1 3 1 1 . . . .
-            DB      $14,$10,$05,$7D,$00 ; . 1 1 . . 1 . . . . 1 1 1 3 3 1 . . . .
-            DB      $10,$50,$05,$7D,$00 ; . 1 . . 1 1 . . . . 1 1 1 3 3 1 . . . .
-            DB      $01,$55,$55,$55,$00 ; . . . 1 1 1 1 1 1 1 1 1 1 1 1 1 . . . .
-            DB      $01,$55,$55,$55,$00 ; . . . 1 1 1 1 1 1 1 1 1 1 1 1 1 . . . .
-            DB      $01,$55,$55,$55,$00 ; . . . 1 1 1 1 1 1 1 1 1 1 1 1 1 . . . .
-            DB      $01,$55,$41,$50,$40 ; . . . 1 1 1 1 1 1 . . 1 1 1 . . 1 . . .
-            DB      $01,$55,$01,$04,$00 ; . . . 1 1 1 1 1 . . . 1 . . . 1 . . . .
-            DB      $10,$10,$40,$00,$00 ; . 1 . . . 1 . . 1 . . . . . . . . . . .
-            DB      $15,$54,$15,$55,$54 ; . 1 1 1 1 1 1 . . 1 1 1 1 1 1 1 1 1 1 .
-            DB      $11,$54,$05,$55,$50 ; . 1 . 1 1 1 1 . . . 1 1 1 1 1 1 1 1 . .
-            DB      $10,$55,$01,$55,$40 ; . 1 . . 1 1 1 1 . . . 1 1 1 1 1 1 . . .
-            DB      $10,$05,$00,$15,$00 ; . 1 . . . . 1 1 . . . . . 1 1 1 . . . .
-;*****************************************************************************************
-; GARWOR (Facing Right) - FRAME 3 - Found at $A070
-; SIZE: 5x18
-;*****************************************************************************************
-PATTERN_A070:
-            DB      $00,$20,$30,$CC,$00 ; . . . . . 2 . . . 3 . . 3 . 3 . . . . .
-            DB      $01,$01,$02,$F0,$00 ; . . . 1 . . . 1 . . . 2 3 3 . . . . . .
-            DB      $01,$05,$40,$B1,$40 ; . . . 1 . . 1 1 1 . . . 2 3 . 1 1 . . .
-            DB      $01,$15,$41,$F5,$40 ; . . . 1 . 1 1 1 1 . . 1 3 3 1 1 1 . . .
-            DB      $01,$55,$41,$FD,$40 ; . . . 1 1 1 1 1 1 . . 1 3 3 3 1 1 . . .
-            DB      $31,$41,$41,$F5,$50 ; . 3 . 1 1 . . 1 1 . . 1 3 3 1 1 1 1 . .
-            DB      $01,$01,$51,$FD,$D4 ; . . . 1 . . . 1 1 1 . 1 3 3 3 1 3 1 1 .
-            DB      $00,$05,$50,$75,$F4 ; . . . . . . 1 1 1 1 . . 1 3 1 1 3 3 1 .
-            DB      $0C,$05,$55,$55,$F4 ; . . 3 . . . 1 1 1 1 1 1 1 1 1 1 3 3 1 .
-            DB      $00,$05,$55,$55,$54 ; . . . . . . 1 1 1 1 1 1 1 1 1 1 1 1 1 .
-            DB      $00,$05,$55,$55,$54 ; . . . . . . 1 1 1 1 1 1 1 1 1 1 1 1 1 .
-            DB      $00,$05,$54,$45,$44 ; . . . . . . 1 1 1 1 1 . 1 . 1 1 1 . 1 .
-            DB      $00,$15,$50,$04,$40 ; . . . . . 1 1 1 1 1 . . . . 1 . 1 . . .
-            DB      $04,$55,$54,$00,$00 ; . . 1 . 1 1 1 1 1 1 1 . . . . . . . . .
-            DB      $05,$55,$05,$55,$40 ; . . 1 1 1 1 1 1 . . 1 1 1 1 1 1 1 . . .
-            DB      $04,$14,$01,$55,$50 ; . . 1 . . 1 1 . . . . 1 1 1 1 1 1 1 . .
-            DB      $10,$00,$00,$55,$54 ; . 1 . . . . . . . . . . 1 1 1 1 1 1 1 .
-            DB      $10,$00,$00,$15,$50 ; . 1 . . . . . . . . . . . 1 1 1 1 1 . .
-            nop
-            nop
-            nop
-            ret     z
-            nop
-            inc     b
-            nop
-            nop
-            ret     p
-            nop
-            ld      bc,L0201
-            ret     p
-            nop
-            nop
-            ld      b,l
-            ld      b,b
-            or      c
-            ld      b,b
-            ex      af,af'
-            ld      d,l
-            ld      b,c
-            push    af
-            ld      b,b
-            nop
-            ld      d,c
-            ld      d,c
-            DB      $fd,$40
-            nop
-            ld      b,c
-            ld      d,c
-            push    af
-            ld      d,b
-            nop
-            nop
-            ld      d,c
-            DB      $fd,$d4
-            jr      nc,LA0F4
-LA0F4:      ld      d,b
-            ld      (hl),l
-            call    p,$0000
-            ld      d,l
-            ld      d,l
-            call    p,L0003
-            ld      d,l
-            ld      d,l
-            ld      d,h
-            nop
-            nop
-            ld      d,l
-            ld      d,l
-            ld      d,h
-            nop
-            ld      b,b
-            ld      d,h
-            ld      b,l
-            ld      b,h
-            nop
-            ld      d,c
-            ld      d,h
-            inc     b
-            ld      b,b
-            nop
-            ld      d,l
-            ld      b,l
-            nop
-            nop
-            nop
-            ld      b,l
-            ld      b,c
-            ld      d,l
-            ld      b,b
-            ld      bc,$0001
-            ld      d,l
-            ld      d,b
-            inc     b
-            nop
-            nop
-            dec     d
-            ld      d,h
-            nop
-            nop
-            nop
-            nop
-            ld      b,b
-            nop
-            nop
-            nop
-            ld      bc,L0050
-            nop
-            nop
-            ld      b,c
-            ld      d,b
-            nop
-            dec     b
-            ld      d,l
-            ld      bc,L0054
-            rla
-            push    de
-            ld      de,$0554
-            ld      e,a
-            push    de
-            ld      b,c
-            ld      d,h
-            dec     b
-            ld      d,l
-            ld      d,l
-            ld      b,c
-            ld      d,b
-            dec     c
-            DB      $dd,$55
-            ld      d,c
-            ld      d,b
-            dec     (hl)
-            ld      d,l
-            ld      d,l
-            ld      bc,L0140
-            ld      d,h
-            dec     d
-            ld      bc,L3000
-            nop
-            dec     d
-            ld      b,h
-            nop
-            ld      bc,$1550
-            ld      d,b
-            inc     d
-            ld      bc,$1554
-            ld      d,c
-            ld      d,h
-            nop
-            ld      d,l
-            ld      d,l
-            ld      d,l
-            ld      d,b
-            nop
-            ld      d,h
-            ld      d,l
-            ld      d,c
-            ld      d,b
-            nop
-            inc     d
-            dec     d
-            ld      d,c
-            ld      b,b
-            nop
-            dec     b
-            nop
-            ld      bc,L0100
-            ld      d,l
-            ld      b,b
-            dec     b
-            ld      d,h
-            nop
-            nop
-            nop
-            ld      bc,$0000
-            nop
-            nop
-            ld      bc,L0040
-            nop
-            nop
-            ld      b,c
-            ld      d,b
-            nop
-            dec     b
-            ld      d,l
-            ld      bc,L0054
-            rla
-            push    de
-            ld      de,$0554
-            ld      e,a
-            push    de
-            ld      b,c
-            ld      d,h
-            dec     b
-            ld      d,l
-            ld      d,l
-            ld      b,c
-            ld      d,b
-            dec     c
-            push    de
-            ld      d,l
-            ld      d,c
-            ld      d,b
-            ccf
-            DB      $fd,$55
-            ld      bc,L0140
-            ld      d,h
-            dec     d
-            ld      bc,L3000
-            nop
-            dec     d
-            ld      b,h
-            nop
-            ld      bc,$1550
-            ld      d,b
-            inc     d
-            ld      bc,$1554
-            ld      d,c
-            ld      d,h
-            nop
-            ld      d,l
-            ld      d,l
-            ld      d,l
-            ld      d,b
-            inc     c
-            ld      d,h
-            ld      d,l
-            ld      d,c
-            ld      d,b
-            nop
-            inc     d
-            dec     d
-            ld      d,c
-            ld      b,b
-            nop
-            dec     b
-            nop
-            ld      bc,L3100
-            ld      d,l
-            ld      b,b
-            dec     b
-            ld      d,h
-            nop
-            ld      bc,L4055
-            djnz    LA1DE
-LA1DE:      dec     b
-            push    af
-            nop
-            ld      d,h
-            ld      bc,LF557
-            ld      d,c
-            ld      d,h
-            ld      bc,L5555
-            ld      b,c
-            ld      d,h
-            jr      nc,LA265
-            ld      d,l
-            ld      d,c
-            ld      d,h
-            rrca
-            rst     38H
-            push    de
-            ld      bc,$3E54
-            rst     38H
-            ld      d,l
-            ld      b,c
-            ld      d,b
-            ex      af,af'
-            ld      d,l
-            dec     d
-            ld      bc,L0040
-            nop
-            dec     d
-            ld      b,l
-            nop
-            jr      nc,LA208
-            ld      d,l
-LA208:      ld      d,h
-            nop
-            ld      bc,L5555
-            ld      d,h
-            nop
-            dec     b
-            ld      d,l
-            ld      d,l
-            ld      d,l
-            nop
-            ld      bc,L5550
-            ld      d,l
-            ld      b,b
-            jr      nz,LA26B
-            nop
-            dec     d
-            ld      b,b
-            nop
-            inc     d
-            nop
-            dec     b
-            nop
-            dec     b
-            ld      d,l
-            nop
-            ld      bc,$0000
-            nop
-            jr      nc,LA231
-            ld      b,b
-            nop
-            inc     c
-            nop
-            nop
-LA231:      inc     d
-            nop
-            nop
-            ld      d,l
-            ld      d,b
-            inc     b
-            nop
-            ld      bc,L407D
-            inc     d
-            nop
-            ld      d,l
-            DB      $fd,$54
-            ld      d,h
-            nop
-            ld      d,l
-            ld      d,l
-            ld      d,b
-            ld      d,h
-            jr      nz,LA265
-            push    de
-            ld      d,h
-            ld      d,h
-            rrca
-            rst     38H
-            push    af
-            ld      b,b
-            ld      d,h
-            ccf
-            cp      a
-            push    de
-            ld      d,b
-            ld      d,b
-            ld      (bc),a
-            dec     d
-            ld      b,l
-            ld      b,c
-            ld      b,b
-            nop
-            nop
-            dec     b
-            ld      d,l
-            nop
-            nop
-            dec     b
-            ld      d,l
-            ld      d,h
-            nop
-            nop
-LA265:      ld      d,l
-            ld      d,l
-            ld      d,l
-            ld      b,b
-            ld      bc,L0055
-            dec     b
-            ld      d,b
-            nop
-            ld      d,b
-            nop
-            ld      bc,L0040
-            inc     d
-            nop
-            dec     b
-            nop
-            nop
-            ld      d,l
-            nop
-            dec     d
-            ld      b,b
-            ld      bc,L0300
-            nop
-            djnz    LA287
-            jr      nz,LA285
-LA285:      nop
-            inc     b
-LA287:      nop
-            nop
-            jr      nc,LA28B
-LA28B:      nop
-            nop
-            nop
-            nop
-            ld      a,(de)
-            and     b
-            nop
-            nop
-            dec     b
-            ld      e,d
-            and     b
-            djnz    LA298
-LA298:      ld      (de),a
-            ld      l,d
-            add     a,b
-            djnz    LA29D
-LA29D:      ld      b,c
-            xor     d
-            nop
-            dec     d
-            ld      b,b
-            add     hl,bc
-            xor     b
-            nop
-            nop
-            djnz    LA2AE
-            adc     a,(hl)
-            inc     b
-            nop
-            djnz    LA2C7
-            cpl
-LA2AE:      add     a,h
-            nop
-            ld      d,l
-            ld      d,h
-            ccf
-            ret     nc
-            ld      bc,L5555
-            xor     a
-            add     a,b
-            dec     b
-LA2BA:      ld      d,l
-            ld      d,(hl)
-            xor     d
-            add     a,b
-            ld      bc,L5555
-            xor     a
-            add     a,b
-            nop
-            ld      d,l
-            ld      d,h
-            ccf
-LA2C7:      ret     nc
-            nop
-            djnz    LA2E5
-            cpl
-            add     a,h
-            nop
-            djnz    LA2F6
-            xor     (hl)
-            inc     b
-            dec     d
-            ld      b,b
-            add     hl,bc
-            xor     d
-            nop
-            djnz    LA2D9
-LA2D9:      ld      bc,$A0AA
-            djnz    LA2DE
-LA2DE:      ld      b,b
-            ld      l,d
-            xor     b
-            nop
-            nop
-            dec     d
-            ld      e,d
-LA2E5:      xor     b
-            nop
-            nop
-            ld      hl,(L00A4)
-            nop
-            nop
-            and     l
-            ld      d,(hl)
-            nop
-            nop
-            ld      (bc),a
-            sbc     a,d
-            ld      l,b
-            nop
-            djnz    $A349
-            ld      l,c
-            and     b
-LA2F9:      nop
-            ld      de,$A612
-            adc     a,(hl)
-            nop
-            inc     d
-            djnz    LA29C
-            cpl
-            add     a,b
-            nop
-            ld      d,l
-            ld      d,h
-            ccf
-            call    nc,L5501
-            ld      d,l
-            xor     a
-            add     a,b
-            dec     b
-            ld      d,l
-            ld      d,(hl)
-            xor     d
-            add     a,b
-            ld      bc,L5555
-            xor     a
-            add     a,b
-            nop
-            ld      d,l
-            ld      d,h
-            ccf
-            ret     nc
-            nop
-            djnz    LA2BA
-            cpl
-            add     a,h
-            nop
-            ld      b,d
-            and     (hl)
-            adc     a,(hl)
-            nop
-            ld      bc,$A902
-            add     a,b
-            nop
-            inc     d
-            ld      (bc),a
-            ld      l,c
-            and     b
-            nop
-            djnz    $A335
-            sub     l
-            xor     b
-            nop
-            djnz    $A338
-            and     l
-            ld      l,b
-            nop
-            nop
-            nop
-            ld      hl,(L0068)
-            ld      (bc),a
-            xor     b
-            inc     b
-            nop
-            nop
-            ld      (bc),a
-            xor     d
-            sub     h
-            nop
-            nop
-            nop
-            xor     d
-            ld      h,h
-            nop
-            nop
-            nop
-            add     hl,hl
-            and     (hl)
-            nop
-            nop
-            djnz    $A3B0
-            and     (hl)
-            nop
-            nop
-            ld      de,$A612
-            jr      c,$A35E
-            inc     d
-            djnz    LA2F9
-            cp      (hl)
-            nop
-            djnz    $A3BA
-            ld      d,b
-            rst     38H
-            ld      b,b
-            ld      bc,L5655
-            cp      (hl)
-            djnz    $A373
-            ld      d,l
-            ld      e,d
-            xor     d
-            nop
-            ld      bc,L5655
-            cp      (hl)
-            nop
-            djnz    $A3CE
-            ld      d,b
-            rst     38H
-            ld      b,b
-            inc     d
-            djnz    $A317
-            cp      (hl)
-            djnz    $A393
-            ld      de,L38A6
-            nop
-            djnz    $A3E2
-            ld      h,(hl)
-            nop
-            nop
-            nop
-            xor     d
-            sub     (hl)
-            nop
-            nop
-            ld      (bc),a
-            xor     d
-            sub     h
-            nop
-            nop
-            ld      (bc),a
-            xor     d
-            add     a,h
-            nop
-            nop
-;
-; At $A39A starts pattern of Worluk (demo screen) ???
-;
-            nop
-            dec     b
-            nop
-            inc     d
-            jr      z,$A3C8
-            nop
-            ld      b,b
-            ld      b,b
-            xor     b
-            ld      hl,(LEA02)
-            ret     po
-            xor     b
-            ld      hl,(LFB8B)
-            jp      m,L2AA8
-            xor     a
-            ei
-            cp      $A8
-            ld      d,$A2
-            jp      pe,$A4EA
-            dec     b
-            xor     b
-            ld      hl,(L940A)
-            ld      b,$5A
-            add     hl,de
-            add     hl,hl
-            ld      b,h
-            inc     b
-            ld      h,$55
-            ld      h,(hl)
-            inc     b
-            ld      bc,L5501
-            ld      e,b
-            inc     b
-            nop
-            ld      b,b
-            ld      d,l
-            ld      b,b
-            djnz    $A3D2
-            nop
-            ld      d,l
-            ld      b,b
-            nop
-            nop
-            nop
-            ld      d,l
-            ld      b,b
-            nop
-            nop
-            dec     b
-            ld      d,l
-            ld      d,h
-            nop
-            nop
-            djnz    $A438
-            ld      b,c
-            nop
-            nop
-            djnz    $A3FD
-            ld      bc,$0000
-            djnz    $A3F1
-            ld      bc,L0100
-            ld      d,b
-            nop
-            ld      bc,L0050
-            ld      bc,L4000
-            nop
-            nop
-            ld      bc,$0001
-            nop
-            nop
-            dec     bc
-            xor     e
-            add     a,b
-            nop
-            ex      af,af'
-            cpl
-            rst     28H
-            ret     po
-            nop
-            ld      d,$3F
-            rst     28H
-            ret     p
-            xor     b
-            ld      h,$8B
-            xor     e
-            add     a,d
-            xor     b
-            dec     h
-            and     b
-            xor     b
-            ld      hl,(L2694)
-            ld      l,b
-            ld      h,h
-            and     l
-            ld      e,b
-            ld      h,$99
-            ld      d,l
-            sbc     a,d
-            ld      e,b
-            add     hl,hl
-            and     l
-            ld      d,l
-            ld      l,d
-            ld      l,b
-            ld      a,(bc)
-            ld      l,c
-            ld      d,l
-            xor     c
-            and     b
-            ld      (bc),a
-            and     c
-            ld      d,l
-            ld      hl,(L0080)
-            ld      bc,L0055
-            nop
-            nop
-            ld      d,l
-            ld      d,l
-            ld      b,b
-            nop
-            nop
-            ld      b,c
-            ld      d,l
-            djnz    $A43F
-            nop
-            djnz    $A496
-            inc     b
-            nop
-            nop
-            inc     b
-            djnz    $A449
-            nop
-            nop
-            ld      d,h
-            nop
-            ld      bc,L0050
-            nop
-            nop
-            nop
-            nop
-            nop
-            nop
-            djnz    $A467
-            nop
-            nop
-            nop
-            ld      b,b
-            ld      b,b
-            nop
-            nop
-            ld      (bc),a
-            jp      pe,L00E0
-            nop
-            dec     bc
-            ei
-            ret     m
-            nop
-            nop
-            rrca
-            ei
-            call    m,$0000
-            ld      (bc),a
-            jp      pe,L00E0
-            nop
-            xor     b
-            ld      hl,(L800A)
-            dec     d
-            ld      d,(hl)
-            add     hl,de
-            dec     h
-            ld      d,h
-            ld      b,$A9
-            ld      d,l
-            ld      e,d
-            ld      d,b
-            add     hl,bc
-            xor     d
-            ld      d,l
-            ld      l,c
-            xor     b
-            ld      a,(bc)
-            ld      l,b
-            ld      d,l
-            ld      b,(hl)
-            xor     b
-            ld      hl,(L55A0)
-            ld      b,d
-            xor     b
-            ld      hl,(L5595)
-            ld      d,l
-            xor     b
-            ld      hl,(L5510)
-            ld      b,c
-            xor     b
-            jr      z,$A49F
-            dec     d
-            inc     b
-            jr      z,$A49F
-            ld      bc,L1004
-            nop
-            nop
-            dec     d
-            ld      b,b
-            ld      d,l
-            nop
-            nop
-            nop
-            jr      nc,$A4AC
-            nop
-            nop
-            nop
-            jr      nc,$A4B1
-            nop
-            nop
-            nop
-            inc     b
-            nop
-            nop
-            nop
-            nop
-            dec     b
-            ld      b,b
-            nop
-            nop
-            inc     d
-            nop
-            ld      d,b
-            nop
-            ld      de,L0054
-            dec     d
-            ld      b,b
-            dec     d
-            ld      d,l
-            nop
-            ld      d,$10
-            dec     d
-            ld      d,l
-            ld      b,b
-            ld      d,b
-            djnz    $A4E6
-            ld      d,l
-            ld      d,l
-            ld      b,d
-            inc     d
-            dec     d
-            ld      d,l
-            ld      d,l
-            ld      d,h
-            inc     d
-            dec     d
-            ld      d,l
-            ld      d,l
-            ld      d,l
-            ld      d,h
-            dec     d
-            ld      d,l
-            ld      d,l
-            ld      d,l
-            inc     b
-            dec     d
-            ld      d,l
-            ld      d,h
-            dec     d
-            nop
-            dec     d
-            ld      d,h
-            nop
-            inc     d
-            nop
-            dec     d
-            ld      b,b
-            nop
-            djnz    $A4F3
-            dec     d
-            nop
-            nop
-            ld      d,b
-            nop
-            inc     d
-            nop
-            ld      bc,L0040
-            nop
-            nop
-            dec     a
-            nop
-            nop
-            nop
-            nop
-            nop
-            nop
-            nop
-            nop
-            nop
-            jr      nc,$A50B
-            nop
-            nop
-            nop
-            jr      nc,$A510
-            nop
-            nop
-            nop
-            inc     b
-            nop
-            nop
-            nop
-            inc     b
-            dec     b
-            ld      de,$1050
-            dec     d
-            nop
-            ld      d,l
-            add     a,h
-            djnz    $A577
-            ld      b,b
-            inc     d
-            inc     b
-            dec     d
-            ld      d,l
-            ld      d,b
-            ld      d,b
-            sub     h
-            dec     d
-            ld      d,l
-            ld      d,l
-            ld      d,l
-            ld      d,h
-            dec     d
-            ld      d,l
-            ld      d,l
-            ld      d,l
-            ld      d,b
-            dec     b
-            ld      d,l
-            ld      d,l
-            ld      d,l
-            nop
-            dec     b
-            ld      d,l
-            ld      d,l
-            dec     b
-            nop
-            dec     b
-            ld      d,h
-            ld      d,h
-            inc     d
-            nop
-            dec     b
-            ld      d,b
-            nop
-            ld      d,b
-            nop
-            dec     b
-            ld      b,b
-            ld      bc,L0040
-            ld      bc,$3D00
-            nop
-            nop
-            nop
-            nop
-            nop
-            nop
-            nop
-            nop
-            nop
-            nop
-            nop
-            nop
-            nop
-            nop
-            nop
-            nop
-            nop
-            nop
-            nop
-            nop
-            nop
-            nop
-            nop
-            nop
-            nop
-            nop
-            nop
-            nop
-            nop
-            ret     nz
-            nop
-            nop
-            nop
-            nop
-            ret     nz
-            dec     b
-            ld      b,b
-            inc     d
-            inc     d
-            djnz    $A5CF
-            djnz    $A590
-            ld      d,l
-            inc     d
-            ld      d,b
-            ld      d,b
-            dec     d
-            ld      d,l
-            ld      b,c
-            ld      b,c
-            ld      d,b
-            dec     d
-            ld      d,l
-            ld      d,l
-            ld      d,l
-            ld      d,h
-            dec     d
-            ld      d,l
-            ld      d,l
-            ld      d,l
-            ld      d,h
-            dec     d
-            ld      d,l
-            ld      d,l
-            ld      d,h
-            inc     b
-            dec     d
-            ld      d,l
-            ld      d,l
-            inc     d
-            nop
-            inc     d
-            dec     d
-            call    nc,L0050
-            nop
-            ld      bc,L40F5
-            nop
-            nop
-            nop
-            dec     b
-            nop
-            nop
-            nop
-            nop
-            nop
-            nop
-            nop
-            nop
-            nop
-            nop
-            nop
-            nop
-            nop
-            nop
-            nop
-            nop
-            nop
-            nop
-            nop
-            nop
-            nop
-            nop
-            nop
-            nop
-            nop
-            nop
-            nop
-            nop
-            nop
-            jr      nc,$A5C4
-            nop
-            nop
-            nop
-            jr      nc,$A5C9
-            nop
-            inc     b
-            dec     b
-            inc     b
-            nop
-            nop
-            inc     b
-            ld      d,l
-            ld      b,l
-            ld      bc,$0550
-            ld      d,l
-            ld      b,c
-            ld      d,l
-            add     a,h
-            dec     b
-            ld      d,l
-            ld      d,b
-            ld      d,h
-            inc     b
-            dec     d
-            ld      d,l
-            ld      d,c
-            ld      d,b
-            sub     h
-            dec     d
-            ld      d,l
-            ld      d,l
-            ld      d,l
-            ld      d,h
-            dec     d
-            ld      d,l
-            ld      d,l
-            ld      d,l
-            ld      d,b
-            dec     d
-            ld      d,l
-            ld      d,l
-            ld      d,l
-            nop
-            dec     d
-            ld      bc,$1454
-            nop
-            nop
-            nop
-            nop
-            inc     d
-            nop
-            nop
-            nop
-            nop
-            ld      d,b
-            nop
-            nop
-            nop
-            dec     b
-            ld      b,b
-            nop
-            nop
-            nop
-            call    p,$0000
-            nop
-            nop
-            nop
-            nop
-            nop
-;
-; At $A610 starts pattern of Wizard of Wor (demo screen) ???
-;
-            nop
-            nop
-            dec     d
-            ld      b,b
-            nop
-            nop
-            ld      bc,L0055
-            nop
-            nop
-            inc     b
-            ld      bc,$0000
-            nop
-            ld      b,$21
-            ld      d,b
-            nop
-            nop
-            dec     b
-            dec     b
-            ld      d,h
-            nop
-            nop
-            dec     d
-            ld      b,l
-            ld      d,l
-            ld      b,b
-            nop
-            ld      d,b
-            ld      d,l
-            ld      b,b
-            ld      d,b
-            nop
-            ld      b,b
-            dec     d
-            ld      b,b
-            inc     d
-            ld      bc,L1540
-            ld      d,b
-            inc     c
-            inc     a
-            nop
-            dec     d
-            ld      d,b
-            inc     c
-            nop
-            nop
-            ld      d,l
-            ld      d,b
-            nop
-            nop
-            ld      bc,L5055
-            nop
-            nop
-            dec     d
-            ld      d,l
-            ld      d,h
-            nop
-            nop
-            dec     d
-            ld      d,l
-            ld      d,h
-            nop
-            nop
-            dec     b
-            ld      d,l
-            ld      d,l
-            nop
-            nop
-            dec     b
-            ld      d,l
-            ld      d,l
-            ld      b,b
-            nop
-            ld      bc,L5555
-            ld      d,b
-            nop
-            dec     b
-            ld      d,l
-            ld      d,l
-            ld      d,b
-            nop
-            dec     b
-            ld      d,b
-            nop
-            nop
-            nop
-            djnz    $A6C6
-            nop
-            nop
-            nop
-            jr      $A60B
-            nop
-            nop
-            nop
-            inc     d
-            dec     d
-            ld      b,b
-            nop
-            nop
-            dec     b
-            dec     d
-            ld      d,b
-            nop
-            nop
-            dec     d
-            ld      d,l
-            inc     d
-            nop
-            nop
-            inc     b
-            ld      d,l
-            dec     b
-            nop
-            nop
-            djnz    $A6A5
-            ld      b,c
-            ld      b,b
-            nop
-            ld      d,b
-            dec     d
-            ld      d,b
-            ret     nz
-            rrca
-            nop
-            ld      d,l
-            ld      d,b
-            ret     nz
-            nop
-            ld      bc,L5055
-            nop
-            nop
-            dec     b
-            ld      d,l
-            ld      b,b
-            nop
-            nop
-            dec     d
-            ld      d,l
-            ld      d,b
-            nop
-            nop
-            dec     b
-            ld      d,l
-            ld      d,h
-            nop
-            nop
-            ld      bc,L5555
-            nop
-            nop
-            nop
-            ld      d,l
-            ld      d,l
-            ld      b,b
-            nop
-            nop
-            ld      d,l
-            ld      d,l
-            nop
-            nop
-            dec     b
-            ld      d,h
-            nop
-            nop
-            nop
-            nop
-            dec     d
-            nop
-            nop
-            nop
-            dec     b
-            ld      d,h
-            nop
-            nop
-            nop
-            ld      de,L0054
-            nop
-            nop
-            jr      $A72A
-            nop
-            nop
-            nop
-            inc     d
-            dec     d
-            ld      b,b
-            nop
-            nop
-            dec     b
-            dec     d
-            ld      d,b
-            nop
-            nop
-            dec     b
-            ld      d,l
-            inc     d
-            nop
-            nop
-            nop
-            ld      d,l
-            ld      b,l
-            nop
-            nop
-            ld      bc,L5515
-            nop
-            nop
-            dec     b
-            dec     d
-            ld      e,h
-            nop
-            nop
-            ret     p
-            ld      d,l
-            ld      a,h
-            nop
-            nop
-            ld      bc,L5455
-            nop
-            nop
-            dec     b
-            ld      d,l
-            ld      d,b
-            nop
-            nop
-            dec     b
-            ld      d,l
-            ld      d,b
-            nop
-            nop
-            ld      bc,L4055
-            nop
-            nop
-            ld      bc,L4055
-            nop
-            nop
-            dec     b
-            ld      d,l
-            ld      d,b
-            nop
-            nop
-            dec     b
-            ld      d,l
-            ld      d,b
-            nop
-            nop
-            ld      bc,L0054
-            nop
-            nop
-            inc     b
-            dec     d
-            nop
-            nop
-            nop
-            ld      b,$25
-            nop
-            nop
-            nop
-            dec     b
-            dec     b
-            ld      b,b
-            nop
-            nop
-            ld      bc,L5445
-            nop
-            nop
-            ld      bc,L5555
-            nop
-            nop
-            ld      bc,L4155
-            ld      b,b
-            nop
-            dec     b
-            dec     d
-            ld      b,b
-            ld      b,b
-            nop
-            inc     d
-            dec     b
-            ld      d,b
-            ld      d,b
-            inc     bc
-            ret     nz
-            ld      d,l
-            ld      d,b
-            jr      nc,$A751
-            dec     b
-            ld      d,l
-            ld      d,b
-            jr      nc,$A756
-            dec     d
-            ld      d,l
-            ld      d,b
-            nop
-            nop
-            dec     d
-            ld      d,l
-            ld      b,b
-            nop
-            nop
-            dec     b
-            ld      d,l
-            ld      b,b
-            nop
-            nop
-            dec     b
-            ld      d,l
-            ld      b,b
-            nop
-            nop
-            ld      bc,L5055
-            nop
-            nop
-            dec     d
-            ld      d,l
-            ld      d,b
-            nop
-            nop
-            nop
-            dec     d
-            ld      d,b
-            nop
-            nop
-            nop
-            nop
-            inc     bc
-            nop
-            nop
-            nop
-            nop
-            inc     bc
-            nop
-            djnz    $A784
-            nop
-            inc     bc
-            ret     nz
-            inc     d
-            nop
-            nop
-            ld      e,a
-            nop
-            dec     d
-            ld      d,b
-            ld      bc,L0054
-            dec     d
-            ld      d,h
-            ld      bc,L0040
-            dec     d
-            ld      d,l
-            ld      bc,L0050
-            dec     d
-            ld      d,l
-            ld      b,c
-            ld      d,c
-            ld      d,b
-            dec     d
-            ld      d,l
-            ld      d,l
-            ld      d,l
-            add     a,h
-            dec     d
-            ld      d,l
-            ld      d,l
-            ld      d,b
-            inc     b
-            dec     d
-            ld      d,l
-            ld      d,l
-            ld      b,b
-            add     a,h
-            dec     d
-            ld      d,l
-            ld      d,l
-            ld      d,l
-            ld      d,h
-            dec     d
-            ld      d,l
-            nop
-            ld      d,b
-            ld      d,b
-            dec     d
-            ld      b,b
-            ld      bc,L0050
-            djnz    $A7C0
-            dec     b
-            ld      c,h
-            nop
-            nop
-            nop
-            dec     b
-            call    m,$0000
-            nop
-            ld      bc,L007C
-            nop
-            nop
-            nop
-            ld      e,h
-            nop
-            nop
-            nop
-            nop
-            inc     c
-            nop
-            nop
-            nop
-            nop
-            inc     c
-            nop
-            nop
-            nop
-            nop
-            inc     c
-            nop
-            djnz    $A7E3
-            nop
-            inc     a
-            nop
-            djnz    $A7E8
-            inc     bc
-            ret     p
-            nop
-            dec     d
-            nop
-            inc     bc
-            ret     nz
-            nop
-            dec     d
-            ld      d,h
-            nop
-            inc     d
-            nop
-            dec     d
-            ld      d,l
-            nop
-            inc     d
-            nop
-            dec     d
-            ld      d,l
-            ld      b,b
-            inc     d
-            nop
-            dec     d
-            ld      d,l
-            ld      d,l
-            ld      d,l
-            ld      d,b
-            dec     d
-            ld      d,l
-            ld      d,l
-            ld      d,h
-            sub     h
-            dec     d
-            ld      d,l
-            ld      d,l
-            ret     nz
-            inc     b
-            dec     d
-            dec     b
-            ld      b,l
-            ret     nc
-            sub     h
-            inc     d
-            nop
-            ld      bc,L50D5
-            djnz    $A81A
-            nop
-            pop     de
-            ld      d,b
-            nop
-            nop
-            inc     bc
-            ret     nc
-            ld      b,b
-            nop
-            nop
-            rrca
-            ld      b,b
-            nop
-            nop
-            nop
-            rrca
-            nop
-            nop
-            nop
-            nop
-            nop
-            ld      ($0000),hl
-            nop
-            nop
-            ld      ($0000),hl
-            nop
-            nop
-            jr      nz,$A83B
-            nop
-            nop
-            nop
-            inc     c
-            ret     nz
-            nop
-            nop
-            nop
-            inc     a
-            ret     nz
-            djnz    $A847
-            nop
-            di
-            ret     nz
-            djnz    $A84C
-            ld      bc,L4051
-            dec     d
-            nop
-            nop
-            ld      d,c
-            ld      b,b
-            dec     d
-            ld      d,h
-            nop
-            dec     d
-            nop
-            dec     d
-            ld      d,l
-            nop
-            dec     d
-            nop
-            dec     d
-            ld      d,l
-            ld      b,b
-            inc     d
-            nop
-            dec     d
-            ld      d,l
-            ld      b,b
-            inc     d
-            djnz    $A87E
-            ld      d,l
-            ld      d,b
-            ld      d,h
-            sub     h
-            dec     d
-            ld      d,l
-            ld      d,l
-            ld      d,h
-            ld      d,h
-            dec     d
-            ld      d,l
-            ld      d,l
-            ld      d,l
-            ld      d,h
-            dec     d
-            ld      bc,L5555
-            ld      d,h
-            inc     d
-            nop
-            dec     b
-            ld      d,c
-            ld      d,b
-            djnz    $A883
-            nop
-            nop
-            ld      b,b
-            nop
-            nop
-            dec     d
-            ld      b,b
-            nop
-            nop
-            nop
-            ld      b,b
-            ld      d,b
-            nop
-            inc     bc
-            nop
-            ld      h,d
-            ld      d,b
-            nop
-            ccf
-            ret     nz
-            ld      d,b
-            ld      b,b
-            nop
-            nop
-            ret     nc
-            djnz    $A8E1
-            call    m,L5100
-            ld      d,h
-            ld      d,h
-            call    p,L5500
-            ld      d,l
-            ld      d,l
-            call    nc,$1500
-            ld      d,l
-            ld      b,l
-            ld      d,b
-            nop
-            nop
-            dec     d
-            ld      b,c
-            ld      b,b
-            nop
-            nop
-            dec     d
-            ld      b,b
-            nop
-            nop
-            nop
-            ld      d,l
-            ld      b,b
-            nop
-            nop
-            ld      bc,L5055
-            nop
-            nop
-            dec     b
-            ld      d,l
-            ld      d,b
-            nop
-            nop
-            dec     d
-            ld      d,l
-            ld      d,b
-            nop
-            nop
-            dec     d
-            ld      d,l
-            ld      d,h
-            nop
-            nop
-            dec     d
-            ld      d,l
-            ld      d,h
-            nop
-            nop
-            ld      d,l
-            ld      d,l
-            ld      d,h
-            nop
-            ld      bc,L5555
-            ld      d,l
-            nop
-            nop
-            nop
-            ld      bc,L0050
-            nop
-            nop
-            dec     b
-            dec     d
-            nop
-            nop
-            nop
-            ld      b,$25
-            ld      b,b
-            nop
-            nop
-            inc     b
-            dec     b
-            nop
-            ccf
-            pop     bc
-            ld      d,l
-            inc     b
-            nop
-            nop
-            pop     af
-            ld      d,l
-            dec     d
-            ld      b,b
-            nop
-            inc     a
-            dec     b
-            rst     38H
-            ret     nc
-            nop
-            inc     a
-            dec     b
-            ld      d,h
-            call    m,$0000
-            dec     b
-            ld      d,b
-            inc     a
-            nop
-            nop
-            dec     b
-            ld      b,b
-            nop
-            nop
-            nop
-            dec     d
-            ld      d,b
-            nop
-            nop
-            nop
-            ld      d,l
-            ld      d,b
-            nop
-            nop
-            ld      bc,L5055
-            nop
-            nop
-            ld      bc,L4055
-            nop
-            nop
-            ld      bc,L4055
-            nop
-            nop
-            dec     b
-            ld      d,l
-            ld      d,b
-            nop
-            nop
-            dec     b
-            ld      d,l
-            ld      d,h
-            nop
-            nop
-            ld      d,l
-            ld      d,l
-            ld      d,l
-            nop
-            nop
-            nop
-            nop
-            dec     d
-            ld      b,b
-            nop
-            nop
-            nop
-            ld      d,l
-            ld      d,b
-            nop
-            DB      $fd,$40
-            dec     h
-            ld      d,h
-            jr      z,$A958
-            ld      d,h
-            ld      bc,L0050
-            ret     p
-            dec     d
-            ld      d,l
-            ld      b,b
-            ld      hl,(L553D)
-            ld      d,l
-            ld      d,b
-            nop
-            dec     c
-            ld      b,b
-            dec     d
-            ld      d,b
-            nop
-            ld      bc,$0500
-            ld      d,b
-            nop
-            nop
-            nop
-            dec     b
-            ld      d,b
-            nop
-            nop
-            nop
-            dec     d
-            ld      b,b
-            nop
-            nop
-            ld      bc,L4055
-            nop
-            nop
-            dec     b
-            ld      d,l
-            ld      b,b
-            nop
-            nop
-            dec     d
-            ld      d,l
-            nop
-            nop
-            nop
-            dec     d
-            ld      d,l
-            nop
-            nop
-            nop
-            dec     d
-            ld      d,l
-            nop
-            nop
-            nop
-            ld      d,l
-            ld      d,l
-            ld      b,b
-            nop
-            nop
-            ld      d,l
-            ld      d,l
-            ld      d,b
-            nop
-            dec     b
-            ld      d,l
-            ld      d,l
-            ld      d,h
-            nop
-            nop
-            ex      af,af'
-            djnz    $A999
-            nop
-            nop
-            jp      $0000
-            nop
-            nop
-            inc     bc
-            jr      z,$A9A3
-            nop
-            nop
-            cpl
-            ret     pe
-            nop
-            nop
-            nop
-            cpl
-            xor     d
-            nop
-            nop
-            jr      nz,$A9DB
-            jp      pe,$0000
-            ex      af,af'
-            cpl
-            xor     d
-            add     a,b
-            nop
-            ex      af,af'
-            dec     hl
-            jp      pe,L20A0
-            ld      a,(bc)
-            ld      a,(bc)
-            and     h
-            and     b
-            jr      nz,$A9ED
-            and     d
-            and     b
-            and     b
-            ld      hl,($AAAA)
-            xor     d
-            and     b
-            ld      a,(bc)
-            xor     d
-            xor     d
-            xor     d
-            and     b
-            ld      (bc),a
-            xor     d
-            xor     d
-            xor     d
-            add     a,b
-            nop
-            xor     d
-            xor     d
-            xor     d
-            nop
-            jr      nz,$A986
-            xor     d
-            xor     b
-            inc     c
-            ld      hl,($AA2A)
-            and     b
-            inc     a
-            nop
-            ld      hl,(memcheck)
-            ret     p
-            nop
-            ld      (bc),a
-            and     b
-            xor     d
-            ret     p
-            nop
-            nop
-            ld      l,$4C
-            nop
-            nop
-            nop
-            ld      l,d
-            add     a,b
-            nop
-            nop
-            nop
-            rlca
-            ld      a,(bc)
-            nop
-            nop
-            nop
-            inc     bc
-            ld      a,(bc)
-            nop
-            nop
-            nop
-            cpl
-            jp      pe,L0080
-            nop
-            cpl
-            jp      m,L0080
-            jr      nz,$AA3E
-            jp      pe,L00A0
-            ex      af,af'
-            dec     hl
-            jp      m,L00A8
-            ld      (bc),a
-            xor     e
-            jp      (hl)
-            jr      z,$AA1C
-            ld      hl,(LF8AA)
-            jr      z,$AA41
-            xor     d
-            xor     d
-            xor     d
-            xor     b
-            ld      ($AAAA),hl
-            xor     d
-            xor     b
-            ld      hl,($AAAA)
-            xor     d
-            add     a,b
-            nop
-            xor     d
-            xor     d
-            xor     d
-            nop
-            nop
-            xor     d
-            xor     d
-            and     b
-            ret     p
-            ld      (bc),a
-            ld      hl,(L0BAA)
-            call    m,L2A02
-            and     b
-            inc     hl
-            ret     p
-            ld      a,(bc)
-            ld      a,(bc)
-            xor     d
-            add     a,b
-            nop
-            nop
-            nop
-            jp      po,LC058
-            nop
-            inc     bc
-            dec     bc
-            ld      b,b
-            nop
-            nop
-            ld      a,(bc)
-            rlca
-            ld      a,(bc)
-            nop
-            nop
-            ld      b,$03
-            jp      z,$0000
-            nop
-            cpl
-            jp      pe,L0080
-            nop
-            cpl
-            jp      m,L0080
-            jr      nz,$AA98
-            jp      pe,L00A0
-            ex      af,af'
-            dec     hl
-            jp      m,L00A8
-            ld      (bc),a
-            xor     e
-            jp      (hl)
-            jr      z,$AA76
-            ld      hl,(LF8AA)
-            jr      z,$AA9B
-            xor     d
-            xor     d
-            xor     d
-            xor     b
-            ld      ($AAAA),hl
-            xor     d
-            xor     b
-            ld      hl,($AAAA)
-            xor     d
-            add     a,b
-            nop
-            xor     d
-            xor     d
-            xor     d
-            nop
-            nop
-            xor     d
-            xor     d
-            and     e
-            ret     p
-            ld      (bc),a
-            ld      hl,(L0BAA)
-            call    m,L2A02
-            and     b
-            jr      nz,$AA99
-            ld      a,(bc)
-            ld      a,(bc)
-            xor     d
-            add     a,b
-            inc     c
-            nop
-            nop
-            ret     z
-            inc     b
-            jr      nc,$AAA8
-            nop
-            nop
-            ret     nz
-            nop
-            nop
-            nop
-            inc     de
-            jp      z,$0000
-            inc     b
-            inc     bc
-            jp      z,$0000
-            nop
-            cpl
-            jp      pe,L0080
-            nop
-            cpl
-            jp      m,L0080
-            ld      (bc),a
-            cpl
-            jp      pe,L02A0
-            ld      (bc),a
-            dec     hl
-            jp      m,L0AA8
-            adc     a,d
-            xor     e
-            jp      (hl)
-            jr      z,$AAF8
-            xor     d
-            xor     d
-            ret     m
-            jr      z,$AAD5
-            xor     d
-            xor     d
-            xor     d
-            xor     b
-            ld      ($AAAA),hl
-            xor     d
-            xor     b
-            ld      hl,($AAAA)
-            xor     d
-            add     a,b
-            nop
-            xor     d
-            xor     d
-            xor     d
-            nop
-            nop
-            ld      hl,($A0AA)
-            inc     c
-            nop
-            ld      hl,(memcheck)
-            inc     a
-            nop
-            ld      a,(bc)
-            add     a,b
-            nop
-            ret     p
-            nop
-            ld      (bc),a
-            xor     d
-            xor     d
-            ret     p
-            nop
-            nop
-            nop
-            inc     bc
-            ret     nz
-            nop
-            nop
-            xor     d
-            add     a,b
-            call    m,L0200
-            xor     d
-            and     b
-            inc     a
-            nop
-            ld      hl,($A882)
-            ex      af,af'
-            ld      (bc),a
-            xor     d
-            sub     d
-            xor     d
-            ex      af,af'
-            ld      (de),a
-            xor     d
-            xor     d
-            xor     d
-            adc     a,b
-            nop
-            xor     $EA
-            xor     d
-            adc     a,b
-            rrca
-            rst     38H
-            jp      pe,$A0AA
-            jr      nz,$AB21
-            and     d
-            xor     d
-            and     b
-            nop
-            xor     d
-            adc     a,d
-            xor     d
-            xor     b
-            inc     c
-            nop
-            ld      a,(bc)
-            xor     d
-            xor     b
-            nop
-            nop
-            ld      hl,($A8AA)
-            nop
-            ld      (bc),a
-            xor     d
-            xor     d
-            and     b
-            nop
-            ex      af,af'
-            ld      a,(bc)
-            xor     d
-            and     b
-            nop
-            nop
-            ld      (bc),a
-            xor     d
-            nop
-            nop
-            nop
-            ld      (bc),a
-            and     b
-            add     a,b
-            nop
-            nop
-            ld      (bc),a
-            add     a,b
-            add     a,b
-            nop
-            nop
-            ld      hl,(L8002)
-            nop
-            nop
-            xor     d
-            add     a,b
-            ret     nz
-            nop
-            ld      (bc),a
-            xor     d
-            add     a,e
-            ret     p
-            nop
-            ld      hl,($A382)
-            ret     p
-            ld      (bc),a
-            xor     d
-            sub     d
-            xor     b
-            ret     p
-            ld      ($AAAA),a
-            xor     b
-            add     a,b
-            nop
-            ld      l,$EE
-            xor     d
-            jr      nz,$AB8D
-            ccf
-            cp      $AA
-            ex      af,af'
-            dec     hl
-            rst     38H
-            jp      m,L88AA
-            add     hl,sp
-            ccf
-            xor     d
-            xor     d
-            adc     a,b
-            jr      z,$ABAF
-            xor     d
-            xor     d
-            xor     b
-            inc     b
-            nop
-            ld      hl,($A8AA)
-            nop
-            nop
-            ld      hl,($A8AA)
-            nop
-            nop
-            adc     a,d
-            xor     d
-            xor     b
-            nop
-            ld      (bc),a
-            ld      a,(bc)
-            xor     d
-            and     b
-            nop
-            nop
-            ld      (bc),a
-            xor     d
-            nop
-            nop
-            nop
-            nop
-            and     b
-            xor     b
-            nop
-            nop
-            nop
-            jr      nz,$ABB3
-            nop
-            nop
-            ld      (bc),a
-            and     b
-            nop
-            nop
-            nop
-            xor     d
-            add     a,b
-            call    m,L0200
-            xor     d
-            add     a,e
-            ret     p
-            jr      nc,$ABE6
-            add     a,d
-            and     e
-            ret     p
-            ld      (bc),a
-            xor     d
-            sub     d
-            xor     e
-            ret     nz
-            ld      ($AAAA),hl
-            xor     b
-            add     a,b
-            djnz    $ABF9
-            xor     $AA
-            jr      nz,$ABE3
-            rst     38H
-            cp      $AA
-            ex      af,af'
-            cpl
-            rst     38H
-            jp      m,L88AA
-            add     hl,bc
-            ccf
-            xor     d
-            xor     d
-            adc     a,b
-            inc     l
-            ld      hl,($AAAA)
-            xor     b
-            inc     a
-            nop
-            ld      hl,($A8AA)
-            ld      c,$80
-            ld      hl,($A8AA)
-            ld      (bc),a
-            ld      b,b
-            adc     a,d
-            xor     d
-            xor     b
-            nop
-            ld      (bc),a
-            ld      a,(bc)
-            xor     d
-            and     b
-            nop
-            nop
-            ld      (bc),a
-            xor     d
-            nop
-            nop
-            nop
-            nop
-            and     b
-            xor     b
-            nop
-            nop
-            nop
-            jr      nz,$AC0D
-            nop
-            nop
-            ld      (bc),a
-            and     b
-            nop
-            nop
-            nop
-            xor     d
-            add     a,e
-            ret     nz
-            jr      nc,$AC13
-            xor     d
-            add     a,b
-            call    m,L2A00
-            add     a,d
-            and     b
-            inc     a
-            ld      (bc),a
-            xor     d
-            sub     d
-            xor     b
-            ex      af,af'
-            ld      (de),a
-            xor     d
-            xor     d
-            xor     b
-            ex      af,af'
-            nop
-            ld      l,$EE
-            xor     d
-            ex      af,af'
-            rrca
-            rst     38H
-            cp      $AA
-            ex      af,af'
-            inc     bc
-            rst     38H
-            jp      m,L88AA
-            jr      nz,$AC73
-            xor     d
-            xor     d
-            adc     a,b
-            ld      bc,$AA2A
-            xor     d
-            adc     a,b
-            jr      nc,$AC3E
-            ld      hl,($A8AA)
-            nop
-            ld      (bc),a
-            xor     d
-            xor     d
-            xor     b
-            nop
-            ld      b,b
-            ld      hl,($A0AA)
-            nop
-            nop
-            ld      a,(bc)
-            xor     d
-            add     a,b
-            nop
-            nop
-            ld      hl,(L00A8)
-            nop
-            nop
-            and     b
-            and     b
-            nop
-            nop
-            nop
-            jr      z,$AC7E
-            nop
-            nop
-            nop
-            ex      af,af'
-            and     b
-            nop
-            nop
-            nop
-            ret     nz
-            ret     nz
-            nop
-            nop
-            rrca
-            nop
-            jr      nc,$AC6E
-            nop
-            inc     c
-            ld      c,b
-            ld      c,h
-            nop
-            nop
-            jr      nc,$AC7E
-            inc     c
-            nop
-            nop
-            inc     a
-            jr      z,$AC88
-            nop
-            nop
-            ccf
-            jr      z,$ACBD
-            nop
-            nop
-            rrca
-            ex      de,hl
-            rst     08H
-            nop
-            nop
-            inc     bc
-            rst     38H
-            jp      L1FC0
-            rrca
-            rst     38H
-            ret     nc
-            ret     p
-            inc     de
-            rst     38H
-            rst     38H
-            rst     38H
-            ret     m
-            nop
-            rrca
-            rst     38H
-            rst     38H
-            ret     z
-            rra
-            rrca
-            rst     38H
-            rst     38H
-            ex      af,af'
-            inc     de
-            rst     38H
-            rst     38H
-            call    m,L0020
-            rrca
-            call    m,L2000
-            rra
-            rrca
-            ret     p
-            inc     bc
-            add     a,b
-            inc     de
-            rst     38H
-            ret     p
-            rrca
-            add     a,b
-            nop
-            inc     bc
-            call    m,LC00C
-            nop
-            nop
-            ccf
-            ret     p
-            inc     a
-            nop
-            nop
-            jr      nc,$AC62
-            nop
-            nop
-            inc     bc
-            jp      nz,L0083
-            nop
-            inc     bc
-            ld      (de),a
-            inc     bc
-            nop
-            nop
-            ex      af,af'
-            rrca
-            inc     d
-            ret     nz
-            nop
-            rrca
-            ld      a,(bc)
-            inc     bc
-            ret     nz
-            nop
-            rrca
-            jp      pe,LC00F
-            nop
-            inc     bc
-            jp      m,LC03F
-            nop
-            inc     bc
-            rst     38H
-            ret     p
-            ret     p
-            nop
-            rrca
-            rst     38H
-            call    p,L00F0
-            rst     38H
-            rst     38H
-            call    m,$1330
-            rst     08H
-            rst     38H
-            rst     38H
-            ret     p
-            rra
-            rrca
-            rst     38H
-            rst     38H
-            ret     z
-            nop
-            ccf
-            rst     38H
-            ret     p
-            ex      af,af'
-            inc     de
-            rst     38H
-            rst     38H
-            nop
-            jr      nz,$AD24
-            rrca
-            ret     p
-            inc     a
-            add     a,b
-            nop
-            ccf
-            ret     nz
-            jp      z,$13C0
-            rst     38H
-            di
-            jr      nz,$AD4F
-            rra
-            inc     bc
-            call    m,$0000
-            nop
-            nop
-            jr      nc,$AD3C
-            nop
-            nop
-            inc     bc
-            ret     nz
-            inc     hl
-            nop
-            nop
-            inc     bc
-            djnz    $ACA9
-            nop
-            nop
-            inc     c
-            ld      (bc),a
-            add     a,h
-            ret     nz
-            nop
-            rrca
-            ld      a,(bc)
-            inc     bc
-            ret     nz
-            nop
-            rrca
-            jp      z,LC00F
-            nop
-            inc     bc
-            jp      m,LC03F
-            nop
-            inc     bc
-            rst     38H
-            ret     p
-            ret     p
-            nop
-            rrca
-            rst     38H
-            call    p,L1FF0
-            rrca
-            rst     38H
-            call    m,$1330
-            rst     38H
-            rst     38H
-            rst     38H
-            ret     p
-            nop
-            rrca
-            rst     38H
-            rst     38H
-            ret     z
-            rra
-            rrca
-            rst     38H
-            ret     p
-            ex      af,af'
-            inc     de
-            rst     38H
-            rst     38H
-            ld      a,(bc)
-            and     b
-            nop
-            rrca
-            ret     p
-            jr      nz,$AD63
-            rra
-            rrca
-            ret     nz
-            adc     a,a
-            ret     p
-            inc     de
-            rst     38H
-            rst     38H
-            ret     p
-            inc     a
-            nop
-            inc     bc
-            ret     p
-            nop
-            ret     p
-            nop
-            nop
-            jr      nc,$AD9E
-            nop
-            nop
-            inc     bc
-            ret     nz
-            and     e
-            nop
-            nop
-            inc     bc
-            djnz    $AD03
-            nop
-            nop
-            inc     c
-            ld      (bc),a
-            add     a,h
-            ret     nz
-            nop
-            rrca
-            ld      a,(bc)
-            add     a,e
-            ret     nz
-            nop
-            rrca
-            jp      pe,LC00F
-            nop
-            inc     bc
-            ret     m
-            ccf
-            ret     nz
-            nop
-            inc     bc
-            rst     38H
-            ret     p
-            ret     p
-            nop
-            rrca
-            rst     38H
-            call    p,L00F0
-            rst     38H
-            rst     38H
-            call    m,$1330
-            rst     08H
-            rst     38H
-            rst     38H
-            ret     p
-            rra
-            rrca
-            rst     38H
-            rst     38H
-            ret     z
-            nop
-            ccf
-            rst     38H
-            ret     p
-            jr      nz,$ADC7
-            rst     38H
-            rst     38H
-            nop
-            add     a,b
-            rra
-            rrca
-            ret     p
-            ld      hl,(L00F0)
-            ccf
-            ret     nz
-            inc     c
-            inc     a
-            inc     de
-            rst     38H
-            ret     p
-            inc     sp
-            inc     c
-            rra
-            inc     bc
-            rst     38H
-            jp      L00FF
-            nop
-            ld      a,(bc)
-            add     a,b
-            inc     c
-            nop
-            nop
-            inc     a
-            jr      z,$ADE2
-            nop
-            nop
-            rst     38H
-            ld      (bc),a
-            or      b
-            nop
-            inc     bc
-            rst     08H
-            jp      L03C0
-            rst     38H
-            rrca
-            ret     p
-            ret     p
-            inc     c
-            inc     c
-            rra
-            ret     p
-            inc     c
-            ld      sp,LFF03
-            ret     p
-            inc     c
-            nop
-            inc     bc
-            rst     38H
-            ret     p
-            inc     c
-            ld      (bc),a
-            xor     d
-            rst     38H
-            call    m,L003C
-            ld      hl,(LFFFF)
-            call    m,Exec_Joy_Jump
-            rst     38H
-            rst     38H
-            ret     p
-            inc     c
-            rrca
-            rst     38H
-            rst     38H
-            ret     p
-            rrca
-            ccf
-            ccf
-            rst     38H
-            ret     nz
-            nop
-            call    m,L300C
-            ret     nz
-            nop
-            nop
-            inc     c
-            jr      nc,$ADD7
-            nop
-            nop
-            inc     a
-            di
-            ret     nz
-            nop
-            nop
-            jr      nc,$ADE3
-            nop
-            nop
-            nop
-            inc     d
-            ld      d,c
-            ld      b,b
-            nop
-            nop
-            nop
-            and     b
-            jr      nc,$AE2C
-            nop
-            rst     38H
-            ex      af,af'
-            jr      nc,$AE31
-            rst     38H
-            di
-            jp      nz,L0FC0
-            ccf
-            inc     bc
-            ret     nz
-            add     a,b
-            nop
-            ld      c,a
-            rra
-            jp      L2080
-            ld      b,e
-            rst     38H
-            di
-            jr      nz,$AE6D
-            nop
-            rst     38H
-            ret     p
-            ret     nz
-            ld      a,(bc)
-            xor     d
-            rst     38H
-            call    m,L0030
-            xor     d
-            rst     38H
-            call    m,L310C
-            dec     bc
-            rst     38H
-            rst     38H
-            inc     a
-            inc     c
-            rrca
-            rst     38H
-            rst     38H
-            call    m,$3F0F
-            rst     38H
-            rst     38H
-            call    m,LFC00
-            ccf
-            rst     38H
-            ret     p
-            nop
-            nop
-            inc     c
-            inc     a
-            ret     p
-            nop
-            nop
-            rrca
-            inc     c
-            jr      nc,$AE72
-            nop
-            inc     bc
-            rst     08H
-            inc     a
-            nop
-            nop
-            nop
-            jp      L000C
-            nop
-            ld      bc,$1445
-            nop
-            nop
-            nop
-            and     b
-            jr      nc,$AE86
-            nop
-            rst     38H
-            ex      af,af'
-            call    m,LFF00
-            di
-            ret     z
-            call    z,$3F0F
-            inc     bc
-            ret     z
-            ret     nz
-            nop
-            ld      c,a
-            rra
-            ret     z
-            ret     nz
-            jr      z,$AE9E
-            rst     38H
-            jp      p,L0230
-            add     a,b
-            rst     38H
-            ret     p
-            or      b
-            nop
-            xor     d
-            rst     38H
-            call    m,L0030
-            ld      hl,(LFCFF)
-            jr      nc,$AEDF
-            inc     bc
-            rst     38H
-            rst     38H
-            inc     a
-            inc     c
-            rrca
-            rst     38H
-            rst     38H
-            call    m,$3F0F
-            rst     38H
-            rst     38H
-            call    m,LFC00
-            ccf
-            rst     38H
-            ret     p
-            nop
-            nop
-            inc     bc
-            inc     c
-            jr      nc,$AEC7
-            nop
-            inc     bc
-            inc     c
-            jr      nc,$AECC
-            nop
-            rrca
-            inc     a
-            ret     p
-            nop
-            nop
-            inc     c
-            jr      nc,$AE95
-            nop
-            nop
-            dec     b
-            inc     d
-            ld      d,b
-            nop
-            nop
-            nop
-            add     a,b
-            call    m,$0000
-            rst     38H
-            inc     hl
-            call    z,LFF00
-            di
-            rrc     h
-            rrca
-            ccf
-            inc     bc
-            jp      nz,L203C
-            ld      c,a
-            rra
-            jp      nz,L28C0
-            inc     bc
-            rst     38H
-            jp      p,L0A30
-            and     b
-            rst     38H
-            ret     p
-            inc     c
-            nop
-            xor     b
-            rst     38H
-            call    m,L000C
-            ld      hl,(LFCFF)
-            inc     c
-            ld      sp,LFF0B
-            rst     38H
-            inc     a
-            inc     c
-            rrca
-            rst     38H
-            rst     38H
-            call    m,$3F0F
-            rst     38H
-            rst     38H
-            call    m,LFC00
-            ccf
-            rst     38H
-            ret     p
-            nop
-            nop
-            inc     c
-            inc     a
-            ret     p
-            nop
-            nop
-            rrca
-            inc     c
-            jr      nc,$AF26
-            nop
-            inc     bc
-            rst     08H
-            inc     a
-            nop
-            nop
-            nop
+;*******************************************************************************
+; WORRIOR_YELLOW_FIRE_4
+; 5 bytes/row = 20 pixels wide, 18 rows
+;*******************************************************************************
+WORRIOR_YELLOW_FIRE_4:
+        .DB      $00,$00,$00,$2A,$00 ; . . . . . . . . . . . . . 2 2 2 . . . .
+        .DB      $02,$00,$00,$CA,$8C ; . . . 2 . . . . . . . . 3 . 2 2 2 . 3 .
+        .DB      $00,$30,$00,$0A,$80 ; . . . . . 3 . . . . . . . . 2 2 2 . . .
+        .DB      $00,$00,$02,$AA,$00 ; . . . . . . . . . . . 2 2 2 2 2 . . . .
+        .DB      $02,$00,$00,$2A,$28 ; . . . 2 . . . . . . . . . 2 2 2 . 2 2 .
+        .DB      $3C,$00,$00,$2F,$A8 ; . 3 3 . . . . . . . . . . 2 3 3 2 2 2 .
+        .DB      $0A,$08,$80,$AB,$E8 ; . . 2 2 . . 2 . 2 . . . 2 2 2 3 3 2 2 .
+        .DB      $2A,$BB,$BF,$FF,$E8 ; . 2 2 2 2 3 2 3 2 3 3 3 3 3 3 3 3 2 2 .
+        .DB      $3A,$08,$83,$FF,$A8 ; . 3 2 2 . . 2 . 2 . . 3 3 3 3 3 2 2 2 .
+        .DB      $00,$00,$00,$AA,$A8 ; . . . . . . . . . . . . 2 2 2 2 2 2 2 .
+        .DB      $04,$00,$00,$AA,$A8 ; . . 1 . . . . . . . . . 2 2 2 2 2 2 2 .
+        .DB      $00,$00,$0A,$AA,$80 ; . . . . . . . . . . 2 2 2 2 2 2 2 . . .
+        .DB      $00,$00,$0A,$AA,$80 ; . . . . . . . . . . 2 2 2 2 2 2 2 . . .
+        .DB      $00,$00,$2A,$0A,$80 ; . . . . . . . . . 2 2 2 . . 2 2 2 . . .
+        .DB      $00,$0A,$28,$0A,$80 ; . . . . . . 2 2 . 2 2 . . . 2 2 2 . . .
+        .DB      $00,$02,$A0,$02,$80 ; . . . . . . . 2 2 2 . . . . . 2 2 . . .
+        .DB      $00,$00,$A0,$02,$80 ; . . . . . . . . 2 2 . . . . . 2 2 . . .
+        .DB      $00,$00,$00,$2A,$80 ; . . . . . . . . . . . . . 2 2 2 2 . . .
 
-;*****************************************************************************************
-; ----> Compiler Buffer Bleed / Fragment Data
-;
-;       This block contains junk data (including the ASCII string "285AVE") likely
-;       caused by "Compiler Buffer Bleed." In vintage arcade development, the memory
-;       buffer of the compiling computer often wasn't wiped clean. Random leftover
-;       data sitting in RAM would accidentally get tacked onto the end of the game's
-;       binary right before the blank EPROM $FF padding began!
-;*****************************************************************************************
+;*******************************************************************************
+; BURWOR_1_UP
+; 5 bytes/row = 20 pixels wide, 18 rows
+;*******************************************************************************
+BURWOR_1_UP:
+        .DB      $00,$00,$05,$40,$00 ; . . . . . . . . . . 1 1 1 . . . . . . .
+        .DB      $00,$00,$15,$40,$00 ; . . . . . . . . . 1 1 1 1 . . . . . . .
+        .DB      $10,$05,$15,$40,$00 ; . 1 . . . . 1 1 . 1 1 1 1 . . . . . . .
+        .DB      $10,$55,$15,$50,$00 ; . 1 . . 1 1 1 1 . 1 1 1 1 1 . . . . . .
+        .DB      $11,$55,$15,$D4,$00 ; . 1 . 1 1 1 1 1 . 1 1 1 3 1 1 . . . . .
+        .DB      $15,$54,$05,$F4,$00 ; . 1 1 1 1 1 1 . . . 1 1 3 3 1 . . . . .
+        .DB      $14,$10,$05,$F4,$00 ; . 1 1 . . 1 . . . . 1 1 3 3 1 . . . . .
+        .DB      $10,$50,$55,$54,$00 ; . 1 . . 1 1 . . 1 1 1 1 1 1 1 . . . . .
+        .DB      $01,$55,$55,$54,$00 ; . . . 1 1 1 1 1 1 1 1 1 1 1 1 . . . . .
+        .DB      $01,$55,$55,$54,$00 ; . . . 1 1 1 1 1 1 1 1 1 1 1 1 . . . . .
+        .DB      $01,$55,$01,$41,$00 ; . . . 1 1 1 1 1 . . . 1 1 . . 1 . . . .
+        .DB      $01,$55,$01,$10,$00 ; . . . 1 1 1 1 1 . . . 1 . 1 . . . . . .
+        .DB      $01,$54,$40,$00,$00 ; . . . 1 1 1 1 . 1 . . . . . . . . . . .
+        .DB      $10,$10,$10,$00,$00 ; . 1 . . . 1 . . . 1 . . . . . . . . . .
+        .DB      $15,$54,$05,$55,$50 ; . 1 1 1 1 1 1 . . . 1 1 1 1 1 1 1 1 . .
+        .DB      $11,$54,$01,$55,$54 ; . 1 . 1 1 1 1 . . . . 1 1 1 1 1 1 1 1 .
+        .DB      $10,$55,$00,$55,$50 ; . 1 . . 1 1 1 1 . . . . 1 1 1 1 1 1 . .
+        .DB      $10,$05,$00,$05,$00 ; . 1 . . . . 1 1 . . . . . . 1 1 . . . .
 
-            ; Fragment Data (i.e., garbage)
-            DB      $C3, $0C, $00, $00, $01, $45, $14, $00
+;*******************************************************************************
+; BURWOR_2_UP
+; 5 bytes/row = 20 pixels wide, 18 rows
+;*******************************************************************************
+BURWOR_2_UP:
+        .DB      $00,$00,$00,$45,$00 ; . . . . . . . . . . . . 1 . 1 1 . . . .
+        .DB      $01,$01,$01,$55,$00 ; . . . 1 . . . 1 . . . 1 1 1 1 1 . . . .
+        .DB      $01,$05,$41,$45,$00 ; . . . 1 . . 1 1 1 . . 1 1 . 1 1 . . . .
+        .DB      $01,$15,$41,$55,$40 ; . . . 1 . 1 1 1 1 . . 1 1 1 1 1 1 . . .
+        .DB      $01,$55,$41,$47,$50 ; . . . 1 1 1 1 1 1 . . 1 1 . 1 3 1 1 . .
+        .DB      $01,$41,$40,$57,$D0 ; . . . 1 1 . . 1 1 . . . 1 1 1 3 3 1 . .
+        .DB      $01,$01,$40,$57,$D0 ; . . . 1 . . . 1 1 . . . 1 1 1 3 3 1 . .
+        .DB      $00,$05,$55,$55,$50 ; . . . . . . 1 1 1 1 1 1 1 1 1 1 1 1 . .
+        .DB      $00,$05,$55,$55,$50 ; . . . . . . 1 1 1 1 1 1 1 1 1 1 1 1 . .
+        .DB      $00,$05,$55,$55,$50 ; . . . . . . 1 1 1 1 1 1 1 1 1 1 1 1 . .
+        .DB      $00,$05,$51,$15,$10 ; . . . . . . 1 1 1 1 . 1 . 1 1 1 . 1 . .
+        .DB      $00,$05,$40,$11,$00 ; . . . . . . 1 1 1 . . . . 1 . 1 . . . .
+        .DB      $00,$15,$50,$00,$00 ; . . . . . 1 1 1 1 1 . . . . . . . . . .
+        .DB      $04,$55,$45,$00,$00 ; . . 1 . 1 1 1 1 1 . 1 1 . . . . . . . .
+        .DB      $05,$55,$01,$51,$40 ; . . 1 1 1 1 1 1 . . . 1 1 1 . 1 1 . . .
+        .DB      $04,$14,$00,$55,$50 ; . . 1 . . 1 1 . . . . . 1 1 1 1 1 1 . .
+        .DB      $10,$00,$00,$15,$54 ; . 1 . . . . . . . . . . . 1 1 1 1 1 1 .
+        .DB      $10,$00,$00,$05,$44 ; . 1 . . . . . . . . . . . . 1 1 1 . 1 .
+
+;*******************************************************************************
+; BURWOR_3_UP
+; 5 bytes/row = 20 pixels wide, 18 rows
+;*******************************************************************************
+BURWOR_3_UP:
+        .DB      $04,$00,$00,$01,$40 ; . . 1 . . . . . . . . . . . . 1 1 . . .
+        .DB      $01,$01,$00,$45,$40 ; . . . 1 . . . 1 . . . . 1 . 1 1 1 . . .
+        .DB      $00,$45,$40,$41,$40 ; . . . . 1 . 1 1 1 . . . 1 . . 1 1 . . .
+        .DB      $00,$55,$40,$45,$50 ; . . . . 1 1 1 1 1 . . . 1 . 1 1 1 1 . .
+        .DB      $00,$51,$50,$41,$D4 ; . . . . 1 1 . 1 1 1 . . 1 . . 1 3 1 1 .
+        .DB      $00,$40,$50,$15,$F4 ; . . . . 1 . . . 1 1 . . . 1 1 1 3 3 1 .
+        .DB      $00,$00,$54,$15,$F4 ; . . . . . . . . 1 1 1 . . 1 1 1 3 3 1 .
+        .DB      $00,$00,$55,$55,$54 ; . . . . . . . . 1 1 1 1 1 1 1 1 1 1 1 .
+        .DB      $00,$00,$55,$55,$54 ; . . . . . . . . 1 1 1 1 1 1 1 1 1 1 1 .
+        .DB      $00,$00,$55,$55,$54 ; . . . . . . . . 1 1 1 1 1 1 1 1 1 1 1 .
+        .DB      $00,$00,$54,$45,$44 ; . . . . . . . . 1 1 1 . 1 . 1 1 1 . 1 .
+        .DB      $00,$00,$50,$04,$40 ; . . . . . . . . 1 1 . . . . 1 . 1 . . .
+        .DB      $00,$40,$54,$00,$00 ; . . . . 1 . . . 1 1 1 . . . . . . . . .
+        .DB      $00,$51,$51,$05,$50 ; . . . . 1 1 . 1 1 1 . 1 . . 1 1 1 1 . .
+        .DB      $00,$55,$40,$55,$54 ; . . . . 1 1 1 1 1 . . . 1 1 1 1 1 1 1 .
+        .DB      $00,$45,$40,$50,$54 ; . . . . 1 . 1 1 1 . . . 1 1 . . 1 1 1 .
+        .DB      $01,$01,$00,$00,$14 ; . . . 1 . . . 1 . . . . . . . . . 1 1 .
+        .DB      $04,$00,$00,$00,$10 ; . . 1 . . . . . . . . . . . . . . 1 . .
+
+;*******************************************************************************
+; BURWOR_1
+; 5 bytes/row = 20 pixels wide, 18 rows
+;*******************************************************************************
+BURWOR_1:
+        .DB      $00,$00,$00,$00,$40 ; . . . . . . . . . . . . . . . . 1 . . .
+        .DB      $00,$00,$00,$01,$50 ; . . . . . . . . . . . . . . . 1 1 1 . .
+        .DB      $00,$00,$00,$01,$50 ; . . . . . . . . . . . . . . . 1 1 1 . .
+        .DB      $00,$00,$01,$01,$54 ; . . . . . . . . . . . 1 . . . 1 1 1 1 .
+        .DB      $00,$15,$54,$01,$54 ; . . . . . 1 1 1 1 1 1 . . . . 1 1 1 1 .
+        .DB      $00,$5F,$54,$41,$50 ; . . . . 1 1 3 3 1 1 1 . 1 . . 1 1 1 . .
+        .DB      $15,$7F,$55,$01,$50 ; . 1 1 1 1 3 3 3 1 1 1 1 . . . 1 1 1 . .
+        .DB      $15,$55,$55,$41,$40 ; . 1 1 1 1 1 1 1 1 1 1 1 1 . . 1 1 . . .
+        .DB      $15,$55,$54,$01,$00 ; . 1 1 1 1 1 1 1 1 1 1 . . . . 1 . . . .
+        .DB      $05,$50,$54,$04,$00 ; . . 1 1 1 1 . . 1 1 1 . . . 1 . . . . .
+        .DB      $00,$00,$54,$10,$00 ; . . . . . . . . 1 1 1 . . 1 . . . . . .
+        .DB      $01,$50,$15,$40,$14 ; . . . 1 1 1 . . . 1 1 1 1 . . . . 1 1 .
+        .DB      $01,$54,$15,$51,$54 ; . . . 1 1 1 1 . . 1 1 1 1 1 . 1 1 1 1 .
+        .DB      $00,$55,$55,$55,$50 ; . . . . 1 1 1 1 1 1 1 1 1 1 1 1 1 1 . .
+        .DB      $00,$54,$55,$51,$50 ; . . . . 1 1 1 . 1 1 1 1 1 1 . 1 1 1 . .
+        .DB      $00,$14,$15,$51,$40 ; . . . . . 1 1 . . 1 1 1 1 1 . 1 1 . . .
+        .DB      $00,$05,$00,$01,$00 ; . . . . . . 1 1 . . . . . . . 1 . . . .
+        .DB      $01,$55,$40,$05,$54 ; . . . 1 1 1 1 1 1 . . . . . 1 1 1 1 1 .
+
+;*******************************************************************************
+; BURWOR_2
+; 5 bytes/row = 20 pixels wide, 18 rows
+;*******************************************************************************
+BURWOR_2:
+        .DB      $00,$00,$00,$00,$14 ; . . . . . . . . . . . . . . . . . 1 1 .
+        .DB      $00,$15,$55,$00,$50 ; . . . . . 1 1 1 1 1 1 1 . . . . 1 1 . .
+        .DB      $00,$5F,$54,$01,$54 ; . . . . 1 1 3 3 1 1 1 . . . . 1 1 1 1 .
+        .DB      $15,$7F,$55,$41,$54 ; . 1 1 1 1 3 3 3 1 1 1 1 1 . . 1 1 1 1 .
+        .DB      $15,$55,$55,$00,$54 ; . 1 1 1 1 1 1 1 1 1 1 1 . . . . 1 1 1 .
+        .DB      $04,$45,$55,$41,$50 ; . . 1 . 1 . 1 1 1 1 1 1 1 . . 1 1 1 . .
+        .DB      $15,$55,$54,$01,$40 ; . 1 1 1 1 1 1 1 1 1 1 . . . . 1 1 . . .
+        .DB      $05,$50,$55,$05,$00 ; . . 1 1 1 1 . . 1 1 1 1 . . 1 1 . . . .
+        .DB      $00,$00,$54,$04,$00 ; . . . . . . . . 1 1 1 . . . 1 . . . . .
+        .DB      $00,$00,$55,$10,$00 ; . . . . . . . . 1 1 1 1 . 1 . . . . . .
+        .DB      $01,$55,$55,$54,$00 ; . . . 1 1 1 1 1 1 1 1 1 1 1 1 . . . . .
+        .DB      $05,$55,$55,$55,$00 ; . . 1 1 1 1 1 1 1 1 1 1 1 1 1 1 . . . .
+        .DB      $01,$50,$55,$55,$40 ; . . . 1 1 1 . . 1 1 1 1 1 1 1 1 1 . . .
+        .DB      $00,$50,$00,$15,$40 ; . . . . 1 1 . . . . . . . 1 1 1 1 . . .
+        .DB      $00,$14,$00,$05,$00 ; . . . . . 1 1 . . . . . . . 1 1 . . . .
+        .DB      $05,$55,$00,$01,$00 ; . . 1 1 1 1 1 1 . . . . . . . 1 . . . .
+        .DB      $00,$00,$00,$05,$40 ; . . . . . . . . . . . . . . 1 1 1 . . .
+        .DB      $00,$00,$00,$00,$14 ; . . . . . . . . . . . . . . . . . 1 1 .
+
+;*******************************************************************************
+; BURWOR_3
+; 5 bytes/row = 20 pixels wide, 18 rows
+;*******************************************************************************
+BURWOR_3:
+        .DB      $00,$15,$55,$01,$50 ; . . . . . 1 1 1 1 1 1 1 . . . 1 1 1 . .
+        .DB      $00,$5F,$54,$05,$54 ; . . . . 1 1 3 3 1 1 1 . . . 1 1 1 1 1 .
+        .DB      $15,$7F,$55,$45,$40 ; . 1 1 1 1 3 3 3 1 1 1 1 1 . 1 1 1 . . .
+        .DB      $15,$55,$55,$05,$00 ; . 1 1 1 1 1 1 1 1 1 1 1 . . 1 1 . . . .
+        .DB      $04,$45,$55,$45,$00 ; . . 1 . 1 . 1 1 1 1 1 1 1 . 1 1 . . . .
+        .DB      $00,$05,$54,$01,$40 ; . . . . . . 1 1 1 1 1 . . . . 1 1 . . .
+        .DB      $05,$50,$55,$01,$40 ; . . 1 1 1 1 . . 1 1 1 1 . . . 1 1 . . .
+        .DB      $00,$00,$54,$04,$00 ; . . . . . . . . 1 1 1 . . . 1 . . . . .
+        .DB      $00,$01,$55,$10,$00 ; . . . . . . . 1 1 1 1 1 . 1 . . . . . .
+        .DB      $00,$15,$55,$54,$00 ; . . . . . 1 1 1 1 1 1 1 1 1 1 . . . . .
+        .DB      $01,$55,$55,$55,$40 ; . . . 1 1 1 1 1 1 1 1 1 1 1 1 1 1 . . .
+        .DB      $05,$50,$00,$05,$50 ; . . 1 1 1 1 . . . . . . . . 1 1 1 1 . .
+        .DB      $01,$40,$00,$01,$40 ; . . . 1 1 . . . . . . . . . . 1 1 . . .
+        .DB      $00,$50,$00,$05,$00 ; . . . . 1 1 . . . . . . . . 1 1 . . . .
+        .DB      $01,$54,$00,$15,$40 ; . . . 1 1 1 1 . . . . . . 1 1 1 1 . . .
+        .DB      $04,$00,$00,$00,$10 ; . . 1 . . . . . . . . . . . . . . 1 . .
+        .DB      $10,$00,$00,$00,$04 ; . 1 . . . . . . . . . . . . . . . . 1 .
+        .DB      $00,$00,$00,$00,$00 ; . . . . . . . . . . . . . . . . . . . .
+
+;*******************************************************************************
+; BURWOR_FIRE_0_UP
+; 5 bytes/row = 20 pixels wide, 18 rows
+;*******************************************************************************
+BURWOR_FIRE_0_UP:
+        .DB      $00,$00,$CC,$00,$00 ; . . . . . . . . 3 . 3 . . . . . . . . .
+        .DB      $00,$00,$07,$50,$00 ; . . . . . . . . . . 1 3 1 1 . . . . . .
+        .DB      $10,$05,$15,$50,$00 ; . 1 . . . . 1 1 . 1 1 1 1 1 . . . . . .
+        .DB      $10,$55,$17,$50,$00 ; . 1 . . 1 1 1 1 . 1 1 3 1 1 . . . . . .
+        .DB      $11,$55,$15,$54,$00 ; . 1 . 1 1 1 1 1 . 1 1 1 1 1 1 . . . . .
+        .DB      $15,$54,$17,$75,$00 ; . 1 1 1 1 1 1 . . 1 1 3 1 3 1 1 . . . .
+        .DB      $14,$10,$05,$7D,$00 ; . 1 1 . . 1 . . . . 1 1 1 3 3 1 . . . .
+        .DB      $10,$50,$05,$7D,$00 ; . 1 . . 1 1 . . . . 1 1 1 3 3 1 . . . .
+        .DB      $01,$55,$55,$55,$00 ; . . . 1 1 1 1 1 1 1 1 1 1 1 1 1 . . . .
+        .DB      $01,$55,$55,$55,$00 ; . . . 1 1 1 1 1 1 1 1 1 1 1 1 1 . . . .
+        .DB      $01,$55,$55,$55,$00 ; . . . 1 1 1 1 1 1 1 1 1 1 1 1 1 . . . .
+        .DB      $01,$55,$41,$50,$40 ; . . . 1 1 1 1 1 1 . . 1 1 1 . . 1 . . .
+        .DB      $01,$55,$01,$04,$00 ; . . . 1 1 1 1 1 . . . 1 . . 1 . . . . .
+        .DB      $10,$10,$40,$00,$00 ; . 1 . . . 1 . . 1 . . . . . . . . . . .
+        .DB      $15,$54,$15,$55,$50 ; . 1 1 1 1 1 1 . . 1 1 1 1 1 1 1 1 1 . .
+        .DB      $11,$54,$05,$55,$54 ; . 1 . 1 1 1 1 . . . 1 1 1 1 1 1 1 1 1 .
+        .DB      $10,$55,$01,$55,$50 ; . 1 . . 1 1 1 1 . . . 1 1 1 1 1 1 1 . .
+        .DB      $10,$05,$00,$15,$00 ; . 1 . . . . 1 1 . . . . . 1 1 1 . . . .
+
+;*******************************************************************************
+; BURWOR_FIRE_1_UP
+; 5 bytes/row = 20 pixels wide, 18 rows
+;*******************************************************************************
+BURWOR_FIRE_1_UP:
+        .DB      $30,$00,$CC,$00,$00 ; . 3 . . . . . . 3 . 3 . . . . . . . . .
+        .DB      $00,$C0,$0F,$50,$00 ; . . . . 3 . . . . . 3 3 1 1 . . . . . .
+        .DB      $10,$05,$1D,$50,$00 ; . 1 . . . . 1 1 . 1 3 1 1 1 . . . . . .
+        .DB      $10,$55,$1F,$50,$00 ; . 1 . . 1 1 1 1 . 1 3 3 1 1 . . . . . .
+        .DB      $11,$55,$1D,$54,$00 ; . 1 . 1 1 1 1 1 . 1 3 1 1 1 1 . . . . .
+        .DB      $15,$54,$1D,$75,$00 ; . 1 1 1 1 1 1 . . 1 3 1 1 3 1 1 . . . .
+        .DB      $14,$10,$05,$7D,$00 ; . 1 1 . . 1 . . . . 1 1 1 3 3 1 . . . .
+        .DB      $10,$50,$05,$7D,$00 ; . 1 . . 1 1 . . . . 1 1 1 3 3 1 . . . .
+        .DB      $01,$55,$55,$55,$00 ; . . . 1 1 1 1 1 1 1 1 1 1 1 1 1 . . . .
+        .DB      $01,$55,$55,$55,$00 ; . . . 1 1 1 1 1 1 1 1 1 1 1 1 1 . . . .
+        .DB      $01,$55,$55,$55,$00 ; . . . 1 1 1 1 1 1 1 1 1 1 1 1 1 . . . .
+        .DB      $01,$55,$41,$50,$40 ; . . . 1 1 1 1 1 1 . . 1 1 1 . . 1 . . .
+        .DB      $01,$55,$01,$04,$00 ; . . . 1 1 1 1 1 . . . 1 . . 1 . . . . .
+        .DB      $10,$10,$40,$00,$00 ; . 1 . . . 1 . . 1 . . . . . . . . . . .
+        .DB      $15,$54,$15,$55,$54 ; . 1 1 1 1 1 1 . . 1 1 1 1 1 1 1 1 1 1 .
+        .DB      $11,$54,$05,$55,$50 ; . 1 . 1 1 1 1 . . . 1 1 1 1 1 1 1 1 . .
+        .DB      $10,$55,$01,$55,$40 ; . 1 . . 1 1 1 1 . . . 1 1 1 1 1 1 . . .
+        .DB      $10,$05,$00,$15,$00 ; . 1 . . . . 1 1 . . . . . 1 1 1 . . . .
+
+;*******************************************************************************
+; BURWOR_FIRE_2_UP
+; 5 bytes/row = 20 pixels wide, 18 rows
+;*******************************************************************************
+BURWOR_FIRE_2_UP:
+        .DB      $00,$20,$30,$CC,$00 ; . . . . . 2 . . . 3 . . 3 . 3 . . . . .
+        .DB      $01,$01,$02,$F0,$00 ; . . . 1 . . . 1 . . . 2 3 3 . . . . . .
+        .DB      $01,$05,$40,$B1,$40 ; . . . 1 . . 1 1 1 . . . 2 3 . 1 1 . . .
+        .DB      $01,$15,$41,$F5,$40 ; . . . 1 . 1 1 1 1 . . 1 3 3 1 1 1 . . .
+        .DB      $01,$55,$41,$FD,$40 ; . . . 1 1 1 1 1 1 . . 1 3 3 3 1 1 . . .
+        .DB      $31,$41,$41,$F5,$50 ; . 3 . 1 1 . . 1 1 . . 1 3 3 1 1 1 1 . .
+        .DB      $01,$01,$51,$FD,$D4 ; . . . 1 . . . 1 1 1 . 1 3 3 3 1 3 1 1 .
+        .DB      $00,$05,$50,$75,$F4 ; . . . . . . 1 1 1 1 . . 1 3 1 1 3 3 1 .
+        .DB      $0C,$05,$55,$55,$F4 ; . . 3 . . . 1 1 1 1 1 1 1 1 1 1 3 3 1 .
+        .DB      $00,$05,$55,$55,$54 ; . . . . . . 1 1 1 1 1 1 1 1 1 1 1 1 1 .
+        .DB      $00,$05,$55,$55,$54 ; . . . . . . 1 1 1 1 1 1 1 1 1 1 1 1 1 .
+        .DB      $00,$05,$54,$45,$44 ; . . . . . . 1 1 1 1 1 . 1 . 1 1 1 . 1 .
+        .DB      $00,$15,$50,$04,$40 ; . . . . . 1 1 1 1 1 . . . . 1 . 1 . . .
+        .DB      $04,$55,$54,$00,$00 ; . . 1 . 1 1 1 1 1 1 1 . . . . . . . . .
+        .DB      $05,$55,$05,$55,$40 ; . . 1 1 1 1 1 1 . . 1 1 1 1 1 1 1 . . .
+        .DB      $04,$14,$01,$55,$50 ; . . 1 . . 1 1 . . . . 1 1 1 1 1 1 1 . .
+        .DB      $10,$00,$00,$55,$54 ; . 1 . . . . . . . . . . 1 1 1 1 1 1 1 .
+        .DB      $10,$00,$00,$15,$50 ; . 1 . . . . . . . . . . . 1 1 1 1 1 . .
+
+;*******************************************************************************
+; BURWOR_FIRE_3_UP
+; 5 bytes/row = 20 pixels wide, 18 rows
+;*******************************************************************************
+BURWOR_FIRE_3_UP:
+        .DB      $00,$00,$00,$C8,$00 ; . . . . . . . . . . . . 3 . 2 . . . . .
+        .DB      $04,$00,$00,$F0,$00 ; . . 1 . . . . . . . . . 3 3 . . . . . .
+        .DB      $01,$01,$02,$F0,$00 ; . . . 1 . . . 1 . . . 2 3 3 . . . . . .
+        .DB      $00,$45,$40,$B1,$40 ; . . . . 1 . 1 1 1 . . . 2 3 . 1 1 . . .
+        .DB      $08,$55,$41,$F5,$40 ; . . 2 . 1 1 1 1 1 . . 1 3 3 1 1 1 . . .
+        .DB      $00,$51,$51,$FD,$40 ; . . . . 1 1 . 1 1 1 . 1 3 3 3 1 1 . . .
+        .DB      $00,$41,$51,$F5,$50 ; . . . . 1 . . 1 1 1 . 1 3 3 1 1 1 1 . .
+        .DB      $00,$00,$51,$FD,$D4 ; . . . . . . . . 1 1 . 1 3 3 3 1 3 1 1 .
+        .DB      $30,$00,$50,$75,$F4 ; . 3 . . . . . . 1 1 . . 1 3 1 1 3 3 1 .
+        .DB      $00,$00,$55,$55,$F4 ; . . . . . . . . 1 1 1 1 1 1 1 1 3 3 1 .
+        .DB      $03,$00,$55,$55,$54 ; . . . 3 . . . . 1 1 1 1 1 1 1 1 1 1 1 .
+        .DB      $00,$00,$55,$55,$54 ; . . . . . . . . 1 1 1 1 1 1 1 1 1 1 1 .
+        .DB      $00,$40,$54,$45,$44 ; . . . . 1 . . . 1 1 1 . 1 . 1 1 1 . 1 .
+        .DB      $00,$51,$54,$04,$40 ; . . . . 1 1 . 1 1 1 1 . . . 1 . 1 . . .
+        .DB      $00,$55,$45,$00,$00 ; . . . . 1 1 1 1 1 . 1 1 . . . . . . . .
+        .DB      $00,$45,$41,$55,$40 ; . . . . 1 . 1 1 1 . . 1 1 1 1 1 1 . . .
+        .DB      $01,$01,$00,$55,$50 ; . . . 1 . . . 1 . . . . 1 1 1 1 1 1 . .
+        .DB      $04,$00,$00,$15,$54 ; . . 1 . . . . . . . . . . 1 1 1 1 1 1 .
+
+;*******************************************************************************
+; BURWOR_FIRE_0
+; 5 bytes/row = 20 pixels wide, 18 rows
+;*******************************************************************************
+BURWOR_FIRE_0:
+        .DB      $00,$00,$00,$00,$40 ; . . . . . . . . . . . . . . . . 1 . . .
+        .DB      $00,$00,$00,$01,$50 ; . . . . . . . . . . . . . . . 1 1 1 . .
+        .DB      $00,$00,$00,$41,$50 ; . . . . . . . . . . . . 1 . . 1 1 1 . .
+        .DB      $00,$05,$55,$01,$54 ; . . . . . . 1 1 1 1 1 1 . . . 1 1 1 1 .
+        .DB      $00,$17,$D5,$11,$54 ; . . . . . 1 1 3 3 1 1 1 . 1 . 1 1 1 1 .
+        .DB      $05,$5F,$D5,$41,$54 ; . . 1 1 1 1 3 3 3 1 1 1 1 . . 1 1 1 1 .
+        .DB      $05,$55,$55,$41,$50 ; . . 1 1 1 1 1 1 1 1 1 1 1 . . 1 1 1 . .
+        .DB      $0D,$DD,$55,$51,$50 ; . . 3 1 3 1 3 1 1 1 1 1 1 1 . 1 1 1 . .
+        .DB      $35,$55,$55,$01,$40 ; . 3 1 1 1 1 1 1 1 1 1 1 . . . 1 1 . . .
+        .DB      $01,$54,$15,$01,$00 ; . . . 1 1 1 1 . . 1 1 1 . . . 1 . . . .
+        .DB      $30,$00,$15,$44,$00 ; . 3 . . . . . . . 1 1 1 1 . 1 . . . . .
+        .DB      $01,$50,$15,$50,$14 ; . . . 1 1 1 . . . 1 1 1 1 1 . . . 1 1 .
+        .DB      $01,$54,$15,$51,$54 ; . . . 1 1 1 1 . . 1 1 1 1 1 . 1 1 1 1 .
+        .DB      $00,$55,$55,$55,$50 ; . . . . 1 1 1 1 1 1 1 1 1 1 1 1 1 1 . .
+        .DB      $00,$54,$55,$51,$50 ; . . . . 1 1 1 . 1 1 1 1 1 1 . 1 1 1 . .
+        .DB      $00,$14,$15,$51,$40 ; . . . . . 1 1 . . 1 1 1 1 1 . 1 1 . . .
+        .DB      $00,$05,$00,$01,$00 ; . . . . . . 1 1 . . . . . . . 1 . . . .
+        .DB      $01,$55,$40,$05,$54 ; . . . 1 1 1 1 1 1 . . . . . 1 1 1 1 1 .
+
+;*******************************************************************************
+; BURWOR_FIRE_1
+; 5 bytes/row = 20 pixels wide, 18 rows
+;*******************************************************************************
+BURWOR_FIRE_1:
+        .DB      $00,$00,$00,$01,$00 ; . . . . . . . . . . . . . . . 1 . . . .
+        .DB      $00,$00,$00,$01,$40 ; . . . . . . . . . . . . . . . 1 1 . . .
+        .DB      $00,$00,$00,$41,$50 ; . . . . . . . . . . . . 1 . . 1 1 1 . .
+        .DB      $00,$05,$55,$01,$54 ; . . . . . . 1 1 1 1 1 1 . . . 1 1 1 1 .
+        .DB      $00,$17,$D5,$11,$54 ; . . . . . 1 1 3 3 1 1 1 . 1 . 1 1 1 1 .
+        .DB      $05,$5F,$D5,$41,$54 ; . . 1 1 1 1 3 3 3 1 1 1 1 . . 1 1 1 1 .
+        .DB      $05,$55,$55,$41,$50 ; . . 1 1 1 1 1 1 1 1 1 1 1 . . 1 1 1 . .
+        .DB      $0D,$D5,$55,$51,$50 ; . . 3 1 3 1 1 1 1 1 1 1 1 1 . 1 1 1 . .
+        .DB      $3F,$FD,$55,$01,$40 ; . 3 3 3 3 3 3 1 1 1 1 1 . . . 1 1 . . .
+        .DB      $01,$54,$15,$01,$00 ; . . . 1 1 1 1 . . 1 1 1 . . . 1 . . . .
+        .DB      $30,$00,$15,$44,$00 ; . 3 . . . . . . . 1 1 1 1 . 1 . . . . .
+        .DB      $01,$50,$15,$50,$14 ; . . . 1 1 1 . . . 1 1 1 1 1 . . . 1 1 .
+        .DB      $01,$54,$15,$51,$54 ; . . . 1 1 1 1 . . 1 1 1 1 1 . 1 1 1 1 .
+        .DB      $00,$55,$55,$55,$50 ; . . . . 1 1 1 1 1 1 1 1 1 1 1 1 1 1 . .
+        .DB      $0C,$54,$55,$51,$50 ; . . 3 . 1 1 1 . 1 1 1 1 1 1 . 1 1 1 . .
+        .DB      $00,$14,$15,$51,$40 ; . . . . . 1 1 . . 1 1 1 1 1 . 1 1 . . .
+        .DB      $00,$05,$00,$01,$00 ; . . . . . . 1 1 . . . . . . . 1 . . . .
+        .DB      $31,$55,$40,$05,$54 ; . 3 . 1 1 1 1 1 1 . . . . . 1 1 1 1 1 .
+
+;*******************************************************************************
+; BURWOR_FIRE_2
+; 5 bytes/row = 20 pixels wide, 18 rows
+;*******************************************************************************
+BURWOR_FIRE_2:
+        .DB      $00,$01,$55,$40,$10 ; . . . . . . . 1 1 1 1 1 1 . . . . 1 . .
+        .DB      $00,$05,$F5,$00,$54 ; . . . . . . 1 1 3 3 1 1 . . . . 1 1 1 .
+        .DB      $01,$57,$F5,$51,$54 ; . . . 1 1 1 1 3 3 3 1 1 1 1 . 1 1 1 1 .
+        .DB      $01,$55,$55,$41,$54 ; . . . 1 1 1 1 1 1 1 1 1 1 . . 1 1 1 1 .
+        .DB      $30,$77,$55,$51,$54 ; . 3 . . 1 3 1 3 1 1 1 1 1 1 . 1 1 1 1 .
+        .DB      $0F,$FF,$D5,$01,$54 ; . . 3 3 3 3 3 3 3 1 1 1 . . . 1 1 1 1 .
+        .DB      $3E,$FF,$55,$41,$50 ; . 3 3 2 3 3 3 3 1 1 1 1 1 . . 1 1 1 . .
+        .DB      $08,$55,$15,$01,$40 ; . . 2 . 1 1 1 1 . 1 1 1 . . . 1 1 . . .
+        .DB      $00,$00,$15,$45,$00 ; . . . . . . . . . 1 1 1 1 . 1 1 . . . .
+        .DB      $30,$01,$55,$54,$00 ; . 3 . . . . . 1 1 1 1 1 1 1 1 . . . . .
+        .DB      $01,$55,$55,$54,$00 ; . . . 1 1 1 1 1 1 1 1 1 1 1 1 . . . . .
+        .DB      $05,$55,$55,$55,$00 ; . . 1 1 1 1 1 1 1 1 1 1 1 1 1 1 . . . .
+        .DB      $01,$50,$55,$55,$40 ; . . . 1 1 1 . . 1 1 1 1 1 1 1 1 1 . . .
+        .DB      $20,$50,$00,$15,$40 ; . 2 . . 1 1 . . . . . . . 1 1 1 1 . . .
+        .DB      $00,$14,$00,$05,$00 ; . . . . . 1 1 . . . . . . . 1 1 . . . .
+        .DB      $05,$55,$00,$01,$00 ; . . 1 1 1 1 1 1 . . . . . . . 1 . . . .
+        .DB      $00,$00,$30,$05,$40 ; . . . . . . . . . 3 . . . . 1 1 1 . . .
+        .DB      $00,$0C,$00,$00,$14 ; . . . . . . 3 . . . . . . . . . . 1 1 .
+
+;*******************************************************************************
+; BURWOR_FIRE_3
+; 5 bytes/row = 20 pixels wide, 18 rows
+;*******************************************************************************
+BURWOR_FIRE_3:
+        .DB      $00,$00,$55,$50,$04 ; . . . . . . . . 1 1 1 1 1 1 . . . . 1 .
+        .DB      $00,$01,$7D,$40,$14 ; . . . . . . . 1 1 3 3 1 1 . . . . 1 1 .
+        .DB      $00,$55,$FD,$54,$54 ; . . . . 1 1 1 1 3 3 3 1 1 1 1 . 1 1 1 .
+        .DB      $00,$55,$55,$50,$54 ; . . . . 1 1 1 1 1 1 1 1 1 1 . . 1 1 1 .
+        .DB      $20,$1D,$D5,$54,$54 ; . 2 . . . 1 3 1 3 1 1 1 1 1 1 . 1 1 1 .
+        .DB      $0F,$FF,$F5,$40,$54 ; . . 3 3 3 3 3 3 3 3 1 1 1 . . . 1 1 1 .
+        .DB      $3F,$BF,$D5,$50,$50 ; . 3 3 3 2 3 3 3 3 1 1 1 1 1 . . 1 1 . .
+        .DB      $02,$15,$45,$41,$40 ; . . . 2 . 1 1 1 1 . 1 1 1 . . 1 1 . . .
+        .DB      $00,$00,$05,$55,$00 ; . . . . . . . . . . 1 1 1 1 1 1 . . . .
+        .DB      $00,$05,$55,$54,$00 ; . . . . . . 1 1 1 1 1 1 1 1 1 . . . . .
+        .DB      $00,$55,$55,$55,$40 ; . . . . 1 1 1 1 1 1 1 1 1 1 1 1 1 . . .
+        .DB      $01,$55,$00,$05,$50 ; . . . 1 1 1 1 1 . . . . . . 1 1 1 1 . .
+        .DB      $00,$50,$00,$01,$40 ; . . . . 1 1 . . . . . . . . . 1 1 . . .
+        .DB      $00,$14,$00,$05,$00 ; . . . . . 1 1 . . . . . . . 1 1 . . . .
+        .DB      $00,$55,$00,$15,$40 ; . . . . 1 1 1 1 . . . . . 1 1 1 1 . . .
+        .DB      $01,$00,$03,$00,$10 ; . . . 1 . . . . . . . 3 . . . . . 1 . .
+        .DB      $04,$20,$00,$00,$04 ; . . 1 . . 2 . . . . . . . . . . . . 1 .
+        .DB      $00,$00,$30,$00,$00 ; . . . . . . . . . 3 . . . . . . . . . .
+
+;*******************************************************************************
+; WORLUK_1_UP
+; 5 bytes/row = 20 pixels wide, 18 rows
+;*******************************************************************************
+WORLUK_1_UP:
+        .DB      $00,$00,$00,$1A,$A0 ; . . . . . . . . . . . . . 1 2 2 2 2 . .
+        .DB      $00,$00,$05,$5A,$A0 ; . . . . . . . . . . 1 1 1 1 2 2 2 2 . .
+        .DB      $10,$00,$12,$6A,$80 ; . 1 . . . . . . . 1 . 2 1 2 2 2 2 . . .
+        .DB      $10,$00,$41,$AA,$00 ; . 1 . . . . . . 1 . . 1 2 2 2 2 . . . .
+        .DB      $15,$40,$09,$A8,$00 ; . 1 1 1 1 . . . . . 2 1 2 2 2 . . . . .
+        .DB      $00,$10,$06,$8E,$04 ; . . . . . 1 . . . . 1 2 2 . 3 2 . . 1 .
+        .DB      $00,$10,$1A,$2F,$84 ; . . . . . 1 . . . 1 2 2 . 2 3 3 2 . 1 .
+        .DB      $00,$55,$54,$3F,$D0 ; . . . . 1 1 1 1 1 1 1 . . 3 3 3 3 1 . .
+        .DB      $01,$55,$55,$AF,$80 ; . . . 1 1 1 1 1 1 1 1 1 2 2 3 3 2 . . .
+        .DB      $05,$55,$56,$AA,$80 ; . . 1 1 1 1 1 1 1 1 1 2 2 2 2 2 2 . . .
+        .DB      $01,$55,$55,$AF,$80 ; . . . 1 1 1 1 1 1 1 1 1 2 2 3 3 2 . . .
+        .DB      $00,$55,$54,$3F,$D0 ; . . . . 1 1 1 1 1 1 1 . . 3 3 3 3 1 . .
+        .DB      $00,$10,$1A,$2F,$84 ; . . . . . 1 . . . 1 2 2 . 2 3 3 2 . 1 .
+        .DB      $00,$10,$26,$AE,$04 ; . . . . . 1 . . . 2 1 2 2 2 3 2 . . 1 .
+        .DB      $15,$40,$09,$AA,$00 ; . 1 1 1 1 . . . . . 2 1 2 2 2 2 . . . .
+        .DB      $10,$00,$01,$AA,$A0 ; . 1 . . . . . . . . . 1 2 2 2 2 2 2 . .
+        .DB      $10,$00,$40,$6A,$A8 ; . 1 . . . . . . 1 . . . 1 2 2 2 2 2 2 .
+        .DB      $00,$00,$15,$5A,$A8 ; . . . . . . . . . 1 1 1 1 1 2 2 2 2 2 .
+
+;*******************************************************************************
+; WORLUK_2_UP
+; 5 bytes/row = 20 pixels wide, 18 rows
+;*******************************************************************************
+WORLUK_2_UP:
+        .DB      $00,$00,$2A,$A4,$00 ; . . . . . . . . . 2 2 2 2 2 1 . . . . .
+        .DB      $00,$00,$A5,$56,$00 ; . . . . . . . . 2 2 1 1 1 1 1 2 . . . .
+        .DB      $00,$02,$9A,$68,$00 ; . . . . . . . 2 2 1 2 2 1 2 2 . . . . .
+        .DB      $10,$52,$69,$A0,$00 ; . 1 . . 1 1 . 2 1 2 2 1 2 2 . . . . . .
+        .DB      $11,$12,$A6,$8E,$00 ; . 1 . 1 . 1 . 2 2 2 1 2 2 . 3 2 . . . .
+        .DB      $14,$10,$9A,$2F,$80 ; . 1 1 . . 1 . . 2 1 2 2 . 2 3 3 2 . . .
+        .DB      $00,$55,$54,$3F,$D4 ; . . . . 1 1 1 1 1 1 1 . . 3 3 3 3 1 1 .
+        .DB      $01,$55,$55,$AF,$80 ; . . . 1 1 1 1 1 1 1 1 1 2 2 3 3 2 . . .
+        .DB      $05,$55,$56,$AA,$80 ; . . 1 1 1 1 1 1 1 1 1 2 2 2 2 2 2 . . .
+        .DB      $01,$55,$55,$AF,$80 ; . . . 1 1 1 1 1 1 1 1 1 2 2 3 3 2 . . .
+        .DB      $00,$55,$54,$3F,$D0 ; . . . . 1 1 1 1 1 1 1 . . 3 3 3 3 1 . .
+        .DB      $00,$10,$9A,$2F,$84 ; . . . . . 1 . . 2 1 2 2 . 2 3 3 2 . 1 .
+        .DB      $00,$42,$A6,$8E,$00 ; . . . . 1 . . 2 2 2 1 2 2 . 3 2 . . . .
+        .DB      $01,$02,$A9,$80,$00 ; . . . 1 . . . 2 2 2 2 1 2 . . . . . . .
+        .DB      $14,$02,$69,$A0,$00 ; . 1 1 . . . . 2 1 2 2 1 2 2 . . . . . .
+        .DB      $10,$02,$95,$A8,$00 ; . 1 . . . . . 2 2 1 1 1 2 2 2 . . . . .
+        .DB      $10,$00,$A5,$68,$00 ; . 1 . . . . . . 2 2 1 1 1 2 2 . . . . .
+        .DB      $00,$00,$2A,$68,$00 ; . . . . . . . . . 2 2 2 1 2 2 . . . . .
+
+;*******************************************************************************
+; WORLUK_3_UP
+; 5 bytes/row = 20 pixels wide, 18 rows
+;*******************************************************************************
+WORLUK_3_UP:
+        .DB      $02,$A8,$04,$00,$00 ; . . . 2 2 2 2 . . . 1 . . . . . . . . .
+        .DB      $02,$AA,$94,$00,$00 ; . . . 2 2 2 2 2 2 1 1 . . . . . . . . .
+        .DB      $00,$AA,$64,$00,$00 ; . . . . 2 2 2 2 1 2 1 . . . . . . . . .
+        .DB      $00,$29,$A6,$00,$00 ; . . . . . 2 2 1 2 2 1 2 . . . . . . . .
+        .DB      $10,$5A,$A6,$00,$00 ; . 1 . . 1 1 2 2 2 2 1 2 . . . . . . . .
+        .DB      $11,$12,$A6,$38,$00 ; . 1 . 1 . 1 . 2 2 2 1 2 . 3 2 . . . . .
+        .DB      $14,$10,$98,$BE,$00 ; . 1 1 . . 1 . . 2 1 2 . 2 3 3 2 . . . .
+        .DB      $10,$55,$50,$FF,$40 ; . 1 . . 1 1 1 1 1 1 . . 3 3 3 3 1 . . .
+        .DB      $01,$55,$56,$BE,$10 ; . . . 1 1 1 1 1 1 1 1 2 2 3 3 2 . 1 . .
+        .DB      $05,$55,$5A,$AA,$00 ; . . 1 1 1 1 1 1 1 1 2 2 2 2 2 2 . . . .
+        .DB      $01,$55,$56,$BE,$00 ; . . . 1 1 1 1 1 1 1 1 2 2 3 3 2 . . . .
+        .DB      $10,$55,$50,$FF,$40 ; . 1 . . 1 1 1 1 1 1 . . 3 3 3 3 1 . . .
+        .DB      $14,$10,$98,$BE,$10 ; . 1 1 . . 1 . . 2 1 2 . 2 3 3 2 . 1 . .
+        .DB      $11,$11,$A6,$38,$00 ; . 1 . 1 . 1 . 1 2 2 1 2 . 3 2 . . . . .
+        .DB      $10,$5A,$66,$00,$00 ; . 1 . . 1 1 2 2 1 2 1 2 . . . . . . . .
+        .DB      $00,$AA,$96,$00,$00 ; . . . . 2 2 2 2 2 1 1 2 . . . . . . . .
+        .DB      $02,$AA,$94,$00,$00 ; . . . 2 2 2 2 2 2 1 1 . . . . . . . . .
+        .DB      $02,$AA,$84,$00,$00 ; . . . 2 2 2 2 2 2 . 1 . . . . . . . . .
+
+;*******************************************************************************
+; WORLUK_1
+; 5 bytes/row = 20 pixels wide, 18 rows
+;*******************************************************************************
+WORLUK_1:
+        .DB      $00,$05,$00,$14,$28 ; . . . . . . 1 1 . . . . . 1 1 . . 2 2 .
+        .DB      $28,$00,$40,$40,$A8 ; . 2 2 . . . . . 1 . . . 1 . . . 2 2 2 .
+        .DB      $2A,$02,$EA,$E0,$A8 ; . 2 2 2 . . . 2 3 2 2 2 3 2 . . 2 2 2 .
+        .DB      $2A,$8B,$FB,$FA,$A8 ; . 2 2 2 2 . 2 3 3 3 2 3 3 3 2 2 2 2 2 .
+        .DB      $2A,$AF,$FB,$FE,$A8 ; . 2 2 2 2 2 3 3 3 3 2 3 3 3 3 2 2 2 2 .
+        .DB      $16,$A2,$EA,$EA,$A4 ; . 1 1 2 2 2 . 2 3 2 2 2 3 2 2 2 2 2 1 .
+        .DB      $05,$A8,$2A,$0A,$94 ; . . 1 1 2 2 2 . . 2 2 2 . . 2 2 2 1 1 .
+        .DB      $06,$5A,$19,$29,$44 ; . . 1 2 1 1 2 2 . 1 2 1 . 2 2 1 1 . 1 .
+        .DB      $04,$26,$55,$66,$04 ; . . 1 . . 2 1 2 1 1 1 1 1 2 1 2 . . 1 .
+        .DB      $01,$01,$55,$58,$04 ; . . . 1 . . . 1 1 1 1 1 1 1 2 . . . 1 .
+        .DB      $00,$40,$55,$40,$10 ; . . . . 1 . . . 1 1 1 1 1 . . . . 1 . .
+        .DB      $00,$00,$55,$40,$00 ; . . . . . . . . 1 1 1 1 1 . . . . . . .
+        .DB      $00,$00,$55,$40,$00 ; . . . . . . . . 1 1 1 1 1 . . . . . . .
+        .DB      $00,$05,$55,$54,$00 ; . . . . . . 1 1 1 1 1 1 1 1 1 . . . . .
+        .DB      $00,$10,$55,$41,$00 ; . . . . . 1 . . 1 1 1 1 1 . . 1 . . . .
+        .DB      $00,$10,$15,$01,$00 ; . . . . . 1 . . . 1 1 1 . . . 1 . . . .
+        .DB      $00,$10,$04,$01,$00 ; . . . . . 1 . . . . 1 . . . . 1 . . . .
+        .DB      $01,$50,$00,$01,$50 ; . . . 1 1 1 . . . . . . . . . 1 1 1 . .
+
+;*******************************************************************************
+; WORLUK_2
+; 5 bytes/row = 20 pixels wide, 18 rows
+;*******************************************************************************
+WORLUK_2:
+        .DB      $00,$01,$00,$40,$00 ; . . . . . . . 1 . . . . 1 . . . . . . .
+        .DB      $00,$01,$01,$00,$00 ; . . . . . . . 1 . . . 1 . . . . . . . .
+        .DB      $00,$0B,$AB,$80,$00 ; . . . . . . 2 3 2 2 2 3 2 . . . . . . .
+        .DB      $08,$2F,$EF,$E0,$00 ; . . 2 . . 2 3 3 3 2 3 3 3 2 . . . . . .
+        .DB      $16,$3F,$EF,$F0,$A8 ; . 1 1 2 . 3 3 3 3 2 3 3 3 3 . . 2 2 2 .
+        .DB      $26,$8B,$AB,$82,$A8 ; . 2 1 2 2 . 2 3 2 2 2 3 2 . . 2 2 2 2 .
+        .DB      $25,$A0,$A8,$2A,$94 ; . 2 1 1 2 2 . . 2 2 2 . . 2 2 2 2 1 1 .
+        .DB      $26,$68,$64,$A5,$58 ; . 2 1 2 1 2 2 . 1 2 1 . 2 2 1 1 1 1 2 .
+        .DB      $26,$99,$55,$9A,$58 ; . 2 1 2 2 1 2 1 1 1 1 1 2 1 2 2 1 1 2 .
+        .DB      $29,$A5,$55,$6A,$68 ; . 2 2 1 2 2 1 1 1 1 1 1 1 2 2 2 1 2 2 .
+        .DB      $0A,$69,$55,$A9,$A0 ; . . 2 2 1 2 2 1 1 1 1 1 2 2 2 1 2 2 . .
+        .DB      $02,$A1,$55,$2A,$80 ; . . . 2 2 2 . 1 1 1 1 1 . 2 2 2 2 . . .
+        .DB      $00,$01,$55,$00,$00 ; . . . . . . . 1 1 1 1 1 . . . . . . . .
+        .DB      $00,$55,$55,$40,$00 ; . . . . 1 1 1 1 1 1 1 1 1 . . . . . . .
+        .DB      $00,$41,$55,$10,$00 ; . . . . 1 . . 1 1 1 1 1 . 1 . . . . . .
+        .DB      $00,$10,$54,$04,$00 ; . . . . . 1 . . 1 1 1 . . . 1 . . . . .
+        .DB      $00,$04,$10,$01,$00 ; . . . . . . 1 . . 1 . . . . . 1 . . . .
+        .DB      $00,$54,$00,$01,$50 ; . . . . 1 1 1 . . . . . . . . 1 1 1 . .
+
+;*******************************************************************************
+; WORLUK_3
+; 5 bytes/row = 20 pixels wide, 18 rows
+;*******************************************************************************
+WORLUK_3:
+        .DB      $00,$00,$00,$00,$00 ; . . . . . . . . . . . . . . . . . . . .
+        .DB      $00,$00,$10,$10,$00 ; . . . . . . . . . 1 . . . 1 . . . . . .
+        .DB      $00,$00,$40,$40,$00 ; . . . . . . . . 1 . . . 1 . . . . . . .
+        .DB      $00,$02,$EA,$E0,$00 ; . . . . . . . 2 3 2 2 2 3 2 . . . . . .
+        .DB      $00,$0B,$FB,$F8,$00 ; . . . . . . 2 3 3 3 2 3 3 3 2 . . . . .
+        .DB      $00,$0F,$FB,$FC,$00 ; . . . . . . 3 3 3 3 2 3 3 3 3 . . . . .
+        .DB      $00,$02,$EA,$E0,$00 ; . . . . . . . 2 3 2 2 2 3 2 . . . . . .
+        .DB      $00,$A8,$2A,$0A,$80 ; . . . . 2 2 2 . . 2 2 2 . . 2 2 2 . . .
+        .DB      $15,$56,$19,$25,$54 ; . 1 1 1 1 1 1 2 . 1 2 1 . 2 1 1 1 1 1 .
+        .DB      $06,$A9,$55,$5A,$50 ; . . 1 2 2 2 2 1 1 1 1 1 1 1 2 2 1 1 . .
+        .DB      $09,$AA,$55,$69,$A8 ; . . 2 1 2 2 2 2 1 1 1 1 1 2 2 1 2 2 2 .
+        .DB      $0A,$68,$55,$46,$A8 ; . . 2 2 1 2 2 . 1 1 1 1 1 . 1 2 2 2 2 .
+        .DB      $2A,$A0,$55,$42,$A8 ; . 2 2 2 2 2 . . 1 1 1 1 1 . . 2 2 2 2 .
+        .DB      $2A,$95,$55,$55,$A8 ; . 2 2 2 2 1 1 1 1 1 1 1 1 1 1 1 2 2 2 .
+        .DB      $2A,$10,$55,$41,$A8 ; . 2 2 2 . 1 . . 1 1 1 1 1 . . 1 2 2 2 .
+        .DB      $28,$04,$15,$04,$28 ; . 2 2 . . . 1 . . 1 1 1 . . 1 . . 2 2 .
+        .DB      $00,$01,$04,$10,$00 ; . . . . . . . 1 . . 1 . . 1 . . . . . .
+        .DB      $00,$15,$40,$55,$00 ; . . . . . 1 1 1 1 . . . 1 1 1 1 . . . .
+
+;*******************************************************************************
+; WIZARD_1_UP
+; 5 bytes/row = 20 pixels wide, 18 rows
+;*******************************************************************************
+WIZARD_1_UP:
+        .DB      $00,$00,$30,$00,$00 ; . . . . . . . . . 3 . . . . . . . . . .
+        .DB      $00,$00,$30,$00,$00 ; . . . . . . . . . 3 . . . . . . . . . .
+        .DB      $00,$00,$04,$00,$00 ; . . . . . . . . . . 1 . . . . . . . . .
+        .DB      $00,$00,$05,$40,$00 ; . . . . . . . . . . 1 1 1 . . . . . . .
+        .DB      $00,$14,$00,$50,$00 ; . . . . . 1 1 . . . . . 1 1 . . . . . .
+        .DB      $11,$54,$00,$15,$40 ; . 1 . 1 1 1 1 . . . . . . 1 1 1 1 . . .
+        .DB      $15,$55,$00,$16,$10 ; . 1 1 1 1 1 1 1 . . . . . 1 1 2 . 1 . .
+        .DB      $15,$55,$40,$50,$10 ; . 1 1 1 1 1 1 1 1 . . . 1 1 . . . 1 . .
+        .DB      $15,$55,$55,$42,$14 ; . 1 1 1 1 1 1 1 1 1 1 1 1 . . 2 . 1 1 .
+        .DB      $15,$55,$55,$54,$14 ; . 1 1 1 1 1 1 1 1 1 1 1 1 1 1 . . 1 1 .
+        .DB      $15,$55,$55,$55,$54 ; . 1 1 1 1 1 1 1 1 1 1 1 1 1 1 1 1 1 1 .
+        .DB      $15,$55,$55,$55,$04 ; . 1 1 1 1 1 1 1 1 1 1 1 1 1 1 1 . . 1 .
+        .DB      $15,$55,$54,$15,$00 ; . 1 1 1 1 1 1 1 1 1 1 . . 1 1 1 . . . .
+        .DB      $15,$54,$00,$14,$00 ; . 1 1 1 1 1 1 . . . . . . 1 1 . . . . .
+        .DB      $15,$40,$00,$10,$00 ; . 1 1 1 1 . . . . . . . . 1 . . . . . .
+        .DB      $15,$00,$00,$50,$00 ; . 1 1 1 . . . . . . . . 1 1 . . . . . .
+        .DB      $14,$00,$01,$40,$00 ; . 1 1 . . . . . . . . 1 1 . . . . . . .
+        .DB      $00,$00,$3D,$00,$00 ; . . . . . . . . . 3 3 1 . . . . . . . .
+
+;*******************************************************************************
+; WIZARD_2_UP
+; 5 bytes/row = 20 pixels wide, 18 rows
+;*******************************************************************************
+WIZARD_2_UP:
+        .DB      $00,$00,$00,$00,$00 ; . . . . . . . . . . . . . . . . . . . .
+        .DB      $00,$00,$30,$00,$00 ; . . . . . . . . . 3 . . . . . . . . . .
+        .DB      $00,$00,$30,$00,$00 ; . . . . . . . . . 3 . . . . . . . . . .
+        .DB      $00,$00,$04,$00,$00 ; . . . . . . . . . . 1 . . . . . . . . .
+        .DB      $00,$04,$05,$11,$50 ; . . . . . . 1 . . . 1 1 . 1 . 1 1 1 . .
+        .DB      $10,$15,$00,$55,$84 ; . 1 . . . 1 1 1 . . . . 1 1 1 1 2 . 1 .
+        .DB      $10,$55,$40,$14,$04 ; . 1 . . 1 1 1 1 1 . . . . 1 1 . . . 1 .
+        .DB      $15,$55,$50,$50,$94 ; . 1 1 1 1 1 1 1 1 1 . . 1 1 . . 2 1 1 .
+        .DB      $15,$55,$55,$55,$54 ; . 1 1 1 1 1 1 1 1 1 1 1 1 1 1 1 1 1 1 .
+        .DB      $15,$55,$55,$55,$50 ; . 1 1 1 1 1 1 1 1 1 1 1 1 1 1 1 1 1 . .
+        .DB      $05,$55,$55,$55,$00 ; . . 1 1 1 1 1 1 1 1 1 1 1 1 1 1 . . . .
+        .DB      $05,$55,$55,$05,$00 ; . . 1 1 1 1 1 1 1 1 1 1 . . 1 1 . . . .
+        .DB      $05,$54,$54,$14,$00 ; . . 1 1 1 1 1 . 1 1 1 . . 1 1 . . . . .
+        .DB      $05,$50,$00,$50,$00 ; . . 1 1 1 1 . . . . . . 1 1 . . . . . .
+        .DB      $05,$40,$01,$40,$00 ; . . 1 1 1 . . . . . . 1 1 . . . . . . .
+        .DB      $01,$00,$3D,$00,$00 ; . . . 1 . . . . . 3 3 1 . . . . . . . .
+        .DB      $00,$00,$00,$00,$00 ; . . . . . . . . . . . . . . . . . . . .
+        .DB      $00,$00,$00,$00,$00 ; . . . . . . . . . . . . . . . . . . . .
+
+;*******************************************************************************
+; WIZARD_3_UP
+; 5 bytes/row = 20 pixels wide, 18 rows
+;*******************************************************************************
+WIZARD_3_UP:
+        .DB      $00,$00,$00,$00,$00 ; . . . . . . . . . . . . . . . . . . . .
+        .DB      $00,$00,$00,$00,$00 ; . . . . . . . . . . . . . . . . . . . .
+        .DB      $00,$00,$00,$00,$00 ; . . . . . . . . . . . . . . . . . . . .
+        .DB      $00,$00,$C0,$00,$00 ; . . . . . . . . 3 . . . . . . . . . . .
+        .DB      $00,$00,$C0,$05,$40 ; . . . . . . . . 3 . . . . . 1 1 1 . . .
+        .DB      $14,$14,$10,$56,$10 ; . 1 1 . . 1 1 . . 1 . . 1 1 1 2 . 1 . .
+        .DB      $15,$55,$14,$50,$50 ; . 1 1 1 1 1 1 1 . 1 1 . 1 1 . . 1 1 . .
+        .DB      $15,$55,$41,$41,$50 ; . 1 1 1 1 1 1 1 1 . . 1 1 . . 1 1 1 . .
+        .DB      $15,$55,$55,$55,$54 ; . 1 1 1 1 1 1 1 1 1 1 1 1 1 1 1 1 1 1 .
+        .DB      $15,$55,$55,$55,$54 ; . 1 1 1 1 1 1 1 1 1 1 1 1 1 1 1 1 1 1 .
+        .DB      $15,$55,$55,$54,$04 ; . 1 1 1 1 1 1 1 1 1 1 1 1 1 1 . . . 1 .
+        .DB      $15,$55,$55,$14,$00 ; . 1 1 1 1 1 1 1 1 1 1 1 . 1 1 . . . . .
+        .DB      $14,$15,$D4,$50,$00 ; . 1 1 . . 1 1 1 3 1 1 . 1 1 . . . . . .
+        .DB      $00,$01,$F5,$40,$00 ; . . . . . . . 1 3 3 1 1 1 . . . . . . .
+        .DB      $00,$00,$05,$00,$00 ; . . . . . . . . . . 1 1 . . . . . . . .
+        .DB      $00,$00,$00,$00,$00 ; . . . . . . . . . . . . . . . . . . . .
+        .DB      $00,$00,$00,$00,$00 ; . . . . . . . . . . . . . . . . . . . .
+        .DB      $00,$00,$00,$00,$00 ; . . . . . . . . . . . . . . . . . . . .
+
+;*******************************************************************************
+; WIZARD_4_UP
+; 5 bytes/row = 20 pixels wide, 18 rows
+;*******************************************************************************
+WIZARD_4_UP:
+        .DB      $00,$00,$00,$00,$00 ; . . . . . . . . . . . . . . . . . . . .
+        .DB      $00,$00,$00,$00,$00 ; . . . . . . . . . . . . . . . . . . . .
+        .DB      $00,$00,$30,$00,$00 ; . . . . . . . . . 3 . . . . . . . . . .
+        .DB      $00,$00,$30,$00,$00 ; . . . . . . . . . 3 . . . . . . . . . .
+        .DB      $04,$05,$04,$00,$00 ; . . 1 . . . 1 1 . . 1 . . . . . . . . .
+        .DB      $04,$55,$45,$01,$50 ; . . 1 . 1 1 1 1 1 . 1 1 . . . 1 1 1 . .
+        .DB      $05,$55,$41,$55,$84 ; . . 1 1 1 1 1 1 1 . . 1 1 1 1 1 2 . 1 .
+        .DB      $05,$55,$50,$54,$04 ; . . 1 1 1 1 1 1 1 1 . . 1 1 1 . . . 1 .
+        .DB      $15,$55,$51,$50,$94 ; . 1 1 1 1 1 1 1 1 1 . 1 1 1 . . 2 1 1 .
+        .DB      $15,$55,$55,$55,$54 ; . 1 1 1 1 1 1 1 1 1 1 1 1 1 1 1 1 1 1 .
+        .DB      $15,$55,$55,$55,$50 ; . 1 1 1 1 1 1 1 1 1 1 1 1 1 1 1 1 1 . .
+        .DB      $15,$55,$55,$55,$00 ; . 1 1 1 1 1 1 1 1 1 1 1 1 1 1 1 . . . .
+        .DB      $15,$01,$54,$14,$00 ; . 1 1 1 . . . 1 1 1 1 . . 1 1 . . . . .
+        .DB      $00,$00,$00,$14,$00 ; . . . . . . . . . . . . . 1 1 . . . . .
+        .DB      $00,$00,$00,$50,$00 ; . . . . . . . . . . . . 1 1 . . . . . .
+        .DB      $00,$00,$05,$40,$00 ; . . . . . . . . . . 1 1 1 . . . . . . .
+        .DB      $00,$00,$F4,$00,$00 ; . . . . . . . . 3 3 1 . . . . . . . . .
+        .DB      $00,$00,$00,$00,$00 ; . . . . . . . . . . . . . . . . . . . .
+
+;*******************************************************************************
+; WIZARD_1
+; 5 bytes/row = 20 pixels wide, 18 rows
+;*******************************************************************************
+WIZARD_1:
+        .DB      $00,$00,$15,$40,$00 ; . . . . . . . . . 1 1 1 1 . . . . . . .
+        .DB      $00,$01,$55,$00,$00 ; . . . . . . . 1 1 1 1 1 . . . . . . . .
+        .DB      $00,$04,$01,$00,$00 ; . . . . . . 1 . . . . 1 . . . . . . . .
+        .DB      $00,$06,$21,$50,$00 ; . . . . . . 1 2 . 2 . 1 1 1 . . . . . .
+        .DB      $00,$05,$05,$54,$00 ; . . . . . . 1 1 . . 1 1 1 1 1 . . . . .
+        .DB      $00,$15,$45,$55,$40 ; . . . . . 1 1 1 1 . 1 1 1 1 1 1 1 . . .
+        .DB      $00,$50,$55,$40,$50 ; . . . . 1 1 . . 1 1 1 1 1 . . . 1 1 . .
+        .DB      $00,$40,$15,$40,$14 ; . . . . 1 . . . . 1 1 1 1 . . . . 1 1 .
+        .DB      $01,$40,$15,$50,$0C ; . . . 1 1 . . . . 1 1 1 1 1 . . . . 3 .
+        .DB      $3C,$00,$15,$50,$0C ; . 3 3 . . . . . . 1 1 1 1 1 . . . . 3 .
+        .DB      $00,$00,$55,$50,$00 ; . . . . . . . . 1 1 1 1 1 1 . . . . . .
+        .DB      $00,$01,$55,$50,$00 ; . . . . . . . 1 1 1 1 1 1 1 . . . . . .
+        .DB      $00,$15,$55,$54,$00 ; . . . . . 1 1 1 1 1 1 1 1 1 1 . . . . .
+        .DB      $00,$15,$55,$54,$00 ; . . . . . 1 1 1 1 1 1 1 1 1 1 . . . . .
+        .DB      $00,$05,$55,$55,$00 ; . . . . . . 1 1 1 1 1 1 1 1 1 1 . . . .
+        .DB      $00,$05,$55,$55,$40 ; . . . . . . 1 1 1 1 1 1 1 1 1 1 1 . . .
+        .DB      $00,$01,$55,$55,$50 ; . . . . . . . 1 1 1 1 1 1 1 1 1 1 1 . .
+        .DB      $00,$05,$55,$55,$50 ; . . . . . . 1 1 1 1 1 1 1 1 1 1 1 1 . .
+
+;*******************************************************************************
+; WIZARD_2
+; 5 bytes/row = 20 pixels wide, 18 rows
+;*******************************************************************************
+WIZARD_2:
+        .DB      $00,$05,$50,$00,$00 ; . . . . . . 1 1 1 1 . . . . . . . . . .
+        .DB      $00,$10,$54,$00,$00 ; . . . . . 1 . . 1 1 1 . . . . . . . . .
+        .DB      $00,$18,$94,$00,$00 ; . . . . . 1 2 . 2 1 1 . . . . . . . . .
+        .DB      $00,$14,$15,$40,$00 ; . . . . . 1 1 . . 1 1 1 1 . . . . . . .
+        .DB      $00,$05,$15,$50,$00 ; . . . . . . 1 1 . 1 1 1 1 1 . . . . . .
+        .DB      $00,$15,$55,$14,$00 ; . . . . . 1 1 1 1 1 1 1 . 1 1 . . . . .
+        .DB      $00,$04,$55,$05,$00 ; . . . . . . 1 . 1 1 1 1 . . 1 1 . . . .
+        .DB      $00,$10,$15,$41,$40 ; . . . . . 1 . . . 1 1 1 1 . . 1 1 . . .
+        .DB      $00,$50,$15,$50,$C0 ; . . . . 1 1 . . . 1 1 1 1 1 . . 3 . . .
+        .DB      $0F,$00,$55,$50,$C0 ; . . 3 3 . . . . 1 1 1 1 1 1 . . 3 . . .
+        .DB      $00,$01,$55,$50,$00 ; . . . . . . . 1 1 1 1 1 1 1 . . . . . .
+        .DB      $00,$05,$55,$40,$00 ; . . . . . . 1 1 1 1 1 1 1 . . . . . . .
+        .DB      $00,$15,$55,$50,$00 ; . . . . . 1 1 1 1 1 1 1 1 1 . . . . . .
+        .DB      $00,$05,$55,$54,$00 ; . . . . . . 1 1 1 1 1 1 1 1 1 . . . . .
+        .DB      $00,$01,$55,$55,$00 ; . . . . . . . 1 1 1 1 1 1 1 1 1 . . . .
+        .DB      $00,$00,$55,$55,$40 ; . . . . . . . . 1 1 1 1 1 1 1 1 1 . . .
+        .DB      $00,$00,$55,$55,$00 ; . . . . . . . . 1 1 1 1 1 1 1 1 . . . .
+        .DB      $00,$05,$54,$00,$00 ; . . . . . . 1 1 1 1 1 . . . . . . . . .
+
+;*******************************************************************************
+; WIZARD_3
+; 5 bytes/row = 20 pixels wide, 18 rows
+;*******************************************************************************
+WIZARD_3:
+        .DB      $00,$00,$15,$00,$00 ; . . . . . . . . . 1 1 1 . . . . . . . .
+        .DB      $00,$05,$54,$00,$00 ; . . . . . . 1 1 1 1 1 . . . . . . . . .
+        .DB      $00,$11,$54,$00,$00 ; . . . . . 1 . 1 1 1 1 . . . . . . . . .
+        .DB      $00,$18,$54,$00,$00 ; . . . . . 1 2 . 1 1 1 . . . . . . . . .
+        .DB      $00,$14,$15,$40,$00 ; . . . . . 1 1 . . 1 1 1 1 . . . . . . .
+        .DB      $00,$05,$15,$50,$00 ; . . . . . . 1 1 . 1 1 1 1 1 . . . . . .
+        .DB      $00,$05,$55,$14,$00 ; . . . . . . 1 1 1 1 1 1 . 1 1 . . . . .
+        .DB      $00,$00,$55,$45,$00 ; . . . . . . . . 1 1 1 1 1 . 1 1 . . . .
+        .DB      $00,$01,$15,$55,$00 ; . . . . . . . 1 . 1 1 1 1 1 1 1 . . . .
+        .DB      $00,$05,$15,$5C,$00 ; . . . . . . 1 1 . 1 1 1 1 1 3 . . . . .
+        .DB      $00,$F0,$55,$7C,$00 ; . . . . 3 3 . . 1 1 1 1 1 3 3 . . . . .
+        .DB      $00,$01,$55,$54,$00 ; . . . . . . . 1 1 1 1 1 1 1 1 . . . . .
+        .DB      $00,$05,$55,$50,$00 ; . . . . . . 1 1 1 1 1 1 1 1 . . . . . .
+        .DB      $00,$05,$55,$50,$00 ; . . . . . . 1 1 1 1 1 1 1 1 . . . . . .
+        .DB      $00,$01,$55,$40,$00 ; . . . . . . . 1 1 1 1 1 1 . . . . . . .
+        .DB      $00,$01,$55,$40,$00 ; . . . . . . . 1 1 1 1 1 1 . . . . . . .
+        .DB      $00,$05,$55,$50,$00 ; . . . . . . 1 1 1 1 1 1 1 1 . . . . . .
+        .DB      $00,$05,$55,$50,$00 ; . . . . . . 1 1 1 1 1 1 1 1 . . . . . .
+
+;*******************************************************************************
+; WIZARD_4
+; 5 bytes/row = 20 pixels wide, 18 rows
+;*******************************************************************************
+WIZARD_4:
+        .DB      $00,$01,$54,$00,$00 ; . . . . . . . 1 1 1 1 . . . . . . . . .
+        .DB      $00,$04,$15,$00,$00 ; . . . . . . 1 . . 1 1 1 . . . . . . . .
+        .DB      $00,$06,$25,$00,$00 ; . . . . . . 1 2 . 2 1 1 . . . . . . . .
+        .DB      $00,$05,$05,$40,$00 ; . . . . . . 1 1 . . 1 1 1 . . . . . . .
+        .DB      $00,$01,$45,$54,$00 ; . . . . . . . 1 1 . 1 1 1 1 1 . . . . .
+        .DB      $00,$01,$55,$55,$00 ; . . . . . . . 1 1 1 1 1 1 1 1 1 . . . .
+        .DB      $00,$01,$55,$41,$40 ; . . . . . . . 1 1 1 1 1 1 . . 1 1 . . .
+        .DB      $00,$05,$15,$40,$40 ; . . . . . . 1 1 . 1 1 1 1 . . . 1 . . .
+        .DB      $00,$14,$05,$50,$50 ; . . . . . 1 1 . . . 1 1 1 1 . . 1 1 . .
+        .DB      $03,$C0,$55,$50,$30 ; . . . 3 3 . . . 1 1 1 1 1 1 . . . 3 . .
+        .DB      $00,$05,$55,$50,$30 ; . . . . . . 1 1 1 1 1 1 1 1 . . . 3 . .
+        .DB      $00,$15,$55,$50,$00 ; . . . . . 1 1 1 1 1 1 1 1 1 . . . . . .
+        .DB      $00,$15,$55,$40,$00 ; . . . . . 1 1 1 1 1 1 1 1 . . . . . . .
+        .DB      $00,$05,$55,$40,$00 ; . . . . . . 1 1 1 1 1 1 1 . . . . . . .
+        .DB      $00,$05,$55,$40,$00 ; . . . . . . 1 1 1 1 1 1 1 . . . . . . .
+        .DB      $00,$01,$55,$50,$00 ; . . . . . . . 1 1 1 1 1 1 1 . . . . . .
+        .DB      $00,$15,$55,$50,$00 ; . . . . . 1 1 1 1 1 1 1 1 1 . . . . . .
+        .DB      $00,$00,$15,$50,$00 ; . . . . . . . . . 1 1 1 1 1 . . . . . .
+
+;*******************************************************************************
+; WIZARD_1_FIRE_UP
+; 5 bytes/row = 20 pixels wide, 18 rows
+;*******************************************************************************
+WIZARD_1_FIRE_UP:
+        .DB      $00,$00,$00,$03,$00 ; . . . . . . . . . . . . . . . 3 . . . .
+        .DB      $00,$00,$00,$03,$00 ; . . . . . . . . . . . . . . . 3 . . . .
+        .DB      $10,$00,$00,$03,$C0 ; . 1 . . . . . . . . . . . . . 3 3 . . .
+        .DB      $14,$00,$00,$5F,$00 ; . 1 1 . . . . . . . . . 1 1 3 3 . . . .
+        .DB      $15,$50,$01,$54,$00 ; . 1 1 1 1 1 . . . . . 1 1 1 1 . . . . .
+        .DB      $15,$54,$01,$40,$00 ; . 1 1 1 1 1 1 . . . . 1 1 . . . . . . .
+        .DB      $15,$55,$01,$50,$00 ; . 1 1 1 1 1 1 1 . . . 1 1 1 . . . . . .
+        .DB      $15,$55,$41,$51,$50 ; . 1 1 1 1 1 1 1 1 . . 1 1 1 . 1 1 1 . .
+        .DB      $15,$55,$55,$55,$84 ; . 1 1 1 1 1 1 1 1 1 1 1 1 1 1 1 2 . 1 .
+        .DB      $15,$55,$55,$50,$04 ; . 1 1 1 1 1 1 1 1 1 1 1 1 1 . . . . 1 .
+        .DB      $15,$55,$55,$40,$84 ; . 1 1 1 1 1 1 1 1 1 1 1 1 . . . 2 . 1 .
+        .DB      $15,$55,$55,$55,$54 ; . 1 1 1 1 1 1 1 1 1 1 1 1 1 1 1 1 1 1 .
+        .DB      $15,$55,$00,$50,$50 ; . 1 1 1 1 1 1 1 . . . . 1 1 . . 1 1 . .
+        .DB      $15,$40,$01,$50,$00 ; . 1 1 1 1 . . . . . . 1 1 1 . . . . . .
+        .DB      $10,$00,$05,$4C,$00 ; . 1 . . . . . . . . 1 1 1 . 3 . . . . .
+        .DB      $00,$00,$05,$FC,$00 ; . . . . . . . . . . 1 1 3 3 3 . . . . .
+        .DB      $00,$00,$01,$7C,$00 ; . . . . . . . . . . . 1 1 3 3 . . . . .
+        .DB      $00,$00,$00,$5C,$00 ; . . . . . . . . . . . . 1 1 3 . . . . .
+
+;*******************************************************************************
+; WIZARD_2_FIRE_UP
+; 5 bytes/row = 20 pixels wide, 18 rows
+;*******************************************************************************
+WIZARD_2_FIRE_UP:
+        .DB      $00,$00,$00,$0C,$00 ; . . . . . . . . . . . . . . 3 . . . . .
+        .DB      $00,$00,$00,$0C,$00 ; . . . . . . . . . . . . . . 3 . . . . .
+        .DB      $00,$00,$00,$0C,$00 ; . . . . . . . . . . . . . . 3 . . . . .
+        .DB      $10,$00,$00,$3C,$00 ; . 1 . . . . . . . . . . . 3 3 . . . . .
+        .DB      $10,$00,$03,$F0,$00 ; . 1 . . . . . . . . . 3 3 3 . . . . . .
+        .DB      $15,$00,$03,$C0,$00 ; . 1 1 1 . . . . . . . 3 3 . . . . . . .
+        .DB      $15,$54,$00,$14,$00 ; . 1 1 1 1 1 1 . . . . . . 1 1 . . . . .
+        .DB      $15,$55,$00,$14,$00 ; . 1 1 1 1 1 1 1 . . . . . 1 1 . . . . .
+        .DB      $15,$55,$40,$14,$00 ; . 1 1 1 1 1 1 1 1 . . . . 1 1 . . . . .
+        .DB      $15,$55,$55,$55,$50 ; . 1 1 1 1 1 1 1 1 1 1 1 1 1 1 1 1 1 . .
+        .DB      $15,$55,$55,$54,$94 ; . 1 1 1 1 1 1 1 1 1 1 1 1 1 1 . 2 1 1 .
+        .DB      $15,$55,$55,$C0,$04 ; . 1 1 1 1 1 1 1 1 1 1 1 3 . . . . . 1 .
+        .DB      $15,$05,$45,$D0,$94 ; . 1 1 1 . . 1 1 1 . 1 1 3 1 . . 2 1 1 .
+        .DB      $14,$00,$01,$D5,$50 ; . 1 1 . . . . . . . . 1 3 1 1 1 1 1 . .
+        .DB      $10,$00,$00,$D1,$50 ; . 1 . . . . . . . . . . 3 1 . 1 1 1 . .
+        .DB      $00,$00,$03,$D0,$40 ; . . . . . . . . . . . 3 3 1 . . 1 . . .
+        .DB      $00,$00,$0F,$40,$00 ; . . . . . . . . . . 3 3 1 . . . . . . .
+        .DB      $00,$00,$0F,$00,$00 ; . . . . . . . . . . 3 3 . . . . . . . .
+
+;*******************************************************************************
+; WIZARD_3_FIRE_UP
+; 5 bytes/row = 20 pixels wide, 18 rows
+;*******************************************************************************
+WIZARD_3_FIRE_UP:
+        .DB      $00,$00,$00,$22,$00 ; . . . . . . . . . . . . . 2 . 2 . . . .
+        .DB      $00,$00,$00,$22,$00 ; . . . . . . . . . . . . . 2 . 2 . . . .
+        .DB      $00,$00,$00,$20,$00 ; . . . . . . . . . . . . . 2 . . . . . .
+        .DB      $00,$00,$00,$0C,$C0 ; . . . . . . . . . . . . . . 3 . 3 . . .
+        .DB      $00,$00,$00,$3C,$C0 ; . . . . . . . . . . . . . 3 3 . 3 . . .
+        .DB      $10,$00,$00,$F3,$C0 ; . 1 . . . . . . . . . . 3 3 . 3 3 . . .
+        .DB      $10,$00,$01,$51,$40 ; . 1 . . . . . . . . . 1 1 1 . 1 1 . . .
+        .DB      $15,$00,$00,$51,$40 ; . 1 1 1 . . . . . . . . 1 1 . 1 1 . . .
+        .DB      $15,$54,$00,$15,$00 ; . 1 1 1 1 1 1 . . . . . . 1 1 1 . . . .
+        .DB      $15,$55,$00,$15,$00 ; . 1 1 1 1 1 1 1 . . . . . 1 1 1 . . . .
+        .DB      $15,$55,$40,$14,$00 ; . 1 1 1 1 1 1 1 1 . . . . 1 1 . . . . .
+        .DB      $15,$55,$40,$14,$10 ; . 1 1 1 1 1 1 1 1 . . . . 1 1 . . 1 . .
+        .DB      $15,$55,$50,$54,$94 ; . 1 1 1 1 1 1 1 1 1 . . 1 1 1 . 2 1 1 .
+        .DB      $15,$55,$55,$54,$54 ; . 1 1 1 1 1 1 1 1 1 1 1 1 1 1 . 1 1 1 .
+        .DB      $15,$55,$55,$55,$54 ; . 1 1 1 1 1 1 1 1 1 1 1 1 1 1 1 1 1 1 .
+        .DB      $15,$01,$55,$55,$54 ; . 1 1 1 . . . 1 1 1 1 1 1 1 1 1 1 1 1 .
+        .DB      $14,$00,$05,$51,$50 ; . 1 1 . . . . . . . 1 1 1 1 . 1 1 1 . .
+        .DB      $10,$00,$00,$00,$40 ; . 1 . . . . . . . . . . . . . . 1 . . .
+
+;*******************************************************************************
+; WIZARD_1_FIRE
+; 5 bytes/row = 20 pixels wide, 18 rows
+;*******************************************************************************
+WIZARD_1_FIRE:
+        .DB      $00,$00,$15,$40,$00 ; . . . . . . . . . 1 1 1 1 . . . . . . .
+        .DB      $00,$00,$40,$50,$00 ; . . . . . . . . 1 . . . 1 1 . . . . . .
+        .DB      $03,$00,$62,$50,$00 ; . . . 3 . . . . 1 2 . 2 1 1 . . . . . .
+        .DB      $3F,$C0,$50,$40,$00 ; . 3 3 3 3 . . . 1 1 . . 1 . . . . . . .
+        .DB      $00,$D0,$10,$43,$FC ; . . . . 3 1 . . . 1 . . 1 . . 3 3 3 3 .
+        .DB      $00,$51,$54,$54,$F4 ; . . . . 1 1 . 1 1 1 1 . 1 1 1 . 3 3 1 .
+        .DB      $00,$55,$55,$55,$D4 ; . . . . 1 1 1 1 1 1 1 1 1 1 1 1 3 1 1 .
+        .DB      $00,$15,$55,$45,$50 ; . . . . . 1 1 1 1 1 1 1 1 . 1 1 1 1 . .
+        .DB      $00,$00,$15,$41,$40 ; . . . . . . . . . 1 1 1 1 . . 1 1 . . .
+        .DB      $00,$00,$15,$40,$00 ; . . . . . . . . . 1 1 1 1 . . . . . . .
+        .DB      $00,$00,$55,$40,$00 ; . . . . . . . . 1 1 1 1 1 . . . . . . .
+        .DB      $00,$01,$55,$50,$00 ; . . . . . . . 1 1 1 1 1 1 1 . . . . . .
+        .DB      $00,$05,$55,$50,$00 ; . . . . . . 1 1 1 1 1 1 1 1 . . . . . .
+        .DB      $00,$15,$55,$50,$00 ; . . . . . 1 1 1 1 1 1 1 1 1 . . . . . .
+        .DB      $00,$15,$55,$54,$00 ; . . . . . 1 1 1 1 1 1 1 1 1 1 . . . . .
+        .DB      $00,$15,$55,$54,$00 ; . . . . . 1 1 1 1 1 1 1 1 1 1 . . . . .
+        .DB      $00,$55,$55,$54,$00 ; . . . . 1 1 1 1 1 1 1 1 1 1 1 . . . . .
+        .DB      $01,$55,$55,$55,$00 ; . . . 1 1 1 1 1 1 1 1 1 1 1 1 1 . . . .
+
+;*******************************************************************************
+; WIZARD_2_FIRE
+; 5 bytes/row = 20 pixels wide, 18 rows
+;*******************************************************************************
+WIZARD_2_FIRE:
+        .DB      $00,$00,$01,$50,$00 ; . . . . . . . . . . . 1 1 1 . . . . . .
+        .DB      $00,$00,$05,$15,$00 ; . . . . . . . . . . 1 1 . 1 1 1 . . . .
+        .DB      $00,$00,$06,$25,$40 ; . . . . . . . . . . 1 2 . 2 1 1 1 . . .
+        .DB      $00,$00,$04,$05,$00 ; . . . . . . . . . . 1 . . . 1 1 . . . .
+        .DB      $3F,$C1,$55,$04,$00 ; . 3 3 3 3 . . 1 1 1 1 1 . . 1 . . . . .
+        .DB      $00,$F1,$55,$15,$40 ; . . . . 3 3 . 1 1 1 1 1 . 1 1 1 1 . . .
+        .DB      $00,$3C,$05,$FF,$D0 ; . . . . . 3 3 . . . 1 1 3 3 3 3 3 1 . .
+        .DB      $00,$3C,$05,$54,$FC ; . . . . . 3 3 . . . 1 1 1 1 1 . 3 3 3 .
+        .DB      $00,$00,$05,$50,$3C ; . . . . . . . . . . 1 1 1 1 . . . 3 3 .
+        .DB      $00,$00,$05,$40,$00 ; . . . . . . . . . . 1 1 1 . . . . . . .
+        .DB      $00,$00,$15,$50,$00 ; . . . . . . . . . 1 1 1 1 1 . . . . . .
+        .DB      $00,$00,$55,$50,$00 ; . . . . . . . . 1 1 1 1 1 1 . . . . . .
+        .DB      $00,$01,$55,$50,$00 ; . . . . . . . 1 1 1 1 1 1 1 . . . . . .
+        .DB      $00,$01,$55,$40,$00 ; . . . . . . . 1 1 1 1 1 1 . . . . . . .
+        .DB      $00,$01,$55,$40,$00 ; . . . . . . . 1 1 1 1 1 1 . . . . . . .
+        .DB      $00,$05,$55,$50,$00 ; . . . . . . 1 1 1 1 1 1 1 1 . . . . . .
+        .DB      $00,$05,$55,$54,$00 ; . . . . . . 1 1 1 1 1 1 1 1 1 . . . . .
+        .DB      $00,$55,$55,$55,$00 ; . . . . 1 1 1 1 1 1 1 1 1 1 1 1 . . . .
+
+;*******************************************************************************
+; WIZARD_3_FIRE
+; 5 bytes/row = 20 pixels wide, 18 rows
+;*******************************************************************************
+WIZARD_3_FIRE:
+        .DB      $00,$00,$00,$15,$40 ; . . . . . . . . . . . . . 1 1 1 1 . . .
+        .DB      $00,$00,$00,$55,$50 ; . . . . . . . . . . . . 1 1 1 1 1 1 . .
+        .DB      $00,$FD,$40,$25,$54 ; . . . . 3 3 3 1 1 . . . . 2 1 1 1 1 1 .
+        .DB      $28,$0D,$54,$01,$50 ; . 2 2 . . . 3 1 1 1 1 . . . . 1 1 1 . .
+        .DB      $00,$F0,$15,$55,$40 ; . . . . 3 3 . . . 1 1 1 1 1 1 1 1 . . .
+        .DB      $2A,$3D,$55,$55,$50 ; . 2 2 2 . 3 3 1 1 1 1 1 1 1 1 1 1 1 . .
+        .DB      $00,$0D,$40,$15,$50 ; . . . . . . 3 1 1 . . . . 1 1 1 1 1 . .
+        .DB      $00,$01,$00,$05,$50 ; . . . . . . . 1 . . . . . . 1 1 1 1 . .
+        .DB      $00,$00,$00,$05,$50 ; . . . . . . . . . . . . . . 1 1 1 1 . .
+        .DB      $00,$00,$00,$15,$40 ; . . . . . . . . . . . . . 1 1 1 1 . . .
+        .DB      $00,$00,$01,$55,$40 ; . . . . . . . . . . . 1 1 1 1 1 1 . . .
+        .DB      $00,$00,$05,$55,$40 ; . . . . . . . . . . 1 1 1 1 1 1 1 . . .
+        .DB      $00,$00,$15,$55,$00 ; . . . . . . . . . 1 1 1 1 1 1 1 . . . .
+        .DB      $00,$00,$15,$55,$00 ; . . . . . . . . . 1 1 1 1 1 1 1 . . . .
+        .DB      $00,$00,$15,$55,$00 ; . . . . . . . . . 1 1 1 1 1 1 1 . . . .
+        .DB      $00,$00,$55,$55,$40 ; . . . . . . . . 1 1 1 1 1 1 1 1 1 . . .
+        .DB      $00,$00,$55,$55,$50 ; . . . . . . . . 1 1 1 1 1 1 1 1 1 1 . .
+        .DB      $00,$05,$55,$55,$54 ; . . . . . . 1 1 1 1 1 1 1 1 1 1 1 1 1 .
+
+;*******************************************************************************
+; GARWOR_FIRE_0_UP
+; 5 bytes/row = 20 pixels wide, 18 rows
+;*******************************************************************************
+GARWOR_FIRE_0_UP:
+        .DB      $00,$00,$08,$10,$00 ; . . . . . . . . . . 2 . . 1 . . . . . .
+        .DB      $00,$00,$C3,$00,$00 ; . . . . . . . . 3 . . 3 . . . . . . . .
+        .DB      $00,$00,$03,$28,$00 ; . . . . . . . . . . . 3 . 2 2 . . . . .
+        .DB      $00,$00,$2F,$E8,$00 ; . . . . . . . . . 2 3 3 3 2 2 . . . . .
+        .DB      $00,$00,$2F,$AA,$00 ; . . . . . . . . . 2 3 3 2 2 2 2 . . . .
+        .DB      $00,$20,$2B,$EA,$00 ; . . . . . 2 . . . 2 2 3 3 2 2 2 . . . .
+        .DB      $00,$08,$2F,$AA,$80 ; . . . . . . 2 . . 2 3 3 2 2 2 2 2 . . .
+        .DB      $00,$08,$2B,$EA,$A0 ; . . . . . . 2 . . 2 2 3 3 2 2 2 2 2 . .
+        .DB      $20,$0A,$0A,$A4,$A0 ; . 2 . . . . 2 2 . . 2 2 2 2 1 . 2 2 . .
+        .DB      $20,$2A,$A2,$A0,$A0 ; . 2 . . . 2 2 2 2 2 . 2 2 2 . . 2 2 . .
+        .DB      $2A,$AA,$AA,$AA,$A0 ; . 2 2 2 2 2 2 2 2 2 2 2 2 2 2 2 2 2 . .
+        .DB      $0A,$AA,$AA,$AA,$A0 ; . . 2 2 2 2 2 2 2 2 2 2 2 2 2 2 2 2 . .
+        .DB      $02,$AA,$AA,$AA,$80 ; . . . 2 2 2 2 2 2 2 2 2 2 2 2 2 2 . . .
+        .DB      $00,$AA,$AA,$AA,$00 ; . . . . 2 2 2 2 2 2 2 2 2 2 2 2 . . . .
+        .DB      $20,$AA,$AA,$A8,$0C ; . 2 . . 2 2 2 2 2 2 2 2 2 2 2 . . . 3 .
+        .DB      $2A,$2A,$AA,$A0,$3C ; . 2 2 2 . 2 2 2 2 2 2 2 2 2 . . . 3 3 .
+        .DB      $00,$2A,$AA,$00,$F0 ; . . . . . 2 2 2 2 2 2 2 . . . . 3 3 . .
+        .DB      $00,$02,$A0,$AA,$F0 ; . . . . . . . 2 2 2 . . 2 2 2 2 3 3 . .
+
+;*******************************************************************************
+; GARWOR_FIRE_1_UP
+; 5 bytes/row = 20 pixels wide, 18 rows
+;*******************************************************************************
+GARWOR_FIRE_1_UP:
+        .DB      $00,$00,$2E,$4C,$00 ; . . . . . . . . . 2 3 2 1 . 3 . . . . .
+        .DB      $00,$00,$6A,$80,$00 ; . . . . . . . . 1 2 2 2 2 . . . . . . .
+        .DB      $00,$00,$07,$0A,$00 ; . . . . . . . . . . 1 3 . . 2 2 . . . .
+        .DB      $00,$00,$03,$0A,$00 ; . . . . . . . . . . . 3 . . 2 2 . . . .
+        .DB      $00,$00,$2F,$EA,$80 ; . . . . . . . . . 2 3 3 3 2 2 2 2 . . .
+        .DB      $00,$00,$2F,$FA,$80 ; . . . . . . . . . 2 3 3 3 3 2 2 2 . . .
+        .DB      $00,$20,$2F,$EA,$A0 ; . . . . . 2 . . . 2 3 3 3 2 2 2 2 2 . .
+        .DB      $00,$08,$2B,$FA,$A8 ; . . . . . . 2 . . 2 2 3 3 3 2 2 2 2 2 .
+        .DB      $00,$02,$AB,$E9,$28 ; . . . . . . . 2 2 2 2 3 3 2 2 1 . 2 2 .
+        .DB      $00,$2A,$AA,$F8,$28 ; . . . . . 2 2 2 2 2 2 2 3 3 2 . . 2 2 .
+        .DB      $20,$AA,$AA,$AA,$A8 ; . 2 . . 2 2 2 2 2 2 2 2 2 2 2 2 2 2 2 .
+        .DB      $22,$AA,$AA,$AA,$A8 ; . 2 . 2 2 2 2 2 2 2 2 2 2 2 2 2 2 2 2 .
+        .DB      $2A,$AA,$AA,$AA,$80 ; . 2 2 2 2 2 2 2 2 2 2 2 2 2 2 2 2 . . .
+        .DB      $00,$AA,$AA,$AA,$00 ; . . . . 2 2 2 2 2 2 2 2 2 2 2 2 . . . .
+        .DB      $00,$AA,$AA,$A0,$F0 ; . . . . 2 2 2 2 2 2 2 2 2 2 . . 3 3 . .
+        .DB      $02,$2A,$AA,$0B,$FC ; . . . 2 . 2 2 2 2 2 2 2 . . 2 3 3 3 3 .
+        .DB      $02,$2A,$A0,$23,$F0 ; . . . 2 . 2 2 2 2 2 . . . 2 . 3 3 3 . .
+        .DB      $0A,$0A,$AA,$80,$00 ; . . 2 2 . . 2 2 2 2 2 2 2 . . . . . . .
+
+;*******************************************************************************
+; GARWOR_FIRE_2_UP
+; 5 bytes/row = 20 pixels wide, 18 rows
+;*******************************************************************************
+GARWOR_FIRE_2_UP:
+        .DB      $00,$00,$E2,$58,$C0 ; . . . . . . . . 3 2 . 2 1 1 2 . 3 . . .
+        .DB      $00,$03,$0B,$40,$00 ; . . . . . . . 3 . . 2 3 1 . . . . . . .
+        .DB      $00,$0A,$07,$0A,$00 ; . . . . . . 2 2 . . 1 3 . . 2 2 . . . .
+        .DB      $00,$06,$03,$CA,$00 ; . . . . . . 1 2 . . . 3 3 . 2 2 . . . .
+        .DB      $00,$00,$2F,$EA,$80 ; . . . . . . . . . 2 3 3 3 2 2 2 2 . . .
+        .DB      $00,$00,$2F,$FA,$80 ; . . . . . . . . . 2 3 3 3 3 2 2 2 . . .
+        .DB      $00,$20,$2F,$EA,$A0 ; . . . . . 2 . . . 2 3 3 3 2 2 2 2 2 . .
+        .DB      $00,$08,$2B,$FA,$A8 ; . . . . . . 2 . . 2 2 3 3 3 2 2 2 2 2 .
+        .DB      $00,$02,$AB,$E9,$28 ; . . . . . . . 2 2 2 2 3 3 2 2 1 . 2 2 .
+        .DB      $00,$2A,$AA,$F8,$28 ; . . . . . 2 2 2 2 2 2 2 3 3 2 . . 2 2 .
+        .DB      $20,$AA,$AA,$AA,$A8 ; . 2 . . 2 2 2 2 2 2 2 2 2 2 2 2 2 2 2 .
+        .DB      $22,$AA,$AA,$AA,$A8 ; . 2 . 2 2 2 2 2 2 2 2 2 2 2 2 2 2 2 2 .
+        .DB      $2A,$AA,$AA,$AA,$80 ; . 2 2 2 2 2 2 2 2 2 2 2 2 2 2 2 2 . . .
+        .DB      $00,$AA,$AA,$AA,$00 ; . . . . 2 2 2 2 2 2 2 2 2 2 2 2 . . . .
+        .DB      $00,$AA,$AA,$A3,$F0 ; . . . . 2 2 2 2 2 2 2 2 2 2 . 3 3 3 . .
+        .DB      $02,$2A,$AA,$0B,$FC ; . . . 2 . 2 2 2 2 2 2 2 . . 2 3 3 3 3 .
+        .DB      $02,$2A,$A0,$20,$FC ; . . . 2 . 2 2 2 2 2 . . . 2 . . 3 3 3 .
+        .DB      $0A,$0A,$AA,$80,$0C ; . . 2 2 . . 2 2 2 2 2 2 2 . . . . . 3 .
+
+;*******************************************************************************
+; GARWOR_FIRE_3_UP
+; 5 bytes/row = 20 pixels wide, 18 rows
+;*******************************************************************************
+GARWOR_FIRE_3_UP:
+        .DB      $00,$00,$C8,$04,$30 ; . . . . . . . . 3 . 2 . . . 1 . . 3 . .
+        .DB      $00,$00,$00,$C0,$00 ; . . . . . . . . . . . . 3 . . . . . . .
+        .DB      $00,$00,$13,$CA,$00 ; . . . . . . . . . 1 . 3 3 . 2 2 . . . .
+        .DB      $00,$04,$03,$CA,$00 ; . . . . . . 1 . . . . 3 3 . 2 2 . . . .
+        .DB      $00,$00,$2F,$EA,$80 ; . . . . . . . . . 2 3 3 3 2 2 2 2 . . .
+        .DB      $00,$00,$2F,$FA,$80 ; . . . . . . . . . 2 3 3 3 3 2 2 2 . . .
+        .DB      $00,$02,$2F,$EA,$A0 ; . . . . . . . 2 . 2 3 3 3 2 2 2 2 2 . .
+        .DB      $02,$02,$2B,$FA,$A8 ; . . . 2 . . . 2 . 2 2 3 3 3 2 2 2 2 2 .
+        .DB      $0A,$8A,$AB,$E9,$28 ; . . 2 2 2 . 2 2 2 2 2 3 3 2 2 1 . 2 2 .
+        .DB      $28,$AA,$AA,$F8,$28 ; . 2 2 . 2 2 2 2 2 2 2 2 3 3 2 . . 2 2 .
+        .DB      $00,$AA,$AA,$AA,$A8 ; . . . . 2 2 2 2 2 2 2 2 2 2 2 2 2 2 2 .
+        .DB      $22,$AA,$AA,$AA,$A8 ; . 2 . 2 2 2 2 2 2 2 2 2 2 2 2 2 2 2 2 .
+        .DB      $2A,$AA,$AA,$AA,$80 ; . 2 2 2 2 2 2 2 2 2 2 2 2 2 2 2 2 . . .
+        .DB      $00,$AA,$AA,$AA,$00 ; . . . . 2 2 2 2 2 2 2 2 2 2 2 2 . . . .
+        .DB      $00,$2A,$AA,$A0,$0C ; . . . . . 2 2 2 2 2 2 2 2 2 . . . . 3 .
+        .DB      $00,$2A,$AA,$00,$3C ; . . . . . 2 2 2 2 2 2 2 . . . . . 3 3 .
+        .DB      $00,$0A,$80,$00,$F0 ; . . . . . . 2 2 2 . . . . . . . 3 3 . .
+        .DB      $00,$02,$AA,$AA,$F0 ; . . . . . . . 2 2 2 2 2 2 2 2 2 3 3 . .
+
+;*******************************************************************************
+; GARWOR_FIRE_0
+; 5 bytes/row = 20 pixels wide, 18 rows
+;*******************************************************************************
+GARWOR_FIRE_0:
+        .DB      $00,$00,$00,$03,$C0 ; . . . . . . . . . . . . . . . 3 3 . . .
+        .DB      $00,$00,$AA,$80,$FC ; . . . . . . . . 2 2 2 2 2 . . . 3 3 3 .
+        .DB      $00,$02,$AA,$A0,$3C ; . . . . . . . 2 2 2 2 2 2 2 . . . 3 3 .
+        .DB      $00,$2A,$82,$A8,$08 ; . . . . . 2 2 2 2 . . 2 2 2 2 . . . 2 .
+        .DB      $02,$AA,$92,$AA,$08 ; . . . 2 2 2 2 2 2 1 . 2 2 2 2 2 . . 2 .
+        .DB      $12,$AA,$AA,$AA,$88 ; . 1 . 2 2 2 2 2 2 2 2 2 2 2 2 2 2 . 2 .
+        .DB      $00,$EE,$EA,$AA,$88 ; . . . . 3 2 3 2 3 2 2 2 2 2 2 2 2 . 2 .
+        .DB      $0F,$FF,$EA,$AA,$A0 ; . . 3 3 3 3 3 3 3 2 2 2 2 2 2 2 2 2 . .
+        .DB      $20,$FB,$A2,$AA,$A0 ; . 2 . . 3 3 2 3 2 2 . 2 2 2 2 2 2 2 . .
+        .DB      $00,$AA,$8A,$AA,$A8 ; . . . . 2 2 2 2 2 . 2 2 2 2 2 2 2 2 2 .
+        .DB      $0C,$00,$0A,$AA,$A8 ; . . 3 . . . . . . . 2 2 2 2 2 2 2 2 2 .
+        .DB      $00,$00,$2A,$AA,$A8 ; . . . . . . . . . 2 2 2 2 2 2 2 2 2 2 .
+        .DB      $00,$02,$AA,$AA,$A0 ; . . . . . . . 2 2 2 2 2 2 2 2 2 2 2 . .
+        .DB      $00,$08,$0A,$AA,$A0 ; . . . . . . 2 . . . 2 2 2 2 2 2 2 2 . .
+        .DB      $00,$00,$02,$AA,$00 ; . . . . . . . . . . . 2 2 2 2 2 . . . .
+        .DB      $00,$00,$02,$A0,$80 ; . . . . . . . . . . . 2 2 2 . . 2 . . .
+        .DB      $00,$00,$02,$80,$80 ; . . . . . . . . . . . 2 2 . . . 2 . . .
+        .DB      $00,$00,$2A,$02,$80 ; . . . . . . . . . 2 2 2 . . . 2 2 . . .
+
+;*******************************************************************************
+; GARWOR_FIRE_1
+; 5 bytes/row = 20 pixels wide, 18 rows
+;*******************************************************************************
+GARWOR_FIRE_1:
+        .DB      $00,$00,$AA,$80,$C0 ; . . . . . . . . 2 2 2 2 2 . . . 3 . . .
+        .DB      $00,$02,$AA,$83,$F0 ; . . . . . . . 2 2 2 2 2 2 . . 3 3 3 . .
+        .DB      $00,$2A,$82,$A3,$F0 ; . . . . . 2 2 2 2 . . 2 2 2 . 3 3 3 . .
+        .DB      $02,$AA,$92,$A8,$F0 ; . . . 2 2 2 2 2 2 1 . 2 2 2 2 . 3 3 . .
+        .DB      $32,$AA,$AA,$A8,$80 ; . 3 . 2 2 2 2 2 2 2 2 2 2 2 2 . 2 . . .
+        .DB      $00,$2E,$EE,$AA,$20 ; . . . . . 2 3 2 3 2 3 2 2 2 2 2 . 2 . .
+        .DB      $18,$3F,$FE,$AA,$08 ; . 1 2 . . 3 3 3 3 3 3 2 2 2 2 2 . . 2 .
+        .DB      $2B,$FF,$FA,$AA,$88 ; . 2 2 3 3 3 3 3 3 3 2 2 2 2 2 2 2 . 2 .
+        .DB      $39,$3F,$AA,$AA,$88 ; . 3 2 1 . 3 3 3 2 2 2 2 2 2 2 2 2 . 2 .
+        .DB      $28,$2A,$AA,$AA,$A8 ; . 2 2 . . 2 2 2 2 2 2 2 2 2 2 2 2 2 2 .
+        .DB      $04,$00,$2A,$AA,$A8 ; . . 1 . . . . . . 2 2 2 2 2 2 2 2 2 2 .
+        .DB      $00,$00,$2A,$AA,$A8 ; . . . . . . . . . 2 2 2 2 2 2 2 2 2 2 .
+        .DB      $00,$00,$8A,$AA,$A8 ; . . . . . . . . 2 . 2 2 2 2 2 2 2 2 2 .
+        .DB      $00,$02,$0A,$AA,$A0 ; . . . . . . . 2 . . 2 2 2 2 2 2 2 2 . .
+        .DB      $00,$00,$02,$AA,$00 ; . . . . . . . . . . . 2 2 2 2 2 . . . .
+        .DB      $00,$00,$00,$A0,$A8 ; . . . . . . . . . . . . 2 2 . . 2 2 2 .
+        .DB      $00,$00,$00,$20,$08 ; . . . . . . . . . . . . . 2 . . . . 2 .
+        .DB      $00,$00,$02,$A0,$00 ; . . . . . . . . . . . 2 2 2 . . . . . .
+
+;*******************************************************************************
+; GARWOR_FIRE_2
+; 5 bytes/row = 20 pixels wide, 18 rows
+;*******************************************************************************
+GARWOR_FIRE_2:
+        .DB      $00,$00,$AA,$80,$FC ; . . . . . . . . 2 2 2 2 2 . . . 3 3 3 .
+        .DB      $00,$02,$AA,$83,$F0 ; . . . . . . . 2 2 2 2 2 2 . . 3 3 3 . .
+        .DB      $30,$2A,$82,$A3,$F0 ; . 3 . . . 2 2 2 2 . . 2 2 2 . 3 3 3 . .
+        .DB      $02,$AA,$92,$AB,$C0 ; . . . 2 2 2 2 2 2 1 . 2 2 2 2 3 3 . . .
+        .DB      $22,$AA,$AA,$A8,$80 ; . 2 . 2 2 2 2 2 2 2 2 2 2 2 2 . 2 . . .
+        .DB      $10,$2E,$EE,$AA,$20 ; . 1 . . . 2 3 2 3 2 3 2 2 2 2 2 . 2 . .
+        .DB      $14,$FF,$FE,$AA,$08 ; . 1 1 . 3 3 3 3 3 3 3 2 2 2 2 2 . . 2 .
+        .DB      $2F,$FF,$FA,$AA,$88 ; . 2 3 3 3 3 3 3 3 3 2 2 2 2 2 2 2 . 2 .
+        .DB      $09,$3F,$AA,$AA,$88 ; . . 2 1 . 3 3 3 2 2 2 2 2 2 2 2 2 . 2 .
+        .DB      $2C,$2A,$AA,$AA,$A8 ; . 2 3 . . 2 2 2 2 2 2 2 2 2 2 2 2 2 2 .
+        .DB      $3C,$00,$2A,$AA,$A8 ; . 3 3 . . . . . . 2 2 2 2 2 2 2 2 2 2 .
+        .DB      $0E,$80,$2A,$AA,$A8 ; . . 3 2 2 . . . . 2 2 2 2 2 2 2 2 2 2 .
+        .DB      $02,$40,$8A,$AA,$A8 ; . . . 2 1 . . . 2 . 2 2 2 2 2 2 2 2 2 .
+        .DB      $00,$02,$0A,$AA,$A0 ; . . . . . . . 2 . . 2 2 2 2 2 2 2 2 . .
+        .DB      $00,$00,$02,$AA,$00 ; . . . . . . . . . . . 2 2 2 2 2 . . . .
+        .DB      $00,$00,$00,$A0,$A8 ; . . . . . . . . . . . . 2 2 . . 2 2 2 .
+        .DB      $00,$00,$00,$20,$08 ; . . . . . . . . . . . . . 2 . . . . 2 .
+        .DB      $00,$00,$02,$A0,$00 ; . . . . . . . . . . . 2 2 2 . . . . . .
+
+;*******************************************************************************
+; GARWOR_FIRE_3
+; 5 bytes/row = 20 pixels wide, 18 rows
+;*******************************************************************************
+GARWOR_FIRE_3:
+        .DB      $00,$00,$AA,$83,$C0 ; . . . . . . . . 2 2 2 2 2 . . 3 3 . . .
+        .DB      $30,$02,$AA,$80,$FC ; . 3 . . . . . 2 2 2 2 2 2 . . . 3 3 3 .
+        .DB      $00,$2A,$82,$A0,$3C ; . . . . . 2 2 2 2 . . 2 2 2 . . . 3 3 .
+        .DB      $02,$AA,$92,$A8,$08 ; . . . 2 2 2 2 2 2 1 . 2 2 2 2 . . . 2 .
+        .DB      $12,$AA,$AA,$A8,$08 ; . 1 . 2 2 2 2 2 2 2 2 2 2 2 2 . . . 2 .
+        .DB      $00,$2E,$EE,$AA,$08 ; . . . . . 2 3 2 3 2 3 2 2 2 2 2 . . 2 .
+        .DB      $0F,$FF,$FE,$AA,$08 ; . . 3 3 3 3 3 3 3 3 3 2 2 2 2 2 . . 2 .
+        .DB      $03,$FF,$FA,$AA,$88 ; . . . 3 3 3 3 3 3 3 2 2 2 2 2 2 2 . 2 .
+        .DB      $20,$3F,$AA,$AA,$88 ; . 2 . . . 3 3 3 2 2 2 2 2 2 2 2 2 . 2 .
+        .DB      $01,$2A,$AA,$AA,$88 ; . . . 1 . 2 2 2 2 2 2 2 2 2 2 2 2 . 2 .
+        .DB      $30,$00,$2A,$AA,$A8 ; . 3 . . . . . . . 2 2 2 2 2 2 2 2 2 2 .
+        .DB      $00,$02,$AA,$AA,$A8 ; . . . . . . . 2 2 2 2 2 2 2 2 2 2 2 2 .
+        .DB      $00,$40,$2A,$AA,$A0 ; . . . . 1 . . . . 2 2 2 2 2 2 2 2 2 . .
+        .DB      $00,$00,$0A,$AA,$80 ; . . . . . . . . . . 2 2 2 2 2 2 2 . . .
+        .DB      $00,$00,$2A,$A8,$00 ; . . . . . . . . . 2 2 2 2 2 2 . . . . .
+        .DB      $00,$00,$A0,$A0,$00 ; . . . . . . . . 2 2 . . 2 2 . . . . . .
+        .DB      $00,$00,$28,$20,$00 ; . . . . . . . . . 2 2 . . 2 . . . . . .
+        .DB      $00,$00,$08,$A0,$00 ; . . . . . . . . . . 2 . 2 2 . . . . . .
+
+;*******************************************************************************
+; THORWOR_FIRE_0_UP
+; 5 bytes/row = 20 pixels wide, 18 rows
+;*******************************************************************************
+THORWOR_FIRE_0_UP:
+        .DB      $00,$00,$C0,$C0,$00 ; . . . . . . . . 3 . . . 3 . . . . . . .
+        .DB      $00,$0F,$00,$30,$00 ; . . . . . . 3 3 . . . . . 3 . . . . . .
+        .DB      $00,$0C,$48,$4C,$00 ; . . . . . . 3 . 1 . 2 . 1 . 3 . . . . .
+        .DB      $00,$30,$08,$0C,$00 ; . . . . . 3 . . . . 2 . . . 3 . . . . .
+        .DB      $00,$3C,$28,$0C,$00 ; . . . . . 3 3 . . 2 2 . . . 3 . . . . .
+        .DB      $00,$3F,$28,$3C,$00 ; . . . . . 3 3 3 . 2 2 . . 3 3 . . . . .
+        .DB      $00,$0F,$EB,$CF,$00 ; . . . . . . 3 3 3 2 2 3 3 . 3 3 . . . .
+        .DB      $00,$03,$FF,$C3,$C0 ; . . . . . . . 3 3 3 3 3 3 . . 3 3 . . .
+        .DB      $1F,$0F,$FF,$D0,$F0 ; . 1 3 3 . . 3 3 3 3 3 3 3 1 . . 3 3 . .
+        .DB      $13,$FF,$FF,$FF,$F8 ; . 1 . 3 3 3 3 3 3 3 3 3 3 3 3 3 3 3 2 .
+        .DB      $00,$0F,$FF,$FF,$C8 ; . . . . . . 3 3 3 3 3 3 3 3 3 3 3 . 2 .
+        .DB      $1F,$0F,$FF,$FF,$08 ; . 1 3 3 . . 3 3 3 3 3 3 3 3 3 3 . . 2 .
+        .DB      $13,$FF,$FF,$FC,$20 ; . 1 . 3 3 3 3 3 3 3 3 3 3 3 3 . . 2 . .
+        .DB      $00,$0F,$FC,$00,$20 ; . . . . . . 3 3 3 3 3 . . . . . . 2 . .
+        .DB      $1F,$0F,$F0,$03,$80 ; . 1 3 3 . . 3 3 3 3 . . . . . 3 2 . . .
+        .DB      $13,$FF,$F0,$0F,$80 ; . 1 . 3 3 3 3 3 3 3 . . . . 3 3 2 . . .
+        .DB      $00,$03,$FC,$0C,$C0 ; . . . . . . . 3 3 3 3 . . . 3 . 3 . . .
+        .DB      $00,$00,$3F,$F0,$3C ; . . . . . . . . . 3 3 3 3 3 . . . 3 3 .
+
+;*******************************************************************************
+; THORWOR_FIRE_1_UP
+; 5 bytes/row = 20 pixels wide, 18 rows
+;*******************************************************************************
+THORWOR_FIRE_1_UP:
+        .DB      $00,$00,$30,$A0,$00 ; . . . . . . . . . 3 . . 2 2 . . . . . .
+        .DB      $00,$03,$C2,$83,$00 ; . . . . . . . 3 3 . . 2 2 . . 3 . . . .
+        .DB      $00,$03,$12,$03,$00 ; . . . . . . . 3 . 1 . 2 . . . 3 . . . .
+        .DB      $00,$08,$0F,$14,$C0 ; . . . . . . 2 . . . 3 3 . 1 1 . 3 . . .
+        .DB      $00,$0F,$0A,$03,$C0 ; . . . . . . 3 3 . . 2 2 . . . 3 3 . . .
+        .DB      $00,$0F,$EA,$0F,$C0 ; . . . . . . 3 3 3 2 2 2 . . 3 3 3 . . .
+        .DB      $00,$03,$FA,$3F,$C0 ; . . . . . . . 3 3 3 2 2 . 3 3 3 3 . . .
+        .DB      $00,$03,$FF,$F0,$F0 ; . . . . . . . 3 3 3 3 3 3 3 . . 3 3 . .
+        .DB      $00,$0F,$FF,$F4,$F0 ; . . . . . . 3 3 3 3 3 3 3 3 1 . 3 3 . .
+        .DB      $00,$FF,$FF,$FC,$30 ; . . . . 3 3 3 3 3 3 3 3 3 3 3 . . 3 . .
+        .DB      $13,$CF,$FF,$FF,$F0 ; . 1 . 3 3 . 3 3 3 3 3 3 3 3 3 3 3 3 . .
+        .DB      $1F,$0F,$FF,$FF,$C8 ; . 1 3 3 . . 3 3 3 3 3 3 3 3 3 3 3 . 2 .
+        .DB      $00,$3F,$FF,$F0,$08 ; . . . . . 3 3 3 3 3 3 3 3 3 . . . . 2 .
+        .DB      $13,$FF,$FF,$00,$20 ; . 1 . 3 3 3 3 3 3 3 3 3 . . . . . 2 . .
+        .DB      $1F,$0F,$F0,$3C,$80 ; . 1 3 3 . . 3 3 3 3 . . . 3 3 . 2 . . .
+        .DB      $00,$3F,$C0,$CA,$C0 ; . . . . . 3 3 3 3 . . . 3 . 2 2 3 . . .
+        .DB      $13,$FF,$F3,$20,$3C ; . 1 . 3 3 3 3 3 3 3 . 3 . 2 . . . 3 3 .
+        .DB      $1F,$03,$FC,$00,$00 ; . 1 3 3 . . . 3 3 3 3 . . . . . . . . .
+
+;*******************************************************************************
+; THORWOR_FIRE_2_UP
+; 5 bytes/row = 20 pixels wide, 18 rows
+;*******************************************************************************
+THORWOR_FIRE_2_UP:
+        .DB      $00,$00,$30,$20,$00 ; . . . . . . . . . 3 . . . 2 . . . . . .
+        .DB      $00,$03,$C0,$23,$00 ; . . . . . . . 3 3 . . . . 2 . 3 . . . .
+        .DB      $00,$03,$10,$83,$00 ; . . . . . . . 3 . 1 . . 2 . . 3 . . . .
+        .DB      $00,$0C,$02,$84,$C0 ; . . . . . . 3 . . . . 2 2 . 1 . 3 . . .
+        .DB      $00,$0F,$0A,$03,$C0 ; . . . . . . 3 3 . . 2 2 . . . 3 3 . . .
+        .DB      $00,$0F,$CA,$0F,$C0 ; . . . . . . 3 3 3 . 2 2 . . 3 3 3 . . .
+        .DB      $00,$03,$FA,$3F,$C0 ; . . . . . . . 3 3 3 2 2 . 3 3 3 3 . . .
+        .DB      $00,$03,$FF,$F0,$F0 ; . . . . . . . 3 3 3 3 3 3 3 . . 3 3 . .
+        .DB      $00,$0F,$FF,$F4,$F0 ; . . . . . . 3 3 3 3 3 3 3 3 1 . 3 3 . .
+        .DB      $1F,$0F,$FF,$FC,$30 ; . 1 3 3 . . 3 3 3 3 3 3 3 3 3 . . 3 . .
+        .DB      $13,$FF,$FF,$FF,$F0 ; . 1 . 3 3 3 3 3 3 3 3 3 3 3 3 3 3 3 . .
+        .DB      $00,$0F,$FF,$FF,$C8 ; . . . . . . 3 3 3 3 3 3 3 3 3 3 3 . 2 .
+        .DB      $1F,$0F,$FF,$F0,$08 ; . 1 3 3 . . 3 3 3 3 3 3 3 3 . . . . 2 .
+        .DB      $13,$FF,$FF,$0A,$A0 ; . 1 . 3 3 3 3 3 3 3 3 3 . . 2 2 2 2 . .
+        .DB      $00,$0F,$F0,$20,$00 ; . . . . . . 3 3 3 3 . . . 2 . . . . . .
+        .DB      $1F,$0F,$C0,$8F,$F0 ; . 1 3 3 . . 3 3 3 . . . 2 . 3 3 3 3 . .
+        .DB      $13,$FF,$FF,$F0,$3C ; . 1 . 3 3 3 3 3 3 3 3 3 3 3 . . . 3 3 .
+        .DB      $00,$03,$F0,$00,$F0 ; . . . . . . . 3 3 3 . . . . . . 3 3 . .
+
+;*******************************************************************************
+; THORWOR_FIRE_3_UP
+; 5 bytes/row = 20 pixels wide, 18 rows
+;*******************************************************************************
+THORWOR_FIRE_3_UP:
+        .DB      $00,$00,$30,$28,$00 ; . . . . . . . . . 3 . . . 2 2 . . . . .
+        .DB      $00,$03,$C0,$A3,$00 ; . . . . . . . 3 3 . . . 2 2 . 3 . . . .
+        .DB      $00,$03,$10,$83,$00 ; . . . . . . . 3 . 1 . . 2 . . 3 . . . .
+        .DB      $00,$0C,$02,$84,$C0 ; . . . . . . 3 . . . . 2 2 . 1 . 3 . . .
+        .DB      $00,$0F,$0A,$83,$C0 ; . . . . . . 3 3 . . 2 2 2 . . 3 3 . . .
+        .DB      $00,$0F,$EA,$0F,$C0 ; . . . . . . 3 3 3 2 2 2 . . 3 3 3 . . .
+        .DB      $00,$03,$F8,$3F,$C0 ; . . . . . . . 3 3 3 2 . . 3 3 3 3 . . .
+        .DB      $00,$03,$FF,$F0,$F0 ; . . . . . . . 3 3 3 3 3 3 3 . . 3 3 . .
+        .DB      $00,$0F,$FF,$F4,$F0 ; . . . . . . 3 3 3 3 3 3 3 3 1 . 3 3 . .
+        .DB      $00,$FF,$FF,$FC,$30 ; . . . . 3 3 3 3 3 3 3 3 3 3 3 . . 3 . .
+        .DB      $13,$CF,$FF,$FF,$F0 ; . 1 . 3 3 . 3 3 3 3 3 3 3 3 3 3 3 3 . .
+        .DB      $1F,$0F,$FF,$FF,$C8 ; . 1 3 3 . . 3 3 3 3 3 3 3 3 3 3 3 . 2 .
+        .DB      $00,$3F,$FF,$F0,$20 ; . . . . . 3 3 3 3 3 3 3 3 3 . . . 2 . .
+        .DB      $13,$FF,$FF,$00,$80 ; . 1 . 3 3 3 3 3 3 3 3 3 . . . . 2 . . .
+        .DB      $1F,$0F,$F0,$2A,$F0 ; . 1 3 3 . . 3 3 3 3 . . . 2 2 2 3 3 . .
+        .DB      $00,$3F,$C0,$0C,$3C ; . . . . . 3 3 3 3 . . . . . 3 . . 3 3 .
+        .DB      $13,$FF,$F0,$33,$0C ; . 1 . 3 3 3 3 3 3 3 . . . 3 . 3 . . 3 .
+        .DB      $1F,$03,$FF,$C3,$FF ; . 1 3 3 . . . 3 3 3 3 3 3 . . 3 3 3 3 3
+
+;*******************************************************************************
+; THORWOR_FIRE_0
+; 5 bytes/row = 20 pixels wide, 18 rows
+;*******************************************************************************
+THORWOR_FIRE_0:
+        .DB      $00,$00,$0A,$80,$0C ; . . . . . . . . . . 2 2 2 . . . . . 3 .
+        .DB      $00,$00,$3C,$28,$0C ; . . . . . . . . . 3 3 . . 2 2 . . . 3 .
+        .DB      $00,$00,$FF,$02,$B0 ; . . . . . . . . 3 3 3 3 . . . 2 2 3 . .
+        .DB      $00,$03,$CF,$C3,$C0 ; . . . . . . . 3 3 . 3 3 3 . . 3 3 . . .
+        .DB      $03,$FF,$0F,$F0,$F0 ; . . . 3 3 3 3 3 . . 3 3 3 3 . . 3 3 . .
+        .DB      $0C,$0C,$1F,$F0,$0C ; . . 3 . . . 3 . . 1 3 3 3 3 . . . . 3 .
+        .DB      $31,$03,$FF,$F0,$0C ; . 3 . 1 . . . 3 3 3 3 3 3 3 . . . . 3 .
+        .DB      $00,$03,$FF,$F0,$0C ; . . . . . . . 3 3 3 3 3 3 3 . . . . 3 .
+        .DB      $02,$AA,$FF,$FC,$3C ; . . . 2 2 2 2 2 3 3 3 3 3 3 3 . . 3 3 .
+        .DB      $00,$2A,$FF,$FF,$FC ; . . . . . 2 2 2 3 3 3 3 3 3 3 3 3 3 3 .
+        .DB      $31,$03,$FF,$FF,$F0 ; . 3 . 1 . . . 3 3 3 3 3 3 3 3 3 3 3 . .
+        .DB      $0C,$0F,$FF,$FF,$F0 ; . . 3 . . . 3 3 3 3 3 3 3 3 3 3 3 3 . .
+        .DB      $0F,$3F,$3F,$FF,$C0 ; . . 3 3 . 3 3 3 . 3 3 3 3 3 3 3 3 . . .
+        .DB      $00,$FC,$0C,$30,$C0 ; . . . . 3 3 3 . . . 3 . . 3 . . 3 . . .
+        .DB      $00,$00,$0C,$30,$C0 ; . . . . . . . . . . 3 . . 3 . . 3 . . .
+        .DB      $00,$00,$3C,$F3,$C0 ; . . . . . . . . . 3 3 . 3 3 . 3 3 . . .
+        .DB      $00,$00,$30,$C3,$00 ; . . . . . . . . . 3 . . 3 . . 3 . . . .
+        .DB      $00,$00,$14,$51,$40 ; . . . . . . . . . 1 1 . 1 1 . 1 1 . . .
+
+;*******************************************************************************
+; THORWOR_FIRE_1
+; 5 bytes/row = 20 pixels wide, 18 rows
+;*******************************************************************************
+THORWOR_FIRE_1:
+        .DB      $00,$00,$00,$A0,$30 ; . . . . . . . . . . . . 2 2 . . . 3 . .
+        .DB      $00,$00,$FF,$08,$30 ; . . . . . . . . 3 3 3 3 . . 2 . . 3 . .
+        .DB      $00,$FF,$F3,$C2,$C0 ; . . . . 3 3 3 3 3 3 . 3 3 . . 2 3 . . .
+        .DB      $0F,$3F,$03,$C0,$80 ; . . 3 3 . 3 3 3 . . . 3 3 . . . 2 . . .
+        .DB      $00,$4F,$1F,$C3,$80 ; . . . . 1 . 3 3 . 1 3 3 3 . . 3 2 . . .
+        .DB      $20,$43,$FF,$F3,$20 ; . 2 . . 1 . . 3 3 3 3 3 3 3 . 3 . 2 . .
+        .DB      $28,$00,$FF,$F0,$C0 ; . 2 2 . . . . . 3 3 3 3 3 3 . . 3 . . .
+        .DB      $0A,$AA,$FF,$FC,$30 ; . . 2 2 2 2 2 2 3 3 3 3 3 3 3 . . 3 . .
+        .DB      $00,$AA,$FF,$FC,$0C ; . . . . 2 2 2 2 3 3 3 3 3 3 3 . . . 3 .
+        .DB      $31,$0B,$FF,$FF,$3C ; . 3 . 1 . . 2 3 3 3 3 3 3 3 3 3 . 3 3 .
+        .DB      $0C,$0F,$FF,$FF,$FC ; . . 3 . . . 3 3 3 3 3 3 3 3 3 3 3 3 3 .
+        .DB      $0F,$3F,$FF,$FF,$FC ; . . 3 3 . 3 3 3 3 3 3 3 3 3 3 3 3 3 3 .
+        .DB      $00,$FC,$3F,$FF,$F0 ; . . . . 3 3 3 . . 3 3 3 3 3 3 3 3 3 . .
+        .DB      $00,$00,$0C,$3C,$F0 ; . . . . . . . . . . 3 . . 3 3 . 3 3 . .
+        .DB      $00,$00,$0F,$0C,$30 ; . . . . . . . . . . 3 3 . . 3 . . 3 . .
+        .DB      $00,$00,$03,$CF,$3C ; . . . . . . . . . . . 3 3 . 3 3 . 3 3 .
+        .DB      $00,$00,$00,$C3,$0C ; . . . . . . . . . . . . 3 . . 3 . . 3 .
+        .DB      $00,$00,$01,$45,$14 ; . . . . . . . . . . . 1 1 . 1 1 . 1 1 .
+
+;*******************************************************************************
+; THORWOR_FIRE_2
+; 5 bytes/row = 20 pixels wide, 18 rows
+;*******************************************************************************
+THORWOR_FIRE_2:
+        .DB      $00,$00,$00,$A0,$30 ; . . . . . . . . . . . . 2 2 . . . 3 . .
+        .DB      $00,$00,$FF,$08,$FC ; . . . . . . . . 3 3 3 3 . . 2 . 3 3 3 .
+        .DB      $00,$FF,$F3,$C8,$CC ; . . . . 3 3 3 3 3 3 . 3 3 . 2 . 3 . 3 .
+        .DB      $0F,$3F,$03,$C8,$C0 ; . . 3 3 . 3 3 3 . . . 3 3 . 2 . 3 . . .
+        .DB      $00,$4F,$1F,$C8,$C0 ; . . . . 1 . 3 3 . 1 3 3 3 . 2 . 3 . . .
+        .DB      $28,$03,$FF,$F2,$30 ; . 2 2 . . . . 3 3 3 3 3 3 3 . 2 . 3 . .
+        .DB      $02,$80,$FF,$F0,$B0 ; . . . 2 2 . . . 3 3 3 3 3 3 . . 2 3 . .
+        .DB      $00,$AA,$FF,$FC,$30 ; . . . . 2 2 2 2 3 3 3 3 3 3 3 . . 3 . .
+        .DB      $00,$2A,$FF,$FC,$30 ; . . . . . 2 2 2 3 3 3 3 3 3 3 . . 3 . .
+        .DB      $31,$03,$FF,$FF,$3C ; . 3 . 1 . . . 3 3 3 3 3 3 3 3 3 . 3 3 .
+        .DB      $0C,$0F,$FF,$FF,$FC ; . . 3 . . . 3 3 3 3 3 3 3 3 3 3 3 3 3 .
+        .DB      $0F,$3F,$FF,$FF,$FC ; . . 3 3 . 3 3 3 3 3 3 3 3 3 3 3 3 3 3 .
+        .DB      $00,$FC,$3F,$FF,$F0 ; . . . . 3 3 3 . . 3 3 3 3 3 3 3 3 3 . .
+        .DB      $00,$00,$03,$0C,$30 ; . . . . . . . . . . . 3 . . 3 . . 3 . .
+        .DB      $00,$00,$03,$0C,$30 ; . . . . . . . . . . . 3 . . 3 . . 3 . .
+        .DB      $00,$00,$0F,$3C,$F0 ; . . . . . . . . . . 3 3 . 3 3 . 3 3 . .
+        .DB      $00,$00,$0C,$30,$C0 ; . . . . . . . . . . 3 . . 3 . . 3 . . .
+        .DB      $00,$00,$05,$14,$50 ; . . . . . . . . . . 1 1 . 1 1 . 1 1 . .
+
+;*******************************************************************************
+; THORWOR_FIRE_3
+; 5 bytes/row = 20 pixels wide, 18 rows
+;*******************************************************************************
+THORWOR_FIRE_3:
+        .DB      $00,$00,$00,$80,$FC ; . . . . . . . . . . . . 2 . . . 3 3 3 .
+        .DB      $00,$00,$FF,$23,$CC ; . . . . . . . . 3 3 3 3 . 2 . 3 3 . 3 .
+        .DB      $00,$FF,$F3,$CB,$0C ; . . . . 3 3 3 3 3 3 . 3 3 . 2 3 . . 3 .
+        .DB      $0F,$3F,$03,$C2,$3C ; . . 3 3 . 3 3 3 . . . 3 3 . . 2 . 3 3 .
+        .DB      $20,$4F,$1F,$C2,$C0 ; . 2 . . 1 . 3 3 . 1 3 3 3 . . 2 3 . . .
+        .DB      $28,$03,$FF,$F2,$30 ; . 2 2 . . . . 3 3 3 3 3 3 3 . 2 . 3 . .
+        .DB      $0A,$A0,$FF,$F0,$0C ; . . 2 2 2 2 . . 3 3 3 3 3 3 . . . . 3 .
+        .DB      $00,$A8,$FF,$FC,$0C ; . . . . 2 2 2 . 3 3 3 3 3 3 3 . . . 3 .
+        .DB      $00,$2A,$FF,$FC,$0C ; . . . . . 2 2 2 3 3 3 3 3 3 3 . . . 3 .
+        .DB      $31,$0B,$FF,$FF,$3C ; . 3 . 1 . . 2 3 3 3 3 3 3 3 3 3 . 3 3 .
+        .DB      $0C,$0F,$FF,$FF,$FC ; . . 3 . . . 3 3 3 3 3 3 3 3 3 3 3 3 3 .
+        .DB      $0F,$3F,$FF,$FF,$FC ; . . 3 3 . 3 3 3 3 3 3 3 3 3 3 3 3 3 3 .
+        .DB      $00,$FC,$3F,$FF,$F0 ; . . . . 3 3 3 . . 3 3 3 3 3 3 3 3 3 . .
+        .DB      $00,$00,$0C,$3C,$F0 ; . . . . . . . . . . 3 . . 3 3 . 3 3 . .
+        .DB      $00,$00,$0F,$0C,$30 ; . . . . . . . . . . 3 3 . . 3 . . 3 . .
+        .DB      $00,$00,$03,$CF,$3C ; . . . . . . . . . . . 3 3 . 3 3 . 3 3 .
+        .DB      $00,$00,$00,$C3,$0C ; . . . . . . . . . . . . 3 . . 3 . . 3 .
+        .DB      $00,$00,$01,$45,$14 ; . . . . . . . . . . . 1 1 . 1 1 . 1 1 .
+
+;*******************************************************************************
+; Bytes following the sprite boundary
+;*******************************************************************************
+        .DB      $00
+
 
             ; "285AVE" Text (i.e., garbage)
             DB      $32, $38, $35, $41, $56, $45
