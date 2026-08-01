@@ -1,4 +1,3 @@
-; wow_disassembly.asm
             INCLUDE src/wow_equates.include ; EQU for the code
 
 ;*****************************************************************************
@@ -54,7 +53,7 @@ L0026:      ld      a, $00              ; High byte for Interrupt Vector Table
 ; Prepares the TERSE script environment, clears buffers, and seeds RNG
 ;******************************************************************************************
             xor     a
-            ld      (LD2D3), a          ; Initialize unknown variable to zero
+            ld      (Speech_Queue_Write_Pointer + 1),a ; Clear queue write-pointer high byte
 
 ;******************************************************************************************
 ; ----> EXPANSION ROM CHECK
@@ -87,7 +86,8 @@ L004F:      cp      $1F                 ; Compare with 31 ($1F)
 ;******************************************************************************************
 ; ----> BUFFER CLEARING
 ;******************************************************************************************
-L0054:      ld      hl, Is_Speech_Active ; Point to Speech Active flag ($D245)
+L0054:
+            ld      hl,Speech_Active    ; Start of speech and sound work area
             call    L00BA               ; Zero out 256 bytes (Sound/Speech buffers)
             call    wpfill              ; Zero out next 64 bytes
 
@@ -1113,7 +1113,7 @@ Update_Color_Fade_1:
             ld      (LD1BA), a
             ld      (LD050), a
             inc     a
-            ld      (LD048), a
+            ld      (Timer_Group_2_Start),a
             jr      Set_Scanline_Int
 
 ;*****************************************************************************************
@@ -1347,7 +1347,7 @@ L07B6:      pop     hl
 ; Called this routine from dispatch routine
 ; ???
 ;*****************************************************************************
-;L07CA:
+L07CA:
             call    Stream_Fetch_Word_DE
             call    Stream_Fetch_Byte_B
             call    L07A8
@@ -1439,13 +1439,13 @@ L083E:      push    de
             xor     a
             ld      (LD050),a
             call    Stream_Fetch_Byte_A
-            ld      (LD048),a
+            ld      (Timer_Group_2_Start),a
             ret
             xor     a
             ld      (LD053),a
             call    L0872
             ld      (LD051),hl
-            ld      (LD042),a
+            ld      (Timer_Group_1_Start),a
             ret
             ld      l,(iy+$00)
             ld      h,(iy+$01)
@@ -1754,7 +1754,7 @@ L09D1:      ld      a,(DIAGFLAG)
             ld      a,(LD03A)
             cp      $05
             jr      nc,L09C8
-            ld      a,(LD34E)
+            ld      a,(One_Second_Frame_Countdown)
             rra
             jr      c,L0A25
             ld      hl,LD05C
@@ -1807,7 +1807,7 @@ L0A68:      ld      a,(L8000)
             ret
             nop
 L0A72:      call    L0A82
-            ld      hl,LD048
+            ld      hl,Timer_Group_2_Start
             inc     de
             ld      a,(de)
             and     a
@@ -1819,12 +1819,12 @@ L0A82:      ld      de,LD040
             ld      a,(de)
             and     a
             ret     nz
-            ld      hl,LD34E
+            ld      hl,One_Second_Frame_Countdown
             dec     (hl)
             ret     nz
             ld      (hl),$3C
-            ld      bc,L0601
-            ld      hl,LD042
+            ld      bc,$0601            ; B = six timers; C = expiration-bit accumulator
+            ld      hl,Timer_Group_1_Start
 L0A95:      ld      a,(hl)
             and     a
             jr      z,L0A9D
@@ -2364,7 +2364,7 @@ L0E3E:      ld      d,$0E
             in      a, (SETTINGS)
             ld      b,a
             exx
-            ld      de,L0F1A
+            ld      de,Coinage_Value_Table
             bit     3,a
             jr      nz,L0E54
             ld      de,LC004
@@ -2421,7 +2421,7 @@ L0EA2:      call    Protected_RAM_Write
             ret     nc
             ld      c,a
             call    Protected_RAM_Write
-            ld      hl,LD340
+            ld      hl,Coin_Events_Pending
             inc     (hl)
             ret
 L0EBB:      ld      a,b
@@ -2429,7 +2429,8 @@ L0EBB:      ld      a,b
             ret     nz
             inc     e
             ret
-L0EC0:      ld      hl,LD03B
+L0EC0:
+            ld      hl,Coin_Input_Latch
             in      a, (COINPORT)
             and     c
             ld      d,(hl)
@@ -2491,9 +2492,9 @@ L0F0C:      inc     hl
             set     0,a
             in      a, (CCMISC)
             ret
-L0F1A:      djnz    L0F24
-            jr      nc,L0F6E
-            nop
+Coinage_Value_Table:
+            ; Lookup bytes continue into the following routine by design.
+            DB      $10,$08,$30,$50,$00
 Select_Enemy_Record_IX:
             ld      ix,LD06E
             ld      bc,L0026
@@ -2844,7 +2845,7 @@ Award_P2_Bonus_Life:
             ret     z
             inc     (hl)
             jp      Draw_P2_Extra_Life_Marker
-            ld      hl,LD354
+            ld      hl,Maze_Selection_Flags
             ld      a,$FF
             ld      b,$0C
 L167C:      and     (hl)
@@ -3856,7 +3857,7 @@ L1EBE:      ld      (LD1EF),a
             ld      a,$02
             ld      (LD043),a
             xor     a
-            ld      (LD1ED),a
+            ld      (P2_Auto_Input_State),a
             ld      (P2_Input_State),a
             ld      a,$10
             jr      z,L1ED3
@@ -3913,7 +3914,7 @@ L1F15:      ld      a,(de)
 L1F1F:      ld      a,b
             cp      $78
             jr      c,L1F50
-            ld      hl,L2CA3
+            ld      hl,Right_Status_Display_Address
 L1F27:      ld      de,L004B
 L1F2A:      ld      b,$04
             di
@@ -3942,7 +3943,8 @@ L1F3E:      ld      (hl),a
             add     hl,de
             djnz    L1F3B
             ret
-L1F50:      ld      hl,L2C67
+L1F50:
+            ld      hl,Left_Status_Display_Address
             jr      L1F27
 L1F55:      ld      a,(Game_Mode)
             ld      c,a
@@ -4325,7 +4327,8 @@ L2230:      pop     af
             jr      nz,L21FB
             pop     iy
             ld      a,d
-L2237:      ld      (LD1ED),a
+L2237:
+            ld      (P2_Auto_Input_State),a
 L223A:      bit     7,(ix+$13)
             ret     nz
             push    iy
@@ -4342,7 +4345,8 @@ L2244:      call    Select_Enemy_Record_IY
             pop     iy
             ret
             nop
-L2259:      ld      a,(LD1ED)
+L2259:
+            ld      a,(P2_Auto_Input_State)
             ld      d,a
             ld      a,(Game_Mode)
             cp      GAME_MODE_TWO_PLAYER
@@ -4354,7 +4358,8 @@ L2259:      ld      a,(LD1ED)
 L226F:      ld      a,d
             ld      (P2_Input_State),a
             ret
-L2274:      ld      a,(LD1EE)
+L2274:
+            ld      a,(P1_Auto_Input_State)
             ld      d,a
             ld      a,(Game_Mode)
             and     a
@@ -4383,7 +4388,8 @@ L22A3:      ld      (hl),$02
 L22A5:      scf
             ret
             nop
-L22A8:      ld      hl,LD1E5
+L22A8:
+            ld      hl,Status_Display_Update_Flags
             bit     1,(hl)
             res     1,(hl)
             ld      a,$0C
@@ -5057,7 +5063,7 @@ L27C0:      ld      a,$02
             call    L27D0
             ld      l,h
             call    L27D0
-            ld      (LD1ED),hl
+            ld      (P2_Auto_Input_State),hl ; Initialize both automatic-input states
             ret
 L27D0:      ld      a,r
             bit     2,a
@@ -5122,7 +5128,7 @@ L283D:      ld      hl,LD18E
             set     2,(hl)
             ld      hl,LD198
             set     3,(hl)
-            ld      hl,LD1E5
+            ld      hl,Status_Display_Update_Flags
             set     1,(hl)
             ret
 L284D:      ld      a,$07
@@ -5613,7 +5619,8 @@ L2BF7:      pop     af
             jr      nz,L2BAF
             ret
             nop
-L2BFD:      ld      hl,LD340
+L2BFD:
+            ld      hl,Coin_Events_Pending
             ld      a,(hl)
             and     a
             ret     z
@@ -5730,7 +5737,7 @@ L2CD6:      ld      a,$03
             ld      (hl),a
             ld      (LD1D8),a
             ld      (LD1C9),a
-            ld      (LD048),a
+            ld      (Timer_Group_2_Start),a
             ld      hl,$0403
             ld      (LD1F3),hl
 L2CF0:      ld      a,$0A
@@ -5752,7 +5759,7 @@ L2CF9:      ld      a,$01
             ret     nz
 L2D12:      ld      (LD1DB),a
             inc     a
-            ld      (LD048),a
+            ld      (Timer_Group_2_Start),a
             ld      a,(Dungeon_Number)
             sub     $07
             jr      c,L2D42
@@ -5763,7 +5770,7 @@ L2D20:      sub     $06
             jr      nz,L2D3D
             ld      a,$02
             ld      (LD350),a
-            ld      hl,LD354
+            ld      hl,Maze_Selection_Flags
             ld      bc,L1700
 L2D35:      ld      (hl),c
             inc     hl
@@ -5790,7 +5797,7 @@ L2D4F:      call    Random_Byte
             cp      e
             jr      nc,L2D4F
             add     a,d
-            ld      hl,LD354
+            ld      hl,Maze_Selection_Flags
             ld      c,a
             ld      b,$00
             add     hl,bc
@@ -5825,7 +5832,7 @@ L2D6B:      ld      a,(Game_Mode)
             ld      (LD1D7),a
             ld      (LD1DB),a
             inc     a
-            ld      (LD048),a
+            ld      (Timer_Group_2_Start),a
             ld      (LD1D9),a
             ret
             nop
@@ -6049,7 +6056,7 @@ L2F1B:      jr      z,L2F42
 L2F42:      ld      a,$0A
             ld      (LD047),a
             exx
-            ld      hl,LD1E5
+            ld      hl,Status_Display_Update_Flags
             set     0,(hl)
             call    L3125
             ld      hl,Sound_Request_3
@@ -8080,8 +8087,9 @@ THORWOR_3_UP:
 L8000:      jp      L84F2
 L8003:      jp      L86C1
             jp      $8316               ; Entry point from startup code
-L8009:      jp      L827D
-            jp      L8253
+L8009:
+            jp      Queue_Speech_Request
+            jp      Validate_Speech_Queue_State
 L800F:      bit     7,a
             jp      p,L8018
             neg
@@ -8373,32 +8381,33 @@ Play_Next_Phoneme:
             in      a, (P1PORT)             ; Read Port $12 (Player 1 / Votrax Status)
             bit     7,a                     ; Check bit 7 (Votrax A/R pin: 1 = Ready)
             jr      z,Play1                 ; If 0 (Busy speaking), return immediately
-            ld      hl,Num_Phonemes_Left    ; HL = Pointer to remaining phoneme count ($D2D0)
+            ld      hl,Speech_Phonemes_Remaining
             dec     (hl)                    ; Decrement the phonemes remaining counter
-            inc     hl                      ; Advance HL to point to $D2D1 (Inflection state)
+            inc     hl                      ; Advance to the saved inflection state
             ld      a,(hl)                  ; Load the previous phoneme's inflection bit
-            ld      hl,(LD2CE)              ; Load the ROM address of the current phoneme
+            ld      hl,(Speech_Phoneme_Pointer)
             xor     (hl)                    ; XOR previous inflection with current ROM byte
             inc     hl                      ; Advance pointer to the next phoneme in ROM
-            ld      (LD2CE),hl              ; Store the updated ROM pointer back in RAM
+            ld      (Speech_Phoneme_Pointer),hl
             ld      b,a                     ; B = The decoded phoneme + new inflection bit
             and     $80                     ; Isolate just the new inflection bit (Bit 7)
-            ld      (LD2D1),a               ; Store the new inflection state in RAM
+            ld      (Speech_Inflection_State),a
             ld      c,$17                   ; C = Speech Chip Port ($17)
-            in      a,(c)                   ; HARDWARE TRICK: Sends B over address lines!
+            in      a,(c)                   ; B supplies phoneme data on the upper address bus
 Play1:      ret                             ; Return to caller
 
 ;*****************************************************************************************
 ;
 ;
 ;*****************************************************************************************
-L81F8:      ld      a,(Num_Phonemes_Left) ; Load A with length of phoneme left to go
+Service_Speech_Queue:
+            ld      a,(Speech_Phonemes_Remaining)
             or      a                   ; if no more phonemes...
             jr      z,L8201             ; ... then skip the phoneme output routine
             jp      Play_Next_Phoneme   ; Otherwise, call speech phoneme output routine
 L8201:      xor     a                   ; Zero A
-            ld      hl,(LD2D2)          ; HL = ???
-            ld      de,(LD2D4)          ; DE = ???
+            ld      hl,(Speech_Queue_Write_Pointer)
+            ld      de,(Speech_Queue_Read_Pointer)
             sbc     hl,de               ; HL = HL - DE
             jr      z,L8234             ; If HL = 0, then skip to STOP phoneme
             ex      de,hl
@@ -8407,24 +8416,25 @@ L8201:      xor     a                   ; Zero A
 L8210:      ld      d,(hl)
             ex      de,hl
             ld      a,(hl)
-            ld      (Num_Phonemes_Left),a
+            ld      (Speech_Phonemes_Remaining),a
             inc     hl
-            ld      (LD2CE),hl
-            ld      hl,(LD2D4)
+            ld      (Speech_Phoneme_Pointer),hl
+            ld      hl,(Speech_Queue_Read_Pointer)
             ld      de,$0002
             add     hl,de
             ex      de,hl
-            ld      hl,LD2CC
+            ld      hl,Speech_Queue_Last_Record
             or      a
             sbc     hl,de
             jr      nc,L822D
-            ld      de,LD2BE
-L822D:      ld      (LD2D4),de
+            ld      de,Speech_Queue_Buffer
+L822D:
+            ld      (Speech_Queue_Read_Pointer),de
             jp      Play_Next_Phoneme
 L8234:      xor     a
-            ld      (Is_Speech_Active),a ; Mark speech inactive
-            ld      bc,$3F17            ; Write a STOP phoneme... (end of string?)
-            in      a,(c)               ;
+            ld      (Speech_Active),a
+            ld      bc,$3F17            ; Stop phoneme on Votrax port $17
+            in      a,(c)
             ret
 ;
 ;******************************************************************************
@@ -8432,17 +8442,17 @@ L8234:      xor     a
 ;******************************************************************************
 ;
 
-L823E:      ld      hl,LD2BD
-            or      a                   ; a = 0? or is it clear C flag?
-                    ; It seems to serve no purpose ???
+Validate_Speech_Queue_Pointer:
+            ld      hl,Speech_Queue_Buffer - 1
+            or      a                   ; Clear carry before the range comparison
             sbc     hl,de
-            jr      c,L8248             ; Jump if HL - DE is negative
+            jr      c,L8248
             ld      a,$01
-L8248:      ld      hl,LD2CC
-            or      a                   ; a = 0? or is it clear C flag?
-                    ; It seems to serve no purpose ???
+L8248:
+            ld      hl,Speech_Queue_Last_Record
+            or      a                   ; Clear carry before the range comparison
             sbc     hl,de
-            jr      nc,L8252            ; Jump if HL - DE is positive
+            jr      nc,L8252
             ld      a,$01
 L8252:      ret
 
@@ -8452,20 +8462,21 @@ L8252:      ret
 ;******************************************************************************
 ;
 
-L8253:      exx
-            ld      de,(LD2D2)
+Validate_Speech_Queue_State:
+            exx
+            ld      de,(Speech_Queue_Write_Pointer)
             xor     a
-            call    L823E
-            ld      de,(LD2D4)
-            call    L823E
+            call    Validate_Speech_Queue_Pointer
+            ld      de,(Speech_Queue_Read_Pointer)
+            call    Validate_Speech_Queue_Pointer
             or      a
             jr      z,L827B
             xor     a
-            ld      (Is_Speech_Active),a ; Set speech to inactive
-            ld      hl,LD2BE
-            ld      (LD2D2),hl
-            ld      (LD2D4),hl
-            ld      (Num_Phonemes_Left),a ; Set number of phonemes left to zero
+            ld      (Speech_Active),a
+            ld      hl,Speech_Queue_Buffer
+            ld      (Speech_Queue_Write_Pointer),hl
+            ld      (Speech_Queue_Read_Pointer),hl
+            ld      (Speech_Phonemes_Remaining),a
             ld      bc,$3F17            ; Write a STOP phoneme (stop speech)
             in      a,(c)
 L827B:      exx
@@ -8477,7 +8488,8 @@ L827B:      exx
 ;******************************************************************************
 ;
 
-L827D:      cp      $50
+Queue_Speech_Request:
+            cp      $50
             jr      nc,L82F4
             ld      hl,L9514
             inc     a
@@ -8527,23 +8539,24 @@ L82C9:      ld      d,$00
             or      (hl)
             jr      z,L82EA
             ld      d,(hl)
-            ld      hl,(LD2D2)
+            ld      hl,(Speech_Queue_Write_Pointer)
             ld      (hl),e
             inc     hl
             ld      (hl),d
             inc     hl
             ex      de,hl
-            ld      hl,LD2CC
+            ld      hl,Speech_Queue_Last_Record
             and     a
             sbc     hl,de
             jr      nc,L82E6
-            ld      de,LD2BE
-L82E6:      ld      (LD2D2),de
+            ld      de,Speech_Queue_Buffer
+L82E6:
+            ld      (Speech_Queue_Write_Pointer),de
 L82EA:      exx
             dec     c
             jr      nz,L82A3
             ld      a,$01
-            ld      (Is_Speech_Active),a ; Mark speech as active
+            ld      (Speech_Active),a
             ei
 L82F4:      ret
 
@@ -8596,7 +8609,7 @@ Init_Sound_Queue_2:
 Init_All_Sound_Queues:
             call    Init_Sound_Queue_1  ; Initialize Queue 1
             call    Init_Sound_Queue_2  ; Initialize Queue 2
-            jp      L8253               ; Jump to sound execution/exit
+            jp      Validate_Speech_Queue_State
 
 ;*****************************************************************************************
 ; ----> Dereference_HL
@@ -9010,7 +9023,7 @@ L84E7:      xor     $7F
             sub     $0F
 L84EB:      out     (c),b
             out     ($53),a
-            jp      L81F8
+            jp      Service_Speech_Queue
 L84F2:      ld      a,(Game_Mode)
             or      a
             jr      nz,L8501
@@ -9026,7 +9039,7 @@ L8501:      ld      a,(Attract_Sound_Enabled)
             call    L80E6
             ld      iy,Sound_Queue_2_Record
             call    L80E6
-            call    L81F8
+            call    Service_Speech_Queue
             pop     iy
 L851C:      ret
 L851D:      ld      a,d
