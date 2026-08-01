@@ -82,6 +82,70 @@ PBFLUSH     EQU     3           ; DMA: Flush
 PBFLIP      EQU     4           ; DMA: Vertical Flip
 PBFLOP      EQU     5           ; DMA: Horizontal Flop
 
+; ------------------------------------------------------------------------------
+; GAME MEMORY MAP
+; ------------------------------------------------------------------------------
+BOOT_STACK_TOP          EQU     $D400
+PERMANENT_STACK_TOP     EQU     $8000
+
+Credits                 EQU     $D03C
+
+P1_Actor_Record         EQU     $D054
+P2_Actor_Record         EQU     $D074
+Enemy_1_Actor_Record    EQU     $D094
+Enemy_2_Actor_Record    EQU     $D0BA
+Enemy_3_Actor_Record    EQU     $D0E0
+Enemy_4_Actor_Record    EQU     $D106
+Enemy_5_Actor_Record    EQU     $D12C
+Enemy_6_Actor_Record    EQU     $D152
+
+P2_Input_State          EQU     $D1DC
+P1_Input_State          EQU     $D1DD
+Combined_Player_Inputs  EQU     $D1DE
+
+Sound_Request_1         EQU     $D240
+Sound_Request_2         EQU     $D241
+Sound_Request_3         EQU     $D242
+Sound_Request_4         EQU     $D243
+Attract_Sound_Enabled   EQU     $D244
+Sound_Queue_1_Record    EQU     $D270
+Sound_Queue_2_Record    EQU     $D2AC
+
+P1_Lives                EQU     $D300
+P2_Lives                EQU     $D301
+Dungeon_Number          EQU     $D302
+Maze_Index              EQU     $D318
+Free_Play_Enabled       EQU     $D348
+Random_Seed             EQU     $D34A
+Starting_Lives_Dip      EQU     $D34F
+
+; ------------------------------------------------------------------------------
+; ACTOR RECORD LAYOUT
+; ------------------------------------------------------------------------------
+ACTOR_FLAGS             EQU     $00
+ACTOR_X                 EQU     $04
+ACTOR_Y                 EQU     $06
+ACTOR_FACING            EQU     $07
+ACTOR_SHOT_FLAGS        EQU     $13
+PLAYER_ACTOR_RECORD_SIZE EQU    $20
+ENEMY_ACTOR_RECORD_SIZE EQU     $26
+MAX_ENEMY_ACTORS        EQU     $06
+
+; ------------------------------------------------------------------------------
+; GAME CONSTANTS
+; ------------------------------------------------------------------------------
+GAME_MODE_ATTRACT       EQU     $00
+GAME_MODE_ONE_PLAYER    EQU     $01
+GAME_MODE_TWO_PLAYER    EQU     $02
+
+MAZE_COUNT              EQU     $18
+PACKED_MAZE_RECORD_SIZE EQU     $12
+
+DIP_STARTING_LIVES      EQU     $10
+DIP_BONUS_LIFE          EQU     $20
+DIP_FREE_PLAY           EQU     $40
+DIP_ATTRACT_SOUND       EQU     $80
+
 
 
 ; ------------------------------------------------------------------------------

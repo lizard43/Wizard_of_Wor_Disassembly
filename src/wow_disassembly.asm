@@ -1,3 +1,4 @@
+; wow_disassembly.asm
             INCLUDE src/wow_equates.include ; EQU for the code
 
 ;*****************************************************************************
@@ -6,7 +7,7 @@
             ORG     $0000               ; ROM Start / Magic RAM start
 
             di                          ; Disable interrupts during boot
-            ld      sp, $D400           ; Initialize temporary boot stack
+            ld      sp,BOOT_STACK_TOP   ; Initialize temporary boot stack
                                                 ; (Pushes pre-decrement to $D3FF, top of Work RAM)
 
             ld      a, $01
@@ -18,7 +19,7 @@ L000A:      out     (HORCB), a          ; Set palette switch position and backgr
 L000C:      ld      a, $CC              ; $CC = 204
             out     (VERBL), a          ; Vertical Blank: Set screen height to 204 scanlines
 
-            call    L0093               ; Set interrupt vector to $CA & map color palette
+            call    Initialize_Interrupt_Vector_And_Palette               ; Set interrupt vector to $CA & map color palette
 
             ld      a, $08              ; 00001000b (Bit 3 = 1)
             out     (INMOD), a          ; Interrupt Enable: Turn on Line Interrupts
@@ -68,7 +69,7 @@ L0030:      ld      a, (EXPHOOK)          ; Check High ROM extension socket
             ld      hl, LD03A           ; Point to Protected RAM variable ($D03A)
             ld      c, (hl)             ; Read current value into C
 L003C:      inc     c                   ; Increment the value
-            call    L0F6A               ; Safely write C back through hardware latch
+            call    Protected_RAM_Write               ; Safely write C back through hardware latch
 
 L0040:      ld      hl, (LD038)         ; Load word from Protected RAM $D038
             call    memcheck            ; Execute Nybble parity/complement check
@@ -79,7 +80,7 @@ L0040:      ld      hl, (LD038)         ; Load word from Protected RAM $D038
 ;******************************************************************************************
 ; ----> CREDIT LIMIT CHECK
 ;******************************************************************************************
-            ld      a, (LD03C)          ; Load Number of Credits
+            ld      a, (Credits)          ; Load Number of Credits
 L004F:      cp      $1F                 ; Compare with 31 ($1F)
             call    nc, wiperam         ; If >= 31, zero out bottom of Static RAM
 
@@ -94,10 +95,10 @@ L0054:      ld      hl, Is_Speech_Active ; Point to Speech Active flag ($D245)
 ; ----> RNG SEED & PROTECTED RAM MIRRORING
 ;******************************************************************************************
             ld      a, r                ; Read Z80 Refresh Register for RNG entropy
-            ld      (LD34A), a          ; Store as random number seed in Work RAM
+            ld      (Random_Seed), a          ; Store as random number seed in Work RAM
 
             ld      hl, WPRAMSTART      ; Source = $D000 (Protected RAM)
-            ld      de, LD300           ; Dest   = $D300 (Work RAM)
+            ld      de, P1_Lives           ; Dest   = $D300 (Work RAM)
 L0068:      ld      bc, L0020           ; Length = $0020 (32 bytes)
             ldir                        ; Mirror Protected RAM to fast Work RAM
 
@@ -110,14 +111,14 @@ L0068:      ld      bc, L0020           ; Length = $0020 (32 bytes)
 ;******************************************************************************************
             ld      a,(Game_Mode)       ; Check Game Mode variable
             and     a                   ; Is it 0 (Demo Mode)?
-            ld      iy,$0F70            ; Default IY to Demo Mode TERSE script
+            ld      iy,ATTRACT_COMMAND_STREAM ; Default IY to attract-mode TERSE script
 L0078:      jr      z,dispatch          ; If Demo Mode, jump to dispatcher loop
-            ld      iy,L10FD            ; Else, set IY to Game Mode TERSE script
+            ld      iy,GAME_COMMAND_STREAM ; Else, set IY to game-mode TERSE script
 
 dispatch:   ld      hl,dispatch         ; Load address of this dispatcher loop
             push    hl                  ; Push it to stack (Tasks will 'ret' back here)
 
-            call    L0875               ; Fetch next TERSE token address into HL (IY++)
+            call    Stream_Fetch_Word_HL               ; Fetch next TERSE token address into HL (IY++)
             push    hl                  ; Push TERSE subroutine address to stack
 
 ;******************************************************************************************
@@ -136,7 +137,8 @@ L0088:      bit     3,a                 ; Check Service/Diagnostic Switch
 ;******************************************************************************************
 ; ----> INTERRUPT VECTOR & COLOR PALETTE MAPPING
 ;******************************************************************************************
-L0093:      ld      a,$CA               ; Interrupt vector at $CA
+Initialize_Interrupt_Vector_And_Palette:
+            ld      a,$CA               ; Interrupt vector at $CA
             out     (INFBK),a           ; Set interrupt vector upper byte
 
             ld      hl,DEFPALETTE       ; Source: Color mapping table
@@ -147,14 +149,16 @@ L0093:      ld      a,$CA               ; Interrupt vector at $CA
 ;******************************************************************************************
 ; ----> SET INTERRUPT VECTOR $CC
 ;******************************************************************************************
-L00A0:      ld      a,$CC
+Select_Interrupt_Vector_CC:
+            ld      a,$CC
             out     (INFBK),a           ; Set interrupt vector upper byte
 L00A4:      ret
 
 ;******************************************************************************************
 ; ----> SET INTERRUPT VECTOR $CE
 ;******************************************************************************************
-L00A5:      ld      a,$CE
+Select_Interrupt_Vector_CE:
+            ld      a,$CE
             out     (INFBK),a           ; Set interrupt vector upper byte
             ret
 
@@ -277,7 +281,7 @@ L0109:      ld      hl,L010E            ; Set return address for stackless memor
 ;            Shifts the walking bit right. If 0, the test is complete.
 ;******************************************************************************************
 L010E:      and     a                   ; Check if the walking bit has shifted out (A=0)
-            jr      z,L0114             ; IF 0: VRAM test passed! Jump to game start
+            jr      z,Game_Entry        ; IF 0: VRAM test passed! Jump to game start
 L0111:      rra                         ; Rotate the test bit right (e.g., $80 -> $40)
             jr      L0109               ; Loop back to test VRAM with the new pattern
 
@@ -286,7 +290,8 @@ L0111:      rra                         ; Rotate the test bit right (e.g., $80 -
 ;            Moves the temporary boot stack to its permanent home in the non-viewable
 ;            Video RAM margin ($7FC0 - $7FFF) and prints the success message.
 ;******************************************************************************************
-L0114:      ld      sp,$8000            ; Set permanent stack (pre-decrements to $7FFF)
+Game_Entry:
+            ld      sp,PERMANENT_STACK_TOP ; Set permanent stack (pre-decrements to $7FFF)
 
 L0117:      call     Sys_Init               ; Clear screen, init video, and clear Work RAM
 
@@ -720,7 +725,6 @@ Exec_Joy_Jump:
 ;*****************************************************************************************
 ; ----> Joy_String_Table
 ;       16-entry jump table for joystick switch combinations.
-;       (Previously disassembled incorrectly as Z80 instructions)
 ;*****************************************************************************************
 Joy_String_Table:
             DW      Write_NO            ; 00: "NO" (No direction pressed)
@@ -1182,7 +1186,6 @@ Write_Color_3:
 ;*****************************************************************************************
 ; ----> Fade_Palette_Data
 ;       9 sets of 3-byte color palettes for screen fading effects.
-;       (Previously disassembled incorrectly as Z80 instructions)
 ;*****************************************************************************************
 Fade_Palette_Data:
             DB      $51, $7C, $F3
@@ -1247,7 +1250,6 @@ Write_BG_Color:
 ;*****************************************************************************************
 ; ----> BG_Color_Data
 ;       16 bytes of background colors.
-;       (Previously disassembled incorrectly as Z80 instructions)
 ;*****************************************************************************************
 BG_Color_Data:
             DB      $C7, $78, $4B, $18, $BB, $68, $DB, $58
@@ -1257,7 +1259,7 @@ BG_Color_Data:
 ; ----> Load_Fade_Col_3
 ;*****************************************************************************************
 Load_Fade_Col_3:
-            ld      hl, Fade_Palette_Data   ; Previously $06F3
+            ld      hl, Fade_Palette_Data
             call    Load_Color_3
             jp      Set_Scanline_Int        ; Jump to scanline interrupt routine
 
@@ -1296,7 +1298,7 @@ L0779:      out     (COL3L),a
 ;*********************************************************
 ;
             nop
-L0781:      call    L0894
+L0781:      call    Stream_Fetch_Byte_B
             call    L07A8
             xor     a
             jp      L045C
@@ -1306,7 +1308,7 @@ L0781:      call    L0894
 L078B:      ld      a,($D347)
             in      a, (SETTINGS)       ; Check for language...
             bit     3,a                 ; Off=Foreign, On=English (active HIGH)
-            ld      hl,L3131
+            ld      hl,Text_Insert_Coin
             jr      nz,L079A
             ld      hl,LC00D
 L079A:      ld      a,(hl)
@@ -1321,9 +1323,9 @@ L079A:      ld      a,(hl)
 ;
 ;*********************************************************
 ;
-L07A8:      call    L0875
+L07A8:      call    Stream_Fetch_Word_HL
             push    hl
-            call    L0875
+            call    Stream_Fetch_Word_HL
             in      a, (COINPORT)       ; Unknown what bit 7 does...
             bit     7,a
             jr      nz,L07B6
@@ -1334,10 +1336,10 @@ L07B6:      pop     hl
 ;
 ;*********************************************************
 ;
-            call    L0875
-            call    L0894
-            call    L0886
-            call    L0880
+            call    Stream_Fetch_Word_HL
+            call    Stream_Fetch_Byte_B
+            call    Stream_Fetch_Word_DE
+            call    Stream_Fetch_Byte_A
             ld      c,$FF
             jp      printstr
 ;
@@ -1346,13 +1348,13 @@ L07B6:      pop     hl
 ; ???
 ;*****************************************************************************
 ;L07CA:
-            call    L0886
-            call    L0894
+            call    Stream_Fetch_Word_DE
+            call    Stream_Fetch_Byte_B
             call    L07A8
-L07D3:      call    L0880
+L07D3:      call    Stream_Fetch_Byte_A
             jp      L045C
 ;
-            call    L0894
+            call    Stream_Fetch_Byte_B
             call    L07A8
             call    L078B
             jr      L07D3
@@ -1362,7 +1364,7 @@ L07D3:      call    L0880
 ; ???
 ;*****************************************************************************
 ;
-            call    L0894
+            call    Stream_Fetch_Byte_B
             call    L078B
             sub     $29
             cpl
@@ -1370,7 +1372,7 @@ L07D3:      call    L0880
             call    L088B
             in      a, (COINPORT)
             bit     7,a                 ;Unknown what bit 7 does on port $10
-            call    L0880
+            call    Stream_Fetch_Byte_A
             jr      nz,L07FF
             ld      d,a
             ld      a,$4F
@@ -1397,32 +1399,32 @@ L0800:      call    L0947
 ; ???
 ;*****************************************************************************
 ;
-L080C:      call    L0886
-L080F:      call    L0875
+L080C:      call    Stream_Fetch_Word_DE
+L080F:      call    Stream_Fetch_Word_HL
             ld      (hl),e
             inc     hl
             ld      (hl),d
             ret
 ;
             call    L0872
-            call    L0886
+            call    Stream_Fetch_Word_DE
             cp      (hl)
             ret     z
             jr      L083E
-            call    L0886
-L0823:      call    L0875
+            call    Stream_Fetch_Word_DE
+L0823:      call    Stream_Fetch_Word_HL
             ld      a,(de)
             and     a
             ret     nz
             jr      L086E
-            call    L0886
-            call    L0875
+            call    Stream_Fetch_Word_DE
+            call    Stream_Fetch_Word_HL
             ld      a,(de)
             and     a
             ret     z
             jr      L086E
             call    L0872
-            call    L0886
+            call    Stream_Fetch_Word_DE
             cp      (hl)
             ret     c
 L083E:      push    de
@@ -1431,12 +1433,12 @@ L083E:      push    de
             in      a, (COINPORT)
             and     (iy+$00)
             inc     iy
-            call    L0875
+            call    Stream_Fetch_Word_HL
             ret     z
             jr      L086E
             xor     a
             ld      (LD050),a
-            call    L0880
+            call    Stream_Fetch_Byte_A
             ld      (LD048),a
             ret
             xor     a
@@ -1455,7 +1457,7 @@ L086E:      push    hl
 ; Sub to A=(IY), IY=IY+1
 ;*********************************************************
 ;
-L0872:      call    L0880
+L0872:      call    Stream_Fetch_Byte_A
 ;
 ;*********************************************************
 ;
@@ -1464,7 +1466,8 @@ L0872:      call    L0880
 ;
 ;*********************************************************
 ;
-L0875:      ld      l,(iy+$00)
+Stream_Fetch_Word_HL:
+            ld      l,(iy+$00)
             inc     iy
             ld      h,(iy+$00)
             inc     iy
@@ -1476,7 +1479,8 @@ L0875:      ld      l,(iy+$00)
 ;
 ;*********************************************************
 ;
-L0880:      ld      a,(iy+$00)
+Stream_Fetch_Byte_A:
+            ld      a,(iy+$00)
             inc     iy
             ret
 ;
@@ -1486,7 +1490,8 @@ L0880:      ld      a,(iy+$00)
 ;
 ;*********************************************************
 ;
-L0886:      ld      e,(iy+$00)
+Stream_Fetch_Word_DE:
+            ld      e,(iy+$00)
             inc     iy
 L088B:      ld      d,(iy+$00)
             inc     iy
@@ -1498,8 +1503,9 @@ L088B:      ld      d,(iy+$00)
 ;
 ;*********************************************************
 ;
-            call    L089A
-L0894:      ld      b,(iy+$00)
+            call    Stream_Fetch_Byte_C
+Stream_Fetch_Byte_B:
+            ld      b,(iy+$00)
             inc     iy
             ret
 ;
@@ -1509,7 +1515,8 @@ L0894:      ld      b,(iy+$00)
 ;
 ;*********************************************************
 ;
-L089A:      ld      c,(iy+$00)
+Stream_Fetch_Byte_C:
+            ld      c,(iy+$00)
             inc     iy
             ret
 ;
@@ -1519,7 +1526,7 @@ L089A:      ld      c,(iy+$00)
 ;*****************************************************************************
 ;
 L08A0:      pop     hl                  ; Return address in HL
-            call    L0886               ; Load E=(IY+1), D=(IY), IY=IY+2
+            call    Stream_Fetch_Word_DE               ; Load E=(IY+1), D=(IY), IY=IY+2
             push    iy                  ; Save old subroutine pointer ???
             push    de
             pop     iy                  ; Setup subroutine pointer to new area ???
@@ -1578,10 +1585,10 @@ L08A0:      pop     hl                  ; Return address in HL
 ;
 ;************************************************************************
 ;
-            call    L089A
-            call    L0880
+            call    Stream_Fetch_Byte_C
+            call    Stream_Fetch_Byte_A
             ex      af,af'
-            call    L0875
+            call    Stream_Fetch_Word_HL
             exx
             call    L07A8
             ex      de,hl
@@ -1634,7 +1641,8 @@ L0931:      add     hl,bc
             jr      nz,L08F0
             ret
             nop
-L0938:      push    hl
+XY_To_Video_Address:
+            push    hl
             srl     e
             srl     e
             call    L0947
@@ -1703,15 +1711,15 @@ L098B:      and     $0F
             ld      c,a
             cpl
             ld      b,a
-            call    L0F6A
+            call    Protected_RAM_Write
             inc     hl
             ld      c,b
-            jp      L0F6A
+            jp      Protected_RAM_Write
             push    af
             ld      a,(LD1C4)
             add     a,$2C
             out     (INLIN),a
-            call    L00A5
+            call    Select_Interrupt_Vector_CE
             ld      a,$0A
             in      a, (CCMISC)
             ld      a,$52
@@ -1726,7 +1734,7 @@ L098B:      and     $0F
             push    af
             ld      a,(LD1C4)
             out     (INLIN),a
-            call    L00A0
+            call    Select_Interrupt_Vector_CC
             ld      a,$0B
             in      a, (CCMISC)
             ld      a,$51
@@ -1735,7 +1743,7 @@ L098B:      and     $0F
             nop
 L09C8:      ld      hl,LD003
             ld      c,$00
-            call    L0F6A
+            call    Protected_RAM_Write
             rst     00H
 L09D1:      ld      a,(DIAGFLAG)
             and     a
@@ -1859,7 +1867,7 @@ L0AC9:      ld      e,a
             add     a,(hl)
             ld      (hl),a
             ld      d,a
-            call    L0938
+            call    XY_To_Video_Address
             inc     hl
             ld      (hl),e
             inc     hl
@@ -1986,7 +1994,8 @@ L0B89:      bit     4,(hl)
             jr      z,L0B91
             add     hl,de
 L0B91:      inc     hl
-L0B92:      di
+Draw_Actor_Record:
+            di
             ld      a,(hl)
             out     (MAGIC),a
             ld      de,L0005
@@ -2035,21 +2044,21 @@ L0BB8:      add     a,e
             ret
             nop
 L0BD7:      push    iy
-            ld      iy,LD054
-            ld      ix,LD074
+            ld      iy,P1_Actor_Record
+            ld      ix,P2_Actor_Record
             call    L0C2B
             pop     iy
             ret
 L0BE7:      push    iy
-            ld      iy,LD074
-            ld      ix,LD054
+            ld      iy,P2_Actor_Record
+            ld      ix,P1_Actor_Record
             call    L0C2B
             pop     iy
             ret
 L0BF7:      push    iy
             ld      a,$06
 L0BFB:      push    af
-            call    L0F2C
+            call    Select_Enemy_Record_IY
             call    L0C09
             pop     af
 L0C03:      dec     a
@@ -2059,9 +2068,9 @@ L0C03:      dec     a
 L0C09:      ld      a,(iy+$13)
 L0C0C:      bit     5,a
             ret     z
-            ld      ix,LD074
+            ld      ix,P2_Actor_Record
             call    L0C49
-L0C16:      ld      ix,LD054
+L0C16:      ld      ix,P1_Actor_Record
             call    L0C49
             ld      (iy+$13),$00
             ld      a,(LD1C6)
@@ -2076,7 +2085,7 @@ L0C2B:      ld      a,(iy+$13)
             call    L0E0B
             ld      a,$06
 L0C39:      push    af
-            call    L0F1F
+            call    Select_Enemy_Record_IX
             call    L0C49
             pop     af
             dec     a
@@ -2291,7 +2300,7 @@ L0DB0:      ld      a,c
             ld      (ix+$07),a
             ld      (ix+$05),$0F
             bit     3,c
-            ld      hl,LD301
+            ld      hl,P2_Lives
             jr      nz,L0DCD
             dec     hl
 L0DCD:      dec     (hl)
@@ -2301,7 +2310,7 @@ L0DCF:      and     a
             ld      (ix+$05),$01
             ret
 L0DD6:      bit     2,(ix+$07)
-            ld      hl,LD241
+            ld      hl,Sound_Request_2
             jr      z,L0DFA
             inc     hl
             ld      a,(LD1EB)
@@ -2314,7 +2323,7 @@ L0DD6:      bit     2,(ix+$07)
             and     a
             ld      a,b
             jr      z,L0DF7
-            ld      hl,LD243
+            ld      hl,Sound_Request_4
             set     0,(hl)
             ret
 L0DF7:      or      (hl)
@@ -2324,7 +2333,7 @@ L0DFA:      set     0,(hl)
             ld      a,(LD1C6)
             and     a
             ret     z
-            call    L0F39
+            call    Random_Byte
             and     $07
             or      $38
             jp      L8009
@@ -2398,7 +2407,7 @@ L0E99:      ex      af,af'
             push    af
             and     $0F
             ld      c,a
-L0EA2:      call    L0F6A
+L0EA2:      call    Protected_RAM_Write
             pop     af
             rrca
             rrca
@@ -2411,7 +2420,7 @@ L0EA2:      call    L0F6A
             cp      $1F
             ret     nc
             ld      c,a
-            call    L0F6A
+            call    Protected_RAM_Write
             ld      hl,LD340
             inc     (hl)
             ret
@@ -2457,10 +2466,10 @@ L0EE3:      bit     3,b
             jp      po,L0EF4
             ld      hl,LD342
 L0EF4:      inc     (hl)
-            ld      hl,LD240
+            ld      hl,Sound_Request_1
             set     5,(hl)
             ld      a,$01
-            ld      (LD244),a           ; Turn on sounds in attract mode variable
+            ld      (Attract_Sound_Enabled),a           ; Turn on sounds in attract mode variable
             ret
 L0F00:      ld      a,(hl)
 L0F01:      and     a
@@ -2485,20 +2494,23 @@ L0F0C:      inc     hl
 L0F1A:      djnz    L0F24
             jr      nc,L0F6E
             nop
-L0F1F:      ld      ix,LD06E
+Select_Enemy_Record_IX:
+            ld      ix,LD06E
             ld      bc,L0026
 L0F26:      add     ix,bc
             dec     a
             jr      nz,L0F26
             ret
-L0F2C:      ld      iy,LD06E
+Select_Enemy_Record_IY:
+            ld      iy,LD06E
             ld      bc,L0026
 L0F33:      add     iy,bc
             dec     a
             jr      nz,L0F33
             ret
-L0F39:      exx
-            ld      bc,(LD34A)
+Random_Byte:
+            exx
+            ld      bc,(Random_Seed)
             ld      hl,$1321
             add     hl,bc
             push    hl
@@ -2520,7 +2532,7 @@ L0F57:      ex      (sp),hl
             ld      b,c
             ld      c,$00
             add     hl,bc
-            ld      (LD34A),hl
+            ld      (Random_Seed),hl
             pop     hl
             adc     hl,de
             ld      (LD34C),hl
@@ -2537,7 +2549,8 @@ L0F57:      ex      (sp),hl
 ;
 ;************************************************************
 ;
-L0F6A:      ld      a,$A5
+Protected_RAM_Write:
+            ld      a,$A5
             out     (RIGHTPORT),a       ; Protected memory port
 L0F6E:      ld      (hl),c
             ret
@@ -2551,6 +2564,8 @@ L0F6E:      ld      (hl),c
 ;
 ;
 
+; Command stream data begins at $0F70. The game stream begins at $10FD.
+ATTRACT_COMMAND_STREAM:
             DB      $07,$08,$00,$49,$D3,$81,$17,$92
             DB      $17,$84,$16,$A0,$08,$FE,$15,$0C
             DB      $08,$00,$00,$00,$D3,$D5,$18,$07
@@ -2600,7 +2615,9 @@ L0F6E:      ld      (hl),c
             DB      $20,$08,$03,$D3,$D7,$10,$07,$08
             DB      $01,$44,$D2,$93,$00,$A0,$08,$FE
             DB      $15,$0C,$08,$00,$00,$1B,$D3,$0C
-            DB      $08,$00,$00,$1D,$D3,$2B,$08,$D9
+            DB      $08,$00,$00,$1D,$D3
+GAME_COMMAND_STREAM:
+            DB      $2B,$08,$D9
             DB      $D1,$CD,$12,$75,$16,$84,$16,$A3
             DB      $16,$E0,$08,$09,$AA,$61,$32,$C4
             DB      $52,$FB,$6C,$07,$08,$01,$49,$D3
@@ -2766,95 +2783,99 @@ L0F6E:      ld      (hl),c
             DB      $16,$E4,$07,$13,$91,$9A,$0C,$07
             DB      $08,$00,$E2,$D1,$AA,$08
 ;
-; Is this the end of the data (subroutine jumps)???
+; End of command-stream data; native Z80 routines resume here.
 ;
+Initialize_Dungeon_Actors:
             xor     a
-L161F:      ld      (LD302),a
+Clear_Dungeon_Number:
+            ld      (Dungeon_Number),a
             ld      a,$06
             ld      de,L0C0C
             call    L162E
             ld      a,$04
             ld      e,$08
 L162E:      push    af
-            call    L0F1F
+            call    Select_Enemy_Record_IX
             call    L26EB
             pop     af
             dec     a
             jr      nz,L162E
             ret
 ;
-L163A:      ld      a,(LD302)
+Check_Final_Dungeon_Bonus:
+            ld      a,(Dungeon_Number)
             cp      $0C
-            jr      z,L1657
+            jr      z,Award_Bonus_Lives
             ret
 
-
+Check_Bonus_Life_Threshold:
             ld      a,($D347)
             in      a, (SETTINGS)
             ld      b,$03
             bit     5,a                 ; Dipswitch: Bonus Lives active HIGH
                     ; Off = 4th Level,  On  = 3rd Level
-            jr      nz,L164E
+            jr      nz,Check_Bonus_Life_Interval
             inc     b
 ;
-L164E:      ld      a,(LD302)
+Check_Bonus_Life_Interval:
+            ld      a,(Dungeon_Number)
             sub     b
-            jr      nz,L163A
-            ld      (LD318),a
+            jr      nz,Check_Final_Dungeon_Bonus
+            ld      (Maze_Index),a
 ;
-L1657:      ld      hl,LD300
+Award_Bonus_Lives:
+            ld      hl,P1_Lives
             ld      a,(Game_Mode)
             ld      (LD1CA),a
             dec     a
-            jr      z,L166D
+            jr      z,Award_P2_Bonus_Life
             ld      a,(hl)
             and     a
-            jr      z,L166D
+            jr      z,Award_P2_Bonus_Life
             inc     (hl)
             exx
-            call    L1CFA
+            call    Draw_P1_Extra_Life_Marker
             exx
 ;
-L166D:      inc     hl
+Award_P2_Bonus_Life:
+            inc     hl
             ld      a,(hl)
             and     a
             ret     z
             inc     (hl)
-            jp      L1D06
+            jp      Draw_P2_Extra_Life_Marker
             ld      hl,LD354
             ld      a,$FF
             ld      b,$0C
 L167C:      and     (hl)
             inc     hl
 L167E:      djnz    L167C
-            jp      nz,L179E
+            jp      nz,Clear_Extended_Game_State
             ret
 ;
 ;*****************************************************************************
-; Called this routine from dispatch routine
-; Move $24 (36) bytes of data from $D300 to $D000 ???
+; Copies the 36-byte persistent game-state mirror from Work RAM back to
+; protected RAM.
 ;*****************************************************************************
-;L1684:
+Save_Persistent_Game_State:
             di
             ld      hl,WPRAMSTART
-            ld      de,LD300
+            ld      de,P1_Lives
             ld      b,$24               ; 36 decimal
 L168D:      ld      a,(de)
             inc     de
             ld      c,a
-            call    L0F6A               ; Write protected memory byte (HL)=C
+            call    Protected_RAM_Write               ; Write protected memory byte (HL)=C
             inc     hl
             djnz    L168D
             ret
 
 ;
 ;*****************************************************************************
-; Called this routine from dispatch routine
-; ???
+; Loads the nine-character "@WORRIORS" text fragment into the display buffer.
 ;*****************************************************************************
-;L1697:
-
-            ld      hl,L331A
+Load_Worriors_Text_Buffer:
+            ld      hl,Text_Worriors_Suffix
             ld      de,LD1CC
             ld      bc,L0009
             ldir
@@ -2866,16 +2887,17 @@ L168D:      ld      a,(de)
             dec     hl
             ld      (hl),a
             ret
+Adjust_Credit_From_Settings:
             ld      a,($D347)
             in      a, (SETTINGS)       ; Check for Free Play - Active HIGH ???
                     ; Bit 6: Free Play
                     ; Off=No Free Play, On=Free Play
             bit     6,a
             ret     z
-            ld      hl,LD03C
+            ld      hl,Credits
             ld      c,(hl)
             dec     c
-            jp      L0F6A               ;Write protected memory byte
+            jp      Protected_RAM_Write ; Write protected credit byte
             ld      a,$CC
             out     (INLIN),a
             ld      hl,L0109
@@ -2889,25 +2911,21 @@ L16C9:      out     (INLIN),a
 
 ;
 ;*****************************************************************************
-; Called this routine from dispatch routine
-; Check dip switch for free play
+; Captures the free-play DIP state for the game-state dispatcher.
 ;*****************************************************************************
-;
+Read_Free_Play_DIP:
             ld      a,($D347)
             in      a, (SETTINGS)
             cpl
-            and     $40
-            ld      (LD348),a
+            and     DIP_FREE_PLAY
+            ld      (Free_Play_Enabled),a
             ret
 ;
 ;*****************************************************************************
-; This routine looks like it will check for any activity on player1 and
-; player 2 controls and stores the result in $D1DE. Since P1 and P2
-; control 'bits' are identical, I assume the result saved will tell the program
-; if a certain control has been used by either P1 or P2. ???
+; Combines active-low P1 and P2 controls into one active-high activity byte.
 ;
 ;*****************************************************************************
-;
+Poll_Combined_Player_Inputs:
             in      a, (P2PORT)         ; Check P2 controls - all active LOW
             cpl                         ; Convert to active HIGH
             ld      b,a                 ;
@@ -2915,18 +2933,18 @@ L16C9:      out     (INLIN),a
             cpl                         ; Make active HIGH
             or      b                   ; Combine with P2 controls
             and     00111111b           ; Mask unused input bits (see port description)
-            ld      (LD1DE),a           ; Save it ..
+            ld      (Combined_Player_Inputs),a           ; Save it ..
             ret
 ;
 ;*****************************************************************************
 ;
 ;
 ;*****************************************************************************
-;
+Fetch_Sound_Request_From_Stream:
             ld      a,(iy+$00)
             inc     iy
-            ld      (LD240),a
-            ld      (LD244),a           ; Dip switch - Bit 7 - "Sounds in Attract Mode"
+            ld      (Sound_Request_1),a
+            ld      (Attract_Sound_Enabled),a           ; Dip switch - Bit 7 - "Sounds in Attract Mode"
             ret
             in      a, (COINPORT)
             bit     7,a                 ; Check to see if <function> is active
@@ -2941,7 +2959,8 @@ L16C9:      out     (INLIN),a
 ;
 ;*****************************************************************************
 ;
-            ld      a,(LD03C)
+Format_Credits_For_Display:
+            ld      a,(Credits)
             ld      e,$FF
 L1708:      inc     e
             sub     $0A
@@ -2957,7 +2976,8 @@ L1712:      ld      (hl),a
 L171C:      dec     hl
             ld      (hl),a
             ret
-            ld      a,(LD302)
+Format_Dungeon_For_Display:
+            ld      a,(Dungeon_Number)
             ld      b,a
             xor     a
 L1724:      inc     a
@@ -2993,7 +3013,7 @@ L174D:      ld      a,$0C
             jp      L045C
             ld      b,(iy+$00)
             inc     iy
-            call    L0F39
+            call    Random_Byte
             and     (iy+$00)
             inc     iy
             or      b
@@ -3004,44 +3024,43 @@ L174D:      ld      a,$0C
             jr      nz,L176D
             ld      a,$18
 L176D:      ld      (LD1C4),a
-            jp      L00A0
-            ld      sp,$D400
+            jp      Select_Interrupt_Vector_CC
+Restart_Dispatcher:
+            ld      sp,BOOT_STACK_TOP
             jp      dispatch
 
 ;
 ;*****************************************************************************
-; Called this routine from dispatch routine
-; ???
+; Clears the protected initialization counter through the write latch.
 ;*****************************************************************************
-;
-;L1779:
+Clear_Protected_Init_Counter:
             ld      hl,LD03A
             ld      c,$00
-            jp      L0F6A               ;Write protected memory byte
+            jp      Protected_RAM_Write               ;Write protected memory byte
 ;
 ;*****************************************************************************
-; Called this routine from dispatch routine
-; Check if dip switch set to "Demo Sounds Active"
+; Captures the attract-mode sound DIP state.
 ;*****************************************************************************
-;L1781:
+Read_Attract_Sound_DIP:
             ld      a,($D347)           ; Why load this? The next command wipes it out ???
             in      a, (SETTINGS)
-            and     $80                 ; Check bit 7 - Demo Sounds active high ???
-            ld      (LD244),a           ; Save demo sound status, A=$80 if active, $00 if not
+            and     DIP_ATTRACT_SOUND
+            ld      (Attract_Sound_Enabled),a           ; Save demo sound status, A=$80 if active, $00 if not
             ret
 ;
 ;*****************************************************************************
 ; ROUTINE: High-Priority Sound Trigger (Override)
 ; Found at $18D5 (Immediately following the Maze Wall bitmasks).
-; Purpose: Writes directly to Sound Queue 4 (LD243), requesting Sound Bit 3
+; Purpose: Writes directly to sound request byte Sound_Request_4, requesting sound bit 3.
 ;          ($08 = 00001000b). By using LD instead of SET, it intentionally
 ;          clears/aborts any other pending sounds in this queue to force
 ;          this specific high-priority sound (e.g., Coin Drop, Player Death)
 ;          to play immediately.
 ;*****************************************************************************
-;
+Trigger_High_Priority_Sound:
+High_Priority_Sound_Request_Byte EQU Trigger_High_Priority_Sound + 1
             ld      a,$08               ; $08 = Bit 3 (High-priority sound ID)
-            ld      (LD243),a           ; Overwrite Sound Queue 4, clearing other bits
+            ld      (Sound_Request_4),a           ; Overwrite Sound Queue 4, clearing other bits
             ret
 
 ;
@@ -3049,18 +3068,20 @@ L176D:      ld      (LD1C4),a
 ; ROUTINE: Check Starting Lives (Dip Switch)
 ; Called from dispatch routine. Evaluates Bit 4 of the settings port.
 ;*****************************************************************************
+Read_Starting_Lives_DIP:
             ld      a,($D347)           ; MACRO ARTIFACT: Useless read of orphaned RAM cache
             in      a,(SETTINGS)        ; PATCH: Read hardware directly, overwriting A
             cpl                         ; Invert bits (Active-LOW hardware to Active-HIGH logic)
-            and     $10                 ; Isolate Bit 4 (00010000b)
-            ld      (LD34F),a           ; Save status: $10 = 3/7 lives, $00 = 2/5 lives
+            and     DIP_STARTING_LIVES
+            ld      (Starting_Lives_Dip),a           ; Save status: $10 = 3/7 lives, $00 = 2/5 lives
             ret
 ;
 ;*****************************************************************************
 ; ROUTINE: Zero Memory Block ($D350 to $D36D)
 ; Called from dispatch routine. Clears 30 ($1E) bytes of static RAM.
 ;*****************************************************************************
-L179E:      ld      hl,LD350            ; Start address to clear
+Clear_Extended_Game_State:
+            ld      hl,LD350            ; Start address to clear
             ld      bc,$1E00            ; OPTIMIZATION: B = $1E (Loop count 30), C = $00 (Zero value)
 L17A4:      ld      (hl),c              ; Write $00 to memory
             inc     hl                  ; Advance pointer
@@ -3259,7 +3280,7 @@ L18D3:      DB      $30                 ; Binary 00110000 (Color 3, Pixel 1)
             di
             ld      a,$08
             out     (MAGIC),a
-            ld      de,L1937
+            ld      de,Vertical_Line_Source_Pattern
             ld      a,$04
             out     (XPAND),a
             ld      bc,L1107
@@ -3268,15 +3289,15 @@ L18D3:      DB      $30                 ; Binary 00110000 (Color 3, Pixel 1)
             ld      hl,$3D42
             call    L191B
             ld      bc,L0111
-            ld      hl,L37A2
+            ld      hl,Radar_Line_Pattern_A
             call    L191B
-            ld      hl,L37B2
+            ld      hl,Radar_Line_Pattern_B
             call    L191B
             ld      a,$08
             out     (XPAND),a
-L1903:      ld      hl,L37DC
+L1903:      ld      hl,Radar_Line_Pattern_C
             call    L191B
-            ld      hl,L37EC
+            ld      hl,Radar_Line_Pattern_D
             call    L191B
             ld      bc,L1107
             ld      hl,L355C
@@ -3301,8 +3322,8 @@ L191B:      ld      a,$22
             out     (PBYHIGH),a
             ret
 ;******************************************************************************************
-L1937:      rst     38H
-            nop
+Vertical_Line_Source_Pattern:
+            DB      $FF,$00        ; Solid source byte followed by blank padding
 L1939:      ld      hl,(LD31B)
             push    hl
             ld      de,LD319
@@ -3364,9 +3385,9 @@ L1986:      inc     hl
             or      (hl)
             ld      (hl),a
             ret
-            ld      de,L32EE
+            ld      de,Text_Copyright_Glyphs
             jr      L1997
-            ld      de,L3138
+            ld      de,Text_Coin_Prompt_Suffix
 L1997:      ld      a,(LD319)
             ld      b,$04
             push    de
@@ -3492,12 +3513,12 @@ L1A6D:      and     $0F
             dec     hl
             ret
             nop
-            ld      hl,LD302
+            ld      hl,Dungeon_Number
             inc     (hl)
-            ld      a,(LD318)
+            ld      a,(Maze_Index)
             ld      c,a
             ld      b,$00
-            ld      hl,L1AED
+            ld      hl,Maze_Pointer_Table
             add     hl,bc
             add     hl,bc
             ld      c,(hl)
@@ -3545,7 +3566,8 @@ L1ABD:      and     $0F
 L1AC9:      dec     de
             ld      (de),a
             ret
-L1ACC:      ld      a,e
+Maze_Cell_Address_From_XY:
+            ld      a,e
             ld      e,$FF
 L1ACF:      inc     e
             sub     $18
@@ -3566,594 +3588,217 @@ L1AE0:      add     a,l
             ld      hl,LD178
             add     hl,de
             ret
-L1AED:      dec     e
-            dec     de
-            add     hl,de
-            inc     e
-            cpl
-            dec     de
-            ld      b,c
-            dec     de
-            ld      d,e
-            dec     de
-            ld      h,l
-            dec     de
-            ld      (hl),a
-            dec     de
-            adc     a,c
-            dec     de
-            sbc     a,e
-            dec     de
-            xor     l
-            dec     de
-            cp      a
-            dec     de
-            pop     de
-            dec     de
-            ex      (sp),hl
-            dec     de
-            push    af
-            dec     de
-            rlca
-            inc     e
-            dec     hl
-            inc     e
-            dec     a
-            inc     e
-            ld      c,a
-            inc     e
-            ld      h,c
-            inc     e
-            ld      (hl),e
-            inc     e
-            add     a,l
-            inc     e
-            sub     a
-            inc     e
-            xor     c
-            inc     e
-            cp      e
-            inc     e
-            xor     h
-            call    pe,LBCCE
-            ld      e,d
-            rst     28H
-            cp      h
-            rst     28H
-            rst     38H
-            or      (hl)
-            sbc     a,a
-L1B28:      DB      $dd,$3b
-            rst     28H
-            call    pe,L9595
-            sbc     a,h
-            xor     h
-            xor     $CE
-            ld      a,($ADD7)
-            sub     a
-            xor     a
-            call    m,L73AD
-            sbc     a,(hl)
-            cp      h
-            ld      a,e
-            DB      $ed,$9c
-            push    de
-            sbc     a,h
-            xor     h
-            ld      l,d
-            adc     a,$BC
-            rst     10H
-            xor     l
-            sbc     a,(hl)
-            rst     28H
-            cp      $A5
-            inc     sp
-            inc     sp
-            cp      h
-            rst     30H
-            sbc     a,a
-            sbc     a,h
-            ld      e,c
-            call    L6AAC
-            adc     a,$3A
-            rst     18H
-            rst     08H
-            sub     a
-            xor     a
-            ld      h,e
-            xor     l
-            ld      (hl),e
-            inc     sp
-            cp      h
-            push    af
-            cp      a
-            sbc     a,h
-            call    c,$AC51
-            add     a,$AE
-            ld      a,(L73CD)
-            sub     a
-            xor     (hl)
-            rst     18H
-            and     a
-            dec     sp
-            call    LFF3B
-            adc     a,$9D
-            ld      e,c
-            call    L6AAC
-            adc     a,$BC
-            rst     18H
-            ld      h,e
-            sbc     a,(hl)
-            rst     00H
-            cp      a
-            xor     l
-            ld      l,e
-            ld      d,e
-            cp      h
-            ld      a,e
-            DB      $ed,$9c
-            push    de
-            sbc     a,h
-            and     (hl)
-            xor     h
-            call    pe,L5A3B
-            call    m,LE79F
-            cp      h
-            and     a
-            inc     sp
-            cp      (hl)
-            inc     sp
-            cp      a
-            ld      d,e
-            sbc     a,l
-            ld      e,c
-            call    LEEAE
-            xor     $33
-            inc     sp
-            inc     sp
-            sbc     a,a
-            ld      a,c
-            ld      (hl),e
-            and     a
-            sbc     a,(hl)
-            rst     38H
-            dec     sp
-            ld      l,e
-            ld      d,e
-            sub     l
-            sbc     a,l
-            call    LCEAC
-            call    pe,LE5BC
-            cp      h
-            sbc     a,(hl)
-            ld      a,d
-            sbc     a,$A5
-            or      a
-            xor     a
-            ld      a,(L735B)
-            sbc     a,l
-            push    bc
-            sbc     a,l
-            xor     h
-            ld      l,d
-            adc     a,$BC
-            rst     38H
-            rst     28H
-            sbc     a,(hl)
-            ld      d,e
-            inc     sp
-            and     l
-            and     l
-            cp      a
-            cp      h
-            ld      e,d
-            ld      (hl),e
-            sbc     a,h
-            push    bc
-            sbc     a,l
-            xor     h
-            ld      l,d
-            call    pe,L73BC
-            sbc     a,(hl)
-            sub     (hl)
-            cp      a
-            DB      $ed,$ad
-            ld      d,e
-            cp      h
-            cp      h
-            rst     28H
-            call    m,LD59C
-            sbc     a,h
-            and     (hl)
-            xor     h
-            call    pe,LFC3B
-            call    m,LB697
-            sbc     a,(hl)
-            and     a
-            sub     a
-            xor     l
-            dec     sp
-            rst     28H
-            sbc     a,$9D
-            ld      e,c
-            call    L6AAC
-            adc     a,$3A
-            DB      $fd,$cf
-            or      a
-            cp      h
-            ld      h,e
-            or      l
-            ld      a,(L3ADF)
-            rst     18H
-            ld      h,e
-            sbc     a,l
-            push    bc
-            sbc     a,l
-            and     (hl)
-            xor     h
-            call    pe,L7A3B
-            sbc     a,$95
-            add     hl,sp
-            ld      h,e
-            xor     (hl)
-            call    c,L3B73
-L1C14:      xor     $FD
-            sub     l
-            sub     l
-            sbc     a,h
-            xor     (hl)
-            xor     $EE
-            cp      a
-            rst     38H
-            rst     38H
-            cp      a
-            rst     38H
-            rst     38H
-            cp      a
-            rst     38H
-            rst     38H
-            cp      a
-            rst     38H
-            rst     38H
-            sbc     a,l
-            DB      $dd,$dd
-L1C2B:      xor     h
-            xor     $EE
-            or      (hl)
-            cp      l
-            ld      d,e
-            or      l
-L1C32:      ld      a,(LBEEF)
-            push    de
-            cp      a
-            or      a
-            xor     (hl)
-            rst     38H
-            sbc     a,l
-            DB      $dd,$dd
-            xor     (hl)
-L1C3E:      xor     $CE
-            cp      a
-            push    af
-            xor     a
-            cp      a
-            ld      e,d
-            rst     38H
-            or      l
-            xor     a
-            ld      d,e
-            cp      (hl)
-            push    af
-            xor     a
-            sbc     a,l
-            call    c,$AEDD
-            xor     $EE
-            dec     sp
-            ld      (hl),e
-            cp      a
-            inc     sp
-            or      a
-            inc     sp
-            or      a
-            dec     sp
-            ld      (hl),e
-            cp      a
-            ld      (hl),e
-            cp      a
-            sbc     a,l
-            DB      $dd,$dd
-            xor     (hl)
-            xor     $EE
-            add     hl,sp
-            push    af
-            cp      a
-            or      (hl)
-            cp      (hl)
-            ld      (hl),e
-            cp      l
-            ld      a,c
-            ld      (hl),e
-            ld      a,(LBFF6)
-            sbc     a,l
-            DB      $dd,$dd
-            xor     (hl)
-            xor     $CE
-            add     hl,sp
-            push    af
-            xor     a
-            or      (hl)
-            sbc     a,(hl)
-            rst     38H
-            cp      a
-            ld      l,e
-            rst     18H
-            cp      a
-            push    af
-            xor     a
-            sbc     a,l
-            call    c,$AEDD
-            xor     $CE
-            or      l
-            sbc     a,a
-            ld      h,e
-            or      (hl)
-            and     l
-            sbc     a,a
-            add     hl,sp
-            or      $AF
-            or      (hl)
-            sbc     a,l
-            rst     38H
-            sbc     a,l
-            call    z,$ACDD
-            xor     $EE
-            or      (hl)
-            sbc     a,a
-            ld      d,e
-            cp      a
-            ld      h,e
-            xor     a
-            cp      a
-            ld      d,e
-            sbc     a,a
-            or      l
-            xor     a
-            ld      h,e
-            sbc     a,h
-            DB      $dd,$dd
-            xor     h
-            xor     $CE
-            or      (hl)
-            sbc     a,a
-            DB      $ed,$bf
-            ld      l,c
-            cp      $BF
-            or      $9F
-            or      a
-            cp      a
-            ld      h,e
-            sbc     a,l
-            DB      $dd,$dd
-            xor     h
-            xor     $EC
-            cp      (hl)
-            rst     10H
-            cp      h
-            dec     sp
-            DB      $ed,$fe
-            dec     sp
-            sbc     a,$FD
-            cp      l
-            rst     20H
-            cp      h
-            sbc     a,h
-            DB      $dd,$dc
+;*****************************************************************************
+; PACKED MAZE LIBRARY
+;
+; Maze_Index selects one of 24 pointers. Each maze record contains 18 packed
+; bytes: six rows of six four-bit cell values.
+;*****************************************************************************
+Maze_Pointer_Table:
+            DW      Maze_01_Data, Maze_15_Data, Maze_02_Data, Maze_03_Data, Maze_04_Data, Maze_05_Data
+            DW      Maze_06_Data, Maze_07_Data, Maze_08_Data, Maze_09_Data, Maze_10_Data, Maze_11_Data
+            DW      Maze_12_Data, Maze_13_Data, Maze_14_Data, Maze_16_Data, Maze_17_Data, Maze_18_Data
+            DW      Maze_19_Data, Maze_20_Data, Maze_21_Data, Maze_22_Data, Maze_23_Data, Maze_24_Data
+Maze_01_Data:
+            DB      $AC,$EC,$CE,$BC,$5A,$EF,$BC,$EF,$FF
+            DB      $B6,$9F
+Maze_01_Data_Byte_11:
+            DB      $DD,$3B,$EF,$EC,$95,$95,$9C
+Maze_02_Data:
+            DB      $AC,$EE,$CE,$3A,$D7,$AD,$97,$AF,$FC
+            DB      $AD,$73,$9E,$BC,$7B,$ED,$9C,$D5,$9C
+Maze_03_Data:
+            DB      $AC,$6A,$CE,$BC,$D7,$AD,$9E,$EF,$FE
+            DB      $A5,$33,$33,$BC,$F7,$9F,$9C,$59,$CD
+Maze_04_Data:
+            DB      $AC,$6A,$CE,$3A,$DF,$CF,$97,$AF,$63
+            DB      $AD,$73,$33,$BC,$F5,$BF,$9C,$DC,$51
+Maze_05_Data:
+            DB      $AC,$C6,$AE,$3A,$CD,$73,$97,$AE,$DF
+            DB      $A7,$3B,$CD,$3B,$FF,$CE,$9D,$59,$CD
+Maze_06_Data:
+            DB      $AC,$6A,$CE,$BC,$DF,$63,$9E,$C7,$BF
+            DB      $AD,$6B,$53,$BC,$7B,$ED,$9C,$D5,$9C
+Maze_07_Data:
+            DB      $A6,$AC,$EC,$3B,$5A,$FC,$9F,$E7,$BC
+            DB      $A7,$33,$BE,$33,$BF,$53,$9D,$59,$CD
+Maze_08_Data:
+            DB      $AE,$EE,$EE,$33,$33,$33,$9F,$79,$73
+            DB      $A7,$9E,$FF,$3B,$6B,$53,$95,$9D,$CD
+Maze_09_Data:
+            DB      $AC,$CE,$EC,$BC,$E5,$BC,$9E,$7A,$DE
+            DB      $A5,$B7,$AF,$3A,$5B,$73,$9D,$C5,$9D
+Maze_10_Data:
+            DB      $AC,$6A,$CE,$BC,$FF,$EF,$9E,$53,$33
+            DB      $A5,$A5,$BF,$BC,$5A,$73,$9C,$C5,$9D
+Maze_11_Data:
+            DB      $AC,$6A,$EC,$BC,$73,$9E,$96,$BF,$ED
+            DB      $AD,$53,$BC,$BC,$EF,$FC,$9C,$D5,$9C
+Maze_12_Data:
+            DB      $A6,$AC,$EC,$3B,$FC,$FC,$97,$B6,$9E
+            DB      $A7,$97,$AD,$3B,$EF,$DE,$9D,$59,$CD
+Maze_13_Data:
+            DB      $AC,$6A,$CE,$3A,$FD,$CF,$B7,$BC,$63
+            DB      $B5,$3A,$DF,$3A,$DF,$63,$9D,$C5,$9D
+Maze_14_Data:
+            DB      $A6,$AC,$EC,$3B,$7A,$DE,$95,$39,$63
+            DB      $AE,$DC,$73,$3B
+Maze_14_Data_Byte_13:
+            DB      $EE,$FD,$95,$95,$9C
+Maze_15_Data:
+            DB      $AE,$EE,$EE,$BF,$FF,$FF,$BF,$FF,$FF
+            DB      $BF,$FF,$FF,$BF,$FF,$FF,$9D,$DD,$DD
+Maze_16_Data:
+            DB      $AC,$EE,$EE,$B6,$BD,$53,$B5
+Maze_16_Data_Byte_07:
+            DB      $3A,$EF
+            DB      $BE,$D5,$BF,$B7,$AE,$FF,$9D,$DD,$DD
+Maze_17_Data:
+            DB      $AE
+Maze_17_Data_Byte_01:
+            DB      $EE,$CE,$BF,$F5,$AF,$BF,$5A,$FF
+            DB      $B5,$AF,$53,$BE,$F5,$AF,$9D,$DC,$DD
+Maze_18_Data:
+            DB      $AE,$EE,$EE,$3B,$73,$BF,$33,$B7,$33
+            DB      $B7,$3B,$73,$BF,$73,$BF,$9D,$DD,$DD
+Maze_19_Data:
+            DB      $AE,$EE,$EE,$39,$F5,$BF,$B6,$BE,$73
+            DB      $BD,$79,$73,$3A,$F6,$BF,$9D,$DD,$DD
+Maze_20_Data:
+            DB      $AE,$EE,$CE,$39,$F5,$AF,$B6,$9E,$FF
+            DB      $BF,$6B,$DF,$BF,$F5,$AF,$9D,$DC,$DD
+Maze_21_Data:
+            DB      $AE,$EE,$CE,$B5,$9F,$63,$B6,$A5,$9F
+            DB      $39,$F6,$AF,$B6,$9D,$FF,$9D,$CC,$DD
+Maze_22_Data:
+            DB      $AC,$EE,$EE,$B6,$9F,$53,$BF,$63,$AF
+            DB      $BF,$53,$9F,$B5,$AF,$63,$9C,$DD,$DD
+Maze_23_Data:
+            DB      $AC,$EE,$CE,$B6,$9F,$ED,$BF,$69,$FE
+            DB      $BF,$F6,$9F,$B7,$BF,$63,$9D,$DD,$DD
+Maze_24_Data:
+            DB      $AC,$EE,$EC,$BE,$D7,$BC,$3B,$ED,$FE
+            DB      $3B,$DE,$FD,$BD,$E7,$BC,$9C,$DD,$DC
+Draw_Player_Lives:
             nop
-            call    L1D12
-            ld      a,(LD300)
-            call    L1CDD
-            call    L1D1A
-            ld      a,(LD301)
-L1CDD:      and     a
+            call    Select_P1_Life_Icon
+            ld      a,(P1_Lives)
+            call    Draw_Life_Icons
+            call    Select_P2_Life_Icon
+            ld      a,(P2_Lives)
+Draw_Life_Icons:
+            and     a
             ret     z
             cp      $08
-            jr      c,L1CE5
+            jr      c,Clamp_Life_Count
             ld      a,$07
-L1CE5:      ld      b,a
-L1CE6:      call    L0B92
+Clamp_Life_Count:
+            ld      b,a
+Draw_Life_Icon_Loop:
+            call    Draw_Actor_Record
             inc     hl
-            djnz    L1CE6
+            djnz    Draw_Life_Icon_Loop
             ret
-            ld      hl,L1DB3
-            ld      de,L1DD6
-            call    L1D20
+Draw_Reserve_Life_Icons:
+            ld      hl,Reserve_Life_Icon_Primary
+            ld      de,Reserve_Life_Icon_Alternate
+            call    Select_Cabinet_Graphics_Variant
             ld      b,$07
-            jr      L1CE6
-L1CFA:      ld      hl,L1DF9
-            ld      de,L1DFE
-            call    L1D20
-            jp      L0B92
-L1D06:      ld      hl,L1E03
-            ld      de,L1E08
-            call    L1D20
-            jp      L0B92
-L1D12:      ld      hl,L1D27
-            ld      de,L1D4A
-            jr      L1D20
-L1D1A:      ld      hl,L1D6D
-            ld      de,L1D90
-L1D20:      in      a, (COINPORT)
+            jr      Draw_Life_Icon_Loop
+Draw_P1_Extra_Life_Marker:
+            ld      hl,P1_Life_Marker_Primary
+            ld      de,P1_Life_Marker_Alternate
+            call    Select_Cabinet_Graphics_Variant
+            jp      Draw_Actor_Record
+Draw_P2_Extra_Life_Marker:
+            ld      hl,P2_Life_Marker_Primary
+            ld      de,P2_Life_Marker_Alternate
+            call    Select_Cabinet_Graphics_Variant
+            jp      Draw_Actor_Record
+Select_P1_Life_Icon:
+            ld      hl,P1_Life_Icon_Primary
+            ld      de,P1_Life_Icon_Alternate
+            jr      Select_Cabinet_Graphics_Variant
+Select_P2_Life_Icon:
+            ld      hl,P2_Life_Icon_Primary
+            ld      de,P2_Life_Icon_Alternate
+Select_Cabinet_Graphics_Variant:
+            in      a, (COINPORT)
             bit     7,a
             ret     nz
             ex      de,hl
 L1D26:      ret
-L1D27:      ld      h,d
-            sbc     a,h
-            jr      c,L1D27
-            dec     l
-            ld      h,d
-            sbc     a,h
-            jr      c,L1D26
-L1D30:      dec     l
-            ld      h,d
-            sbc     a,h
-            jr      c,L1DAB
-            ld      h,$62
-            sbc     a,h
-            jr      c,L1D30
-            ld      e,$62
-            sbc     a,h
-            jr      c,L1DB5
-L1D3F:      rla
-            ld      h,d
-            sbc     a,h
-            jr      c,L1DBA
-            ex      af,af'
-            ld      h,d
-            sbc     a,h
-            jr      c,L1D3F
-            nop
-L1D4A:      jp      po,L389C
-            ld      c,h
-            inc     sp
-            jp      po,L389C
-            ld      b,(hl)
-            inc     sp
-            jp      po,L389C
-            add     a,$2B
-            jp      po,L389C
-            ld      b,(hl)
-            inc     h
-            jp      po,L389C
-            add     a,$1C
-            jp      po,L389C
-            add     a,$0D
-            jp      po,L389C
-            ld      b,(hl)
-            ld      b,$22
-            or      $38
-            inc     sp
-            ld      l,$22
-            or      $38
-            add     hl,sp
-            ld      l,$22
-            or      $38
-L1D7A:      cp      c
-            ld      h,$22
-            or      $38
-            add     hl,sp
-            rra
-L1D81:      ld      (L38F6),hl
-            cp      c
-            rla
-            ld      (L38F6),hl
-            cp      c
-            ex      af,af'
-            ld      (L38F6),hl
-            add     hl,sp
-            ld      bc,LF6A2
-            jr      c,L1D17
-            inc     sp
-            and     d
-            or      $38
-            adc     a,c
-            inc     sp
-            and     d
-            or      $38
-            add     hl,bc
-            inc     l
-            and     d
-            or      $38
-            adc     a,c
-            inc     h
-            and     d
-            or      $38
-            add     hl,bc
-            dec     e
-            and     d
-            or      $38
-            add     hl,bc
-            ld      c,$A2
-            or      $38
-            adc     a,c
-            ld      b,$22
-            xor     (hl)
-L1DB5:      sbc     a,(hl)
-            inc     h
-            nop
-            ld      ($9600),hl
-            call    po,L2208
-            cpl
-            dec     a
-            and     h
-            ld      de,$9C22
-            jr      c,L1E2A
-            ld      a,(de)
-            ld      (L38F6),hl
-            inc     h
-            inc     hl
-            ld      ($A39A),hl
-            call    po,L222B
-            djnz    L1D7A
-L1DD4:      and     h
-            add     hl,sp
-L1DD6:      jp      po,$9EAE
-            sbc     a,e
-            ccf
-            jp      po,$9600
-            in      a,($36)
-            jp      po,$3D2F
-            dec     de
-            ld      l,$E2
-            sbc     a,h
-            jr      c,L1E44
-            dec     h
-            jp      po,L38F6
-            sbc     a,e
-            inc     e
-            jp      po,$A39A
-            in      a, (SETTINGS)
-            jp      po,$A610
-            dec     de
-            ld      b,$60
-            sbc     a,h
-            jr      c,L1DD4
-            dec     hl
-L1DFE:      ret     po
-            sbc     a,h
-            jr      c,L1DF9
-            djnz    L1E26
-            or      $38
-            ret     m
-            dec     hl
-L1E08:      and     d
-            or      $38
-            jr      L1E1E
-L1E0D:      ld      a,(LD03C)
+;*****************************************************************************
+; LIFE-DISPLAY GRAPHICS
+;
+; Fixed actor-display records selected by player and cabinet orientation.
+;*****************************************************************************
+P1_Life_Icon_Primary:
+            DB      $62,$9C,$38,$FC,$2D,$62,$9C,$38,$F6,$2D
+            DB      $62,$9C,$38,$76,$26,$62,$9C,$38,$F6,$1E
+            DB      $62,$9C,$38,$76,$17,$62,$9C,$38,$76,$08
+            DB      $62,$9C,$38,$F6,$00
+P1_Life_Icon_Alternate:
+            DB      $E2,$9C,$38,$4C,$33,$E2,$9C,$38,$46,$33
+            DB      $E2,$9C,$38,$C6,$2B,$E2,$9C,$38,$46,$24
+            DB      $E2,$9C,$38,$C6,$1C,$E2,$9C,$38,$C6,$0D
+            DB      $E2,$9C,$38,$46,$06
+P2_Life_Icon_Primary:
+            DB      $22,$F6,$38,$33,$2E,$22,$F6,$38,$39,$2E
+            DB      $22,$F6,$38,$B9,$26,$22,$F6,$38,$39,$1F
+P2_Life_Icon_Primary_Byte_20:
+            DB      $22,$F6,$38,$B9,$17,$22,$F6,$38,$B9,$08
+            DB      $22,$F6,$38,$39,$01
+P2_Life_Icon_Alternate:
+            DB      $A2,$F6,$38,$83,$33,$A2,$F6,$38,$89,$33
+            DB      $A2,$F6,$38,$09,$2C,$A2,$F6,$38,$89,$24
+            DB      $A2,$F6,$38,$09,$1D,$A2,$F6,$38,$09,$0E
+            DB      $A2,$F6,$38,$89,$06
+Reserve_Life_Icon_Primary:
+            DB      $22,$AE,$9E,$24,$00,$22,$00,$96,$E4,$08
+            DB      $22,$2F,$3D,$A4,$11,$22,$9C,$38,$64,$1A
+            DB      $22,$F6,$38,$24,$23,$22,$9A,$A3,$E4,$2B
+            DB      $22,$10,$A6,$A4,$39
+Reserve_Life_Icon_Alternate:
+            DB      $E2,$AE,$9E,$9B,$3F,$E2,$00,$96,$DB,$36
+            DB      $E2,$2F,$3D,$1B,$2E,$E2,$9C,$38,$5B,$25
+            DB      $E2,$F6,$38,$9B,$1C,$E2,$9A,$A3,$DB,$13
+            DB      $E2,$10,$A6,$1B,$06
+P1_Life_Marker_Primary:
+            DB      $60,$9C,$38,$D7,$2B
+P1_Life_Marker_Alternate:
+            DB      $E0,$9C,$38,$F7,$10
+P2_Life_Marker_Primary:
+            DB      $22,$F6,$38,$F8,$2B
+P2_Life_Marker_Alternate:
+            DB      $A2,$F6,$38,$18,$11
+Initialize_Player_Life_Displays:
+            ld      a,(Credits)
             dec     a
             jr      z,L1E2F
-            ld      hl,L1E7B
-            ld      de,L1E90
-            call    L1D20
+            ld      hl,Life_Display_Record_1B
+            ld      de,Life_Display_Record_3A
+            call    Select_Cabinet_Graphics_Variant
             ld      b,$04
-L1E1E:      call    L1E3F
-            ld      hl,L1E82
-            ld      de,L1E97
-            call    L1D20
+L1E1E:      call    Draw_Initial_Life_Display
+            ld      hl,Life_Display_Record_2A
+            ld      de,Life_Display_Record_3B
+            call    Select_Cabinet_Graphics_Variant
 L1E2A:      ld      b,$04
-            call    L1E3F
+            call    Draw_Initial_Life_Display
 L1E2F:      ld      a,$78
             ld      (LD04C),a
-            ld      hl,L1E74
-            ld      de,L1E89
-            call    L1D20
+            ld      hl,Life_Display_Record_1A
+            ld      de,Life_Display_Record_2B
+            call    Select_Cabinet_Graphics_Variant
             ld      b,$02
-L1E3F:      ld      a,(LD03C)
+Draw_Initial_Life_Display:
+            ld      a,(Credits)
             cp      b
             ld      b,$02
             jr      c,L1E49
             ld      b,$05
-L1E49:      ld      a,(LD34F)
+L1E49:      ld      a,(Starting_Lives_Dip)
             and     a
             ld      a,b
             jr      z,L1E52
@@ -4172,45 +3817,33 @@ L1E58:      ld      a,(hl)
             ld      b,c
 L1E62:      push    de
             ld      hl,LD1CB
-            call    L0B92
+            call    Draw_Actor_Record
             pop     de
             ld      hl,(LD1CE)
             add     hl,de
             ld      (LD1CE),hl
             djnz    L1E62
             ret
-L1E74:      ld      (L38F6),hl
-            ld      c,d
-            ld      e,$FB
-            rst     38H
-L1E7B:      ld      h,d
-            sbc     a,h
-            jr      c,L1E85
-            ld      (L0005),a
-L1E82:      ld      (L38F6),hl
-L1E85:      ld      c,d
-            ld      (LFFFB),a
-L1E89:      and     d
-            or      $38
-            jp      pe,LFB1E
-            rst     38H
-L1E90:      jp      po,L389C
-            and     (hl)
-            ld      a,(bc)
-            dec     b
-            nop
-L1E97:      and     d
-            or      $38
-            jp      pe,LFB0A
-            rst     38H
-            nop
+; Life-display templates: five display bytes followed by a 16-bit stride.
+Life_Display_Record_1A:
+            DB      $22,$F6,$38,$4A,$1E,$FB,$FF
+Life_Display_Record_1B:
+            DB      $62,$9C,$38,$06,$32,$05,$00
+Life_Display_Record_2A:
+            DB      $22,$F6,$38,$4A,$32,$FB,$FF
+Life_Display_Record_2B:
+            DB      $A2,$F6,$38,$EA,$1E,$FB,$FF
+Life_Display_Record_3A:
+            DB      $E2,$9C,$38,$A6,$0A,$05,$00
+Life_Display_Record_3B:
+            DB      $A2,$F6,$38,$EA,$0A,$FB,$FF,$00
 L1E9F:      ld      a,(LD1D7)
             and     a
             ret     z
-            ld      hl,LD054
+            ld      hl,P1_Actor_Record
             bit     7,(hl)
             jr      nz,L1ED6
-            ld      a,(LD300)
+            ld      a,(P1_Lives)
             and     a
             jr      z,L1ED6
             ld      b,$00
@@ -4224,15 +3857,15 @@ L1EBE:      ld      (LD1EF),a
             ld      (LD043),a
             xor     a
             ld      (LD1ED),a
-            ld      (LD1DC),a
+            ld      (P2_Input_State),a
             ld      a,$10
             jr      z,L1ED3
             ld      a,$20
 L1ED3:      call    L1EF3
-L1ED6:      ld      hl,LD074
+L1ED6:      ld      hl,P2_Actor_Record
             bit     7,(hl)
             ret     nz
-            ld      a,(LD301)
+            ld      a,(P2_Lives)
             and     a
             ret     z
             ld      b,$F0
@@ -4262,10 +3895,10 @@ L1F00:      inc     hl
             ld      (hl),e
             push    bc
             push    hl
-            call    L1D12
+            call    Select_P1_Life_Icon
             ld      a,b
 L1F0D:      and     a
-            call    nz,L1D1A
+            call    nz,Select_P2_Life_Icon
             ex      de,hl
             pop     hl
             ld      b,$05
@@ -4330,7 +3963,7 @@ L1F55:      ld      a,(Game_Mode)
             jr      z,L1F94
             res     0,(hl)
             push    hl
-            ld      ix,LD054
+            ld      ix,P1_Actor_Record
             call    L21B8
             call    L2259
             call    L2132
@@ -4344,7 +3977,7 @@ L1F94:      bit     1,(hl)
             jr      z,L1FBC
             res     1,(hl)
             push    hl
-            ld      ix,LD074
+            ld      ix,P2_Actor_Record
             call    L2274
             ld      a,$01
             ld      (LD1DA),a
@@ -4372,9 +4005,9 @@ L1FC0:      ld      hl,LD1E0
             push    hl
             ld      a,$05
 L1FD4:      push    af
-            ld      hl,LD054
-            ld      de,LD074
-            call    L0F1F
+            ld      hl,P1_Actor_Record
+            ld      de,P2_Actor_Record
+            call    Select_Enemy_Record_IX
             call    L256E
             call    L2633
             call    L2D9A
@@ -4389,9 +4022,9 @@ L1FF0:      jr      z,L2010
             push    hl
             ld      a,$06
 L1FF7:      push    af
-            ld      hl,LD074
-            ld      de,LD054
-            call    L0F1F
+            ld      hl,P2_Actor_Record
+            ld      de,P1_Actor_Record
+            call    Select_Enemy_Record_IX
 L2001:      call    L256E
 L2004:      call    L2633
             call    L2D9A
@@ -4405,7 +4038,7 @@ L2010:      ld      a,(hl)
             ret     nz
 L2014:      ld      a,$04
             ld      (LD1E0),a
-            call    L0F39
+            call    Random_Byte
             call    L2B8B
             call    L2A38
             call    L22FD
@@ -4420,11 +4053,11 @@ L2014:      ld      a,$04
 L203B:      ld      a,(LD1DB)
             and     a
             ret     z
-            ld      ix,LD054
-            ld      a,(LD1DC)
+            ld      ix,P1_Actor_Record
+            ld      a,(P2_Input_State)
             call    L2051
-            ld      ix,LD074
-            ld      a,(LD1DD)
+            ld      ix,P2_Actor_Record
+            ld      a,(P1_Input_State)
 L2051:      and     $0F
             ld      c,a
             ld      b,(ix+$00)
@@ -4445,7 +4078,7 @@ L2070:      bit     0,c
             bit     2,b
             ret     z
             res     2,(ix+$00)
-            ld      hl,LD241
+            ld      hl,Sound_Request_2
             set     6,(hl)
             ret
 L2080:      nop
@@ -4497,7 +4130,7 @@ L20AE:      ld      hl,LD041
             pop     af
             rra
             push    af
-            call    c,L1E0D
+            call    c,Initialize_Player_Life_Displays
             pop     af
             rra
             push    af
@@ -4542,7 +4175,7 @@ L210C:      inc     hl
             and     $FC
             ld      (hl),a
             ret
-L2113:      ld      ix,LD094
+L2113:      ld      ix,Enemy_1_Actor_Record
             ld      hl,LD04F
             bit     7,(ix+$13)
             jr      z,L2123
@@ -4558,7 +4191,7 @@ L2123:      ld      a,(ix+$00)
 L2132:      push    iy
             ld      a,$06
 L2136:      push    af
-            call    L0F2C
+            call    Select_Enemy_Record_IY
             call    L2144
             pop     af
             dec     a
@@ -4629,15 +4262,15 @@ L21B2:      set     5,(ix+$00)
 L21B8:      ld      a,(Game_Mode)
             dec     a
             ret     nz
-            ld      a,(LD074)
+            ld      a,(P2_Actor_Record)
             ld      b,a
             rla
             jr      c,L21D0
-            ld      a,(LD301)
+            ld      a,(P2_Lives)
             and     a
             jr      nz,L21D0
             ld      (ix+$00),a
-            ld      (LD300),a
+            ld      (P1_Lives),a
 L21D0:      ld      a,(ix+$00)
             and     $9C
             cp      $80
@@ -4660,7 +4293,7 @@ L21EB:      ld      hl,LD049
             ld      de,L00FF
             ld      a,$06
 L21FB:      push    af
-            call    L0F2C
+            call    Select_Enemy_Record_IY
             bit     7,(iy+$00)
             jr      z,L2230
             ld      a,(ix+$04)
@@ -4698,7 +4331,7 @@ L223A:      bit     7,(ix+$13)
             push    iy
             ld      a,$06
 L2243:      push    af
-L2244:      call    L0F2C
+L2244:      call    Select_Enemy_Record_IY
             ld      a,(iy+$00)
             and     $8A
             cp      $80
@@ -4712,14 +4345,14 @@ L2244:      call    L0F2C
 L2259:      ld      a,(LD1ED)
             ld      d,a
             ld      a,(Game_Mode)
-            cp      $02
+            cp      GAME_MODE_TWO_PLAYER
             jr      nz,L226F
             in      a, (P2PORT)
             ld      hl,LD04A
             call    L228E
             call    c,L289D
 L226F:      ld      a,d
-            ld      (LD1DC),a
+            ld      (P2_Input_State),a
             ret
 L2274:      ld      a,(LD1EE)
             ld      d,a
@@ -4731,7 +4364,7 @@ L2274:      ld      a,(LD1EE)
             call    L228E
             call    c,L289D
 L2289:      ld      a,d
-            ld      (LD1DD),a
+            ld      (P1_Input_State),a
             ret
 L228E:      cpl
             and     $3F
@@ -4762,7 +4395,7 @@ L22A8:      ld      hl,LD1E5
             ld      a,$00
             call    nz,L22C0
             ret
-L22C0:      ld      hl,L22FA
+L22C0:      ld      hl,Status_Glyph_Data
             ld      de,$1132
             push    af
             call    L22F4
@@ -4793,29 +4426,28 @@ L22E6:      ld      (hl),c
             ret
 L22F4:      ld      bc,L01FF
             jp      printstr
-L22FA:      ld      e,h
-            ld      h,c
-            nop
+Status_Glyph_Data:
+            DB      $5C,$61,$00    ; Two custom display glyphs and terminator
 L22FD:      ld      a,(LD1C6)
 L2300:      and     a
             ret     nz
             ld      a,$06
             push    iy
 L2306:      push    af
-            call    L0F1F
-            ld      iy,LD054
+            call    Select_Enemy_Record_IX
+            ld      iy,P1_Actor_Record
             call    L2498
-            ld      iy,LD074
+            ld      iy,P2_Actor_Record
             call    L2498
 L2318:      pop     af
             dec     a
             jr      nz,L2306
             pop     iy
             ret
-L231F:      ld      a,(LD1DC)
+L231F:      ld      a,(P2_Input_State)
             ld      hl,LD1E6
             jr      L232D
-L2327:      ld      a,(LD1DD)
+L2327:      ld      a,(P1_Input_State)
             ld      hl,LD1E7
 L232D:      bit     5,(hl)
             ld      (hl),a
@@ -4907,7 +4539,7 @@ L23D2:      ld      (ix+$14),c
             or      d
             ld      (ix+$13),a
             bit     2,(ix+$07)
-            ld      hl,LD241
+            ld      hl,Sound_Request_2
             jr      nz,L23F3
             set     1,(hl)
             ret
@@ -4921,7 +4553,7 @@ L23FD:      ld      a,(LD1C6)
             and     a
             ld      a,b
             jr      z,L240A
-            ld      hl,LD243
+            ld      hl,Sound_Request_4
             set     2,(hl)
             ret
 L240A:      rrca
@@ -4950,42 +4582,34 @@ L2434:      set     1,(ix+$08)
             ld      (ix+$1b),$01
             set     5,(ix+$00)
             ret
-L2445:      ld      hl,L2458
+L2445:      ld      hl,Coordinate_Thresholds
 L2448:      cp      (hl)
             inc     hl
             jr      c,L2448
             ret
 L244D:      exx
-            ld      hl,L2457
+            ld      hl,Coordinate_Thresholds-1
 L2451:      inc     hl
             cp      (hl)
             jr      c,L2451
             ld      a,(hl)
             exx
 L2457:      ret
-L2458:      ret     p
-            ret     c
-            ret     nz
-            xor     b
-            sub     b
-            ld      a,b
-            ld      h,b
-            ld      c,b
-            jr      nc,L247A
-            nop
-L2463:      call    L1ACC
+Coordinate_Thresholds:
+            DB      $F0,$D8,$C0,$A8,$90,$78,$60,$48,$30,$18,$00
+L2463:      call    Maze_Cell_Address_From_XY
             ld      de,$0001
             ld      a,$08
             jr      L2489
-L246D:      call    L1ACC
+L246D:      call    Maze_Cell_Address_From_XY
             ld      de,LFFFF
             ld      a,$04
             jr      L2489
-L2477:      call    L1ACC
+L2477:      call    Maze_Cell_Address_From_XY
 L247A:      ld      de,L000B
             ld      a,$02
             jr      L2489
-L2481:      call    L1ACC
+L2481:      call    Maze_Cell_Address_From_XY
             ld      de,LFFF5
             ld      a,$01
 L2489:      and     (hl)
@@ -5244,9 +4868,9 @@ L2633:      bit     3,(ix+$00)
             ld      a,(ix+$07)
             inc     (ix+$07)
             bit     7,a
-            ld      hl,L3348
+            ld      hl,Actor_Frame_Pointer_Table_A
             jr      nz,L2667
-            ld      hl,L3352
+            ld      hl,Actor_Frame_Pointer_Table_B
 L2667:      and     $3F
             ld      c,a
             ld      b,$00
@@ -5268,7 +4892,7 @@ L2667:      and     $3F
             inc     d
             inc     e
             inc     e
-            call    L0938
+            call    XY_To_Video_Address
             ld      bc,$0000
             bit     7,(ix+$01)
             jr      z,L2692
@@ -5299,7 +4923,7 @@ L26AC:      ld      (ix+$00),$00
             cp      $08
             jr      z,L26E8
             ld      e,$08
-            ld      a,(LD302)
+            ld      a,(Dungeon_Number)
             cp      $07
             jr      c,L26CE
             ld      a,$06
@@ -5312,13 +4936,13 @@ L26CE:      sub     $07
             ld      a,(hl)
             and     a
             jr      nz,L26E8
-            call    L0F39
+            call    Random_Byte
             and     $07
             or      $28
             ld      (hl),a
             call    L8009
 L26E8:      ld      d,(ix+$02)
-L26EB:      call    L0F39
+L26EB:      call    Random_Byte
             and     $07
             inc     a
             ld      b,a
@@ -5336,7 +4960,7 @@ L26F3:      add     a,$18
             add     a,$18
             cp      $30
             jr      c,L26EB
-L270C:      call    L0F39
+L270C:      call    Random_Byte
             and     $03
             inc     a
             ld      b,a
@@ -5368,7 +4992,7 @@ L2740:      ld      a,(LD1C9)
             ret     nz
             ld      a,$06
 L2747:      push    af
-            call    L0F1F
+            call    Select_Enemy_Record_IX
             call    L2754
             pop     af
             dec     a
@@ -5447,17 +5071,17 @@ L27DA:      bit     3,a
 L27DF:      ld      hl,LD043
             ld      de,L2F90
             exx
-            ld      hl,LD054
+            ld      hl,P1_Actor_Record
             ld      de,LD1EF
-            ld      bc,LD1DC
+            ld      bc,P2_Input_State
             ld      a,$04
             jr      L2805
 L27F3:      ld      hl,LD044
             ld      de,L2FBE
             exx
-            ld      hl,LD074
+            ld      hl,P2_Actor_Record
             ld      de,LD1F0
-            ld      bc,LD1DD
+            ld      bc,P1_Input_State
 L2803:      ld      a,$08
 L2805:      ex      af,af'
             ld      a,(LD1DB)
@@ -5503,7 +5127,7 @@ L283D:      ld      hl,LD18E
             ret
 L284D:      ld      a,$07
             ld      (LD045),a           ;
-            ld      a,(LD302)
+            ld      a,(Dungeon_Number)
             dec     a
             ld      d,$21
             jr      nz,L285C
@@ -5524,7 +5148,7 @@ L286A:      ld      hl,LD1E9
             ld      d,$41
 L2874:      ld      a,$06
 L2876:      push    af
-            call    L0F1F
+            call    Select_Enemy_Record_IX
             call    L2887
             pop     af
             dec     a
@@ -5562,7 +5186,7 @@ L28AB:      ld      a,(ix+$04)
 L28BA:      ld      a,$2D
             ld      (hl),a
             ld      (LD04E),a
-L28C0:      ld      ix,LD094
+L28C0:      ld      ix,Enemy_1_Actor_Record
             ld      (ix+$00),$00
             set     7,(ix+$08)
             ret
@@ -5574,9 +5198,9 @@ L28CD:      ld      hl,LD1C7
             ld      a,(LD1C8)
             and     a
             ret     nz
-            ld      hl,LD243
+            ld      hl,Sound_Request_4
             set     1,(hl)
-            ld      a,(LD302)
+            ld      a,(Dungeon_Number)
             ld      b,a
             ld      a,$B0
 L28E6:      sub     $0A
@@ -5587,9 +5211,9 @@ L28E6:      sub     $0A
 L28F0:      ld      (LD04E),a
             inc     a
             ld      (LD045),a           ; ???
-            ld      hl,LD054
-            ld      de,LD074
-            call    L0F39
+            ld      hl,P1_Actor_Record
+            ld      de,P2_Actor_Record
+            call    Random_Byte
             bit     3,a
             jr      z,L2905
             ex      de,hl
@@ -5604,7 +5228,7 @@ L2905:      ld      a,(hl)
             ld      bc,L0078
             jp      nz,L2998
 L2918:      ld      a,l
-            ld      de,LD054
+            ld      de,P1_Actor_Record
             sub     e
             ld      (LD1EA),a
             push    hl
@@ -5625,7 +5249,7 @@ L2918:      ld      a,l
             call    L244D
             ld      b,a
             ld      de,LD1F3
-L2945:      call    L0F39
+L2945:      call    Random_Byte
             bit     2,a
             jr      nz,L2971
             bit     4,a
@@ -5671,9 +5295,9 @@ L2991:      ex      de,hl
             jr      c,L2998
             dec     (hl)
 L2998:      ld      de,L200C
-            ld      ix,LD094
+            ld      ix,Enemy_1_Actor_Record
             jp      L2A0B
-L29A2:      call    L0F39
+L29A2:      call    Random_Byte
             and     $03
             ret     z
             pop     af
@@ -5684,7 +5308,7 @@ L29AD:      add     a,$18
             djnz    L29AD
             ret
             nop
-            ld      a,(LD302)
+            ld      a,(Dungeon_Number)
             and     a
             jr      z,L29C5
             cp      $04
@@ -5716,19 +5340,19 @@ L29DD:      push    af
             ret
 L29E6:      ld      e,$04
             ld      h,a
-            call    L0F1F
+            call    Select_Enemy_Record_IX
             ld      c,h
             ld      hl,L2A29
             add     hl,bc
             add     hl,bc
-            call    L0F39
+            call    Random_Byte
             bit     4,a
             ld      a,$18
             jr      z,L29FC
             xor     a
 L29FC:      add     a,(hl)
             ld      c,a
-            call    L0F39
+            call    Random_Byte
             bit     2,a
             ld      a,$18
             jr      z,L2A08
@@ -5770,14 +5394,14 @@ L2A2D:      ld      c,b
 L2A38:      push    iy
             ld      a,$06
 L2A3C:      push    af
-            call    L0F1F
+            call    Select_Enemy_Record_IX
             ld      c,$FF
-            ld      iy,LD054
+            ld      iy,P1_Actor_Record
             call    L2AF6
             ld      a,c
             and     a
             jp      p,L2A90
-            ld      iy,LD074
+            ld      iy,P2_Actor_Record
             call    L2AF6
             ld      a,c
             and     a
@@ -5812,7 +5436,7 @@ L2A90:      ld      a,(LD1C6)
             and     a
             ld      (ix+$24),$1E
             jr      nz,L2AE3
-            ld      hl,LD241
+            ld      hl,Sound_Request_2
             ld      a,(ix+$08)
             and     $0C
             jp      pe,L2AEB
@@ -5942,11 +5566,11 @@ L2B7D:      ld      d,(ix+$06)
             ret
             nop
 L2B8B:      ld      d,$00
-            ld      ix,LD054
+            ld      ix,P1_Actor_Record
             bit     4,(ix+$00)
             jr      z,L2B99
             set     0,d
-L2B99:      ld      ix,LD074
+L2B99:      ld      ix,P2_Actor_Record
             bit     4,(ix+$00)
             jr      z,L2BA5
             set     1,d
@@ -5956,7 +5580,7 @@ L2BA5:      ld      a,(LD1EB)
             ld      d,$03
 L2BAD:      ld      a,$06
 L2BAF:      push    af
-            call    L0F1F
+            call    Select_Enemy_Record_IX
             ld      a,(ix+$00)
             and     $88
             cp      $80
@@ -5976,7 +5600,7 @@ L2BCB:      and     d
             ld      a,(ix+$02)
             cp      $40
             jr      nz,L2BF7
-            ld      a,(LD302)
+            ld      a,(Dungeon_Number)
             cp      $05
             jr      nc,L2BF7
 L2BE5:      set     5,(ix+$00)
@@ -6013,7 +5637,7 @@ L2C15:      ld      a,(Game_Mode)
             jp      z,L2D12
             ld      a,$06
 L2C28:      push    af
-            call    L0F1F
+            call    Select_Enemy_Record_IX
             pop     af
             bit     7,(ix+$00)
             ret     nz
@@ -6026,7 +5650,7 @@ L2C28:      push    af
             ld      a,(hl)
             and     a
             jr      nz,L2C78
-            ld      a,(LD302)
+            ld      a,(Dungeon_Number)
             dec     a
             jp      z,L2CF9
             call    L2CF0
@@ -6038,7 +5662,7 @@ L2C28:      push    af
             ld      (LD1F2),a
             ld      a,$03
             ld      (LD047),a
-            ld      hl,LD242
+            ld      hl,Sound_Request_3
             set     7,(hl)
             ld      iy,$121D
             ld      a,$20
@@ -6047,8 +5671,8 @@ L2C28:      push    af
             inc     (hl)
             ld      de,$010C
             jp      L26EB
-L2C78:      ld      a,(LD054)
-            ld      hl,LD074
+L2C78:      ld      a,(P1_Actor_Record)
+            ld      hl,P2_Actor_Record
             or      (hl)
             bit     3,a
             ret     nz
@@ -6063,17 +5687,17 @@ L2C78:      ld      a,(LD054)
             ld      a,(hl)
             and     a
             jr      nz,L2CF9
-            ld      a,(LD302)
+            ld      a,(Dungeon_Number)
             cp      $07
             jr      c,L2CA3
-            call    L0F39
+            call    Random_Byte
             and     $03
             jr      z,L2CF9
             jr      L2CD6
 L2CA3:      ld      d,$FF
-            ld      a,(LD300)
+            ld      a,(P1_Lives)
             ld      b,a
-            ld      a,(LD301)
+            ld      a,(P2_Lives)
             ld      c,a
             ld      a,(Game_Mode)
             dec     a
@@ -6089,13 +5713,13 @@ L2CB7:      ld      a,c
 L2CBF:      srl     d
             dec     a
             jr      nz,L2CBF
-L2CC4:      ld      a,(LD302)
+L2CC4:      ld      a,(Dungeon_Number)
             cp      $03
             jr      c,L2CF9
 L2CCB:      srl     d
             dec     a
             jr      nz,L2CCB
-            call    L0F39
+            call    Random_Byte
             and     d
             jr      nz,L2CF9
 L2CD6:      ld      a,$03
@@ -6121,15 +5745,15 @@ L2CF9:      ld      a,$01
             or      (hl)
             and     $80
             ret     nz
-            ld      hl,LD054
-            ld      a,(LD074)
+            ld      hl,P1_Actor_Record
+            ld      a,(P2_Actor_Record)
             or      (hl)
             and     $08
             ret     nz
 L2D12:      ld      (LD1DB),a
             inc     a
             ld      (LD048),a
-            ld      a,(LD302)
+            ld      a,(Dungeon_Number)
             sub     $07
             jr      c,L2D42
 L2D20:      sub     $06
@@ -6155,13 +5779,13 @@ L2D3D:      ld      a,$01
 ; ???
 ;*****************************************************************************
 ;
-L2D42:      ld      a,(LD302)
+L2D42:      ld      a,(Dungeon_Number)
             cp      $07
             ld      de,L000D
             jr      c,L2D4F
             ld      d,e
             ld      e,$09
-L2D4F:      call    L0F39
+L2D4F:      call    Random_Byte
             and     $0F
             cp      e
             jr      nc,L2D4F
@@ -6177,7 +5801,7 @@ L2D4F:      call    L0F39
             ld      a,c
             inc     a
             inc     a
-L2D67:      ld      (LD318),a
+L2D67:      ld      (Maze_Index),a
             ret
 ;
 L2D6B:      ld      a,(Game_Mode)
@@ -6186,11 +5810,11 @@ L2D6B:      ld      a,(Game_Mode)
             ld      a,(LD1D7)
             and     a
             ret     z
-            ld      a,(LD054)
-            ld      hl,LD074
+            ld      a,(P1_Actor_Record)
+            ld      hl,P2_Actor_Record
             or      (hl)
             ret     m
-            ld      hl,LD300
+            ld      hl,P1_Lives
             ld      a,(hl)
             inc     hl
             or      (hl)
@@ -6277,7 +5901,7 @@ L2E1B:      sub     $18
             ld      a,e
             add     a,$0C
             ld      e,a
-L2E2D:      call    L1ACC
+L2E2D:      call    Maze_Cell_Address_From_XY
             ld      a,b
             and     (hl)
             jr      nz,L2E41
@@ -6326,7 +5950,7 @@ L2E7B:      res     0,(ix+$00)
             ret     nz
             bit     1,c
             jr      z,L2E94
-            call    L1ACC
+            call    Maze_Cell_Address_From_XY
             bit     1,(hl)
             ret     z
             ld      b,$01
@@ -6337,7 +5961,7 @@ L2E94:      bit     0,c
             ld      a,$17
             add     a,d
             ld      d,a
-            call    L1ACC
+            call    Maze_Cell_Address_From_XY
             bit     0,(hl)
             ret     z
             ld      b,$00
@@ -6349,7 +5973,7 @@ L2EA7:      set     0,(ix+$00)
             ret     nz
             bit     3,c
             jr      z,L2EC0
-            call    L1ACC
+            call    Maze_Cell_Address_From_XY
             bit     3,(hl)
             ret     z
             ld      b,$03
@@ -6362,7 +5986,7 @@ L2EC0:      bit     2,c
             jr      nc,L2ECA
             ld      a,$FF
 L2ECA:      ld      e,a
-            call    L1ACC
+            call    Maze_Cell_Address_From_XY
             bit     2,(hl)
             ret     z
             ld      b,$02
@@ -6418,7 +6042,7 @@ L2F1B:      jr      z,L2F42
             out     (COL3L),a
             ld      (LD1BA),a
             ld      (LD1D8),a
-            ld      hl,LD242
+            ld      hl,Sound_Request_3
             set     5,(hl)
             call    Enable_Sparkle_Colors
             jp      L30BA
@@ -6428,7 +6052,7 @@ L2F42:      ld      a,$0A
             ld      hl,LD1E5
             set     0,(hl)
             call    L3125
-            ld      hl,LD242
+            ld      hl,Sound_Request_3
             set     4,(hl)
             exx
             jr      L2F65
@@ -6597,7 +6221,7 @@ L3078:      ex      (sp),hl
             ld      (hl),c
             inc     hl
             ld      (hl),b
-            call    L0938
+            call    XY_To_Video_Address
             ex      de,hl
             pop     bc
             add     hl,bc
@@ -6656,11 +6280,11 @@ L30E7:      ld      a,(ix+$06)
 L30F5:      res     4,(ix+$00)
             ld      b,(ix+$04)
             call    L1F1F
-            ld      bc,LD300
-            call    L1D12
+            ld      bc,P1_Lives
+            call    Select_P1_Life_Icon
             bit     2,(ix+$08)
             jr      nz,L310F
-            call    L1D1A
+            call    Select_P2_Life_Icon
             inc     bc
 L310F:      ld      a,(bc)
             dec     a
@@ -6672,9 +6296,9 @@ L310F:      ld      a,(bc)
 L311A:      add     hl,de
             dec     a
             jr      nz,L311A
-            call    L0B92
+            call    Draw_Actor_Record
             pop     hl
-L3122:      jp      L0B92
+L3122:      jp      Draw_Actor_Record
 L3125:      ld      hl,LD18E
             res     2,(hl)
             ld      hl,LD198
@@ -6684,554 +6308,104 @@ L3125:      ld      hl,LD18E
 ;
 ; Strings here. Definatly starting at $3132 to $3335 or so...
 ;
-            nop
-L3131:      dec     bc
-            ld      c,c
-            ld      c,(hl)
-            ld      d,e
-            ld      b,l
-            ld      d,d
-            ld      d,h
-L3138:      ld      b,b
-            ld      b,e
-            ld      c,a
-            ld      c,c
-            ld      c,(hl)
-            dec     bc
-            ld      c,b
-            ld      c,c
-            ld      b,a
-            ld      c,b
-            ld      b,b
-            ld      d,e
-            ld      b,e
-            ld      c,a
-            ld      d,d
-            ld      b,l
-            ld      d,e
-            rla
-            ld      d,b
-            ld      d,d
-            ld      b,l
-            ld      d,e
-            ld      d,e
-            ld      b,b
-            ld      c,a
-            ld      c,(hl)
-            ld      b,l
-            ld      b,b
-            ld      d,b
-            ld      c,h
-            ld      b,c
-            ld      e,c
-            ld      b,l
-            ld      d,d
-            ld      b,b
-            ld      b,d
-            ld      d,l
-            ld      d,h
-            ld      d,h
-            ld      c,a
-            ld      c,(hl)
-            rla
-            ld      d,b
-            ld      d,d
-            ld      b,l
-            ld      d,e
-            ld      d,e
-            ld      b,b
-            ld      d,h
-            ld      d,a
-            ld      c,a
-            ld      b,b
-            ld      d,b
-            ld      c,h
-            ld      b,c
-            ld      e,c
-            ld      b,l
-            ld      d,d
-            ld      b,b
-            ld      b,d
-            ld      d,l
-            ld      d,h
-            ld      d,h
-            ld      c,a
-            ld      c,(hl)
-            ld      (bc),a
-            ld      c,a
-            ld      d,d
-            rla
-            ld      b,h
-            ld      b,l
-            ld      d,b
-            ld      c,a
-            ld      d,e
-            ld      c,c
-            ld      d,h
-            ld      b,b
-            ld      b,c
-            ld      b,h
-            ld      b,h
-            ld      c,c
-            ld      d,h
-            ld      c,c
-            ld      c,a
-            ld      c,(hl)
-            ld      b,c
-            ld      c,h
-            ld      b,b
-            ld      b,e
-            ld      c,a
-            ld      c,c
-            ld      c,(hl)
-            inc     de
-            ld      b,(hl)
-            ld      c,a
-            ld      d,d
-            ld      b,b
-            ld      d,h
-            ld      d,a
-            ld      c,a
-            ld      b,b
-            ld      d,b
-            ld      c,h
-            ld      b,c
-            ld      e,c
-            ld      b,l
-            ld      d,d
-            ld      b,b
-            ld      b,a
-            ld      b,c
-            ld      c,l
-            ld      b,l
-            ld      b,$50
-            ld      c,a
-            ld      c,c
-            ld      c,(hl)
-            ld      d,h
-            ld      d,e
-            inc     c
-            ld      b,d
-            ld      c,a
-            ld      c,(hl)
-            ld      d,l
-            ld      d,e
-            ld      b,b
-            ld      d,b
-            ld      c,h
-            ld      b,c
-            ld      e,c
-            ld      b,l
-            ld      d,d
-            dec     d
-            ld      d,a
-            ld      b,c
-            ld      c,c
-            ld      d,h
-            ld      b,b
-            ld      b,(hl)
-            ld      c,a
-            ld      d,d
-            ld      b,b
-            ld      c,c
-            ld      c,(hl)
-            ld      d,e
-            ld      d,h
-            ld      d,d
-            ld      d,l
-            ld      b,e
-            ld      d,h
-            ld      c,c
-            ld      c,a
-            ld      c,(hl)
-            ld      d,e
-            ld      e,$49
-            ld      c,(hl)
-            ld      d,(hl)
-            ld      c,c
-            ld      d,e
-            ld      c,c
-            ld      b,d
-            ld      c,h
-            ld      b,l
-            ld      b,b
-            ld      c,l
-            ld      c,a
-            ld      c,(hl)
-            ld      d,e
-            ld      d,h
-            ld      b,l
-            ld      d,d
-            ld      d,e
-            ld      b,b
-            ld      c,c
-            ld      c,(hl)
-            ld      b,b
-            ld      d,h
-            ld      c,b
-            ld      b,l
-            ld      b,b
-            ld      c,l
-            ld      b,c
-            ld      e,d
-            ld      b,l
-            ld      (L5241),hl
-            ld      b,l
-            ld      b,b
-            ld      c,h
-            ld      c,a
-            ld      b,e
-            ld      b,c
-            ld      d,h
-            ld      b,l
-            ld      b,h
-            ld      b,b
-            ld      d,l
-            ld      d,e
-            ld      c,c
-            ld      c,(hl)
-            ld      b,a
-L3203:      ld      b,b
-            ld      d,h
-            ld      c,b
-            ld      b,l
-            ld      b,b
-            ld      d,d
-            ld      b,c
-            ld      b,h
-            ld      b,c
-            ld      d,d
-            ld      b,b
-            ld      d,e
-            ld      b,e
-            ld      d,d
-            ld      b,l
-            ld      b,l
-            ld      c,(hl)
-            dec     h
-            ld      c,l
-            ld      c,a
-            ld      c,(hl)
-            ld      d,e
-            ld      d,h
-            ld      b,l
-            ld      d,d
-            ld      d,e
-L321D:      ld      b,b
-            ld      b,d
-            ld      b,l
-            ld      b,e
-            ld      c,a
-            ld      c,l
-            ld      b,l
-            ld      b,b
-            ld      d,(hl)
-            ld      c,c
-            ld      d,e
-            ld      c,c
-            ld      b,d
-            ld      c,h
-            ld      b,l
-            ld      b,b
-            ld      d,a
-            ld      c,b
-            ld      b,l
-            ld      c,(hl)
-            ld      b,b
-            ld      b,l
-            ld      c,(hl)
-            ld      d,h
-            ld      b,l
-            ld      d,d
-            ld      c,c
-L3238:      ld      c,(hl)
-            ld      b,a
-            inc     h
-            ld      d,h
-            ld      c,b
-            ld      b,l
-            ld      b,b
-            ld      d,e
-            ld      b,c
-            ld      c,l
-            ld      b,l
-            ld      b,b
-            ld      c,l
-            ld      b,c
-            ld      e,d
-            ld      b,l
-            ld      b,b
-            ld      b,e
-            ld      c,a
-            ld      d,d
-            ld      d,d
-            ld      c,c
-            ld      b,h
-            ld      c,a
-            ld      d,d
-            ld      b,b
-            ld      b,c
-            ld      d,e
-            ld      b,b
-            ld      d,h
-            ld      c,b
-            ld      b,l
-            ld      b,b
-            ld      d,b
-            ld      c,h
-            ld      b,c
-            ld      e,c
-            ld      b,l
-            ld      d,d
-            dec     bc
-            ld      b,b
-            ld      b,a
-            ld      b,l
-            ld      d,h
-            ld      b,b
-            ld      d,d
-            ld      b,l
-            ld      b,c
-            ld      b,h
-            ld      e,c
-            ld      b,b
-            dec     b
-            ld      d,d
-            ld      b,c
-            ld      b,h
-            ld      b,c
-            ld      d,d
-            rlca
-            ld      b,l
-            ld      d,e
-            ld      b,e
-            ld      b,c
-            ld      d,b
-            ld      b,l
-            ld      b,h
-            rlca
-            ld      b,e
-            ld      d,d
-            ld      b,l
-            ld      b,h
-            ld      c,c
-            ld      d,h
-            ld      d,e
-            add     hl,bc
-            ld      b,h
-            ld      d,l
-            ld      c,(hl)
-            ld      b,a
-            ld      b,l
-            ld      c,a
-            ld      c,(hl)
-            ld      b,b
-            ld      b,b
-            rrca
-            ld      d,a
-            ld      c,a
-            ld      d,d
-            ld      c,h
-            ld      c,a
-            ld      d,d
-            ld      b,h
-            ld      b,b
-            ld      b,h
-            ld      d,l
-            ld      c,(hl)
-            ld      b,a
-            ld      b,l
-            ld      c,a
-            ld      c,(hl)
-            add     hl,bc
-            ld      d,h
-            ld      c,b
-            ld      b,l
-            ld      b,b
-            ld      b,c
-            ld      d,d
-            ld      b,l
-            ld      c,(hl)
-            ld      b,c
-            rlca
-            ld      d,h
-            ld      c,b
-            ld      b,l
-            ld      b,b
-            ld      d,b
-            ld      c,c
-            ld      d,h
-            dec     d
-            ld      c,a
-            ld      d,d
-            ld      b,b
-            ld      b,(hl)
-            ld      c,a
-            ld      d,d
-            ld      b,b
-            ld      b,l
-            ld      e,b
-            ld      d,h
-            ld      d,d
-            ld      b,c
-            ld      b,b
-            ld      d,a
-            ld      c,a
-            ld      d,d
-            ld      d,d
-            ld      c,c
-            ld      c,a
-            ld      d,d
-            ld      d,e
-            ld      b,a
-            ld      c,a
-            ld      b,h
-            ld      c,a
-            ld      d,l
-            ld      b,d
-            ld      c,h
-            ld      b,l
-            ld      b,b
-            ld      d,e
-            ld      b,e
-            ld      c,a
-            ld      d,d
-            ld      b,l
-            ld      b,a
-            ld      b,c
-            ld      c,l
-            ld      b,l
-            ld      b,b
-            ld      c,a
-            ld      d,(hl)
-            ld      b,l
-            ld      d,d
-            ld      e,e
-            ld      b,b
-            ld      sp,L3839
-            jr      nc,L3321
-            ld      c,l
-            ld      c,c
-            ld      b,h
-            ld      d,a
-            ld      b,c
-            ld      e,c
-            ld      b,b
-            ld      c,l
-            ld      b,(hl)
-            ld      b,a
-            ld      b,b
-            ld      b,e
-            ld      c,a
-L32EE:      ld      e,h
-            ld      e,l
-            ld      e,(hl)
-            ld      b,h
-            ld      d,l
-            ld      c,(hl)
-            ld      b,a
-            ld      b,l
-            ld      c,a
-            ld      c,(hl)
-            ld      b,d
-            ld      d,l
-            ld      d,d
-            ld      d,a
-            ld      c,a
-            ld      d,d
-            ld      b,a
-            ld      b,c
-            ld      d,d
-            ld      d,a
-            ld      c,a
-            ld      d,d
-            ld      d,h
-            ld      c,b
-            ld      c,a
-            ld      d,d
-            ld      d,a
-            ld      c,a
-            ld      d,d
-            ld      d,a
-            ld      c,a
-            ld      d,d
-            ld      c,h
-            ld      d,l
-            ld      c,e
-            ld      d,a
-            ld      c,c
-            ld      e,d
-            ld      b,c
-            ld      d,d
-            ld      b,h
-            ld      b,b
-            ld      c,a
-            ld      b,(hl)
-L331A:      ld      b,b
-            ld      d,a
-            ld      c,a
-            ld      d,d
-            ld      d,d
-            ld      c,c
-            ld      c,a
-L3321:      ld      d,d
-            ld      d,e
-            ld      b,c
-            ld      c,h
-            ld      c,h
-            ld      b,b
-            ld      d,d
-            ld      c,c
-            ld      b,a
-            ld      c,b
-            ld      d,h
-            ld      d,e
-            ld      b,b
-            ld      d,d
-            ld      b,l
-            ld      d,e
-            ld      b,l
-            ld      d,d
-            ld      d,(hl)
-            ld      b,l
-            ld      b,h
-            ld      sp,L3030
-            ld      (L3030),a
-            dec     (hl)
-            jr      nc,L336F
-            ld      sp,L3030
-            jr      nc,L3376
-            dec     (hl)
-            jr      nc,L3377
-L3347:      nop
-L3348:      adc     a,$33
-            jr      z,L3380
-            add     a,d
-            inc     (hl)
-            call    c,L3634
-            dec     (hl)
-L3352:      ld      (de),a
-            dec     sp
-            ld      c,l
-            scf
-            ld      (de),a
-            dec     sp
-            ld      c,l
-            scf
-            ld      (de),a
-            dec     sp
-            ld      c,l
-            scf
-            ld      (de),a
-            dec     sp
-            ld      c,l
-            scf
-            ld      (de),a
-            dec     sp
-            ld      c,l
-            scf
-            ld      bc,L0138
-            jr      c,L3347
+;*****************************************************************************
+; ATTRACT, INSTRUCTION, AND STATUS TEXT
+;
+; Length-prefixed text records use @ as the on-screen space glyph.  Fixed-size
+; names and score strings follow the prefixed records.
+;*****************************************************************************
+Attract_Text_Pool:
+            DB      $00                  ; Leading pad/terminator
+Text_Insert_Coin:
+            DB      $0B,"INSERT"
+Text_Coin_Prompt_Suffix:
+            DB      "@COIN"
+Text_High_Scores:
+            DB      $0B,"HIGH@SCORES"
+Text_Press_One_Player:
+            DB      $17,"PRESS@ONE@PLAYER@BUTTON"
+Text_Press_Two_Player:
+            DB      $17,"PRESS@TWO@PLAYER@BUTTON"
+Text_Or:
+            DB      $02,"OR"
+Text_Deposit_Additional_Coin:
+            DB      $17,"DEPOSIT@ADDITIONAL@COIN"
+Text_For_Two_Player_Game:
+            DB      $13,"FOR@TWO@PLAYER@GAME"
+Text_Points:
+            DB      $06,"POINTS"
+Text_Bonus_Player:
+            DB      $0C,"BONUS@PLAYER"
+Text_Wait_For_Instructions:
+            DB      $15,"WAIT@FOR@INSTRUCTIONS"
+Text_Invisible_Monsters:
+            DB      $1E,"INVISIBLE@MONSTERS@IN@THE@MAZE"
+Text_Radar_Location:
+            DB      $22,"ARE@LOCATED@USING"
+Text_Radar_Location_Byte_18:
+            DB      "@THE@RADAR@SCREEN"
+Text_Monsters_Become_Visible:
+            DB      $25,"MONSTERS"
+Text_Monsters_Visible_Byte_09:
+            DB      "@BECOME@VISIBLE@WHEN@ENTERI"
+Text_Monsters_Visible_Byte_36:
+            DB      "NG"
+Text_Same_Maze_Corridor:
+            DB      $24,"THE@SAME@MAZE@CORRIDOR@AS@THE@PLAYER"
+Text_Get_Ready:
+            DB      $0B,"@GET@READY@"
+Text_Radar:
+            DB      $05,"RADAR"
+Text_Escaped:
+            DB      $07,"ESCAPED"
+Text_Credits:
+            DB      $07,"CREDITS"
+Text_Dungeon_Label:
+            DB      $09,"DUNGEON@@"
+Text_Worlord_Dungeon:
+            DB      $0F,"WORLORD@DUNGEON"
+Text_The_Arena:
+            DB      $09,"THE@ARENA"
+Text_The_Pit:
+            DB      $07,"THE@PIT"
+Text_Extra_Worriors:
+            DB      $15,"OR@FOR@EXTRA@WORRIORS"
+Text_Go:
+            DB      "GO"
+Text_Double_Score:
+            DB      "DOUBLE@SCORE"
+Text_Game_Over:
+            DB      "GAME@OVER"
+Text_Copyright:
+            DB      "[@1980@MIDWAY@MFG@CO"
+Text_Copyright_Glyphs:
+            DB      $5C,$5D,$5E
+Text_Dungeon:
+            DB      "DUNGEON"
+Text_Burwor:
+            DB      "BURWOR"
+Text_Garwor:
+            DB      "GARWOR"
+Text_Thorwor:
+            DB      "THORWOR"
+Text_Worluk:
+            DB      "WORLUK"
+Text_Wizard_Of:
+            DB      "WIZARD@OF"
+Text_Worriors_Suffix:
+            DB      "@WORRIORS"
+Text_Rights_Reserved:
+            DB      "ALL@RIGHTS@RESERVED"
+Text_Score_Values:
+            DB      "10020050010002500",$00
+; Actor animation and frame-pointer tables.
+Actor_Frame_Pointer_Table_A:
+            DW      $33CE,$3428,$3482,$34DC,$3536
+Actor_Frame_Pointer_Table_B:
+            DW      $3B12,$374D,$3B12,$374D,$3B12,$374D
+            DW      $3B12,$374D,$3B12,$374D,$3801
+Actor_Frame_Metadata:
+            DB      $01,$38,$DC
             inc     (hl)
 L336C:      ld      (hl),$35
             nop
@@ -8125,79 +7299,19 @@ L3736:      jp      pe,L00AB
             call    m,$AA0E
             xor     h
             nop
-L37A2:      nop
-L37A3:      rrca
-            cp      $BC
-            nop
-            nop
-            nop
-            nop
-            ex      af,af'
-            nop
-            adc     a,b
-            nop
-            nop
-            jr      z,L37B1
-L37B1:      sbc     a,c
-L37B2:      ld      d,l
-            ld      b,b
-            jr      z,L37F6
-            adc     a,b
-            dec     b
-            ld      b,b
-            ld      hl,(L00A0)
-            nop
-            jr      nz,L37C9
-            and     b
-            nop
-            nop
-            ld      (bc),a
-            ld      (bc),a
-            add     a,b
-            nop
-            nop
-            ld      b,b
-            ld      b,e
-L37C9:      nop
-            nop
-            inc     bc
-            and     c
-            ld      (bc),a
-            nop
-            nop
-            nop
-            nop
-            ld      sp,$0000
-            nop
-            ld      (L8008),hl
-            nop
-            nop
-            adc     a,l
-L37DC:      ld      bc,$0000
-            jr      z,L37F1
-            jr      L37A3
-            nop
-            xor     b
-            ld      (bc),a
-            nop
-            nop
-            ld      (bc),a
-            and     b
-            nop
-            ld      (bc),a
-L37EC:      and     b
-            ld      (bc),a
-            add     a,b
-            nop
-            ld      a,(bc)
-L37F1:      and     b
-            ld      hl,(L0080)
-            ld      a,(bc)
-L37F6:      jr      nz,L37F8
-L37F8:      nop
-            nop
-            nop
-            jr      nz,L37FD
+Radar_Line_Pattern_A:
+            DB      $00,$0F,$FE,$BC,$00,$00,$00,$00,$08,$00,$88,$00,$00,$28,$00,$99
+Radar_Line_Pattern_B:
+            DB      $55,$40,$28,$40,$88,$05,$40,$2A,$A0,$00,$00,$20,$0A,$A0,$00,$00
+Radar_Line_Pattern_Extra:
+            DB      $02,$02,$80,$00,$00,$40,$43,$00,$00,$03,$A1,$02,$00,$00,$00,$00
+            DB      $31,$00,$00,$00,$22,$08,$80,$00,$00,$8D
+Radar_Line_Pattern_C:
+            DB      $01,$00,$00,$28,$10,$18,$C0,$00,$A8,$02,$00,$00,$02,$A0,$00,$02
+Radar_Line_Pattern_D:
+            DB      $A0,$02,$80,$00,$0A,$A0,$2A,$80,$00,$0A,$20,$00,$00,$00,$00,$20
+Radar_Line_Pattern_Padding:
+            DB      $00
 L37FD:      nop
             nop
             nop
@@ -9462,7 +8576,7 @@ Init_Sound_Queue_1:
             ld      a, $18
 Init_Sound_Queue_1_Alt:
             exx                         ; Swap to alternate register set
-            ld      de, LD270           ; DE' = $D270 (Sound Queue 1 RAM)
+            ld      de, Sound_Queue_1_Record           ; DE' = $D270 (Sound Queue 1 RAM)
             jr      Init_Sound_Block    ; Call initialization routine
 
 ;*****************************************************************************************
@@ -9472,7 +8586,7 @@ Init_Sound_Queue_1_Alt:
 Init_Sound_Queue_2:
             ld      a, $58
             exx                         ; Swap to alternate register set
-            ld      de, LD2AC           ; DE' = $D2AC (Sound Queue 2 RAM)
+            ld      de, Sound_Queue_2_Record           ; DE' = $D2AC (Sound Queue 2 RAM)
             jr      Init_Sound_Block    ; Call initialization routine
 
 ;*****************************************************************************************
@@ -9904,13 +9018,13 @@ L84F2:      ld      a,(Game_Mode)
             bit     3,a                 ; Is service switch on?
             jr      nz,L8501            ; no, skip down
             jp      L8481               ; Otherwise, go here ???
-L8501:      ld      a,(LD244)
+L8501:      ld      a,(Attract_Sound_Enabled)
             or      a
             jr      z,L851C
             push    iy
-            ld      iy,LD270
+            ld      iy,Sound_Queue_1_Record
             call    L80E6
-            ld      iy,LD2AC
+            ld      iy,Sound_Queue_2_Record
             call    L80E6
             call    L81F8
             pop     iy
@@ -9927,12 +9041,12 @@ L851D:      ld      a,d
             ld      (iy+$01),l
             ld      (iy+$02),h
 L8537:      ret
-L8538:      ld      hl,LD241
+L8538:      ld      hl,Sound_Request_2
             ld      a,(hl)
             or      a
             jr      z,L8582
             ld      (hl),$00
-            ld      iy,LD2AC
+            ld      iy,Sound_Queue_2_Record
             rra
             ld      d,$01
             ld      hl,L8928
@@ -9956,25 +9070,25 @@ L8538:      ld      hl,LD241
             rra
             ld      hl,L8988
             jp      c,L851D
-            ld      iy,LD270
+            ld      iy,Sound_Queue_1_Record
             rra
             ld      d,$01
             ld      hl,L8741
             jp      c,L851D
 L8582:      ret
-L8583:      ld      hl,LD242
+L8583:      ld      hl,Sound_Request_3
             ld      a,(hl)
             ld      (hl),$00
-            ld      iy,LD270
+            ld      iy,Sound_Queue_1_Record
             rra
             ld      d,$01
             ld      hl,L8AA1
             jr      nc,L85A2
             call    L851D
-            ld      iy,LD2AC
+            ld      iy,Sound_Queue_2_Record
             ld      hl,L8ADD
             jp      L851D
-L85A2:      ld      iy,LD2AC
+L85A2:      ld      iy,Sound_Queue_2_Record
             rra
             ld      d,$00
             ld      hl,L890E
@@ -9993,26 +9107,26 @@ L85A2:      ld      iy,LD2AC
             ld      d,$01
             ld      hl,L8A6C
             call    L851D
-            ld      iy,LD270
+            ld      iy,Sound_Queue_1_Record
             ld      hl,L8A81
             jp      L851D
 L85D9:      rra
-            ld      iy,LD270
+            ld      iy,Sound_Queue_1_Record
             ld      d,$01
             rra
             ld      hl,L877B
             jp      c,L851D
             ret
-L85E8:      ld      hl,LD243
+L85E8:      ld      hl,Sound_Request_4
             ld      a,(hl)
             ld      (hl),$00
-            ld      iy,LD270
+            ld      iy,Sound_Queue_1_Record
             rra
             ld      d,$02
             ld      hl,L88E2
             jr      nc,L8607
             call    L851D
-            ld      iy,LD2AC
+            ld      iy,Sound_Queue_2_Record
             ld      hl,L8905
             jp      L851D
 L8607:      rra
@@ -10021,9 +9135,9 @@ L8607:      rra
             jr      nc,L861C
             call    $851D
             ld      hl,L8B1F
-            ld      iy,LD2AC
+            ld      iy,Sound_Queue_2_Record
             jp      L851D
-L861C:      ld      iy,LD2AC
+L861C:      ld      iy,Sound_Queue_2_Record
             rra
             ld      hl,L8AF3
             jp      c,L851D
@@ -10032,7 +9146,7 @@ L861C:      ld      iy,LD2AC
             jr      nc,L863A
             call    L851D
             ld      hl,L8B2E
-            ld      iy,LD270
+            ld      iy,Sound_Queue_1_Record
             jp      L851D
 L863A:      ret
             ld      d,$02
@@ -10040,51 +9154,51 @@ L863A:      ret
             ld      d,$00
             ret
 L8643:      call    $8316
-            ld      iy,LD270
+            ld      iy,Sound_Queue_1_Record
             ld      d,$00
             ld      hl,L89BE
             call    L851D
-            ld      iy,LD2AC
+            ld      iy,Sound_Queue_2_Record
             ld      hl,L89E5
             jp      L851D
 L865C:      call    $8316
             ld      d,$00
-            ld      iy,LD270
+            ld      iy,Sound_Queue_1_Record
             ld      hl,L8A0C
             call    L851D
-            ld      iy,LD2AC
+            ld      iy,Sound_Queue_2_Record
             ld      hl,L8A27
             jp      L851D
-L8675:      ld      iy,LD270
+L8675:      ld      iy,Sound_Queue_1_Record
             ld      d,$00
             ld      hl,L8971
             jp      L851D
 L8681:      call    $8316
-            ld      iy,LD270
+            ld      iy,Sound_Queue_1_Record
             ld      hl,L89A0
             call    L851D
-            ld      iy,LD2AC
+            ld      iy,Sound_Queue_2_Record
             ld      hl,L89AF
             jp      L851D
 L8698:      call    $8316
-            ld      iy,LD270
+            ld      iy,Sound_Queue_1_Record
             ld      d,$00
             ld      hl,L8981
             call    L851D
             ret
 L86A8:      call    $8316
-            ld      iy,LD2AC
+            ld      iy,Sound_Queue_2_Record
             ld      hl,L8772
             ld      d,$00
             call    L851D
-            ld      iy,LD270
+            ld      iy,Sound_Queue_1_Record
             ld      hl,L8741
             jp      L851D
-L86C1:      ld      a,(LD244)
+L86C1:      ld      a,(Attract_Sound_Enabled)
             or      a
             jr      z,L8717
             push    iy
-            ld      hl,LD240
+            ld      hl,Sound_Request_1
             ld      a,(hl)
             or      a
             jr      z,L86FE
@@ -10111,9 +9225,9 @@ L86C1:      ld      a,(LD244)
 L86FE:      call    L8538
             call    L8583
             call    L85E8
-L8707:      ld      iy,LD270
+L8707:      ld      iy,Sound_Queue_1_Record
             call    L8437
-            ld      iy,LD2AC
+            ld      iy,Sound_Queue_2_Record
             call    L8437
             pop     iy
 L8717:      ret
@@ -10406,7 +9520,7 @@ L88BB:      ld      hl,L0101
             inc     b
             inc     de
             ld      de,L1712
-            ld      de,L161F
+            ld      de,Clear_Dungeon_Number
             sbc     a,d
             dec     d
             ld      a,(de)
@@ -10471,7 +9585,7 @@ L892F:      add     a,h
             inc     d
             add     a,e
             inc     de
-            ld      (L1D12),hl
+            ld      (Select_P1_Life_Icon),hl
             ld      de,L0410
             ex      de,hl
             rst     38H
@@ -10786,7 +9900,7 @@ L8AF6:      djnz    L8B0C
             scf
             ld      (de),a
             add     a,l
-            ld      de,L178D
+            ld      de,High_Priority_Sound_Request_Byte
             nop
             ld      d,$AA
             dec     d
@@ -10844,7 +9958,7 @@ L8B31:      ld      a,(de)
             dec     b
             ex      de,hl
 L8B4E:      rst     38H
-            ld      bc,L1C14
+            ld      bc,Maze_14_Data_Byte_13
             inc     b
             ex      de,hl
             rst     38H
@@ -10883,7 +9997,7 @@ L8B70:      dec     hl
             ld      h,$35
             dec     hl
             ld      a,$83
-            ld      sp,L1D27
+            ld      sp,P1_Life_Icon_Primary
             ld      (L3609),hl
             jr      z,L8BA8
             dec     sp
@@ -10893,7 +10007,7 @@ L8B70:      dec     hl
             dec     h
             dec     d
             dec     l
-            ld      a,(L321D)
+            ld      a,(Text_Monsters_Visible_Byte_09)
             jr      L8BD8
             add     a,e
             dec     d
@@ -11096,7 +10210,7 @@ L8C8B:      ld      (de),a
             dec     c
             ld      hl,(L0E3E)
             ld      a,h
-            ld      hl,(L3238)
+            ld      hl,(Text_Monsters_Visible_Byte_36)
             dec     hl
             dec     sp
             rra
@@ -11108,9 +10222,9 @@ L8C8B:      ld      (de),a
             jr      L8CC3
             ld      (bc),a
             rrca
-            ld      a,(L1C3E)
+            ld      a,(Maze_17_Data_Byte_01)
             ld      b,d
-L8CBC:      ld      hl,(L3238)
+L8CBC:      ld      hl,(Text_Monsters_Visible_Byte_36)
             ld      c,$3B
             rra
             ld      hl,(Init_Sound_Exec)
@@ -11255,7 +10369,7 @@ L8D68:      ld      c,c
             inc     hl
             jr      L8DC7
             add     a,e
-            ld      hl,(L1D27)
+            ld      hl,(P1_Life_Icon_Primary)
             add     hl,hl
             ld      (hl),$28
             ld      hl,($152B)
@@ -11511,7 +10625,7 @@ SPK_Treasure_Chest:
             dec     h
             ld      a,e
             ld      hl,(L2D1F)
-            ld      a,(L1C2B)
+            ld      a,(Maze_16_Data)
             dec     sp
             ld      hl,($1427)
             dec     de
@@ -11587,7 +10701,7 @@ L8F59:      add     hl,hl
             jr      L8F97
             ld      d,l
             dec     bc
-            ld      (L1E0D),hl
+            ld      (Initialize_Player_Life_Displays),hl
             inc     c
             inc     l
             inc     a
@@ -11760,7 +10874,7 @@ L904D:      ld      a,$3E
             scf
             ld      e,$76
             jr      z,L908B
-            ld      hl,(L1C32)
+            ld      hl,(Maze_16_Data_Byte_07)
             ld      b,l
             ld      b,d
             dec     c
@@ -12146,7 +11260,7 @@ L9266:      rrca
             jr      c,L92B2
             ld      hl,($0520)
             rra
-            ld      hl,(L3203)
+            ld      hl,(Text_Radar_Location_Byte_18)
             rrca
             inc     c
             dec     d
@@ -12475,7 +11589,7 @@ L942E:      ld      (L030F),hl
             inc     e
             ld      h,$0B
 L9467:      inc     d
-            ld      hl,(L1B28)
+            ld      hl,(Maze_01_Data_Byte_11)
             dec     d
             ld      a,(bc)
             ld      (L031E),hl
@@ -12691,7 +11805,7 @@ L954C:      rlca
             jr      nc,L9597
             add     a,d
 L9562:      ld      sp,L8109
-            ld      (L1D81),a
+            ld      (P2_Life_Icon_Primary_Byte_20),a
 L9568:      add     a,d
             ld      (de),a
             ld      (hl),$81
