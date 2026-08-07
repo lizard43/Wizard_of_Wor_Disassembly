@@ -1,5 +1,6 @@
 @echo off
-setlocal cd /d "%~dp0"
+setlocal
+cd /d "%~dp0"
 
 :: -----------------------------------------------------------------------------
 :: Argument Parsing
@@ -98,7 +99,7 @@ if "%BUILD_GERMAN%"=="true" (
         "    }" ^
         "};" ^
         "[System.IO.File]::WriteAllBytes('roms\german.x11', $bytes.ToArray());" ^
-        "Write-Host ' -> Created roms\german.x11 (' $bytes.Count 'bytes)';"
+        "Write-Host '  -> Created roms\german.x11 (' $bytes.Count 'bytes)';"
         
     if %ERRORLEVEL% neq 0 (
         echo ERROR: German translation conversion failed.
