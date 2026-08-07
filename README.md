@@ -65,6 +65,25 @@ The SC-01 speech ROM is not part of the reconstructed program source. If a file 
 
 ---
 
+### Optional German Language ROM
+The German language expansion (`roms/german.x11`) is an localized text modification for the **Wizard of Wor** arcade hardware layout. It patches the game's display data to render in-game text, menu choices, and UI strings in German.
+
+To assemble the German layout variant alongside the standard arcade ROM package, pass the `--german` or `-g` flag to the build execution context.
+
+**Windows 10 / 11:**
+```cmd
+build.bat --german
+```
+
+**Linux / macOS:**
+```bash
+./build.sh --german
+```
+
+When this flag is active, the script invokes the configured `zmac` tool directly against `src/german/GERMAN_X11.asm`. It verifies the target binary output, deposits `german.x11` into the output path, and packs it cleanly into the compiled `wow.zip` MAME-ready archive.
+
+---
+
 ## Repository Structure
 
 ```text
@@ -75,6 +94,8 @@ The SC-01 speech ROM is not part of the reconstructed program source. If a file 
 ├── src/
 │   ├── wow_disassembly.asm    # Main Z80 source disassembly
 │   └── zout/                  # Intermediate build files (.hex, .lst)
+│   └── german/                # Localized expansion configurations
+│       └── GERMAN_X11.asm     # Translation source matrix for foreign text support
 └── tools/
     └── .gitkeep               # Directory tracking file
 ```
