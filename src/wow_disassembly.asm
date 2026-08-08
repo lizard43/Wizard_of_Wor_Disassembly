@@ -963,7 +963,7 @@ L04A8:      djnz    L046D               ; Character finished, go back and do
 ;            a graphic entry in a character table. It is not
 ;            true ASCII, but a subset with some modifications.
 ;            See character table at CHRTBL for details.
-;            It also handles translation to alternate ROM set.
+;            It also routes extended character codes to the optional X11 alternate font.
 ;
 ; Entry:        A  = ASCII character
 ;
@@ -980,14 +980,14 @@ char2gfx:   sub     $30                 ; Turn ASCII into table entry
             sub     $06                 ; Adjust to take out unsupported characters
                 ; ... between "9" and "A" (":;<=>?")
 L04B3:      ld      l,a                 ; L = table entry
-            sub     $2C                 ; Check for alternate characters???
-            ld      de,CHRTBL           ; Entry to character table
-            jr      c,L04C2             ; Skip alternate ROM set
-            ld      hl,X11_Alternate_Font_Ptr ; X11 pointer to alternate glyph data
-            ld      e,(hl)              ; \
-            inc     hl                  ;  Manipulations for Alternate ROM set.
-            ld      d,(hl)              ;  Need to figure out what it does later... ???
-            ld      l,a                 ; /
+            sub     $2C                 ; Test for the X11 alternate-glyph range
+            ld      de,CHRTBL           ; Resident character-table base
+            jr      c,L04C2             ; Normal range uses the resident character table
+            ld      hl,X11_Alternate_Font_Ptr ; Address of X11 alternate-font pointer
+            ld      e,(hl)              ; Read alternate-font pointer low byte
+            inc     hl
+            ld      d,(hl)              ; DE = alternate glyph table base from X11
+            ld      l,a                 ; L = alternate glyph index
 L04C2:      ld      h,$00               ;
             add     hl,hl               ; Begin multiplying HL * $0A
             push    de                  ; Push beginning of table address
@@ -8368,13 +8368,14 @@ L81D8:      ret
 ;*****************************************************************************************
 ; ----> Play_Next_Phoneme
 ;
-;       Checks if the Votrax SC-01A is ready, processes the next phoneme from the string,
-;       updates the delta-encoded pitch/inflection bit, and sends it to the speech chip.
+;       Checks whether the Votrax SC-01A is ready, decodes the next byte from the
+;       active speech fragment, updates the stateful inflection bit, and sends the
+;       resulting phoneme command to the speech interface.
 ;*****************************************************************************************
 Play_Next_Phoneme:
             in      a, (P1PORT)             ; Read Port $12 (Player 1 / Votrax Status)
-            bit     7,a                     ; Check bit 7 (Votrax A/R pin: 1 = Ready)
-            jr      z,Play1                 ; If 0 (Busy speaking), return immediately
+            bit     VOTRAX_READY_BIT,a       ; SC-01 A/R: 1 = ready
+            jr      z,Speech_Phoneme_Return ; If 0 (busy speaking), return immediately
             ld      hl,Speech_Phonemes_Remaining
             dec     (hl)                    ; Decrement the phonemes remaining counter
             inc     hl                      ; Advance to the saved inflection state
@@ -8386,28 +8387,34 @@ Play_Next_Phoneme:
             ld      b,a                     ; B = The decoded phoneme + new inflection bit
             and     $80                     ; Isolate just the new inflection bit (Bit 7)
             ld      (Speech_Inflection_State),a
-            ld      c,$17                   ; C = Speech Chip Port ($17)
+            ld      c,VOTRAX_DATA_PORT       ; SC-01 command strobe port
             in      a,(c)                   ; B supplies phoneme data on the upper address bus
-Play1:      ret                             ; Return to caller
+Speech_Phoneme_Return:
+            ret                             ; Return to caller
 
 ;*****************************************************************************************
+; ----> Service_Speech_Queue
 ;
-;
+;       Streams the current speech fragment to the SC-01 or advances to the next
+;       queued fragment pointer. Queue entries are two-byte fragment addresses.
+;       When the queue becomes empty, the routine clears Speech_Active and sends
+;       the SC-01 STOP command.
 ;*****************************************************************************************
 Service_Speech_Queue:
             ld      a,(Speech_Phonemes_Remaining)
             or      a                   ; if no more phonemes...
-            jr      z,L8201             ; ... then skip the phoneme output routine
+            jr      z,Speech_Load_Next_Queued_Fragment ; ...then load the next queued fragment
             jp      Play_Next_Phoneme   ; Otherwise, call speech phoneme output routine
-L8201:      xor     a                   ; Zero A
+Speech_Load_Next_Queued_Fragment:
+            xor     a                   ; Zero A
             ld      hl,(Speech_Queue_Write_Pointer)
             ld      de,(Speech_Queue_Read_Pointer)
             sbc     hl,de               ; HL = HL - DE
-            jr      z,L8234             ; If HL = 0, then skip to STOP phoneme
+            jr      z,Speech_Queue_Empty     ; Empty queue: clear state and send STOP
             ex      de,hl
             ld      e,(hl)
             inc     hl
-L8210:      ld      d,(hl)
+            ld      d,(hl)
             ex      de,hl
             ld      a,(hl)
             ld      (Speech_Phonemes_Remaining),a
@@ -8420,42 +8427,46 @@ L8210:      ld      d,(hl)
             ld      hl,Speech_Queue_Last_Record
             or      a
             sbc     hl,de
-            jr      nc,L822D
+            jr      nc,Speech_Store_Queue_Read_Pointer
             ld      de,Speech_Queue_Buffer
-L822D:
+Speech_Store_Queue_Read_Pointer:
             ld      (Speech_Queue_Read_Pointer),de
             jp      Play_Next_Phoneme
-L8234:      xor     a
+Speech_Queue_Empty:
+            xor     a
             ld      (Speech_Active),a
-            ld      bc,$3F17            ; Stop phoneme on Votrax port $17
+            ld      bc,VOTRAX_STOP_COMMAND  ; B=$3F STOP phoneme, C=Votrax port
             in      a,(c)
             ret
 ;
-;******************************************************************************
+;*****************************************************************************************
+; ----> Validate_Speech_Queue_Pointer
 ;
-;******************************************************************************
-;
-
+;       Verifies that DE points to a valid two-byte record location within the
+;       circular speech queue. Sets A nonzero when the pointer is out of range.
+;*****************************************************************************************
 Validate_Speech_Queue_Pointer:
             ld      hl,Speech_Queue_Buffer - 1
             or      a                   ; Clear carry before the range comparison
             sbc     hl,de
-            jr      c,L8248
+            jr      c,Speech_Check_Queue_Upper_Bound
             ld      a,$01
-L8248:
+Speech_Check_Queue_Upper_Bound:
             ld      hl,Speech_Queue_Last_Record
             or      a                   ; Clear carry before the range comparison
             sbc     hl,de
-            jr      nc,L8252
+            jr      nc,Speech_Queue_Pointer_Validated
             ld      a,$01
-L8252:      ret
+Speech_Queue_Pointer_Validated:
+            ret
 
 ;
-;******************************************************************************
+;*****************************************************************************************
+; ----> Validate_Speech_Queue_State
 ;
-;******************************************************************************
-;
-
+;       Validates both circular-queue pointers. If either pointer is invalid,
+;       resets the queue, clears the active fragment state, and stops the SC-01.
+;*****************************************************************************************
 Validate_Speech_Queue_State:
             exx
             ld      de,(Speech_Queue_Write_Pointer)
@@ -8464,16 +8475,17 @@ Validate_Speech_Queue_State:
             ld      de,(Speech_Queue_Read_Pointer)
             call    Validate_Speech_Queue_Pointer
             or      a
-            jr      z,L827B
+            jr      z,Speech_Queue_State_Return
             xor     a
             ld      (Speech_Active),a
             ld      hl,Speech_Queue_Buffer
             ld      (Speech_Queue_Write_Pointer),hl
             ld      (Speech_Queue_Read_Pointer),hl
             ld      (Speech_Phonemes_Remaining),a
-            ld      bc,$3F17            ; Write a STOP phoneme (stop speech)
+            ld      bc,VOTRAX_STOP_COMMAND  ; B=$3F STOP phoneme, C=Votrax port
             in      a,(c)
-L827B:      exx
+Speech_Queue_State_Return:
+            exx
             ret
 
 ;
@@ -8482,11 +8494,21 @@ L827B:      exx
 ;******************************************************************************
 ;
 
+;*****************************************************************************************
+; ----> Queue_Speech_Request
+;
+;       Expands one language-independent speech phrase ID into one to four
+;       language-local speech fragments and appends their addresses to the
+;       circular speech queue.
+;
+;       Input:  A = phrase ID $00-$4F
+;       See:    doc/SPEECH_MAP.md for all English/German phrase compositions.
+;*****************************************************************************************
 Queue_Speech_Request:
             ; A is the language-independent phrase ID. The game defines 80
             ; phrase IDs ($00-$4F); values outside that range are ignored.
             cp      SPEECH_PHRASE_COUNT
-            jr      nc,L82F4
+            jr      nc,Speech_Request_Return
 
             ; Select the phrase-definition table. English is resident in the
             ; main ROM; foreign mode obtains the table address from X11 $C002.
@@ -8496,43 +8518,52 @@ Queue_Speech_Request:
             ld      a,($D347)           ; Preserved original read; overwritten by IN
             in      a,(SETTINGS)
             bit     LANGUAGE_DIP_BIT,a
-            jr      nz,L8292
+            jr      nz,Speech_Locate_Phrase_Record
             ld      hl,(X11_Speech_Phrase_Table_Ptr)
 
             ; Phrase records begin with $81-$84. Bytes <= $7F are fragment
             ; indexes and are skipped while locating the requested marker.
-L8292:      ld      a,SPEECH_FRAGMENT_COUNT_MASK
-L8294:      cp      (hl)
-            jr      nc,L8298
+Speech_Locate_Phrase_Record:
+            ld      a,SPEECH_FRAGMENT_COUNT_MASK
+Speech_Scan_Phrase_Table:
+            cp      (hl)
+            jr      nc,Speech_Advance_Phrase_Scan
             dec     c                   ; Found a phrase marker (> $7F)
-L8298:      inc     hl
-            jr      nz,L8294
+Speech_Advance_Phrase_Scan:
+            inc     hl
+            jr      nz,Speech_Scan_Phrase_Table
 
             ; Low seven bits of the marker are the number of fragment indexes
             ; that make up this phrase. A zero count suppresses the request.
             dec     hl
             ld      a,(hl)
             and     SPEECH_FRAGMENT_COUNT_MASK
-            jr      z,L82F4
+            jr      z,Speech_Request_Return
             ld      c,a
             di
 
-L82A3:      inc     hl
+Speech_Queue_Next_Fragment:
+            inc     hl
             ld      a,(Dungeon_Class)
             or      a
             ld      a,(hl)              ; A = speech fragment index
-            jr      z,L82B7
+            jr      z,Speech_Resolve_Fragment_Pointer
 
             ; Worlord and Pit dungeons address the player as WORLORD rather than
-            ; WORRIOR. The padded variants preserve phrase pause structure.
-            cp      $09                   ; SPK_Worrior
-            jr      nz,L82B1
-            ld      a,$40                  ; SPK_Worlord
-L82B1:      cp      $37                   ; SPK_Worrior_Padded
-            jr      nz,L82B7
-            ld      a,$41                  ; SPK_Worlord_Padded
+            ; WORRIOR. These substitutions occur before the language-specific
+            ; fragment-pointer table is selected, so English and X11 ROMs share
+            ; the same four semantic fragment slots. Padded variants preserve
+            ; phrase pause structure.
+            cp      SPEECH_FRAGMENT_WORRIOR
+            jr      nz,Speech_Check_Padded_Worrior_Substitution
+            ld      a,SPEECH_FRAGMENT_WORLORD
+Speech_Check_Padded_Worrior_Substitution:
+            cp      SPEECH_FRAGMENT_WORRIOR_PADDED
+            jr      nz,Speech_Resolve_Fragment_Pointer
+            ld      a,SPEECH_FRAGMENT_WORLORD_PADDED
 
-L82B7:      exx
+Speech_Resolve_Fragment_Pointer:
+            exx
             rlca                        ; 16-bit pointer table: index * 2
             ld      hl,English_Speech_Fragment_Pointers
             ld      e,a
@@ -8542,16 +8573,17 @@ L82B7:      exx
             ld      a,($D347)           ; Preserved original read; overwritten by IN
             in      a,(SETTINGS)
             bit     LANGUAGE_DIP_BIT,a
-            jr      nz,L82C9
+            jr      nz,Speech_Fragment_Table_Selected
             ld      hl,(X11_Speech_Fragment_Table_Ptr)
 
-L82C9:      ld      d,$00
+Speech_Fragment_Table_Selected:
+            ld      d,$00
             add     hl,de
             ld      e,(hl)              ; Read little-endian fragment address
             ld      a,e
             inc     hl
             or      (hl)                ; Null pointer means no fragment is queued
-            jr      z,L82EA
+            jr      z,Speech_Continue_Phrase
             ld      d,(hl)
 
             ; Queue the fragment pointer in the circular speech queue.
@@ -8564,17 +8596,20 @@ L82C9:      ld      d,$00
             ld      hl,Speech_Queue_Last_Record
             and     a                   ; Clear carry before range comparison
             sbc     hl,de
-            jr      nc,L82E6
+            jr      nc,Speech_Store_Queue_Write_Pointer
             ld      de,Speech_Queue_Buffer
-L82E6:      ld      (Speech_Queue_Write_Pointer),de
+Speech_Store_Queue_Write_Pointer:
+            ld      (Speech_Queue_Write_Pointer),de
 
-L82EA:      exx
+Speech_Continue_Phrase:
+            exx
             dec     c
-            jr      nz,L82A3
+            jr      nz,Speech_Queue_Next_Fragment
             ld      a,$01
             ld      (Speech_Active),a
             ei
-L82F4:      ret
+Speech_Request_Return:
+            ret
 
 ;*****************************************************************************************
 ; ----> Init_Sound_Block
@@ -10665,6 +10700,8 @@ SPK_Where_Are_You_Going_To_Hide_Now:
 ;
 ; The foreign-language X11 ROM supplies equivalent phrase and fragment-pointer
 ; tables through the ABI pointers at $C002 and $C000 respectively.
+; Full fragment semantics and all 80 English/German phrase compositions are
+; documented in doc/SPEECH_MAP.md.
 ;******************************************************************************
 English_Speech_Fragment_Pointers:
             DW      SPK_Kill_Worluk_For_Double_Score                                 ; fragment $00: "Kill Worluk for double score"
@@ -10747,6 +10784,8 @@ English_Speech_Fragment_Pointers:
             DW      SPK_Where_Are_You_Going_To_Hide_Now                              ; fragment $4D: "Where are you going to hide now"
             DW      SPK_Youre_In                                                     ; fragment $4E: "You're in"
 
+; 80 language-independent phrase IDs ($00-$4F). The fragment composition is
+; intentionally numeric here because fragment IDs are the on-ROM ABI.
 English_Speech_Phrase_Table:
             DB      $81,$0A              ; phrase $00: 1 fragment ($0A)
             DB      $82,$0B,$04          ; phrase $01: 2 fragments ($0B $04)

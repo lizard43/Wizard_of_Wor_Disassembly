@@ -1,11 +1,13 @@
 <!-- README.md -->
 # Wizard of Wor German X11 language ROM
 
-This directory contains the reverse source for the 4 KB German language ROM used by Wizard of Wor in socket X11. The cleaned source preserves the original ROM bytes while documenting the interface expected by the main game program.
+This directory contains the reverse source for the 4 KB German language ROM used by Wizard of Wor in socket X11. The cleaned source preserves the original ROM bytes while documenting the data interface expected by the main game program.
+
+The complete speech reference is maintained in [`../../doc/SPEECH_MAP.md`](../../doc/SPEECH_MAP.md). That document is the canonical cross-language map for the 79 resident English speech fragments, the 80 game-level phrase IDs, and the corresponding German phrase compositions. This README documents the X11 ROM interface and runtime behavior rather than duplicating those tables.
 
 ## X11 language-ROM interface
 
-The X11 image occupies `$C000-$CFFF`. The main program selects the resident English resources when SETTINGS/DIP bit 3 is set and X11 resources when the bit is clear. The language switch is sampled where the resource is used rather than copied into a permanent global language variable.
+The X11 image occupies `$C000-$CFFF`. Its first 13 bytes (`$C000-$C00C`) form a six-field metadata area; localized text begins immediately afterward at `$C00D`. The ROM is data-only and contains no executable Z80 code.
 
 | Address | Field | Purpose |
 | --- | --- | --- |
@@ -16,19 +18,43 @@ The X11 image occupies `$C000-$CFFF`. The main program selects the resident Engl
 | `$C00B` | `X11_Alternate_Font_Ptr` | Pointer to optional alternate glyph data used by `char2gfx`. |
 | `$C00D` | `German_Localized_Text_Table` | Base of 23 length-prefixed localized display strings. |
 
+SETTINGS/DIP bit 3 selects the resident English resources when set and the X11 foreign-language resources when clear. The main program samples this bit independently when selecting localized text, speech phrase data, speech fragment pointers, foreign coinage values, and the optional X11 diagnostic ROM test.
+
+The alternate-font path is different: `char2gfx` uses `X11_Alternate_Font_Ptr` directly when a character falls in the alternate glyph range. It is not independently gated by the language DIP. The normal English character set does not require that alternate range.
+
 ## Localized text
 
-The main game identifies text records by a 1-based index. A record begins with a length byte below `$30`, followed by display characters whose encoded values are `$30` or above. The scanner therefore recognizes the next byte below `$30` as the next record header. The format permits a maximum record length of `$2F` (47) characters.
+The main game identifies localized text records by a 1-based index. A record begins with a length byte below `$30`, followed by display characters whose encoded values are `$30` or above. The scanner therefore recognizes the next byte below `$30` as the next record header. The format permits a maximum record length of `$2F` (47) characters.
 
-The German table contains 23 records and can use different string lengths from the resident English text because the main program searches records dynamically.
+The German table contains 23 records and can use different string lengths from the resident English text because the main program searches the records dynamically.
 
 ## Speech architecture
 
-Speech requests use language-independent phrase IDs `$00-$4F` (80 total). A phrase table record begins with `$81-$84`; the low seven bits are the number of speech fragments in the phrase and the following bytes are fragment indexes. The fragment indexes are language-local.
+Speech uses two separate levels:
 
-The German X11 image provides 84 fragment pointers (`$00-$53`). Each pointer resolves to a length-prefixed encoded SC-01 stream. The playback code maintains the inflection state separately, so stored speech bytes should be treated as the game's encoded SC-01 stream rather than as independent raw phoneme IDs.
+- The game issues **80 language-independent phrase IDs (`$00-$4F`)**.
+- Each language expands a phrase ID into one to four **language-local speech fragment IDs**.
+- The resident English table provides **79 fragments (`$00-$4E`)**.
+- German provides **84 addressable fragment slots (`$00-$53`)**. Slot `$4F` is null/unused, so 83 slots point to actual German fragment records.
 
-When RAM state `$D350` is nonzero, the main program substitutes fragment `$09` with `$40` and fragment `$37` with `$41` before pointer lookup. The gameplay meaning of `$D350` is not yet assigned a semantic name; a replacement language ROM must preserve compatible entries for those substitutions.
+A phrase record begins with `$81-$84`. The low seven bits specify the number of fragment indexes that follow. Each fragment index is then resolved through the selected language's fragment pointer table to a length-prefixed encoded SC-01 stream.
+
+The main program now identifies `$D350` as `Dungeon_Class`:
+
+- `$00` = basic dungeon
+- `$01` = Worlord dungeon
+- `$02` = The Pit
+
+After phrase expansion, but before the fragment pointer lookup, any nonzero `Dungeon_Class` causes two fragment substitutions:
+
+- `$09` (Worrior) -> `$40` (Worlord)
+- `$37` (Worrior, padded) -> `$41` (Worlord, padded)
+
+Because this substitution occurs before the English/German fragment table is selected, a compatible language ROM must preserve the intended meanings of fragment slots `$09`, `$37`, `$40`, and `$41`.
+
+Each speech fragment begins with a byte count followed by that many encoded SC-01 bytes. Bit 7 participates in the game's stateful inflection encoding: playback XORs the stored byte with the previous inflection state before sending the resulting command to the SC-01 interface.
+
+See [`../../doc/SPEECH_MAP.md`](../../doc/SPEECH_MAP.md) for all 80 phrase compositions and the resulting English and German speech.
 
 ## Diagnostics and checksum
 

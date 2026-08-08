@@ -1,3 +1,4 @@
+; wow_equates.include
 ; ==============================================================================
 ; Wizard of Wor - Master Hardware Equates
 ; ==============================================================================
@@ -53,6 +54,9 @@ VOLC        EQU     $15         ; Tone C Volume
 VOLAB       EQU     $16         ; Tones A & B Volume
 VOLN        EQU     $17         ; Noise Volume
 SNDBX       EQU     $18         ; Sound Block Output Port
+VOTRAX_DATA_PORT                 EQU     $17         ; SC-01 command strobe via IN; phoneme command supplied in B
+VOTRAX_READY_BIT                 EQU     7           ; P1PORT bit 7, SC-01 A/R: 1 = ready
+VOTRAX_STOP_COMMAND              EQU     $3F17       ; B=$3F STOP phoneme, C=$17 Votrax data port
 
 ; ------------------------------------------------------------------------------
 ; PATTERN BOARD (DMA) PORTS
@@ -189,10 +193,10 @@ LD349       EQU     $D349               ; Read by the pending-coin handler; prod
 ;******************************************************************************
 ; X11 FOREIGN-LANGUAGE ROM ABI ($C000-$CFFF)
 ;
-; The language DIP is sampled at each localization decision. Bit 3 set selects
-; the built-in English resources; bit 3 clear selects the X11 expansion ROM.
-; The X11 header contains pointers/tables used independently by text rendering,
-; speech phrase expansion, character rendering, coinage, and diagnostics.
+; Bit 3 set selects resident English text/speech/coinage resources; bit 3 clear
+; selects the X11 equivalents. Text, speech, coinage, and diagnostics sample the
+; DIP independently. The alternate-font path reads X11_Alternate_Font_Ptr
+; directly when char2gfx routes a character to the alternate glyph range.
 ;******************************************************************************
 X11_Speech_Fragment_Table_Ptr    EQU     $C000
 X11_Speech_Phrase_Table_Ptr      EQU     $C002
@@ -204,6 +208,10 @@ X11_Localized_Text_Table         EQU     $C00D
 LANGUAGE_DIP_BIT                 EQU     3
 SPEECH_PHRASE_COUNT              EQU     $50
 SPEECH_FRAGMENT_COUNT_MASK       EQU     $7F
+SPEECH_FRAGMENT_WORRIOR          EQU     $09
+SPEECH_FRAGMENT_WORRIOR_PADDED   EQU     $37
+SPEECH_FRAGMENT_WORLORD          EQU     $40
+SPEECH_FRAGMENT_WORLORD_PADDED   EQU     $41
 
 ; ------------------------------------------------------------------------------
 ; UNRESOLVED ADDRESS CONSTANTS STILL REFERENCED
