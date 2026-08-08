@@ -963,7 +963,7 @@ L04A8:      djnz    L046D               ; Character finished, go back and do
 ;            a graphic entry in a character table. It is not
 ;            true ASCII, but a subset with some modifications.
 ;            See character table at CHRTBL for details.
-;            It also handles translation to alternate ROM set.
+;            It also routes extended character codes to the optional X11 alternate font.
 ;
 ; Entry:        A  = ASCII character
 ;
@@ -980,14 +980,14 @@ char2gfx:   sub     $30                 ; Turn ASCII into table entry
             sub     $06                 ; Adjust to take out unsupported characters
                 ; ... between "9" and "A" (":;<=>?")
 L04B3:      ld      l,a                 ; L = table entry
-            sub     $2C                 ; Check for alternate characters???
-            ld      de,CHRTBL           ; Entry to character table
-            jr      c,L04C2             ; Skip alternate ROM set
-            ld      hl,X11_Alternate_Font_Ptr ; X11 pointer to alternate glyph data
-            ld      e,(hl)              ; \
-            inc     hl                  ;  Manipulations for Alternate ROM set.
-            ld      d,(hl)              ;  Need to figure out what it does later... ???
-            ld      l,a                 ; /
+            sub     $2C                 ; Test for the X11 alternate-glyph range
+            ld      de,CHRTBL           ; Resident character-table base
+            jr      c,L04C2             ; Normal range uses the resident character table
+            ld      hl,X11_Alternate_Font_Ptr ; Address of X11 alternate-font pointer
+            ld      e,(hl)              ; Read alternate-font pointer low byte
+            inc     hl
+            ld      d,(hl)              ; DE = alternate glyph table base from X11
+            ld      l,a                 ; L = alternate glyph index
 L04C2:      ld      h,$00               ;
             add     hl,hl               ; Begin multiplying HL * $0A
             push    de                  ; Push beginning of table address
@@ -3097,11 +3097,11 @@ Read_Starting_Lives_DIP:
             ret
 ;
 ;*****************************************************************************
-; ROUTINE: Zero Memory Block ($D350 to $D36D)
-; Called from dispatch routine. Clears 30 ($1E) bytes of static RAM.
+; ROUTINE: Clear Extended Game State ($D350-$D36D)
+; Called from dispatch routine. Clears 30 ($1E) bytes beginning with Dungeon_Class.
 ;*****************************************************************************
 Clear_Extended_Game_State:
-            ld      hl,LD350            ; Start address to clear
+            ld      hl,Dungeon_Class            ; Start of extended game-state block
             ld      bc,$1E00            ; OPTIMIZATION: B = $1E (Loop count 30), C = $00 (Zero value)
 L17A4:      ld      (hl),c              ; Write $00 to memory
             inc     hl                  ; Advance pointer
@@ -5787,8 +5787,8 @@ L2D20:      sub     $06
             add     a,$06
             cp      $05
             jr      nz,L2D3D
-            ld      a,$02
-            ld      (LD350),a
+            ld      a,DUNGEON_CLASS_PIT
+            ld      (Dungeon_Class),a       ; Every sixth advanced dungeon is The Pit
             ld      hl,Maze_Selection_Flags
             ld      bc,L1700
 L2D35:      ld      (hl),c
@@ -5796,8 +5796,8 @@ L2D35:      ld      (hl),c
             djnz    L2D35
             ld      a,$01
             jr      L2D67
-L2D3D:      ld      a,$01
-            ld      (LD350),a
+L2D3D:      ld      a,DUNGEON_CLASS_WORLORD
+            ld      (Dungeon_Class),a       ; Advanced non-Pit dungeon
 
 ;
 ;*****************************************************************************
@@ -8368,46 +8368,55 @@ L81D8:      ret
 ;*****************************************************************************************
 ; ----> Play_Next_Phoneme
 ;
-;       Checks if the Votrax SC-01A is ready, processes the next phoneme from the string,
-;       updates the delta-encoded pitch/inflection bit, and sends it to the speech chip.
+;       Checks whether the Votrax SC-01A is ready and decodes the next 8-bit
+;       speech command from the active fragment. Bits 0-5 are the SC-01 phoneme
+;       code; the upper bits carry inflection/control information. Bit 7 is
+;       stored differentially and is XORed with the saved bit-7 state before the
+;       complete command byte is presented to the speech interface.
 ;*****************************************************************************************
 Play_Next_Phoneme:
             in      a, (P1PORT)             ; Read Port $12 (Player 1 / Votrax Status)
-            bit     7,a                     ; Check bit 7 (Votrax A/R pin: 1 = Ready)
-            jr      z,Play1                 ; If 0 (Busy speaking), return immediately
+            bit     VOTRAX_READY_BIT,a       ; SC-01 A/R: 1 = ready
+            jr      z,Speech_Phoneme_Return ; If 0 (busy speaking), return immediately
             ld      hl,Speech_Phonemes_Remaining
             dec     (hl)                    ; Decrement the phonemes remaining counter
             inc     hl                      ; Advance to the saved inflection state
-            ld      a,(hl)                  ; Load the previous phoneme's inflection bit
+            ld      a,(hl)                  ; Load the previous command's bit-7 inflection state
             ld      hl,(Speech_Phoneme_Pointer)
-            xor     (hl)                    ; XOR previous inflection with current ROM byte
+            xor     (hl)                    ; Differentially decode bit 7; all other ROM bits pass through
             inc     hl                      ; Advance pointer to the next phoneme in ROM
             ld      (Speech_Phoneme_Pointer),hl
-            ld      b,a                     ; B = The decoded phoneme + new inflection bit
-            and     $80                     ; Isolate just the new inflection bit (Bit 7)
+            ld      b,a                     ; B = decoded 8-bit speech command
+            and     $80                     ; Save decoded bit-7 inflection state for the next byte
             ld      (Speech_Inflection_State),a
-            ld      c,$17                   ; C = Speech Chip Port ($17)
+            ld      c,VOTRAX_DATA_PORT       ; SC-01 command strobe port
             in      a,(c)                   ; B supplies phoneme data on the upper address bus
-Play1:      ret                             ; Return to caller
+Speech_Phoneme_Return:
+            ret                             ; Return to caller
 
 ;*****************************************************************************************
+; ----> Service_Speech_Queue
 ;
-;
+;       Streams the current speech fragment to the SC-01 or advances to the next
+;       queued fragment pointer. Queue entries are two-byte fragment addresses.
+;       When the queue becomes empty, the routine clears Speech_Active and sends
+;       the SC-01 STOP command.
 ;*****************************************************************************************
 Service_Speech_Queue:
             ld      a,(Speech_Phonemes_Remaining)
             or      a                   ; if no more phonemes...
-            jr      z,L8201             ; ... then skip the phoneme output routine
+            jr      z,Speech_Load_Next_Queued_Fragment ; ...then load the next queued fragment
             jp      Play_Next_Phoneme   ; Otherwise, call speech phoneme output routine
-L8201:      xor     a                   ; Zero A
+Speech_Load_Next_Queued_Fragment:
+            xor     a                   ; Zero A
             ld      hl,(Speech_Queue_Write_Pointer)
             ld      de,(Speech_Queue_Read_Pointer)
             sbc     hl,de               ; HL = HL - DE
-            jr      z,L8234             ; If HL = 0, then skip to STOP phoneme
+            jr      z,Speech_Queue_Empty     ; Empty queue: clear state and send STOP
             ex      de,hl
             ld      e,(hl)
             inc     hl
-L8210:      ld      d,(hl)
+            ld      d,(hl)
             ex      de,hl
             ld      a,(hl)
             ld      (Speech_Phonemes_Remaining),a
@@ -8420,42 +8429,46 @@ L8210:      ld      d,(hl)
             ld      hl,Speech_Queue_Last_Record
             or      a
             sbc     hl,de
-            jr      nc,L822D
+            jr      nc,Speech_Store_Queue_Read_Pointer
             ld      de,Speech_Queue_Buffer
-L822D:
+Speech_Store_Queue_Read_Pointer:
             ld      (Speech_Queue_Read_Pointer),de
             jp      Play_Next_Phoneme
-L8234:      xor     a
+Speech_Queue_Empty:
+            xor     a
             ld      (Speech_Active),a
-            ld      bc,$3F17            ; Stop phoneme on Votrax port $17
+            ld      bc,VOTRAX_STOP_COMMAND  ; B=$3F STOP phoneme, C=Votrax port
             in      a,(c)
             ret
 ;
-;******************************************************************************
+;*****************************************************************************************
+; ----> Validate_Speech_Queue_Pointer
 ;
-;******************************************************************************
-;
-
+;       Verifies that DE points to a valid two-byte record location within the
+;       circular speech queue. Sets A nonzero when the pointer is out of range.
+;*****************************************************************************************
 Validate_Speech_Queue_Pointer:
             ld      hl,Speech_Queue_Buffer - 1
             or      a                   ; Clear carry before the range comparison
             sbc     hl,de
-            jr      c,L8248
+            jr      c,Speech_Check_Queue_Upper_Bound
             ld      a,$01
-L8248:
+Speech_Check_Queue_Upper_Bound:
             ld      hl,Speech_Queue_Last_Record
             or      a                   ; Clear carry before the range comparison
             sbc     hl,de
-            jr      nc,L8252
+            jr      nc,Speech_Queue_Pointer_Validated
             ld      a,$01
-L8252:      ret
+Speech_Queue_Pointer_Validated:
+            ret
 
 ;
-;******************************************************************************
+;*****************************************************************************************
+; ----> Validate_Speech_Queue_State
 ;
-;******************************************************************************
-;
-
+;       Validates both circular-queue pointers. If either pointer is invalid,
+;       resets the queue, clears the active fragment state, and stops the SC-01.
+;*****************************************************************************************
 Validate_Speech_Queue_State:
             exx
             ld      de,(Speech_Queue_Write_Pointer)
@@ -8464,16 +8477,17 @@ Validate_Speech_Queue_State:
             ld      de,(Speech_Queue_Read_Pointer)
             call    Validate_Speech_Queue_Pointer
             or      a
-            jr      z,L827B
+            jr      z,Speech_Queue_State_Return
             xor     a
             ld      (Speech_Active),a
             ld      hl,Speech_Queue_Buffer
             ld      (Speech_Queue_Write_Pointer),hl
             ld      (Speech_Queue_Read_Pointer),hl
             ld      (Speech_Phonemes_Remaining),a
-            ld      bc,$3F17            ; Write a STOP phoneme (stop speech)
+            ld      bc,VOTRAX_STOP_COMMAND  ; B=$3F STOP phoneme, C=Votrax port
             in      a,(c)
-L827B:      exx
+Speech_Queue_State_Return:
+            exx
             ret
 
 ;
@@ -8482,11 +8496,21 @@ L827B:      exx
 ;******************************************************************************
 ;
 
+;*****************************************************************************************
+; ----> Queue_Speech_Request
+;
+;       Expands one language-independent speech phrase ID into one to four
+;       language-local speech fragments and appends their addresses to the
+;       circular speech queue.
+;
+;       Input:  A = phrase ID $00-$4F
+;       See:    doc/SPEECH_MAP.md for all English/German phrase compositions.
+;*****************************************************************************************
 Queue_Speech_Request:
             ; A is the language-independent phrase ID. The game defines 80
             ; phrase IDs ($00-$4F); values outside that range are ignored.
             cp      SPEECH_PHRASE_COUNT
-            jr      nc,L82F4
+            jr      nc,Speech_Request_Return
 
             ; Select the phrase-definition table. English is resident in the
             ; main ROM; foreign mode obtains the table address from X11 $C002.
@@ -8496,44 +8520,52 @@ Queue_Speech_Request:
             ld      a,($D347)           ; Preserved original read; overwritten by IN
             in      a,(SETTINGS)
             bit     LANGUAGE_DIP_BIT,a
-            jr      nz,L8292
+            jr      nz,Speech_Locate_Phrase_Record
             ld      hl,(X11_Speech_Phrase_Table_Ptr)
 
             ; Phrase records begin with $81-$84. Bytes <= $7F are fragment
             ; indexes and are skipped while locating the requested marker.
-L8292:      ld      a,SPEECH_FRAGMENT_COUNT_MASK
-L8294:      cp      (hl)
-            jr      nc,L8298
+Speech_Locate_Phrase_Record:
+            ld      a,SPEECH_FRAGMENT_COUNT_MASK
+Speech_Scan_Phrase_Table:
+            cp      (hl)
+            jr      nc,Speech_Advance_Phrase_Scan
             dec     c                   ; Found a phrase marker (> $7F)
-L8298:      inc     hl
-            jr      nz,L8294
+Speech_Advance_Phrase_Scan:
+            inc     hl
+            jr      nz,Speech_Scan_Phrase_Table
 
             ; Low seven bits of the marker are the number of fragment indexes
             ; that make up this phrase. A zero count suppresses the request.
             dec     hl
             ld      a,(hl)
             and     SPEECH_FRAGMENT_COUNT_MASK
-            jr      z,L82F4
+            jr      z,Speech_Request_Return
             ld      c,a
             di
 
-L82A3:      inc     hl
-            ld      a,(LD350)
+Speech_Queue_Next_Fragment:
+            inc     hl
+            ld      a,(Dungeon_Class)
             or      a
             ld      a,(hl)              ; A = speech fragment index
-            jr      z,L82B7
+            jr      z,Speech_Resolve_Fragment_Pointer
 
-            ; When LD350 is nonzero, two fragment IDs are substituted before
-            ; pointer lookup. The gameplay meaning of LD350 remains unresolved;
-            ; preserve these substitutions in every language table.
-            cp      $09
-            jr      nz,L82B1
-            ld      a,$40
-L82B1:      cp      $37
-            jr      nz,L82B7
-            ld      a,$41
+            ; Worlord and Pit dungeons address the player as WORLORD rather than
+            ; WORRIOR. These substitutions occur before the language-specific
+            ; fragment-pointer table is selected, so English and X11 ROMs share
+            ; the same four semantic fragment slots. Padded variants preserve
+            ; phrase pause structure.
+            cp      SPEECH_FRAGMENT_WORRIOR
+            jr      nz,Speech_Check_Padded_Worrior_Substitution
+            ld      a,SPEECH_FRAGMENT_WORLORD
+Speech_Check_Padded_Worrior_Substitution:
+            cp      SPEECH_FRAGMENT_WORRIOR_PADDED
+            jr      nz,Speech_Resolve_Fragment_Pointer
+            ld      a,SPEECH_FRAGMENT_WORLORD_PADDED
 
-L82B7:      exx
+Speech_Resolve_Fragment_Pointer:
+            exx
             rlca                        ; 16-bit pointer table: index * 2
             ld      hl,English_Speech_Fragment_Pointers
             ld      e,a
@@ -8543,16 +8575,17 @@ L82B7:      exx
             ld      a,($D347)           ; Preserved original read; overwritten by IN
             in      a,(SETTINGS)
             bit     LANGUAGE_DIP_BIT,a
-            jr      nz,L82C9
+            jr      nz,Speech_Fragment_Table_Selected
             ld      hl,(X11_Speech_Fragment_Table_Ptr)
 
-L82C9:      ld      d,$00
+Speech_Fragment_Table_Selected:
+            ld      d,$00
             add     hl,de
             ld      e,(hl)              ; Read little-endian fragment address
             ld      a,e
             inc     hl
             or      (hl)                ; Null pointer means no fragment is queued
-            jr      z,L82EA
+            jr      z,Speech_Continue_Phrase
             ld      d,(hl)
 
             ; Queue the fragment pointer in the circular speech queue.
@@ -8565,17 +8598,20 @@ L82C9:      ld      d,$00
             ld      hl,Speech_Queue_Last_Record
             and     a                   ; Clear carry before range comparison
             sbc     hl,de
-            jr      nc,L82E6
+            jr      nc,Speech_Store_Queue_Write_Pointer
             ld      de,Speech_Queue_Buffer
-L82E6:      ld      (Speech_Queue_Write_Pointer),de
+Speech_Store_Queue_Write_Pointer:
+            ld      (Speech_Queue_Write_Pointer),de
 
-L82EA:      exx
+Speech_Continue_Phrase:
+            exx
             dec     c
-            jr      nz,L82A3
+            jr      nz,Speech_Queue_Next_Fragment
             ld      a,$01
             ld      (Speech_Active),a
             ei
-L82F4:      ret
+Speech_Request_Return:
+            ret
 
 ;*****************************************************************************************
 ; ----> Init_Sound_Block
@@ -10005,1631 +10041,660 @@ L8B5D:      inc     de
             ld      de,L02FD
             inc     (hl)
             adc     a,e
-            dec     e
-            add     a,e
-            add     hl,de
-            daa
-            add     hl,bc
-            jr      L8B70
-            dec     l
-            ld      h,$35
-L8B70:      dec     hl
-            jr      L8BA6
-            add     hl,de
-            inc     bc
-            dec     e
-            dec     (hl)
-            dec     hl
-            ld      e,$33
-            ld      c,$23
-            jr      L8B9D
-            add     hl,de
-            ld      h,$35
-            dec     hl
-            ld      a,$83
-            ld      sp,P1_Life_Icon_Primary
-            ld      (L3609),hl
-            jr      z,L8BA8
-            dec     sp
-            nop
-            ld      hl,(L282A)
-            scf
-            dec     h
-            dec     d
-            dec     l
-            ld      a,(Text_Monsters_Visible_Byte_09)
-            jr      L8BD8
-            add     a,e
-            dec     d
-            nop
-L8B9D:      add     hl,bc
-            add     hl,hl
-            jr      L8BCB
-            jr      nz,L8BBC
-            add     hl,de
-            dec     sp
-            dec     hl
-L8BA6:      ld      (L220F),a
-            ld      (hl),$28
-            inc     bc
-            inc     c
-            dec     d
-            add     hl,bc
-            add     hl,hl
-            rra
-            dec     sp
-            jr      L8BD1
-            ld      a,$83
-            ld      a,(bc)
-            add     a,e
-            ld      (L2836),hl
-            inc     sp
-L8BBC:      dec     hl
-            daa
-            dec     c
-            ld      a,$83
-            inc     d
-            add     a,e
-            jr      c,L8BF8
-            inc     bc
-            ld      e,$33
-            dec     c
-            ld      a,(de)
-            ld      (bc),a
-L8BCB:      dec     c
-            ld      (de),a
-            inc     sp
-            rrca
-            dec     l
-            ld      h,$35
-            dec     hl
-            dec     hl
-            ld      a,$BE
-            ex      af,af'
-            dec     d
-L8BD8:      inc     hl
-            add     hl,bc
-            add     hl,hl
-            cpl
-            nop
-            inc     c
-            ld      a,$11
-            ld      a,$38
-            ld      (hl),e
-            dec     l
-            ld      h,a
-            ld      (de),a
-            ld      a,(L731E)
-            ld      c,a
-            inc     bc
-            ld      l,l
-            ld      h,$35
-            dec     hl
-            dec     hl
-            ld      a,$2B
-            dec     l
-            inc     sp
-            dec     c
-            ld      c,$23
-            ex      af,af'
-L8BF8:      add     hl,hl
-            ld      hl,(L2B1D)
-            inc     sp
-            inc     c
-            inc     c
-            dec     d
-            add     hl,bc
-            ld      (L2B25),hl
-            daa
-            ld      hl,(L2229)
-            rra
-            ld      a,$3E
-            cpl
-            nop
-            dec     c
-            ld      e,$22
-            ld      (hl),$28
-            jr      L8C4F
-            add     hl,de
-            inc     bc
-            rra
-            dec     h
-            jr      L8C40
-            scf
-            ld      e,$3E
-            inc     e
-            inc     c
-            dec     d
-            nop
-            add     hl,bc
-            add     hl,hl
-            add     hl,de
-            dec     hl
-            inc     a
-            ld      hl,(WORRIOR_BLUE_3 + $0C)
-            rra
-            inc     h
-            inc     hl
-            dec     hl
-            dec     hl
-            ld      b,$1E
-            add     hl,hl
-            dec     (hl)
-            scf
-            cpl
-            nop
-            add     hl,de
-            ld      hl,(L0F0B)
-            ld      a,$1E
-            dec     l
-            ld      h,$2B
-            jr      L8C73
-L8C40:      add     hl,de
-            inc     bc
-            dec     l
-            daa
-            jr      L8C49
-            dec     sp
-            rra
-            inc     bc
-L8C49:      add     hl,de
-            ld      b,$09
-            ld      (L0325),hl
-L8C4F:      jr      c,L8C7C
-            jr      z,L8C8B
-            inc     sp
-            ld      e,$26
-            dec     (hl)
-            dec     hl
-            ld      a,$1E
-            ld      (L2836),hl
-            dec     l
-            dec     (hl)
-            dec     c
-            ld      hl,(L6F1B)
-            ld      a,(bc)
-            rrca
-            inc     bc
-            ld      b,$2A
-            djnz    L8CD8
-            dec     c
-            rra
-            inc     bc
-            dec     e
-            inc     (hl)
-            dec     hl
-            add     hl,hl
-            dec     (hl)
-            dec     hl
-L8C73:      ld      e,$6E
-            dec     c
-            rra
-            ld      a,$1F
-            add     a,e
-            dec     hl
-            inc     a
-L8C7C:      inc     c
-            ld      a,e
-            inc     c
-            ld      c,$3A
-            ld      a,$55
-            nop
-            add     hl,bc
-            add     hl,hl
-            inc     c
-            jr      c,L8CBC
-            dec     l
-            daa
-L8C8B:      ld      (de),a
-            ld      a,($3E1E)
-            dec     c
-            dec     d
-            ld      hl,(L3629)
-            scf
-            scf
-            ld      a,$83
-            inc     l
-            ld      c,e
-            ld      e,l
-            add     hl,hl
-            add     hl,bc
-            scf
-            add     hl,de
-            cpl
-            nop
-            dec     c
-            ld      hl,(L0E3E)
-            ld      a,h
-            ld      hl,(Text_Monsters_Visible_Byte_36)
-            dec     hl
-            dec     sp
-            rra
-            ld      hl,(LB83E)
-            ld      b,d
-            dec     c
-            add     hl,hl
-            ld      (hl),$37
-            jr      L8CC3
-            ld      (bc),a
-            rrca
-            ld      a,(Maze_17_Data_Byte_01)
-            ld      b,d
-L8CBC:      ld      hl,(Text_Monsters_Visible_Byte_36)
-            ld      c,$3B
-            rra
-            ld      hl,(Init_Sound_Exec)
-            ld      sp,L2783
-            dec     e
-            add     hl,hl
-            add     hl,bc
-            jr      z,L8CEB
-            inc     a
-            rra
-            ld      hl,(L352B)
-            inc     hl
-            add     hl,bc
-            ld      hl,L080C
-            ex      af,af'
-L8CD8:      nop
-            add     hl,bc
-            add     hl,hl
-            ld      c,$60
-            ld      c,$29
-            ld      ($3E1F),hl
-            dec     d
-            add     hl,bc
-            ld      (L2518),hl
-            ld      d,l
-            dec     h
-            add     hl,hl
-            ld      (hl),$28
-            dec     bc
-            dec     c
-            jr      c,L8D11
-            ld      hl,L0F33
-            dec     sp
-            dec     c
-            ld      a,$83
-            dec     d
-            add     a,e
-            dec     c
-            ld      d,l
-            inc     hl
-            scf
-            dec     d
-            nop
-            add     hl,bc
-            add     hl,hl
-            inc     c
-            inc     e
-            dec     sp
-            ld      hl,($1427)
-            inc     c
-            ld      l,$00
-            ld      e,$3E
-            add     a,e
-            dec     de
-            add     a,e
-            ld      (L2836),hl
-            dec     l
-            daa
-            jr      L8D23
-            ld      a,e
-            rrca
-            ld      a,(WORRIOR_BLUE_2_UP + $52)
-            inc     a
-            rrca
-            dec     l
-            ld      h,(hl)
-            ld      (hl),l
-            dec     hl
-            ld      (L5518),a
-            nop
-            add     hl,hl
-            rrca
-            ld      a,$83
-            dec     d
-            add     a,e
-            inc     e
-            ld      d,l
-            dec     hl
-            dec     l
-            dec     (hl)
-            dec     hl
-            ld      a,$1C
-            dec     (hl)
-            dec     (hl)
-            ld      l,a
-            nop
-            dec     e
-            ld      hl,(L383A)
-            dec     sp
-            inc     c
-            ld      a,$83
-            ld      c,$83
-            dec     l
-            dec     d
-            ld      hl,(L3810)
-            inc     sp
-            dec     hl
-            jr      nz,L8D68
-            dec     d
-            dec     hl
-            inc     bc
-            add     a,e
-            ld      b,$2D
-            ld      h,$2B
-            add     hl,hl
-            ld      a,(L1D3E)
-            add     a,e
-            dec     c
-            dec     d
-            ld      h,e
-            ld      (hl),a
-            ld      (L3736),hl
-            scf
-            inc     e
-            dec     sp
-            ld      hl,(WORRIOR_YELLOW_1 + $0D)
-            ld      (L5B03),a
-            ld      b,d
-L8D68:      ld      c,c
-            rrca
-            inc     a
-            dec     l
-            ld      b,l
-            add     hl,bc
-            ld      (L1F2A),hl
-            ld      a,$83
-            ld      d,$83
-            add     hl,hl
-            inc     (hl)
-            inc     (hl)
-            dec     hl
-            ld      l,a
-            nop
-            ld      e,a
-            ld      e,c
-            daa
-            inc     d
-            dec     e
-            ld      h,$2B
-            ld      hl,(L732B)
-            ld      c,(hl)
-            inc     hl
-            jr      L8DC7
-            add     a,e
-            ld      hl,(P1_Life_Icon_Primary)
-            add     hl,hl
-            ld      (hl),$28
-            ld      hl,($152B)
-            nop
-            add     hl,bc
-            add     hl,hl
-            ld      l,a
-            dec     c
-            add     hl,hl
-            dec     de
-            ld      d,l
-            ld      l,e
-            ld      e,$3A
-            ld      a,$83
-            ld      (L2836),hl
-            jr      L8E1A
-            dec     c
-            jr      L8DD1
-            inc     c
-            inc     l
-            inc     a
-            ld      hl,(L272D)
-            add     hl,sp
-            ld      e,(hl)
-            jr      z,L8DDA
-            inc     c
-            ld      a,$83
-            daa
-            add     a,e
-            ld      c,$7A
-            ld      l,e
-            dec     l
-            ld      h,$2B
-            ld      a,$1C
-            ld      d,l
-            ld      l,e
-            dec     l
-            ld      h,$2B
-            ld      a,$2F
-            nop
-L8DC7:      dec     c
-            ld      e,$39
-            ld      h,(hl)
-            ld      l,e
-            dec     l
-            ld      h,$2B
-            ld      a,$2D
-L8DD1:      daa
-            jr      L8DF2
-            ld      (hl),$68
-            ld      (L2836),hl
-            daa
-L8DDA:      dec     c
-            ld      a,$83
-            ld      (L0C83),hl
-            dec     d
-            nop
-            add     hl,bc
-            add     hl,hl
-            dec     l
-            ld      h,(hl)
-            ld      l,e
-            jr      L8E10
-            inc     d
-            rra
-            dec     d
-            inc     hl
-            dec     hl
-            rrca
-            ld      a,e
-            ld      b,b
-            dec     hl
-L8DF2:      add     hl,hl
-            rrca
-            ld      a,e
-            ld      b,b
-            dec     hl
-            add     hl,hl
-            dec     de
-            ld      (hl),e
-            dec     c
-            inc     e
-            dec     hl
-            add     hl,hl
-            ld      a,$83
-            inc     hl
-            inc     c
-            dec     d
-            ld      b,b
-            ld      c,c
-            ld      l,c
-            inc     c
-            ld      l,a
-            ld      e,$1A
-            dec     bc
-            add     hl,de
-            daa
-            ld      (de),a
-            rra
-            ld      hl,(L7D2B)
-            dec     c
-            inc     e
-            dec     hl
-            jr      c,L8E46
-            nop
-            dec     c
-            add     hl,hl
-L8E1A:      inc     (hl)
-            inc     (hl)
-            dec     hl
-            dec     l
-            ld      a,e
-            ld      h,l
-            ld      (L1F0D),a
-            ld      a,$26
-            add     a,e
-            add     hl,hl
-            inc     (hl)
-            inc     (hl)
-            dec     hl
-            ld      c,(hl)
-            ld      h,$34
-            ld      c,l
-            rra
-            dec     l
-            daa
-            jr      L8E36
-            jr      L8E4A
-            nop
-L8E36:      add     hl,hl
-            daa
-            dec     c
-            jr      c,L8E6E
-            ld      e,$73
-            dec     c
-            ld      a,(de)
-            ld      (bc),a
-            dec     c
-            rra
-            inc     sp
-            rrca
-            dec     l
-            ld      h,$35
-            dec     hl
-            dec     hl
-            ld      a,$83
-            dec     hl
-            dec     l
-            dec     d
-            nop
-            add     hl,bc
-            jr      L8E74
-            halt
-            ld      l,b
-            ld      e,$3C
-            rrca
-            ld      (bc),a
-            jr      L8E7D
-            dec     h
-            ld      hl,(L151F)
-            add     hl,bc
-            ld      hl,L0D3B
-            rra
-            ld      a,$2D
-            inc     a
-            add     hl,hl
-            ld      e,$3C
-            rrca
-            ld      (bc),a
-            jr      $8E90
-            dec     h
-L8E6E:      ld      hl,(L2F0C)
-            nop
-            ld      e,$1A
-L8E74:      dec     bc
-            add     hl,de
-            ld      a,$13
-
-;*****************************************************************************************
-; ----> Votrax Speech String: "Hey, Insert coin!"
+;******************************************************************************
+; ENGLISH SC-01 SPEECH FRAGMENTS - $8B66-$9475
 ;
-;       Length: $13 (19) bytes. Pitch inflection is applied via bit 6 (+$40).
-;*****************************************************************************************
+; The 79 logical fragment IDs ($00-$4E) are stored in physical ROM order here.
+; English_Speech_Fragment_Pointers maps each logical fragment ID to one record.
+;
+; Record format:
+;     DB encoded_byte_count
+;     DB encoded_sc01_byte[, ...]
+;
+; The byte count is not part of the SC-01 stream. Bits 0-5 carry the SC-01
+; phoneme code. Bits 6-7 preserve the game's inflection/control information;
+; Play_Next_Phoneme differentially decodes bit 7 against the saved inflection
+; state before presenting the full command byte to the speech interface.
+; Fragment labels describe the words encoded by each record; several records
+; are intentionally sentence fragments that are combined by the phrase table.
+;******************************************************************************
+
+; Fragment $00 @ $8B66: "Kill Worluk for double score"
+SPK_Kill_Worluk_For_Double_Score:
+            DB      $1D                 ; encoded SC-01 byte count
+            DB      $83,$19,$27,$09,$18,$03,$2D,$26
+            DB      $35,$2B,$18,$33,$19,$03,$1D,$35
+            DB      $2B,$1E,$33,$0E,$23,$18,$1F,$19
+            DB      $26,$35,$2B,$3E,$83
+
+; Fragment $01 @ $8B84: "If you get too powerful, I'll take care of you myself"
+SPK_If_You_Get_Too_Powerful_Ill_Take_Care_Of_You_Myself:
+            DB      $31                 ; encoded SC-01 byte count
+            DB      $27,$1D,$22,$09,$36,$28,$1C,$3B
+            DB      $00,$2A,$2A,$28,$37,$25,$15,$2D
+            DB      $3A,$1D,$32,$18,$3E,$83,$15,$00
+            DB      $09,$29,$18,$2A,$20,$19,$19,$3B
+            DB      $2B,$32,$0F,$22,$36,$28,$03,$0C
+            DB      $15,$09,$29,$1F,$3B,$18,$1D,$3E
+            DB      $83
+
+; Fragment $4E @ $8BB6: "You're in"
+SPK_Youre_In:
+            DB      $0A                 ; encoded SC-01 byte count
+            DB      $83,$22,$36,$28,$33,$2B,$27,$0D
+            DB      $3E,$83
+
+; Fragment $02 @ $8BC1: "The dungeons of Wor"
+SPK_The_Dungeons_Of_Wor:
+            DB      $14                 ; encoded SC-01 byte count
+            DB      $83,$38,$33,$03,$1E,$33,$0D,$1A
+            DB      $02,$0D,$12,$33,$0F,$2D,$26,$35
+            DB      $2B,$2B,$3E,$BE
+
+; Fragment $03 @ $8BD6: "I am"
+SPK_I_Am:
+            DB      $08                 ; encoded SC-01 byte count
+            DB      $15,$23,$09,$29,$2F,$00,$0C,$3E
+
+; Fragment $04 @ $8BDF: "The Wizard of Wor"
+SPK_The_Wizard_Of_Wor:
+            DB      $11                 ; encoded SC-01 byte count
+            DB      $3E,$38,$73,$2D,$67,$12,$3A,$1E
+            DB      $73,$4F,$03,$6D,$26,$35,$2B,$2B
+            DB      $3E
+
+; Fragment $05 @ $8BF1: "One bite from my pretties, and you'll explode"
+SPK_One_Bite_From_My_Pretties_And_Youll_Explode:
+            DB      $2B                 ; encoded SC-01 byte count
+            DB      $2D,$33,$0D,$0E,$23,$08,$29,$2A
+            DB      $1D,$2B,$33,$0C,$0C,$15,$09,$22
+            DB      $25,$2B,$27,$2A,$29,$22,$1F,$3E
+            DB      $3E,$2F,$00,$0D,$1E,$22,$36,$28
+            DB      $18,$3B,$19,$03,$1F,$25,$18,$26
+            DB      $37,$1E,$3E
+
+; Fragment $06 @ $8C1D: "My creatures are radioactive"
+SPK_My_Creatures_Are_Radioactive:
+            DB      $1C                 ; encoded SC-01 byte count
+            DB      $0C,$15,$00,$09,$29,$19,$2B,$3C
+            DB      $2A,$10,$3A,$1F,$24,$23,$2B,$2B
+            DB      $06,$1E,$29,$35,$37,$2F,$00,$19
+            DB      $2A,$0B,$0F,$3E
+
+; Fragment $07 @ $8C3A: "Worluk will escape through the door"
+SPK_Worluk_Will_Escape_Through_The_Door:
+            DB      $1E                 ; encoded SC-01 byte count
+            DB      $2D,$26,$2B,$18,$33,$19,$03,$2D
+            DB      $27,$18,$03,$3B,$1F,$03,$19,$06
+            DB      $09,$22,$25,$03,$38,$2B,$28,$38
+            DB      $33,$1E,$26,$35,$2B,$3E
+
+; Fragment $22 @ $8C59: "You won't have a chance for your dance"
+SPK_You_Wont_Have_A_Chance_For_Your_Dance:
+            DB      $1E                 ; encoded SC-01 byte count
+            DB      $22,$36,$28,$2D,$35,$0D,$2A,$1B
+            DB      $6F,$0A,$0F,$03,$06,$2A,$10,$6E
+            DB      $0D,$1F,$03,$1D,$34,$2B,$29,$35
+            DB      $2B,$1E,$6E,$0D,$1F,$3E
+
+; Fragment $23 @ $8C78: "Remember, I'm the Wizard, not you"
+SPK_Remember_Im_The_Wizard_Not_You:
+            DB      $1F                 ; encoded SC-01 byte count
+            DB      $83,$2B,$3C,$0C,$7B,$0C,$0E,$3A
+            DB      $3E,$55,$00,$09,$29,$0C,$38,$33
+            DB      $2D,$27,$12,$3A,$1E,$3E,$0D,$15
+            DB      $2A,$29,$36,$37,$37,$3E,$83
+
+; Fragment $24 @ $8C98: "If you can't beat the rest, then you'll never get the best"
+SPK_If_You_Cant_Beat_The_Rest_Then_Youll_Never_Get_The_Best:
+            DB      $2C                 ; encoded SC-01 byte count
+            DB      $4B,$5D,$29,$09,$37,$19,$2F,$00
+            DB      $0D,$2A,$3E,$0E,$7C,$2A,$38,$32
+            DB      $2B,$3B,$1F,$2A,$3E,$B8,$42,$0D
+            DB      $29,$36,$37,$18,$0D,$02,$0F,$3A
+            DB      $3E,$1C,$42,$2A,$38,$32,$0E,$3B
+            DB      $1F,$2A,$03,$83
+
+; Fragment $25 @ $8CC5: "If you destroy my babies, I'll pop you in the oven"
+SPK_If_You_Destroy_My_Babies_Ill_Pop_You_In_The_Oven:
+            DB      $31                 ; encoded SC-01 byte count
+            DB      $83,$27,$1D,$29,$09,$28,$1E,$3C
+            DB      $1F,$2A,$2B,$35,$23,$09,$21,$0C
+            DB      $08,$08,$00,$09,$29,$0E,$60,$0E
+            DB      $29,$22,$1F,$3E,$15,$09,$22,$18
+            DB      $25,$55,$25,$29,$36,$28,$0B,$0D
+            DB      $38,$21,$21,$33,$0F,$3B,$0D,$3E
+            DB      $83
+
+; Fragment $26 @ $8CF7: "Now I'm getting mad"
+SPK_Now_Im_Getting_Mad:
+            DB      $15                 ; encoded SC-01 byte count
+            DB      $83,$0D,$55,$23,$37,$15,$00,$09
+            DB      $29,$0C,$1C,$3B,$2A,$27,$14,$0C
+            DB      $2E,$00,$1E,$3E,$83
+
+; Fragment $27 @ $8D0D: "You'll never leave Wor alive"
+SPK_Youll_Never_Leave_Wor_Alive:
+            DB      $1B                 ; encoded SC-01 byte count
+            DB      $83,$22,$36,$28,$2D,$27,$18,$0D
+            DB      $7B,$0F,$3A,$18,$3C,$3C,$0F,$2D
+            DB      $66,$75,$2B,$32,$18,$55,$00,$29
+            DB      $0F,$3E,$83
+
+; Fragment $1B @ $8D29: "Garwor, go after them"
+SPK_Garwor_Go_After_Them:
+            DB      $15                 ; encoded SC-01 byte count
+            DB      $83,$1C,$55,$2B,$2D,$35,$2B,$3E
+            DB      $1C,$35,$35,$6F,$00,$1D,$2A,$3A
+            DB      $38,$3B,$0C,$3E,$83
+
+; Fragment $08 @ $8D3F: "Watch the radar"
+SPK_Watch_The_Radar:
+            DB      $0E                 ; encoded SC-01 byte count
+            DB      $83,$2D,$15,$2A,$10,$38,$33,$2B
+            DB      $20,$1E,$15,$2B,$03,$83
+
+; Fragment $09 @ $8D4E: "Worrior"
+SPK_Worrior:
+            DB      $06                 ; encoded SC-01 byte count
+            DB      $2D,$26,$2B,$29,$3A,$3E
+
+; Fragment $1A @ $8D55: "Now you get the heavyweights"
+SPK_Now_You_Get_The_Heavyweights:
+            DB      $1D                 ; encoded SC-01 byte count
+            DB      $83,$0D,$15,$63,$77,$22,$36,$37
+            DB      $37,$1C,$3B,$2A,$03,$39,$32,$03
+            DB      $5B,$42,$49,$0F,$3C,$2D,$45,$09
+            DB      $22,$2A,$1F,$3E,$83
+
+; Fragment $35 @ $8D73: "You're asking for trouble"
+SPK_Youre_Asking_For_Trouble:
+            DB      $16                 ; encoded SC-01 byte count
+            DB      $83,$29,$34,$34,$2B,$6F,$00,$5F
+            DB      $59,$27,$14,$1D,$26,$2B,$2A,$2B
+            DB      $73,$4E,$23,$18,$3E,$83
+
+; Fragment $1C @ $8D8A: "If you try any harder, you'll only meet with doom"
+SPK_If_You_Try_Any_Harder_Youll_Only_Meet_With_Doom:
+            DB      $2A                 ; encoded SC-01 byte count
+            DB      $27,$1D,$29,$36,$28,$2A,$2B,$15
+            DB      $00,$09,$29,$6F,$0D,$29,$1B,$55
+            DB      $6B,$1E,$3A,$3E,$83,$22,$36,$28
+            DB      $18,$75,$0D,$18,$29,$0C,$2C,$3C
+            DB      $2A,$2D,$27,$39,$5E,$28,$28,$0C
+            DB      $3E,$83
+
+; Fragment $1D @ $8DB5: "Burwor, Garwor, and Thorwor will do you in"
+SPK_Burwor_Garwor_And_Thorwor_Will_Do_You_In:
+            DB      $27                 ; encoded SC-01 byte count
+            DB      $83,$0E,$7A,$6B,$2D,$26,$2B,$3E
+            DB      $1C,$55,$6B,$2D,$26,$2B,$3E,$2F
+            DB      $00,$0D,$1E,$39,$66,$6B,$2D,$26
+            DB      $2B,$3E,$2D,$27,$18,$1E,$36,$68
+            DB      $22,$36,$28,$27,$0D,$3E,$83
+
+; Fragment $1E @ $8DDD: "My worlings are very very hungry"
+SPK_My_Worlings_Are_Very_Very_Hungry:
+            DB      $22                 ; encoded SC-01 byte count
+            DB      $83,$0C,$15,$00,$09,$29,$2D,$66
+            DB      $6B,$18,$27,$14,$1F,$15,$23,$2B
+            DB      $0F,$7B,$40,$2B,$29,$0F,$7B,$40
+            DB      $2B,$29,$1B,$73,$0D,$1C,$2B,$29
+            DB      $3E,$83
+
+; Fragment $1F @ $8E00: "My magic is stronger than your weapons"
+SPK_My_Magic_Is_Stronger_Than_Your_Weapons:
+            DB      $23                 ; encoded SC-01 byte count
+            DB      $0C,$15,$40,$49,$69,$0C,$6F,$1E
+            DB      $1A,$0B,$19,$27,$12,$1F,$2A,$2B
+            DB      $7D,$0D,$1C,$2B,$38,$2F,$00,$0D
+            DB      $29,$34,$34,$2B,$2D,$7B,$65,$32
+            DB      $0D,$1F,$3E
+
+; Fragment $21 @ $8E24: "Your bones will lie in the dungeons of Wor"
+SPK_Your_Bones_Will_Lie_In_The_Dungeons_Of_Wor:
+            DB      $26                 ; encoded SC-01 byte count
+            DB      $83,$29,$34,$34,$2B,$4E,$26,$34
+            DB      $4D,$1F,$2D,$27,$18,$03,$18,$15
+            DB      $00,$29,$27,$0D,$38,$33,$1E,$73
+            DB      $0D,$1A,$02,$0D,$1F,$33,$0F,$2D
+            DB      $26,$35,$2B,$2B,$3E,$83
+
+; Fragment $20 @ $8E4B: "While you developed science, we developed magic"
+SPK_While_You_Developed_Science_We_Developed_Magic:
+            DB      $2B                 ; encoded SC-01 byte count
+            DB      $2D,$15,$00,$09,$18,$22,$76,$68
+            DB      $1E,$3C,$0F,$02,$18,$23,$25,$2A
+            DB      $1F,$15,$09,$21,$3B,$0D,$1F,$3E
+            DB      $2D,$3C,$29,$1E,$3C,$0F,$02,$18
+            DB      $23,$25,$2A,$0C,$2F,$00,$1E,$1A
+            DB      $0B,$19,$3E
+
+; Fragment $0A @ $8E77: "Hey, insert coin"
 SPK_Hey_Insert_Coin:
-            DB      $1B, $60, $4B, $62  ; "Hey,"   (H, A, I1, Y1)
-            DB      $3E, $3E            ; Pause    (PA1, PA1)
-            DB      $27, $0D, $1F, $7A  ; "Inser-" (I, N, S, ER)
-            DB      $6A                 ; "-t"     (T)
-            DB      $3E                 ; Pause    (PA1)
-            DB      $59, $75, $34, $09  ; "Coi-"   (K, O1, O2, I3)
-            DB      $22, $0D            ; "-n!"    (Y1, N)
-            DB      $3E                 ; Pause    (PA1)
-            DB      $0A                 ; Padding  (I2 - Unplayed 20th byte)
+            DB      $13                 ; encoded SC-01 byte count
+            DB      $1B,$60,$4B,$62,$3E,$3E,$27,$0D
+            DB      $1F,$7A,$6A,$3E,$59,$75,$34,$09
+            DB      $22,$0D,$3E
 
-
-;*****************************************************************************************
-; ----> Votrax Speech Strings: Wizard Taunts
-;
-;       Length: $67 (103) bytes. Pitch inflection is applied via bit 6 (+$40).
-;*****************************************************************************************
+; Fragment $0B @ $8E8B: "Find me"
 SPK_Find_Me:
-            DB      $1D, $55, $49, $69, $0D, $1E                ; "Find"       (F, AH1, I3, Y, N, D)
-            DB      $0C, $2C, $3C, $3E                          ; "me,"        (M, E, E1, PA1)
+            DB      $0A                 ; encoded SC-01 byte count
+            DB      $1D,$55,$49,$69,$0D,$1E,$0C,$2C
+            DB      $3C,$3E
 
-SPK_Outta_Spite:
-            DB      $12, $15, $49, $69, $0C, $03                ; "Zym/I'm"    (Z, AH1, I3, Y, M, PA0)
-            DB      $08, $35, $37, $1E, $15, $03                ; "outta"      (AH2, O1, U1, D, AH1, PA0)
-            DB      $1F, $25, $08, $4B, $69, $2A, $3E           ; "spite,"     (S, P, AH2, I1, Y, T, PA1)
+; Fragment $0C @ $8E96: "I'm out of spite"
+SPK_Im_Out_Of_Spite:
+            DB      $12                 ; encoded SC-01 byte count
+            DB      $15,$49,$69,$0C,$03,$08,$35,$37
+            DB      $1E,$15,$03,$1F,$25,$08,$4B,$69
+            DB      $2A,$3E
 
+; Fragment $0D @ $8EA9: "Get ready"
 SPK_Get_Ready:
-            DB      $08, $1C, $3B, $2A, $2B, $3B, $1E, $29, $3E ; "Get ready," (AH2, G, EH, T, R, EH, D, Y, PA1)
+            DB      $08                 ; encoded SC-01 byte count
+            DB      $1C,$3B,$2A,$2B,$3B,$1E,$29,$3E
 
-SPK_Better_Hope:
-            DB      $20, $22, $36, $28, $1E, $03                ; "you'd"      (A, Y1, IU, U, D, PA0)
-            DB      $0E, $42, $2A, $3A, $03                     ; "better"     (B, EH1, T, ER, PA0)
-            DB      $1B, $26, $25                               ; "hope"       (H, O, P)
-            DB      $22, $76, $68                               ; "you'll"     (Y1, IU, L)
-            DB      $1E, $26, $0D, $2A                          ; "don't"      (D, O, N, T)
-            DB      $5D, $55, $09, $22, $0D, $1E                ; "find"       (F, AH1, I3, Y1, N, D)
-            DB      $4C, $2C, $3C, $3E, $3E, $3E                ; "me"         (M, E, E1, PA1, PA1, PA1)
+; Fragment $0E @ $8EB2: "You'd better hope you don't find me"
+SPK_Youd_Better_Hope_You_Dont_Find_Me:
+            DB      $20                 ; encoded SC-01 byte count
+            DB      $22,$36,$28,$1E,$03,$0E,$42,$2A
+            DB      $3A,$03,$1B,$26,$25,$22,$76,$68
+            DB      $1E,$26,$0D,$2A,$5D,$55,$09,$22
+            DB      $0D,$1E,$4C,$2C,$3C,$3E,$3E,$3E
 
-SPK_Treasure_Chest:
-            DB      $1E, $15, $0D, $33, $39, $3A, $03           ; "down there" (D, AH1, N, UH, TH, ER, PA0)
-            DB      $19, $35, $34, $09, $22, $0D                ; "coin/goin'" (K, O1, O2, I3, Y1, N)
-            DB      $1D, $26, $2B                               ; "for"        (F, O, R)
-            DB      $0C, $55, $49, $62                          ; "my"         (M, AH1, I3, Y1)
-            DB      $2A, $2B, $02, $07, $3A                     ; "treasure"   (T, R, EH1, ZH, ER)
-            DB      $2A, $10, $3B, $1F, $2A                     ; "chest."     (T, CH, EH, S, T)
-            DB      $3E, $0A                                    ; Pause & Pad  (PA1, I2)
+; Fragment $0F @ $8ED3: "Another coin for my treasure chest"
+SPK_Another_Coin_For_My_Treasure_Chest:
+            DB      $1E                 ; encoded SC-01 byte count
+            DB      $15,$0D,$33,$39,$3A,$03,$19,$35
+            DB      $34,$09,$22,$0D,$1D,$26,$2B,$0C
+            DB      $55,$49,$62,$2A,$2B,$02,$07,$3A
+            DB      $2A,$10,$3B,$1F,$2A,$3E
 
+; Fragment $10 @ $8EF2: "Ha ha ha ha"
+SPK_Ha_Ha_Ha_Ha:
+            DB      $0A                 ; encoded SC-01 byte count
+            DB      $3E,$1B,$55,$1B,$55,$1B,$15,$1B
+            DB      $15,$3E
 
-            ld      a,$1B
-            ld      d,l
-            dec     de
-            ld      d,l
-            dec     de
-            dec     d
-            dec     de
-            dec     d
-            ld      a,$22
-            ld      h,h
-            ex      af,af'
-            inc     bc
-            ld      e,h
-            halt
-            halt
-            ld      (hl),$36
-            ld      e,$3E
-            inc     c
-            dec     d
-            add     hl,bc
-            add     hl,hl
-            dec     h
-            ld      a,e
-            ld      hl,(L2D1F)
-            ld      a,(Maze_16_Data)
-            dec     sp
-            ld      hl,($1427)
-            dec     de
-            ld      (hl),e
-            ld      d,h
-            inc     e
-            dec     hl
-            add     hl,hl
-            ld      a,$3E
-            inc     d
-            add     a,e
-            ld      (L2836),hl
-            jr      L8F43
-            dec     sp
-            ld      hl,($3E3E)
-            jr      c,L8F59
-            inc     bc
-            ld      c,b
-            dec     hl
-            inc     l
-            dec     c
-            dec     d
-            ld      a,$BE
-            dec     bc
-            cp      (hl)
-            dec     de
-            dec     d
-            dec     de
-            dec     d
-            dec     de
-            dec     d
-            dec     de
-            dec     d
-            ld      a,$83
-            inc     hl
-            dec     d
-L8F43:      dec     c
-            ld      (WORRIOR_BLUE_3 + $34),a
-            inc     bc
-            dec     l
-            ld      h,$2B
-            add     hl,hl
-            ld      a,(L351D)
-            dec     hl
-            inc     c
-            dec     d
-            add     hl,bc
-            ld      (L200E),hl
-            add     hl,hl
-            ld      c,$22
-L8F59:      add     hl,hl
-            rra
-            ld      hl,(L1E28)
-            inc     l
-            rrca
-            dec     d
-            inc     (hl)
-            scf
-            dec     hl
-            ld      a,$1D
-            add     hl,de
-            ld      l,h
-            dec     h
-            inc     bc
-            inc     e
-            ld      h,$0B
-            ld      (L0314),hl
-            ld      l,$0D
-            ld      e,$29
-            ld      (hl),$28
-            dec     l
-            daa
-            jr      L8F97
-            ld      d,l
-            dec     bc
-            ld      (Initialize_Player_Life_Displays),hl
-            inc     c
-            inc     l
-            inc     a
-            ld      a,$1D
-            dec     d
-            dec     e
-            inc     a
-            jr      z,L8FB1
-            inc     c
-            ld      h,$2B
-            ld      e,$33
-            dec     c
-            ld      a,(de)
-            ld      (bc),a
-            dec     c
-            rra
-            ld      a,$15
-            dec     c
-            ld      e,$29
-            ld      (hl),$68
-            ld      e,b
-            ld      c,$2C
-            inc     a
-            inc     bc
-            jr      nz,L8FA7
-            ex      af,af'
-            dec     l
-            ld      h,(hl)
-            ld      l,e
-            jr      L8FCD
-L8FA7:      dec     hl
-            ld      e,$3E
-            ld      a,(bc)
-            add     a,e
-            dec     l
-            ld      h,(hl)
-            ld      l,e
-            jr      L8FD7
-L8FB1:      dec     hl
-            ld      e,$3E
-            add     a,e
-            ld      (de),a
-            add     hl,de
-            dec     d
-            inc     c
-            ld      c,$2E
-            add     hl,de
-            dec     e
-            ld      h,$2B
-            inc     c
-            ld      h,$35
-            dec     hl
-            ld      a,$3E
-            dec     l
-            daa
-            add     hl,sp
-            daa
-            add     a,e
-            jr      c,L8FFF
-            ld      e,$73
-            ld      c,l
-            ld      a,(de)
-            dec     sp
-            dec     c
-            rra
-            inc     bc
-            inc     sp
-            rrca
-            inc     bc
-L8FD7:      dec     l
-            ld      h,$35
-            dec     hl
-            dec     hl
-            dec     d
-            dec     l
-            ld      b,(hl)
-            ld      h,c
-            add     hl,hl
-            ld      hl,(L2903)
-            ld      h,$35
-            dec     hl
-            dec     hl
-            add     hl,bc
-            inc     a
-            ld      hl,(L2B7A)
-            dec     c
-            ld      a,$83
-            dec     hl
-            add     a,e
-            ld      e,$6C
-            inc     a
-            dec     h
-            daa
-            dec     c
-            jr      c,L902D
-            inc     bc
-            add     hl,de
-            ld      l,$0F
-            ld      a,(L1F0D)
-            inc     bc
-            inc     sp
-            rrca
-            dec     l
-            ld      h,(hl)
-            ld      (hl),l
-            dec     hl
-            dec     hl
-            ld      a,$3E
-            ld      (L2836),hl
-            scf
-            dec     l
-            daa
-            jr      L901F
-            ld      l,h
-            ld      a,h
-            ld      hl,(L0C03)
-            inc     l
-            inc     a
-            inc     bc
-            add     a,e
-            ld      c,$3E
-            add     hl,sp
-L901F:      add     hl,sp
-            cpl
-            nop
-            inc     d
-            add     hl,de
-            rra
-            inc     bc
-            add     hl,hl
-            ld      (hl),$28
-            scf
-            ld      a,$18
-            add     a,e
-L902D:      ld      (L2836),hl
-            dec     c
-            ld      (hl),l
-            ld      (hl),l
-            dec     (hl)
-            ld      (L2836),hl
-            add     hl,de
-            cpl
-            nop
-            dec     c
-            ld      e,$36
-            jr      z,L904D
-            ld      a,e
-            ld      hl,($3E3A)
-            add     a,e
-            ld      h,$1B
-            ld      a,d
-            ld      l,e
-            add     hl,hl
-            ld      c,$2F
-            nop
-            add     hl,de
-L904D:      ld      a,$3E
-            dec     d
-            nop
-            add     hl,bc
-            add     hl,hl
-            add     hl,de
-            cpl
-            nop
-            dec     c
-            ld      hl,(L462D)
-            ld      h,c
-            add     hl,hl
-            ld      hl,(L362A)
-            scf
-            ld      e,$76
-            jr      z,L908B
-            ld      hl,(Maze_16_Data_Byte_07)
-            ld      b,l
-            ld      b,d
-            dec     c
-            ld      a,$27
-            ld      (L2836),hl
-            add     hl,de
-            cpl
-            nop
-            dec     c
-            rra
-            ld      hl,(L2B55)
-            ld      hl,(L0D15)
-            halt
-            scf
-            dec     l
-            ld      a,$BE
-            ld      c,$33
-            ld      hl,(L351D)
-            dec     hl
-            dec     c
-            dec     d
-            ld      h,e
-            ld      (hl),a
-            add     hl,hl
-            inc     (hl)
-L908B:      inc     (hl)
-            dec     hl
-            add     hl,sp
-            dec     hl
-            ld      (hl),a
-            scf
-            ld      a,$BE
-            ld      (L6C1B),hl
-            dec     de
-            ld      l,h
-            dec     de
-            ld      l,h
-            dec     de
-            ld      h,$1B
-            ld      h,$1B
-            ld      h,$1B
-            dec     d
-            dec     de
-            dec     d
-L90A4:      dec     de
-            dec     d
-            dec     de
-            dec     d
-            ld      a,$38
-            ld      l,(hl)
-            nop
-            ld      hl,(L0303)
-            dec     l
-            inc     sp
-            ld      (de),a
-            dec     e
-            inc     sp
-            dec     c
-            ld      a,$19
-            dec     l
-            ld      a,e
-            jr      L90D4
-            inc     sp
-            inc     c
-            ld      a,$2A
-            scf
-            inc     c
-            dec     d
-            dec     bc
-            add     hl,hl
-            dec     l
-            dec     (hl)
-            ld      a,d
-            ld      e,b
-            ld      e,$33
-            rrca
-            dec     l
-            ld      h,$35
-            dec     hl
-            ld      a,$21
-            rra
-            ld      h,(hl)
-            add     hl,hl
-L90D4:      ld      (hl),$37
-            rrca
-            add     hl,de
-            ld      (hl),e
-            ld      c,h
-            ld      hl,(L1F37)
-            add     hl,de
-            ld      h,$35
-            dec     hl
-            ld      a,$0B
-            dec     c
-            jr      c,L9118
-            dec     l
-            dec     (hl)
-            ld      a,d
-            jr      L9109
-            inc     sp
-            rrca
-            dec     l
-            ld      h,(hl)
-            dec     (hl)
-            dec     hl
-            ld      a,$2C
-            add     hl,hl
-            inc     (hl)
-            inc     (hl)
-            dec     hl
-            dec     a
-            dec     e
-            ld      hl,(L3736)
-            sbc     a,a
-            inc     a
-            add     hl,hl
-            jr      c,L9134
-            xor     l
-            daa
-            ld      (de),a
-            ld      a,($3E1E)
-            jr      c,L913C
-L9109:      inc     c
-            cpl
-            nop
-            ld      e,$1A
-            dec     bc
-            add     hl,de
-            ld      ($AD18),a
-            daa
-            ld      (de),a
-            ld      a,(LB31E)
-L9118:      rrca
-            dec     l
-            dec     (hl)
-            inc     (hl)
-            dec     hl
-            ld      a,$3E
-            jr      nz,L90A4
-            ld      c,$3A
-            dec     hl
-            dec     l
-            ld      h,$2B
-            dec     de
-            ld      l,$1F
-            dec     c
-            ld      hl,(L2A2C)
-            ld      (bc),a
-            dec     c
-            dec     sp
-            dec     c
-            add     hl,hl
-            dec     l
-L9134:      inc     sp
-            dec     c
-            inc     bc
-            dec     bc
-            dec     c
-            inc     c
-            inc     sp
-            dec     c
-L913C:      add     hl,sp
-            rra
-            ld      a,$83
-            ld      d,$0C
-            dec     d
-            add     hl,bc
-            add     hl,hl
-            ld      c,$60
-            ld      c,$29
-            ld      (Disp_Joy_Str),hl
-            ld      c,$2B
-            inc     a
-            add     hl,hl
-            add     hl,sp
-            dec     e
-            ld      d,l
-            nop
-            ld      hl,$3E2B
-            ld      h,$83
-            dec     d
-            nop
-            add     hl,bc
-            add     hl,hl
-            jr      L917C
-            dec     hl
-            dec     d
-            ld      b,b
-            ld      b,b
-            ld      l,c
-            ld      (L3709),hl
-            dec     l
-            dec     bc
-            add     hl,sp
-            inc     c
-            dec     d
-            nop
-            add     hl,bc
-            add     hl,hl
-            jr      L9194
-            ld      c,b
-            ld      l,c
-            ld      hl,(L270D)
-            inc     d
-            ld      c,$26
-            jr      L91A5
-            rra
-L917C:      ld      a,$83
-            ld      ($151C),hl
-            dec     hl
-            dec     l
-            ld      h,$2B
-            cpl
-            nop
-            dec     c
-            ld      e,$39
-            ld      h,$2B
-            dec     l
-            ld      h,$2B
-            ld      a,$0E
-            add     hl,hl
-            add     hl,de
-            inc     sp
-L9194:      inc     c
-            ld      a,$BE
-            daa
-            dec     c
-            rrca
-            ld      c,e
-            ld      d,d
-            dec     bc
-            ld      c,$18
-            ld      a,$83
-            inc     l
-            add     a,e
-            add     hl,sp
-            ld      h,$2B
-            dec     l
-            ld      h,$2B
-            ld      a,$27
-            ld      (de),a
-            dec     hl
-            dec     sp
-            ld      e,$3E
-            inc     c
-            inc     a
-            ld      hl,$3E0D
-            cpl
-            nop
-            dec     c
-            ld      e,$1B
-            ld      (hl),e
-            ld      d,h
-            inc     e
-            dec     hl
-            add     hl,hl
-            dec     e
-            ld      h,$2B
-            rra
-            dec     h
-            ld      b,$09
-            add     hl,hl
-            rra
-            dec     e
-            scf
-            scf
-            ld      e,$3E
-            add     a,e
-            jr      z,L91FD
-            ld      h,$2B
-            add     hl,hl
-            ld      a,(L211D)
-            ld      a,(bc)
-            dec     hl
-            ld      a,$15
-            nop
-            add     hl,bc
-            add     hl,hl
-            ld      e,$2B
-            dec     a
-            dec     c
-            ld      hl,L2B0A
-            ld      a,$3C
-            ld      hl,(L2A10)
-            dec     d
-            add     hl,bc
-            ld      ($150C),hl
-            nop
-            add     hl,bc
-            add     hl,hl
-            ld      (L6125),a
-            ld      c,c
-            dec     hl
-            ld      a,$07
-            xor     l
-            ld      h,$2B
-            add     hl,hl
-            ld      a,(L833E)
-            rla
-            add     hl,hl
-            ld      (hl),$37
-            rrca
-            inc     bc
-            ld      a,(de)
-            inc     sp
-            rra
-            ld      hl,(WORRIOR_YELLOW_1_UP + $56)
-            dec     c
-            dec     e
-            dec     hl
-            dec     d
-            dec     bc
-            ld      ($3E1E),hl
-            ld      c,$15
-            ld      a,(bc)
-            ld      (L830F),hl
-            ld      c,$23
-            dec     d
-            add     hl,hl
-            ld      hl,(L3338)
-            ld      c,$35
-            dec     (hl)
-            jr      L924F
-            ld      a,$83
-            dec     e
-            dec     l
-            inc     sp
-            rra
-            dec     c
-            ld      hl,(L2F38)
-            ld      hl,(L2318)
-            ld      c,b
-            ld      l,c
-            ld      hl,(L270D)
-            inc     d
-            ld      c,$26
-            jr      L9266
-            inc     bc
-            ld      e,$2C
-            jr      L924C
-            ld      de,L1F32
-            ld      a,$2A
-            add     a,e
-            ld      l,$0D
-            ld      e,$03
-            inc     c
-L924C:      dec     d
-            dec     bc
-            ld      (L022A),hl
-            jr      L9255
-            dec     h
-            ld      h,$2B
-            ld      hl,($140B)
-            rra
-            dec     h
-            dec     sp
-            jr      L9261
-            add     hl,de
-            cpl
-            dec     c
-L9261:      ld      c,$2C
-            inc     bc
-            inc     bc
-            inc     a
-L9266:      rrca
-            dec     sp
-            dec     c
-            dec     e
-            ld      l,$1F
-            ld      hl,($3E3A)
-            add     a,e
-            inc     hl
-            add     a,e
-            dec     c
-            ld      d,l
-            inc     hl
-            scf
-            add     hl,hl
-            ld      (hl),$37
-            scf
-            dec     c
-            ld      h,$26
-            jr      c,L92B2
-            ld      hl,($0520)
-            rra
-            ld      hl,(Text_Radar_Location_Byte_18)
-            rrca
-            inc     c
-            dec     d
-            ld      a,(bc)
-            ld      (L2F0C),hl
-            nop
-            ld      e,$1A
-            dec     bc
-            add     hl,de
-            inc     bc
-            add     a,e
-            ld      d,$0C
-            jr      nz,L92C1
-            ld      c,$2C
-            add     hl,hl
-            ld      (hl),$37
-            jr      L92BE
-            inc     l
-            inc     a
-            inc     c
-            inc     a
-            inc     l
-            inc     bc
-            inc     sp
-            inc     e
-            ld      b,$01
-            dec     c
-            ld      a,$23
-            ld      (L3434),hl
-            dec     hl
-            ld      (bc),a
-            add     hl,de
-L92B2:      ld      e,a
-            dec     h
-            jr      L931C
-            rlca
-            inc     sp
-            dec     c
-            inc     bc
-            dec     l
-            ld      (L0C1F),a
-L92BE:      ld      h,d
-            ld      l,b
-            rra
-L92C1:      daa
-            add     hl,de
-            ld      hl,(L0C28)
-            dec     d
-            add     hl,bc
-            ld      (WORRIOR_BLUE_2_UP + $3D),hl
-            ld      a,(L1F2B)
-            ld      a,$10
-            dec     d
-            nop
-            add     hl,bc
-            add     hl,hl
-            jr      L92F5
-            jr      nz,L92FA
-            daa
-            ld      hl,(L1C33)
-            ld      b,$01
-            dec     c
-            ld      a,$22
-            add     a,e
-            ld      c,$3C
-            inc     l
-            dec     e
-            ld      h,$2B
-            dec     l
-            dec     (hl)
-            ld      h,$2B
-            dec     c
-            ld      e,$3E
-            add     hl,hl
-            ld      (hl),$28
-            scf
-            ld      a,$32
-L92F5:      dec     h
-            dec     hl
-            ld      h,$35
-            ld      hl,($3E10)
-            jr      c,L9331
-            dec     h
-            daa
-            ld      hl,(L833E)
-            ld      (L2983),hl
-            inc     (hl)
-            inc     (hl)
-            dec     hl
-            dec     h
-            ld      l,$39
-            inc     bc
-            jr      L933B
-            ld      e,$1F
-            inc     bc
-            ld      e,$3A
-            ld      (bc),a
-            add     hl,de
-            ld      hl,(L2218)
-            inc     bc
-            ld      hl,(L3728)
-            ld      a,$3E
-            jr      c,L9354
-            dec     h
-            daa
-            ld      hl,(L833E)
-            ld      d,$83
-            ld      e,$3C
-            inc     l
-            dec     h
-            ld      a,(WORRIOR_BLUE_1_UP + $2C)
-            rrca
-            ld      a,(WORRIOR_BLUE_2_UP + $58)
-            inc     l
-            dec     h
-            ld      a,(L273E)
-            dec     c
-            ld      hl,($3E28)
-            add     a,e
-            ld      hl,L0E83
-            add     hl,hl
-            dec     l
-            dec     sp
-            dec     hl
-            ld      a,$29
-            ld      (hl),$28
-            dec     d
-            dec     hl
-            daa
-            dec     c
-            jr      c,L9381
-            dec     l
-            ld      h,$2B
-            jr      L9379
-            dec     hl
-L9354:      ld      e,$03
-            ld      e,$33
-            dec     c
-            ld      a,(de)
-            ld      (bc),a
-            dec     c
-            ld      (de),a
-            ld      a,$83
-            cpl
-            add     a,e
-            inc     h
-            dec     d
-            ld      a,$29
-            ld      (hl),$28
-            add     hl,sp
-            dec     a
-            ld      hl,(L3629)
-            jr      z,L9387
-            rla
-            ld      e,$1B
-            dec     d
-            ld      a,(bc)
-            ld      ($3E1E),hl
-            ld      c,$33
-            ld      hl,($0015)
-            add     hl,bc
-            add     hl,hl
-            inc     c
-            ld      a,$3E
-            jr      c,L93B5
-            ld      e,$33
-            dec     c
-            ld      a,(de)
-            ld      (bc),a
-L9387:      dec     c
-            inc     c
-            ld      l,$1F
-            ld      hl,($3E3A)
-            add     a,e
-            dec     de
-            add     a,e
-            add     hl,sp
-            ld      h,$35
-            dec     hl
-            inc     bc
-            ld      c,$3A
-            dec     hl
-            inc     bc
-            inc     e
-            inc     h
-            dec     hl
-            ld      a,$1E
-            ld      h,a
-            ld      c,l
-            ld      a,(Disp_Joy_Str)
-            dec     hl
-            ld      a,e
-            add     hl,bc
-            ld      e,$29
-            ld      a,$83
-            rra
-            dec     de
-            ld      h,b
-            ld      c,e
-            ld      h,d
-            ld      a,$3E
-            add     hl,hl
-            inc     (hl)
-            inc     (hl)
-L93B5:      dec     hl
-            rra
-            dec     h
-            ld      b,$21
-            add     hl,hl
-            rra
-            inc     bc
-            ld      c,$28
-            scf
-            ld      hl,(Disp_Joy_Str)
-            inc     sp
-            dec     c
-            ld      hl,(L0A15)
-            ld      ($3E1E),hl
-            inc     l
-            add     a,e
-            inc     c
-            dec     d
-            nop
-            add     hl,bc
-            ld      (L2C0E),hl
-            inc     a
-            rra
-            ld      hl,(Disp_Joy_Str)
-            dec     hl
-            inc     sp
-            dec     c
-            dec     l
-            dec     d
-            ld      a,(bc)
-            ld      (L1E18),hl
-            ld      a,$27
-            dec     c
-            jr      c,L941A
-            dec     l
-            ld      h,$2B
-            jr      L9412
-            dec     hl
-            ld      e,$3E
-            ld      e,$33
-            dec     c
-            ld      a,(de)
-            ld      (bc),a
-            dec     c
-            ld      (de),a
-            ld      a,$83
-            inc     e
-            dec     c
-            dec     d
-            ld      h,e
-            ld      (hl),a
-            add     hl,hl
-            inc     (hl)
-            inc     (hl)
-            dec     hl
-            ld      h,$0D
-            jr      L942E
-            ld      hl,(L2E10)
-            dec     c
-            rra
-L940A:      dec     bc
-            rra
-            add     hl,hl
-            inc     (hl)
-            inc     (hl)
-            dec     hl
-            ld      e,$2E
-L9412:      dec     c
-            rra
-            ld      a,$24
-            add     a,e
-            inc     h
-            dec     hl
-            inc     bc
-L941A:      inc     bc
-            ld      (L2836),hl
-            inc     bc
-            add     a,e
-            dec     e
-            daa
-            ld      hl,(L0303)
-            ld      hl,(Do_Joy_Jump)
-            add     a,e
-            rra
-            ld      a,(L080F)
-            ld      a,(bc)
-L942E:      ld      (L030F),hl
-            inc     bc
-            jr      c,L9467
-            inc     bc
-            add     a,e
-            dec     h
-            daa
-            ld      hl,(L1F3E)
-            jr      z,L9462
-            rra
-            ld      a,$3E
-            dec     d
-            inc     hl
-            add     hl,bc
-            add     hl,hl
-            inc     c
-            inc     sp
-            rra
-            ld      hl,(L2F1B)
-            rrca
-            dec     e
-            ld      h,$2B
-            inc     e
-            dec     d
-            ld      hl,(L0D02)
-            jr      c,L9488
-            dec     l
-            dec     a
-            jr      L9478
-            ld      a,$1B
-            add     a,e
-            dec     l
-            cpl
-            ld      a,(L2B15)
-            ld      (L2836),hl
-            inc     e
-            ld      h,$0B
-L9467:      inc     d
-            ld      hl,(Maze_01_Data_Byte_11)
-            dec     d
-            ld      a,(bc)
-            ld      (L031E),hl
-            dec     c
-            dec     d
-            inc     hl
-            jr      z,L94B3
-            add     a,e
+; Fragment $11 @ $8EFD: "Ah good! My pets were getting hungry"
+SPK_Ah_Good_My_Pets_Were_Getting_Hungry:
+            DB      $22                 ; encoded SC-01 byte count
+            DB      $64,$08,$03,$5C,$76,$76,$36,$36
+            DB      $1E,$3E,$0C,$15,$09,$29,$25,$7B
+            DB      $2A,$1F,$2D,$3A,$2B,$1C,$3B,$2A
+            DB      $27,$14,$1B,$73,$54,$1C,$2B,$29
+            DB      $3E,$3E
+
+; Fragment $12 @ $8F20: "You'll get the Arena"
+SPK_Youll_Get_The_Arena:
+            DB      $14                 ; encoded SC-01 byte count
+            DB      $83,$22,$36,$28,$18,$1C,$3B,$2A
+            DB      $3E,$3E,$38,$2C,$03,$48,$2B,$2C
+            DB      $0D,$15,$3E,$BE
+
+; Fragment $36 @ $8F35: "Ha ha ha ha (padded)"
+SPK_Ha_Ha_Ha_Ha_Padded:
+            DB      $0B                 ; encoded SC-01 byte count
+            DB      $BE,$1B,$15,$1B,$15,$1B,$15,$1B
+            DB      $15,$3E,$83
+
+; Fragment $13 @ $8F41: "Another worrior for my babies to devour"
+SPK_Another_Worrior_For_My_Babies_To_Devour:
+            DB      $23                 ; encoded SC-01 byte count
+            DB      $15,$0D,$32,$38,$3A,$03,$2D,$26
+            DB      $2B,$29,$3A,$1D,$35,$2B,$0C,$15
+            DB      $09,$22,$0E,$20,$29,$0E,$22,$29
+            DB      $1F,$2A,$28,$1E,$2C,$0F,$15,$34
+            DB      $37,$2B,$3E
+
+; Fragment $14 @ $8F65: "Keep going and you will find me"
+SPK_Keep_Going_And_You_Will_Find_Me:
+            DB      $1D                 ; encoded SC-01 byte count
+            DB      $19,$6C,$25,$03,$1C,$26,$0B,$22
+            DB      $14,$03,$2E,$0D,$1E,$29,$36,$28
+            DB      $2D,$27,$18,$1D,$55,$0B,$22,$0D
+            DB      $1E,$0C,$2C,$3C,$3E
+
+; Fragment $15 @ $8F83: "A few more dungeons and you'll be a"
+SPK_A_Few_More_Dungeons_And_Youll_Be_A:
+            DB      $1D                 ; encoded SC-01 byte count
+            DB      $15,$1D,$3C,$28,$28,$0C,$26,$2B
+            DB      $1E,$33,$0D,$1A,$02,$0D,$1F,$3E
+            DB      $15,$0D,$1E,$29,$36,$68,$58,$0E
+            DB      $2C,$3C,$03,$20,$06
+
+; Fragment $40 @ $8FA1: "Worlord"
+SPK_Worlord:
+            DB      $08                 ; encoded SC-01 byte count
+            DB      $2D,$66,$6B,$18,$26,$2B,$1E,$3E
+
+; Fragment $41 @ $8FAA: "Worlord (padded)"
+SPK_Worlord_Padded:
+            DB      $0A                 ; encoded SC-01 byte count
+            DB      $83,$2D,$66,$6B,$18,$26,$2B,$1E
+            DB      $3E,$83
+
+; Fragment $16 @ $8FB5: "Come back for more with"
+SPK_Come_Back_For_More_With:
+            DB      $12                 ; encoded SC-01 byte count
+            DB      $19,$15,$0C,$0E,$2E,$19,$1D,$26
+            DB      $2B,$0C,$26,$35,$2B,$3E,$3E,$2D
+            DB      $27,$39
+
+; Fragment $17 @ $8FC8: "The dungeons of Wor await your return"
+SPK_The_Dungeons_Of_Wor_Await_Your_Return:
+            DB      $27                 ; encoded SC-01 byte count
+            DB      $83,$38,$33,$1E,$73,$4D,$1A,$3B
+            DB      $0D,$1F,$03,$33,$0F,$03,$2D,$26
+            DB      $35,$2B,$2B,$15,$2D,$46,$61,$29
+            DB      $2A,$03,$29,$26,$35,$2B,$2B,$09
+            DB      $3C,$2A,$7A,$2B,$0D,$3E,$83
+
+; Fragment $18 @ $8FF0: "Deep in the caverns of Wor, you will meet me"
+SPK_Deep_In_The_Caverns_Of_Wor_You_Will_Meet_Me:
+            DB      $2B                 ; encoded SC-01 byte count
+            DB      $83,$1E,$6C,$3C,$25,$27,$0D,$38
+            DB      $33,$03,$19,$2E,$0F,$3A,$0D,$1F
+            DB      $03,$33,$0F,$2D,$66,$75,$2B,$2B
+            DB      $3E,$3E,$22,$36,$28,$37,$2D,$27
+            DB      $18,$0C,$6C,$7C,$2A,$03,$0C,$2C
+            DB      $3C,$03,$83
+
+; Fragment $19 @ $901C: "thanks you"
+SPK_Thanks_You:
+            DB      $0E                 ; encoded SC-01 byte count
+            DB      $3E,$39,$39,$2F,$00,$14,$19,$1F
+            DB      $03,$29,$36,$28,$37,$3E
+
+; Fragment $29 @ $902B: "You know you can do better"
+SPK_You_Know_You_Can_Do_Better:
+            DB      $18                 ; encoded SC-01 byte count
+            DB      $83,$22,$36,$28,$0D,$75,$75,$35
+            DB      $22,$36,$28,$19,$2F,$00,$0D,$1E
+            DB      $36,$28,$0E,$7B,$2A,$3A,$3E,$83
+
+; Fragment $2A @ $9044: "Hurry back, I can't wait to do it again"
+SPK_Hurry_Back_I_Cant_Wait_To_Do_It_Again:
+            DB      $26                 ; encoded SC-01 byte count
+            DB      $1B,$7A,$6B,$29,$0E,$2F,$00,$19
+            DB      $3E,$3E,$15,$00,$09,$29,$19,$2F
+            DB      $00,$0D,$2A,$2D,$46,$61,$29,$2A
+            DB      $2A,$36,$37,$1E,$76,$28,$27,$2A
+            DB      $32,$1C,$45,$42,$0D,$3E
+
+; Fragment $2B @ $906B: "You can start anew, but for now you're through"
+SPK_You_Can_Start_Anew_But_For_Now_Youre_Through:
+            DB      $27                 ; encoded SC-01 byte count
+            DB      $22,$36,$28,$19,$2F,$00,$0D,$1F
+            DB      $2A,$55,$2B,$2A,$15,$0D,$76,$37
+            DB      $2D,$3E,$BE,$0E,$33,$2A,$1D,$35
+            DB      $2B,$0D,$15,$63,$77,$29,$34,$34
+            DB      $2B,$39,$2B,$77,$37,$3E,$BE
+
+; Fragment $2C @ $9093: "He he he ho ho ho ha ha ha ha, that was fun"
+SPK_He_He_He_Ho_Ho_Ho_Ha_Ha_Ha_Ha_That_Was_Fun:
+            DB      $22                 ; encoded SC-01 byte count
+            DB      $1B,$6C,$1B,$6C,$1B,$6C,$1B,$26
+            DB      $1B,$26,$1B,$26,$1B,$15,$1B,$15
+            DB      $1B,$15,$1B,$15,$3E,$38,$6E,$00
+            DB      $2A,$03,$03,$2D,$33,$12,$1D,$33
+            DB      $0D,$3E
+
+; Fragment $2D @ $90B6: "Welcome to my world of Wor"
+SPK_Welcome_To_My_World_Of_Wor:
+            DB      $19                 ; encoded SC-01 byte count
+            DB      $2D,$7B,$18,$19,$33,$0C,$3E,$2A
+            DB      $37,$0C,$15,$0B,$29,$2D,$35,$7A
+            DB      $58,$1E,$33,$0F,$2D,$26,$35,$2B
+            DB      $3E
+
+; Fragment $2E @ $90D0: "So you've come to score in the world of Wor"
+SPK_So_Youve_Come_To_Score_In_The_World_Of_Wor:
+            DB      $21                 ; encoded SC-01 byte count
+            DB      $1F,$66,$29,$36,$37,$0F,$19,$73
+            DB      $4C,$2A,$37,$1F,$19,$26,$35,$2B
+            DB      $3E,$0B,$0D,$38,$32,$2D,$35,$7A
+            DB      $18,$1E,$33,$0F,$2D,$66,$35,$2B
+            DB      $3E
+
+; Fragment $2F @ $90F2: "You're off to see the Wizard, the magical Wizard of Wor"
+SPK_Youre_Off_To_See_The_Wizard_The_Magical_Wizard_Of_Wor:
+            DB      $2C                 ; encoded SC-01 byte count
+            DB      $29,$34,$34,$2B,$3D,$1D,$2A,$36
+            DB      $37,$9F,$3C,$29,$38,$33,$AD,$27
+            DB      $12,$3A,$1E,$3E,$38,$33,$0C,$2F
+            DB      $00,$1E,$1A,$0B,$19,$32,$18,$AD
+            DB      $27,$12,$3A,$1E,$B3,$0F,$2D,$35
+            DB      $34,$2B,$3E,$3E
+
+; Fragment $30 @ $911F: "Burwor hasn't eaten anyone in months"
+SPK_Burwor_Hasnt_Eaten_Anyone_In_Months:
+            DB      $20                 ; encoded SC-01 byte count
+            DB      $83,$0E,$3A,$2B,$2D,$26,$2B,$1B
+            DB      $2E,$1F,$0D,$2A,$2C,$2A,$02,$0D
+            DB      $3B,$0D,$29,$2D,$33,$0D,$03,$0B
+            DB      $0D,$0C,$33,$0D,$39,$1F,$3E,$83
+
+; Fragment $31 @ $9140: "My babies breathe fire"
+SPK_My_Babies_Breathe_Fire:
+            DB      $16                 ; encoded SC-01 byte count
+            DB      $0C,$15,$09,$29,$0E,$60,$0E,$29
+            DB      $22,$1F,$03,$0E,$2B,$3C,$29,$39
+            DB      $1D,$55,$00,$21,$2B,$3E
+
+; Fragment $32 @ $9157: "I'll fry you with my lightning bolts"
+SPK_Ill_Fry_You_With_My_Lightning_Bolts:
+            DB      $26                 ; encoded SC-01 byte count
+            DB      $83,$15,$00,$09,$29,$18,$1D,$2B
+            DB      $15,$40,$40,$69,$22,$09,$37,$2D
+            DB      $0B,$39,$0C,$15,$00,$09,$29,$18
+            DB      $23,$48,$69,$2A,$0D,$27,$14,$0E
+            DB      $26,$18,$2A,$1F,$3E,$83
+
+; Fragment $28 @ $917E: "Garwor and Thorwor become invisible"
+SPK_Garwor_And_Thorwor_Become_Invisible:
+            DB      $22                 ; encoded SC-01 byte count
+            DB      $1C,$15,$2B,$2D,$26,$2B,$2F,$00
+            DB      $0D,$1E,$39,$26,$2B,$2D,$26,$2B
+            DB      $3E,$0E,$29,$19,$33,$0C,$3E,$BE
+            DB      $27,$0D,$0F,$4B,$52,$0B,$0E,$18
+            DB      $3E,$83
+
+; Fragment $33 @ $91A1: "Thorwor is red, mean, and hungry for space food"
+SPK_Thorwor_Is_Red_Mean_And_Hungry_For_Space_Food:
+            DB      $2C                 ; encoded SC-01 byte count
+            DB      $83,$39,$26,$2B,$2D,$26,$2B,$3E
+            DB      $27,$12,$2B,$3B,$1E,$3E,$0C,$3C
+            DB      $21,$0D,$3E,$2F,$00,$0D,$1E,$1B
+            DB      $73,$54,$1C,$2B,$29,$1D,$26,$2B
+            DB      $1F,$25,$06,$09,$29,$1F,$1D,$37
+            DB      $37,$1E,$3E,$83
+
+; Fragment $34 @ $91CE: "Worrior fear, I draw near, each time I appear"
+SPK_Worrior_Fear_I_Draw_Near_Each_Time_I_Appear:
+            DB      $28                 ; encoded SC-01 byte count
+            DB      $2D,$26,$2B,$29,$3A,$1D,$21,$0A
+            DB      $2B,$3E,$15,$00,$09,$29,$1E,$2B
+            DB      $3D,$0D,$21,$0A,$2B,$3E,$3C,$2A
+            DB      $10,$2A,$15,$09,$22,$0C,$15,$00
+            DB      $09,$29,$32,$25,$61,$49,$2B,$3E
+
+; Fragment $37 @ $91F7: "Worrior (padded)"
+SPK_Worrior_Padded:
+            DB      $07                 ; encoded SC-01 byte count
+            DB      $AD,$26,$2B,$29,$3A,$3E,$83
+
+; Fragment $38 @ $91FF: "You've just been fried by"
+SPK_Youve_Just_Been_Fried_By:
+            DB      $17                 ; encoded SC-01 byte count
+            DB      $29,$36,$37,$0F,$03,$1A,$33,$1F
+            DB      $2A,$0E,$3B,$0D,$1D,$2B,$15,$0B
+            DB      $22,$1E,$3E,$0E,$15,$0A,$22
+
+; Fragment $39 @ $9217: "Bite the bolt"
+SPK_Bite_The_Bolt:
+            DB      $0F                 ; encoded SC-01 byte count
+            DB      $83,$0E,$23,$15,$29,$2A,$38,$33
+            DB      $0E,$35,$35,$18,$2A,$3E,$83
+
+; Fragment $3A @ $9227: "Wasn't that lightning bolt delicious"
+SPK_Wasnt_That_Lightning_Bolt_Delicious:
+            DB      $1D                 ; encoded SC-01 byte count
+            DB      $2D,$33,$1F,$0D,$2A,$38,$2F,$2A
+            DB      $18,$23,$48,$69,$2A,$0D,$27,$14
+            DB      $0E,$26,$18,$2A,$03,$1E,$2C,$18
+            DB      $0B,$11,$32,$1F,$3E
+
+; Fragment $3B @ $9245: "And my teleporting spell can be even faster"
+SPK_And_My_Teleporting_Spell_Can_Be_Even_Faster:
+            DB      $2A                 ; encoded SC-01 byte count
+            DB      $83,$2E,$0D,$1E,$03,$0C,$15,$0B
+            DB      $22,$2A,$02,$18,$02,$25,$26,$2B
+            DB      $2A,$0B,$14,$1F,$25,$3B,$18,$03
+            DB      $19,$2F,$0D,$0E,$2C,$03,$03,$3C
+            DB      $0F,$3B,$0D,$1D,$2E,$1F,$2A,$3A
+            DB      $3E,$83
+
+; Fragment $3C @ $9270: "Now you know the taste of my magic"
+SPK_Now_You_Know_The_Taste_Of_My_Magic:
+            DB      $23                 ; encoded SC-01 byte count
+            DB      $83,$0D,$55,$23,$37,$29,$36,$37
+            DB      $37,$0D,$26,$26,$38,$33,$2A,$20
+            DB      $05,$1F,$2A,$03,$32,$0F,$0C,$15
+            DB      $0A,$22,$0C,$2F,$00,$1E,$1A,$0B
+            DB      $19,$03,$83
+
+; Fragment $3D @ $9294: "Maybe you'll see me again"
+SPK_Maybe_Youll_See_Me_Again:
+            DB      $16                 ; encoded SC-01 byte count
+            DB      $0C,$20,$29,$0E,$2C,$29,$36,$37
+            DB      $18,$1F,$2C,$3C,$0C,$3C,$2C,$03
+            DB      $33,$1C,$06,$01,$0D,$3E
+
+; Fragment $3E @ $92AB: "Your explosion was music to my ears"
+SPK_Your_Explosion_Was_Music_To_My_Ears:
+            DB      $23                 ; encoded SC-01 byte count
+            DB      $22,$34,$34,$2B,$02,$19,$5F,$25
+            DB      $18,$66,$07,$33,$0D,$03,$2D,$32
+            DB      $1F,$0C,$62,$68,$1F,$27,$19,$2A
+            DB      $28,$0C,$15,$09,$22,$03,$3C,$3A
+            DB      $2B,$1F,$3E
+
+; Fragment $3F @ $92CF: "I'll say it again"
+SPK_Ill_Say_It_Again:
+            DB      $10                 ; encoded SC-01 byte count
+            DB      $15,$00,$09,$29,$18,$1F,$20,$22
+            DB      $27,$2A,$33,$1C,$06,$01,$0D,$3E
+
+; Fragment $42 @ $92E0: "Be forewarned! You approach the Pit"
+SPK_Be_Forewarned_You_Approach_The_Pit:
+            DB      $22                 ; encoded SC-01 byte count
+            DB      $83,$0E,$3C,$2C,$1D,$26,$2B,$2D
+            DB      $35,$26,$2B,$0D,$1E,$3E,$29,$36
+            DB      $28,$37,$3E,$32,$25,$2B,$26,$35
+            DB      $2A,$10,$3E,$38,$33,$25,$27,$2A
+            DB      $3E,$83
+
+; Fragment $43 @ $9303: "Your path leads directly to the Pit"
+SPK_Your_Path_Leads_Directly_To_The_Pit:
+            DB      $22                 ; encoded SC-01 byte count
+            DB      $83,$29,$34,$34,$2B,$25,$2E,$39
+            DB      $03,$18,$2C,$1E,$1F,$03,$1E,$3A
+            DB      $02,$19,$2A,$18,$22,$03,$2A,$28
+            DB      $37,$3E,$3E,$38,$33,$25,$27,$2A
+            DB      $3E,$83
+
+; Fragment $44 @ $9326: "Deeper, ever deeper into"
+SPK_Deeper_Ever_Deeper_Into:
+            DB      $16                 ; encoded SC-01 byte count
+            DB      $83,$1E,$3C,$2C,$25,$3A,$3E,$3B
+            DB      $0F,$3A,$1E,$3C,$2C,$25,$3A,$3E
+            DB      $27,$0D,$2A,$28,$3E,$83
+
+; Fragment $45 @ $933D: "Beware! You are in the Worlord dungeons"
+SPK_Beware_You_Are_In_The_Worlord_Dungeons:
+            DB      $21                 ; encoded SC-01 byte count
+            DB      $83,$0E,$29,$2D,$3B,$2B,$3E,$29
+            DB      $36,$28,$15,$2B,$27,$0D,$38,$33
+            DB      $2D,$26,$2B,$18,$26,$2B,$1E,$03
+            DB      $1E,$33,$0D,$1A,$02,$0D,$12,$3E
+            DB      $83
+
+; Fragment $46 @ $935F: "Ah! You thought you could hide, but I'm the dungeon master"
+SPK_Ah_You_Thought_You_Could_Hide_But_Im_The_Dungeon_Master:
+            DB      $2F                 ; encoded SC-01 byte count
+            DB      $83,$24,$15,$3E,$29,$36,$28,$39
+            DB      $3D,$2A,$29,$36,$28,$19,$17,$1E
+            DB      $1B,$15,$0A,$22,$1E,$3E,$0E,$33
+            DB      $2A,$15,$00,$09,$29,$0C,$3E,$3E
+            DB      $38,$33,$1E,$33,$0D,$1A,$02,$0D
+            DB      $0C,$2E,$1F,$2A,$3A,$3E,$83
+
+; Fragment $47 @ $938F: "Thor, Bur, Gar! Dinner's ready"
+SPK_Thor_Bur_Gar_Dinners_Ready:
+            DB      $1B                 ; encoded SC-01 byte count
+            DB      $83,$39,$26,$35,$2B,$03,$0E,$3A
+            DB      $2B,$03,$1C,$24,$2B,$3E,$1E,$67
+            DB      $4D,$3A,$1F,$03,$2B,$7B,$09,$1E
+            DB      $29,$3E,$83
+
+; Fragment $48 @ $93AB: "Hey! Your space boots untied"
+SPK_Hey_Your_Space_Boots_Untied:
+            DB      $1F                 ; encoded SC-01 byte count
+            DB      $1B,$60,$4B,$62,$3E,$3E,$29,$34
+            DB      $34,$2B,$1F,$25,$06,$21,$29,$1F
+            DB      $03,$0E,$28,$37,$2A,$1F,$03,$33
+            DB      $0D,$2A,$15,$0A,$22,$1E,$3E
+
+; Fragment $49 @ $93CB: "My beasts run wild in the Worlord dungeons"
+SPK_My_Beasts_Run_Wild_In_The_Worlord_Dungeons:
+            DB      $2C                 ; encoded SC-01 byte count
+            DB      $83,$0C,$15,$00,$09,$22,$0E,$2C
+            DB      $3C,$1F,$2A,$1F,$03,$2B,$33,$0D
+            DB      $2D,$15,$0A,$22,$18,$1E,$3E,$27
+            DB      $0D,$38,$33,$2D,$26,$2B,$18,$26
+            DB      $2B,$1E,$3E,$1E,$33,$0D,$1A,$02
+            DB      $0D,$12,$3E,$83
+
+; Fragment $4A @ $93F8: "Now your only chance is your dance"
+SPK_Now_Your_Only_Chance_Is_Your_Dance:
+            DB      $1C                 ; encoded SC-01 byte count
+            DB      $0D,$15,$63,$77,$29,$34,$34,$2B
+            DB      $26,$0D,$18,$29,$2A,$10,$2E,$0D
+            DB      $1F,$0B,$1F,$29,$34,$34,$2B,$1E
+            DB      $2E,$0D,$1F,$3E
+
+; Fragment $4B @ $9415: "Are you fit to survive the Pit"
+SPK_Are_You_Fit_To_Survive_The_Pit:
+            DB      $24                 ; encoded SC-01 byte count
+            DB      $83,$24,$2B,$03,$03,$22,$36,$28
+            DB      $03,$83,$1D,$27,$2A,$03,$03,$2A
+            DB      $28,$03,$83,$1F,$3A,$0F,$08,$0A
+            DB      $22,$0F,$03,$03,$38,$33,$03,$83
+            DB      $25,$27,$2A,$3E
+
+; Fragment $4C @ $943A: "Oops! I must have forgotten the walls"
+SPK_Oops_I_Must_Have_Forgotten_The_Walls:
+            DB      $1F                 ; encoded SC-01 byte count
+            DB      $28,$25,$1F,$3E,$3E,$15,$23,$09
+            DB      $29,$0C,$33,$1F,$2A,$1B,$2F,$0F
+            DB      $1D,$26,$2B,$1C,$15,$2A,$02,$0D
+            DB      $38,$33,$2D,$3D,$18,$1F,$3E
+
+; Fragment $4D @ $945A: "Where are you going to hide now"
+SPK_Where_Are_You_Going_To_Hide_Now:
+            DB      $1B                 ; encoded SC-01 byte count
+            DB      $83,$2D,$2F,$3A,$15,$2B,$22,$36
+            DB      $28,$1C,$26,$0B,$14,$2A,$28,$1B
+            DB      $15,$0A,$22,$1E,$03,$0D,$15,$23
+            DB      $28,$3E,$83
+
 ;******************************************************************************
 ; ENGLISH SPEECH TABLES
+;
+; English_Speech_Fragment_Pointers contains 79 entries ($00-$4E).
+; The records themselves occupy the contiguous ROM range $8B66-$9475.
 ;
 ; Queue_Speech_Request accepts phrase IDs $00-$4F. Each phrase record begins
 ; with a marker byte whose high bit identifies the record and whose low seven
@@ -11639,90 +10704,92 @@ L9467:      inc     d
 ;
 ; The foreign-language X11 ROM supplies equivalent phrase and fragment-pointer
 ; tables through the ABI pointers at $C002 and $C000 respectively.
+; Full fragment semantics and all 80 English/German phrase compositions are
+; documented in doc/SPEECH_MAP.md.
 ;******************************************************************************
 English_Speech_Fragment_Pointers:
-            DW      $8B66               ; fragment $00
-L9478:
-            DW      $8B84               ; fragment $01
-            DW      $8BC1               ; fragment $02
-            DW      $8BD6               ; fragment $03
-            DW      $8BDF               ; fragment $04
-            DW      $8BF1               ; fragment $05
-            DW      $8C1D               ; fragment $06
-            DW      $8C3A               ; fragment $07
-            DW      $8D3F               ; fragment $08
-L9488:
-            DW      $8D4E               ; fragment $09
-            DW      $8E77               ; fragment $0A
-            DW      $8E8B               ; fragment $0B
-            DW      $8E96               ; fragment $0C
-            DW      $8EA9               ; fragment $0D
-            DW      $8EB2               ; fragment $0E
-            DW      $8ED3               ; fragment $0F
-            DW      $8EF2               ; fragment $10
-            DW      $8EFD               ; fragment $11
-            DW      $8F20               ; fragment $12
-            DW      $8F41               ; fragment $13
-            DW      $8F65               ; fragment $14
-            DW      $8F83               ; fragment $15
-            DW      $8FB5               ; fragment $16
-            DW      $8FC8               ; fragment $17
-            DW      $8FF0               ; fragment $18
-            DW      $901C               ; fragment $19
-            DW      $8D55               ; fragment $1A
-            DW      $8D29               ; fragment $1B
-            DW      $8D8A               ; fragment $1C
-            DW      $8DB5               ; fragment $1D
-            DW      $8DDD               ; fragment $1E
-            DW      $8E00               ; fragment $1F
-            DW      $8E4B               ; fragment $20
-            DW      $8E24               ; fragment $21
-            DW      $8C59               ; fragment $22
-            DW      $8C78               ; fragment $23
-            DW      $8C98               ; fragment $24
-            DW      $8CC5               ; fragment $25
-            DW      $8CF7               ; fragment $26
-            DW      $8D0D               ; fragment $27
-            DW      $917E               ; fragment $28
-            DW      $902B               ; fragment $29
-            DW      $9044               ; fragment $2A
-            DW      $906B               ; fragment $2B
-            DW      $9093               ; fragment $2C
-            DW      $90B6               ; fragment $2D
-            DW      $90D0               ; fragment $2E
-            DW      $90F2               ; fragment $2F
-            DW      $911F               ; fragment $30
-            DW      $9140               ; fragment $31
-            DW      $9157               ; fragment $32
-            DW      $91A1               ; fragment $33
-            DW      $91CE               ; fragment $34
-            DW      $8D73               ; fragment $35
-            DW      $8F35               ; fragment $36
-            DW      $91F7               ; fragment $37
-            DW      $91FF               ; fragment $38
-            DW      $9217               ; fragment $39
-            DW      $9227               ; fragment $3A
-            DW      $9245               ; fragment $3B
-            DW      $9270               ; fragment $3C
-            DW      $9294               ; fragment $3D
-            DW      $92AB               ; fragment $3E
-            DW      $92CF               ; fragment $3F
-            DW      $8FA1               ; fragment $40
-            DW      $8FAA               ; fragment $41
-            DW      $92E0               ; fragment $42
-            DW      $9303               ; fragment $43
-            DW      $9326               ; fragment $44
-            DW      $933D               ; fragment $45
-            DW      $935F               ; fragment $46
-            DW      $938F               ; fragment $47
-            DW      $93AB               ; fragment $48
-            DW      $93CB               ; fragment $49
-            DW      $93F8               ; fragment $4A
-            DW      $9415               ; fragment $4B
-            DW      $943A               ; fragment $4C
-            DW      $945A               ; fragment $4D
-            DW      $8BB6               ; fragment $4E
+            DW      SPK_Kill_Worluk_For_Double_Score                                 ; fragment $00: "Kill Worluk for double score"
+            DW      SPK_If_You_Get_Too_Powerful_Ill_Take_Care_Of_You_Myself          ; fragment $01: "If you get too powerful, I'll take care of you myself"
+            DW      SPK_The_Dungeons_Of_Wor                                          ; fragment $02: "The dungeons of Wor"
+            DW      SPK_I_Am                                                         ; fragment $03: "I am"
+            DW      SPK_The_Wizard_Of_Wor                                            ; fragment $04: "The Wizard of Wor"
+            DW      SPK_One_Bite_From_My_Pretties_And_Youll_Explode                  ; fragment $05: "One bite from my pretties, and you'll explode"
+            DW      SPK_My_Creatures_Are_Radioactive                                 ; fragment $06: "My creatures are radioactive"
+            DW      SPK_Worluk_Will_Escape_Through_The_Door                          ; fragment $07: "Worluk will escape through the door"
+            DW      SPK_Watch_The_Radar                                              ; fragment $08: "Watch the radar"
+            DW      SPK_Worrior                                                      ; fragment $09: "Worrior"
+            DW      SPK_Hey_Insert_Coin                                              ; fragment $0A: "Hey, insert coin"
+            DW      SPK_Find_Me                                                      ; fragment $0B: "Find me"
+            DW      SPK_Im_Out_Of_Spite                                              ; fragment $0C: "I'm out of spite"
+            DW      SPK_Get_Ready                                                    ; fragment $0D: "Get ready"
+            DW      SPK_Youd_Better_Hope_You_Dont_Find_Me                            ; fragment $0E: "You'd better hope you don't find me"
+            DW      SPK_Another_Coin_For_My_Treasure_Chest                           ; fragment $0F: "Another coin for my treasure chest"
+            DW      SPK_Ha_Ha_Ha_Ha                                                  ; fragment $10: "Ha ha ha ha"
+            DW      SPK_Ah_Good_My_Pets_Were_Getting_Hungry                          ; fragment $11: "Ah good! My pets were getting hungry"
+            DW      SPK_Youll_Get_The_Arena                                          ; fragment $12: "You'll get the Arena"
+            DW      SPK_Another_Worrior_For_My_Babies_To_Devour                      ; fragment $13: "Another worrior for my babies to devour"
+            DW      SPK_Keep_Going_And_You_Will_Find_Me                              ; fragment $14: "Keep going and you will find me"
+            DW      SPK_A_Few_More_Dungeons_And_Youll_Be_A                           ; fragment $15: "A few more dungeons and you'll be a"
+            DW      SPK_Come_Back_For_More_With                                      ; fragment $16: "Come back for more with"
+            DW      SPK_The_Dungeons_Of_Wor_Await_Your_Return                        ; fragment $17: "The dungeons of Wor await your return"
+            DW      SPK_Deep_In_The_Caverns_Of_Wor_You_Will_Meet_Me                  ; fragment $18: "Deep in the caverns of Wor, you will meet me"
+            DW      SPK_Thanks_You                                                   ; fragment $19: "thanks you"
+            DW      SPK_Now_You_Get_The_Heavyweights                                 ; fragment $1A: "Now you get the heavyweights"
+            DW      SPK_Garwor_Go_After_Them                                         ; fragment $1B: "Garwor, go after them"
+            DW      SPK_If_You_Try_Any_Harder_Youll_Only_Meet_With_Doom              ; fragment $1C: "If you try any harder, you'll only meet with doom"
+            DW      SPK_Burwor_Garwor_And_Thorwor_Will_Do_You_In                     ; fragment $1D: "Burwor, Garwor, and Thorwor will do you in"
+            DW      SPK_My_Worlings_Are_Very_Very_Hungry                             ; fragment $1E: "My worlings are very very hungry"
+            DW      SPK_My_Magic_Is_Stronger_Than_Your_Weapons                       ; fragment $1F: "My magic is stronger than your weapons"
+            DW      SPK_While_You_Developed_Science_We_Developed_Magic               ; fragment $20: "While you developed science, we developed magic"
+            DW      SPK_Your_Bones_Will_Lie_In_The_Dungeons_Of_Wor                   ; fragment $21: "Your bones will lie in the dungeons of Wor"
+            DW      SPK_You_Wont_Have_A_Chance_For_Your_Dance                        ; fragment $22: "You won't have a chance for your dance"
+            DW      SPK_Remember_Im_The_Wizard_Not_You                               ; fragment $23: "Remember, I'm the Wizard, not you"
+            DW      SPK_If_You_Cant_Beat_The_Rest_Then_Youll_Never_Get_The_Best      ; fragment $24: "If you can't beat the rest, then you'll never get the best"
+            DW      SPK_If_You_Destroy_My_Babies_Ill_Pop_You_In_The_Oven             ; fragment $25: "If you destroy my babies, I'll pop you in the oven"
+            DW      SPK_Now_Im_Getting_Mad                                           ; fragment $26: "Now I'm getting mad"
+            DW      SPK_Youll_Never_Leave_Wor_Alive                                  ; fragment $27: "You'll never leave Wor alive"
+            DW      SPK_Garwor_And_Thorwor_Become_Invisible                          ; fragment $28: "Garwor and Thorwor become invisible"
+            DW      SPK_You_Know_You_Can_Do_Better                                   ; fragment $29: "You know you can do better"
+            DW      SPK_Hurry_Back_I_Cant_Wait_To_Do_It_Again                        ; fragment $2A: "Hurry back, I can't wait to do it again"
+            DW      SPK_You_Can_Start_Anew_But_For_Now_Youre_Through                 ; fragment $2B: "You can start anew, but for now you're through"
+            DW      SPK_He_He_He_Ho_Ho_Ho_Ha_Ha_Ha_Ha_That_Was_Fun                   ; fragment $2C: "He he he ho ho ho ha ha ha ha, that was fun"
+            DW      SPK_Welcome_To_My_World_Of_Wor                                   ; fragment $2D: "Welcome to my world of Wor"
+            DW      SPK_So_Youve_Come_To_Score_In_The_World_Of_Wor                   ; fragment $2E: "So you've come to score in the world of Wor"
+            DW      SPK_Youre_Off_To_See_The_Wizard_The_Magical_Wizard_Of_Wor        ; fragment $2F: "You're off to see the Wizard, the magical Wizard of Wor"
+            DW      SPK_Burwor_Hasnt_Eaten_Anyone_In_Months                          ; fragment $30: "Burwor hasn't eaten anyone in months"
+            DW      SPK_My_Babies_Breathe_Fire                                       ; fragment $31: "My babies breathe fire"
+            DW      SPK_Ill_Fry_You_With_My_Lightning_Bolts                          ; fragment $32: "I'll fry you with my lightning bolts"
+            DW      SPK_Thorwor_Is_Red_Mean_And_Hungry_For_Space_Food                ; fragment $33: "Thorwor is red, mean, and hungry for space food"
+            DW      SPK_Worrior_Fear_I_Draw_Near_Each_Time_I_Appear                  ; fragment $34: "Worrior fear, I draw near, each time I appear"
+            DW      SPK_Youre_Asking_For_Trouble                                     ; fragment $35: "You're asking for trouble"
+            DW      SPK_Ha_Ha_Ha_Ha_Padded                                           ; fragment $36: "Ha ha ha ha (padded)"
+            DW      SPK_Worrior_Padded                                               ; fragment $37: "Worrior (padded)"
+            DW      SPK_Youve_Just_Been_Fried_By                                     ; fragment $38: "You've just been fried by"
+            DW      SPK_Bite_The_Bolt                                                ; fragment $39: "Bite the bolt"
+            DW      SPK_Wasnt_That_Lightning_Bolt_Delicious                          ; fragment $3A: "Wasn't that lightning bolt delicious"
+            DW      SPK_And_My_Teleporting_Spell_Can_Be_Even_Faster                  ; fragment $3B: "And my teleporting spell can be even faster"
+            DW      SPK_Now_You_Know_The_Taste_Of_My_Magic                           ; fragment $3C: "Now you know the taste of my magic"
+            DW      SPK_Maybe_Youll_See_Me_Again                                     ; fragment $3D: "Maybe you'll see me again"
+            DW      SPK_Your_Explosion_Was_Music_To_My_Ears                          ; fragment $3E: "Your explosion was music to my ears"
+            DW      SPK_Ill_Say_It_Again                                             ; fragment $3F: "I'll say it again"
+            DW      SPK_Worlord                                                      ; fragment $40: "Worlord"
+            DW      SPK_Worlord_Padded                                               ; fragment $41: "Worlord (padded)"
+            DW      SPK_Be_Forewarned_You_Approach_The_Pit                           ; fragment $42: "Be forewarned! You approach the Pit"
+            DW      SPK_Your_Path_Leads_Directly_To_The_Pit                          ; fragment $43: "Your path leads directly to the Pit"
+            DW      SPK_Deeper_Ever_Deeper_Into                                      ; fragment $44: "Deeper, ever deeper into"
+            DW      SPK_Beware_You_Are_In_The_Worlord_Dungeons                       ; fragment $45: "Beware! You are in the Worlord dungeons"
+            DW      SPK_Ah_You_Thought_You_Could_Hide_But_Im_The_Dungeon_Master      ; fragment $46: "Ah! You thought you could hide, but I'm the dungeon master"
+            DW      SPK_Thor_Bur_Gar_Dinners_Ready                                   ; fragment $47: "Thor, Bur, Gar! Dinner's ready"
+            DW      SPK_Hey_Your_Space_Boots_Untied                                  ; fragment $48: "Hey! Your space boots untied"
+            DW      SPK_My_Beasts_Run_Wild_In_The_Worlord_Dungeons                   ; fragment $49: "My beasts run wild in the Worlord dungeons"
+            DW      SPK_Now_Your_Only_Chance_Is_Your_Dance                           ; fragment $4A: "Now your only chance is your dance"
+            DW      SPK_Are_You_Fit_To_Survive_The_Pit                               ; fragment $4B: "Are you fit to survive the Pit"
+            DW      SPK_Oops_I_Must_Have_Forgotten_The_Walls                         ; fragment $4C: "Oops! I must have forgotten the walls"
+            DW      SPK_Where_Are_You_Going_To_Hide_Now                              ; fragment $4D: "Where are you going to hide now"
+            DW      SPK_Youre_In                                                     ; fragment $4E: "You're in"
 
+; 80 language-independent phrase IDs ($00-$4F). The fragment composition is
+; intentionally numeric here because fragment IDs are the on-ROM ABI.
 English_Speech_Phrase_Table:
             DB      $81,$0A              ; phrase $00: 1 fragment ($0A)
             DB      $82,$0B,$04          ; phrase $01: 2 fragments ($0B $04)
