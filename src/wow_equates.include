@@ -202,9 +202,11 @@ SPEECH_PHRASE_COUNT              EQU     $50
 SPEECH_FRAGMENT_COUNT_MASK       EQU     $7F
 
 ; ------------------------------------------------------------------------------
-; UNRESOLVED ADDRESS CONSTANTS
+; UNRESOLVED ADDRESS CONSTANTS STILL REFERENCED
 ; ------------------------------------------------------------------------------
-; These addresses remain in use but do not yet have verified semantic names.
+; These legacy address symbols are still referenced by the current disassembly
+; but do not yet have verified semantic names. Remove entries from this section
+; when their final reference is replaced by a named routine, table, or variable.
 
 L0003       EQU     $0003
 L0005       EQU     $0005
@@ -291,11 +293,8 @@ L2A29       EQU     $2A29
 L2A2C       EQU     $2A2C
 L2B55       EQU     $2B55
 L2B7A       EQU     $2B7A
-L2B82       EQU     $2B82
 L2CA7       EQU     $2CA7
-L2D1A       EQU     $2D1A
 L2D1F       EQU     $2D1F
-L2D30       EQU     $2D30
 L2D43       EQU     $2D43
 L2E10       EQU     $2E10
 L2F38       EQU     $2F38
@@ -329,7 +328,6 @@ L550D       EQU     $550D
 L5516       EQU     $5516
 L5518       EQU     $5518
 L56AA       EQU     $56AA
-L5A94       EQU     $5A94
 L5AAA       EQU     $5AAA
 L5B03       EQU     $5B03
 L5BBE       EQU     $5BBE
@@ -345,7 +343,6 @@ L732B       EQU     $732B
 L7716       EQU     $7716
 L7D2B       EQU     $7D2B
 L8084       EQU     $8084
-L8236       EQU     $8236
 L830F       EQU     $830F
 L833E       EQU     $833E
 L878C       EQU     $878C
@@ -386,22 +383,13 @@ L9331       EQU     $9331
 L933B       EQU     $933B
 L9379       EQU     $9379
 L9381       EQU     $9381
-L942B       EQU     $942B
 L9462       EQU     $9462
 L94B3       EQU     $94B3
-L9535       EQU     $9535
-L956B       EQU     $956B
-L95CC       EQU     $95CC
 LA284       EQU     $A284
 LB059       EQU     $B059
 LB0AE       EQU     $B0AE
 LB31E       EQU     $B31E
 LB83E       EQU     $B83E
-LC000       EQU     $C000
-LC002       EQU     $C002
-LC004       EQU     $C004
-LC00B       EQU     $C00B
-LC00D       EQU     $C00D
 
 ;
 ; Begin Static RAM area
@@ -546,7 +534,6 @@ LF904       EQU     $F904
 LF905       EQU     $F905
 LF906       EQU     $F906
 LFB00       EQU     $FB00
-LFD8E       EQU     $FD8E
 LFF16       EQU     $FF16
 LFF18       EQU     $FF18
 LFFD6       EQU     $FFD6

@@ -3079,7 +3079,6 @@ Read_Attract_Sound_DIP:
 ;          to play immediately.
 ;*****************************************************************************
 Trigger_High_Priority_Sound:
-High_Priority_Sound_Request_Byte EQU Trigger_High_Priority_Sound + 1
             ld      a,$08               ; $08 = Bit 3 (High-priority sound ID)
             ld      (Sound_Request_4),a           ; Overwrite Sound Queue 4, clearing other bits
             ret
@@ -3475,14 +3474,14 @@ L1A05:      add     hl,bc
 L1A0B:      ld      hl,LD1E1
             bit     2,(hl)
             res     2,(hl)
-            ld      hl,L38E5
+            ld      hl,WORRIOR_BLUE_1 + $49
             ld      de,LD31B
             ld      a,$04
             call    L1A2C
             ld      hl,LD1E1
             bit     3,(hl)
             res     3,(hl)
-            ld      hl,L391F
+            ld      hl,WORRIOR_YELLOW_1 + $29
             ld      de,LD31D
             ld      a,$08
 L1A2C:      ret     z
@@ -7428,7 +7427,7 @@ L385C:      ld      (de),a
             sbc     a,b
             ld      c,$99
             sbc     a,h
-            jr      c,L38BF
+            jr      c,WORRIOR_BLUE_1 + $23
             add     hl,sp
             inc     b
             ld      a,(L3950)
@@ -7439,7 +7438,7 @@ L385C:      ld      (de),a
             halt
             sbc     a,d
             cp      b
-            ld      a,(L3B6C)
+            ld      a,(WORRIOR_YELLOW_2_UP)
             jr      nz,L38BE
             ld      l,h
             dec     sp
@@ -7452,7 +7451,7 @@ L385C:      ld      (de),a
             xor     d
             add     hl,sp
             ld      e,(hl)
-            ld      a,(L39AA)
+            ld      a,(WORRIOR_YELLOW_2)
             jr      c,L3832
             sub     d
             sbc     a,h
@@ -7482,10 +7481,6 @@ WORRIOR_BLUE_1:
         DB       $00,$00,$50,$01,$40 ; . . . . . . . . 1 1 . . . . . 1 1 . . .
         DB       $00,$05,$50,$15,$40 ; . . . . . . 1 1 1 1 . . . 1 1 1 1 . . .
 
-; Legacy labels referenced elsewhere in the disassembly.
-L389C                    EQU     WORRIOR_BLUE_1
-L38BF                    EQU     WORRIOR_BLUE_1 + $23
-L38E5                    EQU     WORRIOR_BLUE_1 + $49
 
 ;*******************************************************************************
 ; WORRIOR_YELLOW_1
@@ -7535,10 +7530,6 @@ WORRIOR_BLUE_2:
         DB       $00,$00,$00,$50,$00 ; . . . . . . . . . . . . 1 1 . . . . . .
         DB       $00,$00,$05,$50,$00 ; . . . . . . . . . . 1 1 1 1 . . . . . .
 
-; Legacy labels referenced elsewhere in the disassembly.
-L38F6                    EQU     WORRIOR_YELLOW_1
-L3903                    EQU     WORRIOR_YELLOW_1 + $0D
-L391F                    EQU     WORRIOR_YELLOW_1 + $29
 
 ;*******************************************************************************
 ; WORRIOR_YELLOW_2
@@ -7564,8 +7555,6 @@ WORRIOR_YELLOW_2:
         DB       $00,$00,$00,$A0,$00 ; . . . . . . . . . . . . 2 2 . . . . . .
         DB       $00,$00,$0A,$A0,$00 ; . . . . . . . . . . 2 2 2 2 . . . . . .
 
-; Legacy labels referenced elsewhere in the disassembly.
-L39AA                    EQU     WORRIOR_YELLOW_2
 
 ;*******************************************************************************
 ; WORRIOR_BLUE_3
@@ -7591,9 +7580,6 @@ WORRIOR_BLUE_3:
         DB       $00,$00,$01,$40,$10 ; . . . . . . . . . . . 1 1 . . . . 1 . .
         DB       $00,$00,$15,$41,$50 ; . . . . . . . . . 1 1 1 1 . . 1 1 1 . .
 
-; Legacy labels referenced elsewhere in the disassembly.
-L3A10                    EQU     WORRIOR_BLUE_3 + $0C
-L3A38                    EQU     WORRIOR_BLUE_3 + $34
 
 ;*******************************************************************************
 ; WORRIOR_YELLOW_3
@@ -7643,9 +7629,6 @@ WORRIOR_YELLOW_1_UP:
         DB       $00,$00,$AA,$A8,$00 ; . . . . . . . . 2 2 2 2 2 2 2 . . . . .
         DB       $00,$00,$00,$A0,$80 ; . . . . . . . . . . . . 2 2 . . 2 . . .
 
-; Legacy labels referenced elsewhere in the disassembly.
-L3ADF                    EQU     WORRIOR_YELLOW_1_UP + $27
-L3B0E                    EQU     WORRIOR_YELLOW_1_UP + $56
 
 ;*******************************************************************************
 ; WORRIOR_BLUE_1_UP
@@ -7671,8 +7654,6 @@ WORRIOR_BLUE_1_UP:
         DB       $00,$00,$55,$54,$00 ; . . . . . . . . 1 1 1 1 1 1 1 . . . . .
         DB       $00,$00,$00,$50,$40 ; . . . . . . . . . . . . 1 1 . . 1 . . .
 
-; Legacy labels referenced elsewhere in the disassembly.
-L3B3E                    EQU     WORRIOR_BLUE_1_UP + $2C
 
 ;*******************************************************************************
 ; WORRIOR_YELLOW_2_UP
@@ -7698,9 +7679,6 @@ WORRIOR_YELLOW_2_UP:
         DB       $00,$00,$AA,$A8,$00 ; . . . . . . . . 2 2 2 2 2 2 2 . . . . .
         DB       $00,$00,$00,$A0,$00 ; . . . . . . . . . . . . 2 2 . . . . . .
 
-; Legacy labels referenced elsewhere in the disassembly.
-L3B6C                    EQU     WORRIOR_YELLOW_2_UP
-L3B73                    EQU     WORRIOR_YELLOW_2_UP + $07
 
 ;*******************************************************************************
 ; WORRIOR_BLUE_2_UP
@@ -7726,10 +7704,6 @@ WORRIOR_BLUE_2_UP:
         DB       $00,$00,$55,$54,$00 ; . . . . . . . . 1 1 1 1 1 1 1 . . . . .
         DB       $00,$00,$00,$50,$00 ; . . . . . . . . . . . . 1 1 . . . . . .
 
-; Legacy labels referenced elsewhere in the disassembly.
-L3C03                    EQU     WORRIOR_BLUE_2_UP + $3D
-L3C18                    EQU     WORRIOR_BLUE_2_UP + $52
-L3C1E                    EQU     WORRIOR_BLUE_2_UP + $58
 
 ;*******************************************************************************
 ; WORRIOR_YELLOW_3_UP
@@ -9956,7 +9930,7 @@ L8AF6:      djnz    L8B0C
             scf
             ld      (de),a
             add     a,l
-            ld      de,High_Priority_Sound_Request_Byte
+            ld      de,Trigger_High_Priority_Sound + 1
             nop
             ld      d,$AA
             dec     d
@@ -10172,7 +10146,7 @@ L8BF8:      add     hl,hl
             add     hl,de
             dec     hl
             inc     a
-            ld      hl,(L3A10)
+            ld      hl,(WORRIOR_BLUE_3 + $0C)
             rra
             inc     h
             inc     hl
@@ -10342,7 +10316,7 @@ L8CD8:      nop
             jr      L8D23
             ld      a,e
             rrca
-            ld      a,(L3C18)
+            ld      a,(WORRIOR_BLUE_2_UP + $52)
             inc     a
             rrca
             dec     l
@@ -10396,7 +10370,7 @@ L8CD8:      nop
             scf
             inc     e
             dec     sp
-            ld      hl,(L3903)
+            ld      hl,(WORRIOR_YELLOW_1 + $0D)
             ld      (L5B03),a
             ld      b,d
 L8D68:      ld      c,c
@@ -10719,7 +10693,7 @@ SPK_Treasure_Chest:
             inc     hl
             dec     d
 L8F43:      dec     c
-            ld      (L3A38),a
+            ld      (WORRIOR_BLUE_3 + $34),a
             inc     bc
             dec     l
             ld      h,$2B
@@ -11237,7 +11211,7 @@ L9194:      inc     c
             ld      a,(de)
             inc     sp
             rra
-            ld      hl,(L3B0E)
+            ld      hl,(WORRIOR_YELLOW_1_UP + $56)
             dec     c
             dec     e
             dec     hl
@@ -11366,7 +11340,7 @@ L92C1:      daa
             ld      hl,(L0C28)
             dec     d
             add     hl,bc
-            ld      (L3C03),hl
+            ld      (WORRIOR_BLUE_2_UP + $3D),hl
             ld      a,(L1F2B)
             ld      a,$10
             dec     d
@@ -11427,9 +11401,9 @@ L92F5:      dec     h
             ld      e,$3C
             inc     l
             dec     h
-            ld      a,(L3B3E)
+            ld      a,(WORRIOR_BLUE_1_UP + $2C)
             rrca
-            ld      a,(L3C1E)
+            ld      a,(WORRIOR_BLUE_2_UP + $58)
             inc     l
             dec     h
             ld      a,(L273E)
