@@ -8368,9 +8368,11 @@ L81D8:      ret
 ;*****************************************************************************************
 ; ----> Play_Next_Phoneme
 ;
-;       Checks whether the Votrax SC-01A is ready, decodes the next byte from the
-;       active speech fragment, updates the stateful inflection bit, and sends the
-;       resulting phoneme command to the speech interface.
+;       Checks whether the Votrax SC-01A is ready and decodes the next 8-bit
+;       speech command from the active fragment. Bits 0-5 are the SC-01 phoneme
+;       code; the upper bits carry inflection/control information. Bit 7 is
+;       stored differentially and is XORed with the saved bit-7 state before the
+;       complete command byte is presented to the speech interface.
 ;*****************************************************************************************
 Play_Next_Phoneme:
             in      a, (P1PORT)             ; Read Port $12 (Player 1 / Votrax Status)
@@ -8379,13 +8381,13 @@ Play_Next_Phoneme:
             ld      hl,Speech_Phonemes_Remaining
             dec     (hl)                    ; Decrement the phonemes remaining counter
             inc     hl                      ; Advance to the saved inflection state
-            ld      a,(hl)                  ; Load the previous phoneme's inflection bit
+            ld      a,(hl)                  ; Load the previous command's bit-7 inflection state
             ld      hl,(Speech_Phoneme_Pointer)
-            xor     (hl)                    ; XOR previous inflection with current ROM byte
+            xor     (hl)                    ; Differentially decode bit 7; all other ROM bits pass through
             inc     hl                      ; Advance pointer to the next phoneme in ROM
             ld      (Speech_Phoneme_Pointer),hl
-            ld      b,a                     ; B = The decoded phoneme + new inflection bit
-            and     $80                     ; Isolate just the new inflection bit (Bit 7)
+            ld      b,a                     ; B = decoded 8-bit speech command
+            and     $80                     ; Save decoded bit-7 inflection state for the next byte
             ld      (Speech_Inflection_State),a
             ld      c,VOTRAX_DATA_PORT       ; SC-01 command strobe port
             in      a,(c)                   ; B supplies phoneme data on the upper address bus
@@ -10049,8 +10051,10 @@ L8B5D:      inc     de
 ;     DB encoded_byte_count
 ;     DB encoded_sc01_byte[, ...]
 ;
-; The byte count is not part of the SC-01 stream. Bit 7 of each encoded byte
-; participates in the stateful inflection scheme handled by Play_Next_Phoneme.
+; The byte count is not part of the SC-01 stream. Bits 0-5 carry the SC-01
+; phoneme code. Bits 6-7 preserve the game's inflection/control information;
+; Play_Next_Phoneme differentially decodes bit 7 against the saved inflection
+; state before presenting the full command byte to the speech interface.
 ; Fragment labels describe the words encoded by each record; several records
 ; are intentionally sentence fragments that are combined by the phrase table.
 ;******************************************************************************
@@ -10058,34 +10062,34 @@ L8B5D:      inc     de
 ; Fragment $00 @ $8B66: "Kill Worluk for double score"
 SPK_Kill_Worluk_For_Double_Score:
             DB      $1D                 ; encoded SC-01 byte count
-            DB      $03,$19,$27,$09,$18,$03,$2D,$26
+            DB      $83,$19,$27,$09,$18,$03,$2D,$26
             DB      $35,$2B,$18,$33,$19,$03,$1D,$35
             DB      $2B,$1E,$33,$0E,$23,$18,$1F,$19
-            DB      $26,$35,$2B,$3E,$03
+            DB      $26,$35,$2B,$3E,$83
 
 ; Fragment $01 @ $8B84: "If you get too powerful, I'll take care of you myself"
 SPK_If_You_Get_Too_Powerful_Ill_Take_Care_Of_You_Myself:
             DB      $31                 ; encoded SC-01 byte count
             DB      $27,$1D,$22,$09,$36,$28,$1C,$3B
             DB      $00,$2A,$2A,$28,$37,$25,$15,$2D
-            DB      $3A,$1D,$32,$18,$3E,$03,$15,$00
+            DB      $3A,$1D,$32,$18,$3E,$83,$15,$00
             DB      $09,$29,$18,$2A,$20,$19,$19,$3B
             DB      $2B,$32,$0F,$22,$36,$28,$03,$0C
             DB      $15,$09,$29,$1F,$3B,$18,$1D,$3E
-            DB      $03
+            DB      $83
 
 ; Fragment $4E @ $8BB6: "You're in"
 SPK_Youre_In:
             DB      $0A                 ; encoded SC-01 byte count
-            DB      $03,$22,$36,$28,$33,$2B,$27,$0D
-            DB      $3E,$03
+            DB      $83,$22,$36,$28,$33,$2B,$27,$0D
+            DB      $3E,$83
 
 ; Fragment $02 @ $8BC1: "The dungeons of Wor"
 SPK_The_Dungeons_Of_Wor:
             DB      $14                 ; encoded SC-01 byte count
-            DB      $03,$38,$33,$03,$1E,$33,$0D,$1A
+            DB      $83,$38,$33,$03,$1E,$33,$0D,$1A
             DB      $02,$0D,$12,$33,$0F,$2D,$26,$35
-            DB      $2B,$2B,$3E,$3E
+            DB      $2B,$2B,$3E,$BE
 
 ; Fragment $03 @ $8BD6: "I am"
 SPK_I_Am:
@@ -10095,8 +10099,8 @@ SPK_I_Am:
 ; Fragment $04 @ $8BDF: "The Wizard of Wor"
 SPK_The_Wizard_Of_Wor:
             DB      $11                 ; encoded SC-01 byte count
-            DB      $3E,$38,$33,$2D,$27,$12,$3A,$1E
-            DB      $33,$0F,$03,$2D,$26,$35,$2B,$2B
+            DB      $3E,$38,$73,$2D,$67,$12,$3A,$1E
+            DB      $73,$4F,$03,$6D,$26,$35,$2B,$2B
             DB      $3E
 
 ; Fragment $05 @ $8BF1: "One bite from my pretties, and you'll explode"
@@ -10129,66 +10133,66 @@ SPK_Worluk_Will_Escape_Through_The_Door:
 SPK_You_Wont_Have_A_Chance_For_Your_Dance:
             DB      $1E                 ; encoded SC-01 byte count
             DB      $22,$36,$28,$2D,$35,$0D,$2A,$1B
-            DB      $2F,$0A,$0F,$03,$06,$2A,$10,$2E
+            DB      $6F,$0A,$0F,$03,$06,$2A,$10,$6E
             DB      $0D,$1F,$03,$1D,$34,$2B,$29,$35
-            DB      $2B,$1E,$2E,$0D,$1F,$3E
+            DB      $2B,$1E,$6E,$0D,$1F,$3E
 
 ; Fragment $23 @ $8C78: "Remember, I'm the Wizard, not you"
 SPK_Remember_Im_The_Wizard_Not_You:
             DB      $1F                 ; encoded SC-01 byte count
-            DB      $03,$2B,$3C,$0C,$3B,$0C,$0E,$3A
-            DB      $3E,$15,$00,$09,$29,$0C,$38,$33
+            DB      $83,$2B,$3C,$0C,$7B,$0C,$0E,$3A
+            DB      $3E,$55,$00,$09,$29,$0C,$38,$33
             DB      $2D,$27,$12,$3A,$1E,$3E,$0D,$15
-            DB      $2A,$29,$36,$37,$37,$3E,$03
+            DB      $2A,$29,$36,$37,$37,$3E,$83
 
 ; Fragment $24 @ $8C98: "If you can't beat the rest, then you'll never get the best"
 SPK_If_You_Cant_Beat_The_Rest_Then_Youll_Never_Get_The_Best:
             DB      $2C                 ; encoded SC-01 byte count
-            DB      $0B,$1D,$29,$09,$37,$19,$2F,$00
-            DB      $0D,$2A,$3E,$0E,$3C,$2A,$38,$32
-            DB      $2B,$3B,$1F,$2A,$3E,$38,$02,$0D
+            DB      $4B,$5D,$29,$09,$37,$19,$2F,$00
+            DB      $0D,$2A,$3E,$0E,$7C,$2A,$38,$32
+            DB      $2B,$3B,$1F,$2A,$3E,$B8,$42,$0D
             DB      $29,$36,$37,$18,$0D,$02,$0F,$3A
-            DB      $3E,$1C,$02,$2A,$38,$32,$0E,$3B
-            DB      $1F,$2A,$03,$03
+            DB      $3E,$1C,$42,$2A,$38,$32,$0E,$3B
+            DB      $1F,$2A,$03,$83
 
 ; Fragment $25 @ $8CC5: "If you destroy my babies, I'll pop you in the oven"
 SPK_If_You_Destroy_My_Babies_Ill_Pop_You_In_The_Oven:
             DB      $31                 ; encoded SC-01 byte count
-            DB      $03,$27,$1D,$29,$09,$28,$1E,$3C
+            DB      $83,$27,$1D,$29,$09,$28,$1E,$3C
             DB      $1F,$2A,$2B,$35,$23,$09,$21,$0C
-            DB      $08,$08,$00,$09,$29,$0E,$20,$0E
+            DB      $08,$08,$00,$09,$29,$0E,$60,$0E
             DB      $29,$22,$1F,$3E,$15,$09,$22,$18
-            DB      $25,$15,$25,$29,$36,$28,$0B,$0D
+            DB      $25,$55,$25,$29,$36,$28,$0B,$0D
             DB      $38,$21,$21,$33,$0F,$3B,$0D,$3E
-            DB      $03
+            DB      $83
 
 ; Fragment $26 @ $8CF7: "Now I'm getting mad"
 SPK_Now_Im_Getting_Mad:
             DB      $15                 ; encoded SC-01 byte count
-            DB      $03,$0D,$15,$23,$37,$15,$00,$09
+            DB      $83,$0D,$55,$23,$37,$15,$00,$09
             DB      $29,$0C,$1C,$3B,$2A,$27,$14,$0C
-            DB      $2E,$00,$1E,$3E,$03
+            DB      $2E,$00,$1E,$3E,$83
 
 ; Fragment $27 @ $8D0D: "You'll never leave Wor alive"
 SPK_Youll_Never_Leave_Wor_Alive:
             DB      $1B                 ; encoded SC-01 byte count
-            DB      $03,$22,$36,$28,$2D,$27,$18,$0D
-            DB      $3B,$0F,$3A,$18,$3C,$3C,$0F,$2D
-            DB      $26,$35,$2B,$32,$18,$15,$00,$29
-            DB      $0F,$3E,$03
+            DB      $83,$22,$36,$28,$2D,$27,$18,$0D
+            DB      $7B,$0F,$3A,$18,$3C,$3C,$0F,$2D
+            DB      $66,$75,$2B,$32,$18,$55,$00,$29
+            DB      $0F,$3E,$83
 
 ; Fragment $1B @ $8D29: "Garwor, go after them"
 SPK_Garwor_Go_After_Them:
             DB      $15                 ; encoded SC-01 byte count
-            DB      $03,$1C,$15,$2B,$2D,$35,$2B,$3E
-            DB      $1C,$35,$35,$2F,$00,$1D,$2A,$3A
-            DB      $38,$3B,$0C,$3E,$03
+            DB      $83,$1C,$55,$2B,$2D,$35,$2B,$3E
+            DB      $1C,$35,$35,$6F,$00,$1D,$2A,$3A
+            DB      $38,$3B,$0C,$3E,$83
 
 ; Fragment $08 @ $8D3F: "Watch the radar"
 SPK_Watch_The_Radar:
             DB      $0E                 ; encoded SC-01 byte count
-            DB      $03,$2D,$15,$2A,$10,$38,$33,$2B
-            DB      $20,$1E,$15,$2B,$03,$03
+            DB      $83,$2D,$15,$2A,$10,$38,$33,$2B
+            DB      $20,$1E,$15,$2B,$03,$83
 
 ; Fragment $09 @ $8D4E: "Worrior"
 SPK_Worrior:
@@ -10198,68 +10202,68 @@ SPK_Worrior:
 ; Fragment $1A @ $8D55: "Now you get the heavyweights"
 SPK_Now_You_Get_The_Heavyweights:
             DB      $1D                 ; encoded SC-01 byte count
-            DB      $03,$0D,$15,$23,$37,$22,$36,$37
+            DB      $83,$0D,$15,$63,$77,$22,$36,$37
             DB      $37,$1C,$3B,$2A,$03,$39,$32,$03
-            DB      $1B,$02,$09,$0F,$3C,$2D,$05,$09
-            DB      $22,$2A,$1F,$3E,$03
+            DB      $5B,$42,$49,$0F,$3C,$2D,$45,$09
+            DB      $22,$2A,$1F,$3E,$83
 
 ; Fragment $35 @ $8D73: "You're asking for trouble"
 SPK_Youre_Asking_For_Trouble:
             DB      $16                 ; encoded SC-01 byte count
-            DB      $03,$29,$34,$34,$2B,$2F,$00,$1F
-            DB      $19,$27,$14,$1D,$26,$2B,$2A,$2B
-            DB      $33,$0E,$23,$18,$3E,$03
+            DB      $83,$29,$34,$34,$2B,$6F,$00,$5F
+            DB      $59,$27,$14,$1D,$26,$2B,$2A,$2B
+            DB      $73,$4E,$23,$18,$3E,$83
 
 ; Fragment $1C @ $8D8A: "If you try any harder, you'll only meet with doom"
 SPK_If_You_Try_Any_Harder_Youll_Only_Meet_With_Doom:
             DB      $2A                 ; encoded SC-01 byte count
             DB      $27,$1D,$29,$36,$28,$2A,$2B,$15
-            DB      $00,$09,$29,$2F,$0D,$29,$1B,$15
-            DB      $2B,$1E,$3A,$3E,$03,$22,$36,$28
-            DB      $18,$35,$0D,$18,$29,$0C,$2C,$3C
-            DB      $2A,$2D,$27,$39,$1E,$28,$28,$0C
-            DB      $3E,$03
+            DB      $00,$09,$29,$6F,$0D,$29,$1B,$55
+            DB      $6B,$1E,$3A,$3E,$83,$22,$36,$28
+            DB      $18,$75,$0D,$18,$29,$0C,$2C,$3C
+            DB      $2A,$2D,$27,$39,$5E,$28,$28,$0C
+            DB      $3E,$83
 
 ; Fragment $1D @ $8DB5: "Burwor, Garwor, and Thorwor will do you in"
 SPK_Burwor_Garwor_And_Thorwor_Will_Do_You_In:
             DB      $27                 ; encoded SC-01 byte count
-            DB      $03,$0E,$3A,$2B,$2D,$26,$2B,$3E
-            DB      $1C,$15,$2B,$2D,$26,$2B,$3E,$2F
-            DB      $00,$0D,$1E,$39,$26,$2B,$2D,$26
-            DB      $2B,$3E,$2D,$27,$18,$1E,$36,$28
-            DB      $22,$36,$28,$27,$0D,$3E,$03
+            DB      $83,$0E,$7A,$6B,$2D,$26,$2B,$3E
+            DB      $1C,$55,$6B,$2D,$26,$2B,$3E,$2F
+            DB      $00,$0D,$1E,$39,$66,$6B,$2D,$26
+            DB      $2B,$3E,$2D,$27,$18,$1E,$36,$68
+            DB      $22,$36,$28,$27,$0D,$3E,$83
 
 ; Fragment $1E @ $8DDD: "My worlings are very very hungry"
 SPK_My_Worlings_Are_Very_Very_Hungry:
             DB      $22                 ; encoded SC-01 byte count
-            DB      $03,$0C,$15,$00,$09,$29,$2D,$26
-            DB      $2B,$18,$27,$14,$1F,$15,$23,$2B
-            DB      $0F,$3B,$00,$2B,$29,$0F,$3B,$00
-            DB      $2B,$29,$1B,$33,$0D,$1C,$2B,$29
-            DB      $3E,$03
+            DB      $83,$0C,$15,$00,$09,$29,$2D,$66
+            DB      $6B,$18,$27,$14,$1F,$15,$23,$2B
+            DB      $0F,$7B,$40,$2B,$29,$0F,$7B,$40
+            DB      $2B,$29,$1B,$73,$0D,$1C,$2B,$29
+            DB      $3E,$83
 
 ; Fragment $1F @ $8E00: "My magic is stronger than your weapons"
 SPK_My_Magic_Is_Stronger_Than_Your_Weapons:
             DB      $23                 ; encoded SC-01 byte count
-            DB      $0C,$15,$00,$09,$29,$0C,$2F,$1E
+            DB      $0C,$15,$40,$49,$69,$0C,$6F,$1E
             DB      $1A,$0B,$19,$27,$12,$1F,$2A,$2B
-            DB      $3D,$0D,$1C,$2B,$38,$2F,$00,$0D
-            DB      $29,$34,$34,$2B,$2D,$3B,$25,$32
+            DB      $7D,$0D,$1C,$2B,$38,$2F,$00,$0D
+            DB      $29,$34,$34,$2B,$2D,$7B,$65,$32
             DB      $0D,$1F,$3E
 
 ; Fragment $21 @ $8E24: "Your bones will lie in the dungeons of Wor"
 SPK_Your_Bones_Will_Lie_In_The_Dungeons_Of_Wor:
             DB      $26                 ; encoded SC-01 byte count
-            DB      $03,$29,$34,$34,$2B,$0E,$26,$34
-            DB      $0D,$1F,$2D,$27,$18,$03,$18,$15
-            DB      $00,$29,$27,$0D,$38,$33,$1E,$33
+            DB      $83,$29,$34,$34,$2B,$4E,$26,$34
+            DB      $4D,$1F,$2D,$27,$18,$03,$18,$15
+            DB      $00,$29,$27,$0D,$38,$33,$1E,$73
             DB      $0D,$1A,$02,$0D,$1F,$33,$0F,$2D
-            DB      $26,$35,$2B,$2B,$3E,$03
+            DB      $26,$35,$2B,$2B,$3E,$83
 
 ; Fragment $20 @ $8E4B: "While you developed science, we developed magic"
 SPK_While_You_Developed_Science_We_Developed_Magic:
             DB      $2B                 ; encoded SC-01 byte count
-            DB      $2D,$15,$00,$09,$18,$22,$36,$28
+            DB      $2D,$15,$00,$09,$18,$22,$76,$68
             DB      $1E,$3C,$0F,$02,$18,$23,$25,$2A
             DB      $1F,$15,$09,$21,$3B,$0D,$1F,$3E
             DB      $2D,$3C,$29,$1E,$3C,$0F,$02,$18
@@ -10269,21 +10273,21 @@ SPK_While_You_Developed_Science_We_Developed_Magic:
 ; Fragment $0A @ $8E77: "Hey, insert coin"
 SPK_Hey_Insert_Coin:
             DB      $13                 ; encoded SC-01 byte count
-            DB      $1B,$20,$0B,$22,$3E,$3E,$27,$0D
-            DB      $1F,$3A,$2A,$3E,$19,$35,$34,$09
+            DB      $1B,$60,$4B,$62,$3E,$3E,$27,$0D
+            DB      $1F,$7A,$6A,$3E,$59,$75,$34,$09
             DB      $22,$0D,$3E
 
 ; Fragment $0B @ $8E8B: "Find me"
 SPK_Find_Me:
             DB      $0A                 ; encoded SC-01 byte count
-            DB      $1D,$15,$09,$29,$0D,$1E,$0C,$2C
+            DB      $1D,$55,$49,$69,$0D,$1E,$0C,$2C
             DB      $3C,$3E
 
 ; Fragment $0C @ $8E96: "I'm out of spite"
 SPK_Im_Out_Of_Spite:
             DB      $12                 ; encoded SC-01 byte count
-            DB      $15,$09,$29,$0C,$03,$08,$35,$37
-            DB      $1E,$15,$03,$1F,$25,$08,$0B,$29
+            DB      $15,$49,$69,$0C,$03,$08,$35,$37
+            DB      $1E,$15,$03,$1F,$25,$08,$4B,$69
             DB      $2A,$3E
 
 ; Fragment $0D @ $8EA9: "Get ready"
@@ -10294,46 +10298,46 @@ SPK_Get_Ready:
 ; Fragment $0E @ $8EB2: "You'd better hope you don't find me"
 SPK_Youd_Better_Hope_You_Dont_Find_Me:
             DB      $20                 ; encoded SC-01 byte count
-            DB      $22,$36,$28,$1E,$03,$0E,$02,$2A
-            DB      $3A,$03,$1B,$26,$25,$22,$36,$28
-            DB      $1E,$26,$0D,$2A,$1D,$15,$09,$22
-            DB      $0D,$1E,$0C,$2C,$3C,$3E,$3E,$3E
+            DB      $22,$36,$28,$1E,$03,$0E,$42,$2A
+            DB      $3A,$03,$1B,$26,$25,$22,$76,$68
+            DB      $1E,$26,$0D,$2A,$5D,$55,$09,$22
+            DB      $0D,$1E,$4C,$2C,$3C,$3E,$3E,$3E
 
 ; Fragment $0F @ $8ED3: "Another coin for my treasure chest"
 SPK_Another_Coin_For_My_Treasure_Chest:
             DB      $1E                 ; encoded SC-01 byte count
             DB      $15,$0D,$33,$39,$3A,$03,$19,$35
             DB      $34,$09,$22,$0D,$1D,$26,$2B,$0C
-            DB      $15,$09,$22,$2A,$2B,$02,$07,$3A
+            DB      $55,$49,$62,$2A,$2B,$02,$07,$3A
             DB      $2A,$10,$3B,$1F,$2A,$3E
 
 ; Fragment $10 @ $8EF2: "Ha ha ha ha"
 SPK_Ha_Ha_Ha_Ha:
             DB      $0A                 ; encoded SC-01 byte count
-            DB      $3E,$1B,$15,$1B,$15,$1B,$15,$1B
+            DB      $3E,$1B,$55,$1B,$55,$1B,$15,$1B
             DB      $15,$3E
 
 ; Fragment $11 @ $8EFD: "Ah good! My pets were getting hungry"
 SPK_Ah_Good_My_Pets_Were_Getting_Hungry:
             DB      $22                 ; encoded SC-01 byte count
-            DB      $24,$08,$03,$1C,$36,$36,$36,$36
-            DB      $1E,$3E,$0C,$15,$09,$29,$25,$3B
+            DB      $64,$08,$03,$5C,$76,$76,$36,$36
+            DB      $1E,$3E,$0C,$15,$09,$29,$25,$7B
             DB      $2A,$1F,$2D,$3A,$2B,$1C,$3B,$2A
-            DB      $27,$14,$1B,$33,$14,$1C,$2B,$29
+            DB      $27,$14,$1B,$73,$54,$1C,$2B,$29
             DB      $3E,$3E
 
 ; Fragment $12 @ $8F20: "You'll get the Arena"
 SPK_Youll_Get_The_Arena:
             DB      $14                 ; encoded SC-01 byte count
-            DB      $03,$22,$36,$28,$18,$1C,$3B,$2A
-            DB      $3E,$3E,$38,$2C,$03,$08,$2B,$2C
-            DB      $0D,$15,$3E,$3E
+            DB      $83,$22,$36,$28,$18,$1C,$3B,$2A
+            DB      $3E,$3E,$38,$2C,$03,$48,$2B,$2C
+            DB      $0D,$15,$3E,$BE
 
 ; Fragment $36 @ $8F35: "Ha ha ha ha (padded)"
 SPK_Ha_Ha_Ha_Ha_Padded:
             DB      $0B                 ; encoded SC-01 byte count
-            DB      $3E,$1B,$15,$1B,$15,$1B,$15,$1B
-            DB      $15,$3E,$03
+            DB      $BE,$1B,$15,$1B,$15,$1B,$15,$1B
+            DB      $15,$3E,$83
 
 ; Fragment $13 @ $8F41: "Another worrior for my babies to devour"
 SPK_Another_Worrior_For_My_Babies_To_Devour:
@@ -10347,9 +10351,9 @@ SPK_Another_Worrior_For_My_Babies_To_Devour:
 ; Fragment $14 @ $8F65: "Keep going and you will find me"
 SPK_Keep_Going_And_You_Will_Find_Me:
             DB      $1D                 ; encoded SC-01 byte count
-            DB      $19,$2C,$25,$03,$1C,$26,$0B,$22
+            DB      $19,$6C,$25,$03,$1C,$26,$0B,$22
             DB      $14,$03,$2E,$0D,$1E,$29,$36,$28
-            DB      $2D,$27,$18,$1D,$15,$0B,$22,$0D
+            DB      $2D,$27,$18,$1D,$55,$0B,$22,$0D
             DB      $1E,$0C,$2C,$3C,$3E
 
 ; Fragment $15 @ $8F83: "A few more dungeons and you'll be a"
@@ -10357,19 +10361,19 @@ SPK_A_Few_More_Dungeons_And_Youll_Be_A:
             DB      $1D                 ; encoded SC-01 byte count
             DB      $15,$1D,$3C,$28,$28,$0C,$26,$2B
             DB      $1E,$33,$0D,$1A,$02,$0D,$1F,$3E
-            DB      $15,$0D,$1E,$29,$36,$28,$18,$0E
+            DB      $15,$0D,$1E,$29,$36,$68,$58,$0E
             DB      $2C,$3C,$03,$20,$06
 
 ; Fragment $40 @ $8FA1: "Worlord"
 SPK_Worlord:
             DB      $08                 ; encoded SC-01 byte count
-            DB      $2D,$26,$2B,$18,$26,$2B,$1E,$3E
+            DB      $2D,$66,$6B,$18,$26,$2B,$1E,$3E
 
 ; Fragment $41 @ $8FAA: "Worlord (padded)"
 SPK_Worlord_Padded:
             DB      $0A                 ; encoded SC-01 byte count
-            DB      $03,$2D,$26,$2B,$18,$26,$2B,$1E
-            DB      $3E,$03
+            DB      $83,$2D,$66,$6B,$18,$26,$2B,$1E
+            DB      $3E,$83
 
 ; Fragment $16 @ $8FB5: "Come back for more with"
 SPK_Come_Back_For_More_With:
@@ -10381,21 +10385,21 @@ SPK_Come_Back_For_More_With:
 ; Fragment $17 @ $8FC8: "The dungeons of Wor await your return"
 SPK_The_Dungeons_Of_Wor_Await_Your_Return:
             DB      $27                 ; encoded SC-01 byte count
-            DB      $03,$38,$33,$1E,$33,$0D,$1A,$3B
+            DB      $83,$38,$33,$1E,$73,$4D,$1A,$3B
             DB      $0D,$1F,$03,$33,$0F,$03,$2D,$26
-            DB      $35,$2B,$2B,$15,$2D,$06,$21,$29
+            DB      $35,$2B,$2B,$15,$2D,$46,$61,$29
             DB      $2A,$03,$29,$26,$35,$2B,$2B,$09
-            DB      $3C,$2A,$3A,$2B,$0D,$3E,$03
+            DB      $3C,$2A,$7A,$2B,$0D,$3E,$83
 
 ; Fragment $18 @ $8FF0: "Deep in the caverns of Wor, you will meet me"
 SPK_Deep_In_The_Caverns_Of_Wor_You_Will_Meet_Me:
             DB      $2B                 ; encoded SC-01 byte count
-            DB      $03,$1E,$2C,$3C,$25,$27,$0D,$38
+            DB      $83,$1E,$6C,$3C,$25,$27,$0D,$38
             DB      $33,$03,$19,$2E,$0F,$3A,$0D,$1F
-            DB      $03,$33,$0F,$2D,$26,$35,$2B,$2B
+            DB      $03,$33,$0F,$2D,$66,$75,$2B,$2B
             DB      $3E,$3E,$22,$36,$28,$37,$2D,$27
-            DB      $18,$0C,$2C,$3C,$2A,$03,$0C,$2C
-            DB      $3C,$03,$03
+            DB      $18,$0C,$6C,$7C,$2A,$03,$0C,$2C
+            DB      $3C,$03,$83
 
 ; Fragment $19 @ $901C: "thanks you"
 SPK_Thanks_You:
@@ -10406,106 +10410,106 @@ SPK_Thanks_You:
 ; Fragment $29 @ $902B: "You know you can do better"
 SPK_You_Know_You_Can_Do_Better:
             DB      $18                 ; encoded SC-01 byte count
-            DB      $03,$22,$36,$28,$0D,$35,$35,$35
+            DB      $83,$22,$36,$28,$0D,$75,$75,$35
             DB      $22,$36,$28,$19,$2F,$00,$0D,$1E
-            DB      $36,$28,$0E,$3B,$2A,$3A,$3E,$03
+            DB      $36,$28,$0E,$7B,$2A,$3A,$3E,$83
 
 ; Fragment $2A @ $9044: "Hurry back, I can't wait to do it again"
 SPK_Hurry_Back_I_Cant_Wait_To_Do_It_Again:
             DB      $26                 ; encoded SC-01 byte count
-            DB      $1B,$3A,$2B,$29,$0E,$2F,$00,$19
+            DB      $1B,$7A,$6B,$29,$0E,$2F,$00,$19
             DB      $3E,$3E,$15,$00,$09,$29,$19,$2F
-            DB      $00,$0D,$2A,$2D,$06,$21,$29,$2A
-            DB      $2A,$36,$37,$1E,$36,$28,$27,$2A
-            DB      $32,$1C,$05,$02,$0D,$3E
+            DB      $00,$0D,$2A,$2D,$46,$61,$29,$2A
+            DB      $2A,$36,$37,$1E,$76,$28,$27,$2A
+            DB      $32,$1C,$45,$42,$0D,$3E
 
 ; Fragment $2B @ $906B: "You can start anew, but for now you're through"
 SPK_You_Can_Start_Anew_But_For_Now_Youre_Through:
             DB      $27                 ; encoded SC-01 byte count
             DB      $22,$36,$28,$19,$2F,$00,$0D,$1F
-            DB      $2A,$15,$2B,$2A,$15,$0D,$36,$37
-            DB      $2D,$3E,$3E,$0E,$33,$2A,$1D,$35
-            DB      $2B,$0D,$15,$23,$37,$29,$34,$34
-            DB      $2B,$39,$2B,$37,$37,$3E,$3E
+            DB      $2A,$55,$2B,$2A,$15,$0D,$76,$37
+            DB      $2D,$3E,$BE,$0E,$33,$2A,$1D,$35
+            DB      $2B,$0D,$15,$63,$77,$29,$34,$34
+            DB      $2B,$39,$2B,$77,$37,$3E,$BE
 
 ; Fragment $2C @ $9093: "He he he ho ho ho ha ha ha ha, that was fun"
 SPK_He_He_He_Ho_Ho_Ho_Ha_Ha_Ha_Ha_That_Was_Fun:
             DB      $22                 ; encoded SC-01 byte count
-            DB      $1B,$2C,$1B,$2C,$1B,$2C,$1B,$26
+            DB      $1B,$6C,$1B,$6C,$1B,$6C,$1B,$26
             DB      $1B,$26,$1B,$26,$1B,$15,$1B,$15
-            DB      $1B,$15,$1B,$15,$3E,$38,$2E,$00
+            DB      $1B,$15,$1B,$15,$3E,$38,$6E,$00
             DB      $2A,$03,$03,$2D,$33,$12,$1D,$33
             DB      $0D,$3E
 
 ; Fragment $2D @ $90B6: "Welcome to my world of Wor"
 SPK_Welcome_To_My_World_Of_Wor:
             DB      $19                 ; encoded SC-01 byte count
-            DB      $2D,$3B,$18,$19,$33,$0C,$3E,$2A
-            DB      $37,$0C,$15,$0B,$29,$2D,$35,$3A
-            DB      $18,$1E,$33,$0F,$2D,$26,$35,$2B
+            DB      $2D,$7B,$18,$19,$33,$0C,$3E,$2A
+            DB      $37,$0C,$15,$0B,$29,$2D,$35,$7A
+            DB      $58,$1E,$33,$0F,$2D,$26,$35,$2B
             DB      $3E
 
 ; Fragment $2E @ $90D0: "So you've come to score in the world of Wor"
 SPK_So_Youve_Come_To_Score_In_The_World_Of_Wor:
             DB      $21                 ; encoded SC-01 byte count
-            DB      $1F,$26,$29,$36,$37,$0F,$19,$33
-            DB      $0C,$2A,$37,$1F,$19,$26,$35,$2B
-            DB      $3E,$0B,$0D,$38,$32,$2D,$35,$3A
-            DB      $18,$1E,$33,$0F,$2D,$26,$35,$2B
+            DB      $1F,$66,$29,$36,$37,$0F,$19,$73
+            DB      $4C,$2A,$37,$1F,$19,$26,$35,$2B
+            DB      $3E,$0B,$0D,$38,$32,$2D,$35,$7A
+            DB      $18,$1E,$33,$0F,$2D,$66,$35,$2B
             DB      $3E
 
 ; Fragment $2F @ $90F2: "You're off to see the Wizard, the magical Wizard of Wor"
 SPK_Youre_Off_To_See_The_Wizard_The_Magical_Wizard_Of_Wor:
             DB      $2C                 ; encoded SC-01 byte count
             DB      $29,$34,$34,$2B,$3D,$1D,$2A,$36
-            DB      $37,$1F,$3C,$29,$38,$33,$2D,$27
+            DB      $37,$9F,$3C,$29,$38,$33,$AD,$27
             DB      $12,$3A,$1E,$3E,$38,$33,$0C,$2F
-            DB      $00,$1E,$1A,$0B,$19,$32,$18,$2D
-            DB      $27,$12,$3A,$1E,$33,$0F,$2D,$35
+            DB      $00,$1E,$1A,$0B,$19,$32,$18,$AD
+            DB      $27,$12,$3A,$1E,$B3,$0F,$2D,$35
             DB      $34,$2B,$3E,$3E
 
 ; Fragment $30 @ $911F: "Burwor hasn't eaten anyone in months"
 SPK_Burwor_Hasnt_Eaten_Anyone_In_Months:
             DB      $20                 ; encoded SC-01 byte count
-            DB      $03,$0E,$3A,$2B,$2D,$26,$2B,$1B
+            DB      $83,$0E,$3A,$2B,$2D,$26,$2B,$1B
             DB      $2E,$1F,$0D,$2A,$2C,$2A,$02,$0D
             DB      $3B,$0D,$29,$2D,$33,$0D,$03,$0B
-            DB      $0D,$0C,$33,$0D,$39,$1F,$3E,$03
+            DB      $0D,$0C,$33,$0D,$39,$1F,$3E,$83
 
 ; Fragment $31 @ $9140: "My babies breathe fire"
 SPK_My_Babies_Breathe_Fire:
             DB      $16                 ; encoded SC-01 byte count
-            DB      $0C,$15,$09,$29,$0E,$20,$0E,$29
+            DB      $0C,$15,$09,$29,$0E,$60,$0E,$29
             DB      $22,$1F,$03,$0E,$2B,$3C,$29,$39
-            DB      $1D,$15,$00,$21,$2B,$3E
+            DB      $1D,$55,$00,$21,$2B,$3E
 
 ; Fragment $32 @ $9157: "I'll fry you with my lightning bolts"
 SPK_Ill_Fry_You_With_My_Lightning_Bolts:
             DB      $26                 ; encoded SC-01 byte count
-            DB      $03,$15,$00,$09,$29,$18,$1D,$2B
-            DB      $15,$00,$00,$29,$22,$09,$37,$2D
+            DB      $83,$15,$00,$09,$29,$18,$1D,$2B
+            DB      $15,$40,$40,$69,$22,$09,$37,$2D
             DB      $0B,$39,$0C,$15,$00,$09,$29,$18
-            DB      $23,$08,$29,$2A,$0D,$27,$14,$0E
-            DB      $26,$18,$2A,$1F,$3E,$03
+            DB      $23,$48,$69,$2A,$0D,$27,$14,$0E
+            DB      $26,$18,$2A,$1F,$3E,$83
 
 ; Fragment $28 @ $917E: "Garwor and Thorwor become invisible"
 SPK_Garwor_And_Thorwor_Become_Invisible:
             DB      $22                 ; encoded SC-01 byte count
             DB      $1C,$15,$2B,$2D,$26,$2B,$2F,$00
             DB      $0D,$1E,$39,$26,$2B,$2D,$26,$2B
-            DB      $3E,$0E,$29,$19,$33,$0C,$3E,$3E
-            DB      $27,$0D,$0F,$0B,$12,$0B,$0E,$18
-            DB      $3E,$03
+            DB      $3E,$0E,$29,$19,$33,$0C,$3E,$BE
+            DB      $27,$0D,$0F,$4B,$52,$0B,$0E,$18
+            DB      $3E,$83
 
 ; Fragment $33 @ $91A1: "Thorwor is red, mean, and hungry for space food"
 SPK_Thorwor_Is_Red_Mean_And_Hungry_For_Space_Food:
             DB      $2C                 ; encoded SC-01 byte count
-            DB      $03,$39,$26,$2B,$2D,$26,$2B,$3E
+            DB      $83,$39,$26,$2B,$2D,$26,$2B,$3E
             DB      $27,$12,$2B,$3B,$1E,$3E,$0C,$3C
             DB      $21,$0D,$3E,$2F,$00,$0D,$1E,$1B
-            DB      $33,$14,$1C,$2B,$29,$1D,$26,$2B
+            DB      $73,$54,$1C,$2B,$29,$1D,$26,$2B
             DB      $1F,$25,$06,$09,$29,$1F,$1D,$37
-            DB      $37,$1E,$3E,$03
+            DB      $37,$1E,$3E,$83
 
 ; Fragment $34 @ $91CE: "Worrior fear, I draw near, each time I appear"
 SPK_Worrior_Fear_I_Draw_Near_Each_Time_I_Appear:
@@ -10514,12 +10518,12 @@ SPK_Worrior_Fear_I_Draw_Near_Each_Time_I_Appear:
             DB      $2B,$3E,$15,$00,$09,$29,$1E,$2B
             DB      $3D,$0D,$21,$0A,$2B,$3E,$3C,$2A
             DB      $10,$2A,$15,$09,$22,$0C,$15,$00
-            DB      $09,$29,$32,$25,$21,$09,$2B,$3E
+            DB      $09,$29,$32,$25,$61,$49,$2B,$3E
 
 ; Fragment $37 @ $91F7: "Worrior (padded)"
 SPK_Worrior_Padded:
             DB      $07                 ; encoded SC-01 byte count
-            DB      $2D,$26,$2B,$29,$3A,$3E,$03
+            DB      $AD,$26,$2B,$29,$3A,$3E,$83
 
 ; Fragment $38 @ $91FF: "You've just been fried by"
 SPK_Youve_Just_Been_Fried_By:
@@ -10531,35 +10535,35 @@ SPK_Youve_Just_Been_Fried_By:
 ; Fragment $39 @ $9217: "Bite the bolt"
 SPK_Bite_The_Bolt:
             DB      $0F                 ; encoded SC-01 byte count
-            DB      $03,$0E,$23,$15,$29,$2A,$38,$33
-            DB      $0E,$35,$35,$18,$2A,$3E,$03
+            DB      $83,$0E,$23,$15,$29,$2A,$38,$33
+            DB      $0E,$35,$35,$18,$2A,$3E,$83
 
 ; Fragment $3A @ $9227: "Wasn't that lightning bolt delicious"
 SPK_Wasnt_That_Lightning_Bolt_Delicious:
             DB      $1D                 ; encoded SC-01 byte count
             DB      $2D,$33,$1F,$0D,$2A,$38,$2F,$2A
-            DB      $18,$23,$08,$29,$2A,$0D,$27,$14
+            DB      $18,$23,$48,$69,$2A,$0D,$27,$14
             DB      $0E,$26,$18,$2A,$03,$1E,$2C,$18
             DB      $0B,$11,$32,$1F,$3E
 
 ; Fragment $3B @ $9245: "And my teleporting spell can be even faster"
 SPK_And_My_Teleporting_Spell_Can_Be_Even_Faster:
             DB      $2A                 ; encoded SC-01 byte count
-            DB      $03,$2E,$0D,$1E,$03,$0C,$15,$0B
+            DB      $83,$2E,$0D,$1E,$03,$0C,$15,$0B
             DB      $22,$2A,$02,$18,$02,$25,$26,$2B
             DB      $2A,$0B,$14,$1F,$25,$3B,$18,$03
             DB      $19,$2F,$0D,$0E,$2C,$03,$03,$3C
             DB      $0F,$3B,$0D,$1D,$2E,$1F,$2A,$3A
-            DB      $3E,$03
+            DB      $3E,$83
 
 ; Fragment $3C @ $9270: "Now you know the taste of my magic"
 SPK_Now_You_Know_The_Taste_Of_My_Magic:
             DB      $23                 ; encoded SC-01 byte count
-            DB      $03,$0D,$15,$23,$37,$29,$36,$37
+            DB      $83,$0D,$55,$23,$37,$29,$36,$37
             DB      $37,$0D,$26,$26,$38,$33,$2A,$20
             DB      $05,$1F,$2A,$03,$32,$0F,$0C,$15
             DB      $0A,$22,$0C,$2F,$00,$1E,$1A,$0B
-            DB      $19,$03,$03
+            DB      $19,$03,$83
 
 ; Fragment $3D @ $9294: "Maybe you'll see me again"
 SPK_Maybe_Youll_See_Me_Again:
@@ -10571,9 +10575,9 @@ SPK_Maybe_Youll_See_Me_Again:
 ; Fragment $3E @ $92AB: "Your explosion was music to my ears"
 SPK_Your_Explosion_Was_Music_To_My_Ears:
             DB      $23                 ; encoded SC-01 byte count
-            DB      $22,$34,$34,$2B,$02,$19,$1F,$25
-            DB      $18,$26,$07,$33,$0D,$03,$2D,$32
-            DB      $1F,$0C,$22,$28,$1F,$27,$19,$2A
+            DB      $22,$34,$34,$2B,$02,$19,$5F,$25
+            DB      $18,$66,$07,$33,$0D,$03,$2D,$32
+            DB      $1F,$0C,$62,$68,$1F,$27,$19,$2A
             DB      $28,$0C,$15,$09,$22,$03,$3C,$3A
             DB      $2B,$1F,$3E
 
@@ -10586,59 +10590,59 @@ SPK_Ill_Say_It_Again:
 ; Fragment $42 @ $92E0: "Be forewarned! You approach the Pit"
 SPK_Be_Forewarned_You_Approach_The_Pit:
             DB      $22                 ; encoded SC-01 byte count
-            DB      $03,$0E,$3C,$2C,$1D,$26,$2B,$2D
+            DB      $83,$0E,$3C,$2C,$1D,$26,$2B,$2D
             DB      $35,$26,$2B,$0D,$1E,$3E,$29,$36
             DB      $28,$37,$3E,$32,$25,$2B,$26,$35
             DB      $2A,$10,$3E,$38,$33,$25,$27,$2A
-            DB      $3E,$03
+            DB      $3E,$83
 
 ; Fragment $43 @ $9303: "Your path leads directly to the Pit"
 SPK_Your_Path_Leads_Directly_To_The_Pit:
             DB      $22                 ; encoded SC-01 byte count
-            DB      $03,$29,$34,$34,$2B,$25,$2E,$39
+            DB      $83,$29,$34,$34,$2B,$25,$2E,$39
             DB      $03,$18,$2C,$1E,$1F,$03,$1E,$3A
             DB      $02,$19,$2A,$18,$22,$03,$2A,$28
             DB      $37,$3E,$3E,$38,$33,$25,$27,$2A
-            DB      $3E,$03
+            DB      $3E,$83
 
 ; Fragment $44 @ $9326: "Deeper, ever deeper into"
 SPK_Deeper_Ever_Deeper_Into:
             DB      $16                 ; encoded SC-01 byte count
-            DB      $03,$1E,$3C,$2C,$25,$3A,$3E,$3B
+            DB      $83,$1E,$3C,$2C,$25,$3A,$3E,$3B
             DB      $0F,$3A,$1E,$3C,$2C,$25,$3A,$3E
-            DB      $27,$0D,$2A,$28,$3E,$03
+            DB      $27,$0D,$2A,$28,$3E,$83
 
 ; Fragment $45 @ $933D: "Beware! You are in the Worlord dungeons"
 SPK_Beware_You_Are_In_The_Worlord_Dungeons:
             DB      $21                 ; encoded SC-01 byte count
-            DB      $03,$0E,$29,$2D,$3B,$2B,$3E,$29
+            DB      $83,$0E,$29,$2D,$3B,$2B,$3E,$29
             DB      $36,$28,$15,$2B,$27,$0D,$38,$33
             DB      $2D,$26,$2B,$18,$26,$2B,$1E,$03
             DB      $1E,$33,$0D,$1A,$02,$0D,$12,$3E
-            DB      $03
+            DB      $83
 
 ; Fragment $46 @ $935F: "Ah! You thought you could hide, but I'm the dungeon master"
 SPK_Ah_You_Thought_You_Could_Hide_But_Im_The_Dungeon_Master:
             DB      $2F                 ; encoded SC-01 byte count
-            DB      $03,$24,$15,$3E,$29,$36,$28,$39
+            DB      $83,$24,$15,$3E,$29,$36,$28,$39
             DB      $3D,$2A,$29,$36,$28,$19,$17,$1E
             DB      $1B,$15,$0A,$22,$1E,$3E,$0E,$33
             DB      $2A,$15,$00,$09,$29,$0C,$3E,$3E
             DB      $38,$33,$1E,$33,$0D,$1A,$02,$0D
-            DB      $0C,$2E,$1F,$2A,$3A,$3E,$03
+            DB      $0C,$2E,$1F,$2A,$3A,$3E,$83
 
 ; Fragment $47 @ $938F: "Thor, Bur, Gar! Dinner's ready"
 SPK_Thor_Bur_Gar_Dinners_Ready:
             DB      $1B                 ; encoded SC-01 byte count
-            DB      $03,$39,$26,$35,$2B,$03,$0E,$3A
-            DB      $2B,$03,$1C,$24,$2B,$3E,$1E,$27
-            DB      $0D,$3A,$1F,$03,$2B,$3B,$09,$1E
-            DB      $29,$3E,$03
+            DB      $83,$39,$26,$35,$2B,$03,$0E,$3A
+            DB      $2B,$03,$1C,$24,$2B,$3E,$1E,$67
+            DB      $4D,$3A,$1F,$03,$2B,$7B,$09,$1E
+            DB      $29,$3E,$83
 
 ; Fragment $48 @ $93AB: "Hey! Your space boots untied"
 SPK_Hey_Your_Space_Boots_Untied:
             DB      $1F                 ; encoded SC-01 byte count
-            DB      $1B,$20,$0B,$22,$3E,$3E,$29,$34
+            DB      $1B,$60,$4B,$62,$3E,$3E,$29,$34
             DB      $34,$2B,$1F,$25,$06,$21,$29,$1F
             DB      $03,$0E,$28,$37,$2A,$1F,$03,$33
             DB      $0D,$2A,$15,$0A,$22,$1E,$3E
@@ -10646,17 +10650,17 @@ SPK_Hey_Your_Space_Boots_Untied:
 ; Fragment $49 @ $93CB: "My beasts run wild in the Worlord dungeons"
 SPK_My_Beasts_Run_Wild_In_The_Worlord_Dungeons:
             DB      $2C                 ; encoded SC-01 byte count
-            DB      $03,$0C,$15,$00,$09,$22,$0E,$2C
+            DB      $83,$0C,$15,$00,$09,$22,$0E,$2C
             DB      $3C,$1F,$2A,$1F,$03,$2B,$33,$0D
             DB      $2D,$15,$0A,$22,$18,$1E,$3E,$27
             DB      $0D,$38,$33,$2D,$26,$2B,$18,$26
             DB      $2B,$1E,$3E,$1E,$33,$0D,$1A,$02
-            DB      $0D,$12,$3E,$03
+            DB      $0D,$12,$3E,$83
 
 ; Fragment $4A @ $93F8: "Now your only chance is your dance"
 SPK_Now_Your_Only_Chance_Is_Your_Dance:
             DB      $1C                 ; encoded SC-01 byte count
-            DB      $0D,$15,$23,$37,$29,$34,$34,$2B
+            DB      $0D,$15,$63,$77,$29,$34,$34,$2B
             DB      $26,$0D,$18,$29,$2A,$10,$2E,$0D
             DB      $1F,$0B,$1F,$29,$34,$34,$2B,$1E
             DB      $2E,$0D,$1F,$3E
@@ -10664,10 +10668,10 @@ SPK_Now_Your_Only_Chance_Is_Your_Dance:
 ; Fragment $4B @ $9415: "Are you fit to survive the Pit"
 SPK_Are_You_Fit_To_Survive_The_Pit:
             DB      $24                 ; encoded SC-01 byte count
-            DB      $03,$24,$2B,$03,$03,$22,$36,$28
-            DB      $03,$03,$1D,$27,$2A,$03,$03,$2A
-            DB      $28,$03,$03,$1F,$3A,$0F,$08,$0A
-            DB      $22,$0F,$03,$03,$38,$33,$03,$03
+            DB      $83,$24,$2B,$03,$03,$22,$36,$28
+            DB      $03,$83,$1D,$27,$2A,$03,$03,$2A
+            DB      $28,$03,$83,$1F,$3A,$0F,$08,$0A
+            DB      $22,$0F,$03,$03,$38,$33,$03,$83
             DB      $25,$27,$2A,$3E
 
 ; Fragment $4C @ $943A: "Oops! I must have forgotten the walls"
@@ -10681,10 +10685,10 @@ SPK_Oops_I_Must_Have_Forgotten_The_Walls:
 ; Fragment $4D @ $945A: "Where are you going to hide now"
 SPK_Where_Are_You_Going_To_Hide_Now:
             DB      $1B                 ; encoded SC-01 byte count
-            DB      $03,$2D,$2F,$3A,$15,$2B,$22,$36
+            DB      $83,$2D,$2F,$3A,$15,$2B,$22,$36
             DB      $28,$1C,$26,$0B,$14,$2A,$28,$1B
             DB      $15,$0A,$22,$1E,$03,$0D,$15,$23
-            DB      $28,$3E,$03
+            DB      $28,$3E,$83
 
 ;******************************************************************************
 ; ENGLISH SPEECH TABLES
