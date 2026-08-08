@@ -1,127 +1,50 @@
 <!-- README.md -->
-# Wizard of Wor Klingon X11 language ROM
+# Wizard of Wor Klingon X11
 
-This directory contains an experimental Klingon (`tlhIngan Hol`) language ROM
-for the Wizard of Wor X11 socket. This compatibility pass uses the same data-only
-interface and the same important physical layout addresses as the preserved
-German X11 ROM.
+This revision resets the Klingon experiment to a deliberately conservative runtime architecture.
 
-## Why this revision exists
+The Klingon fragment namespace now matches the resident English fragment namespace exactly: 79 fragment IDs `$00-$4E`. The X11 ROM uses the exact resident English 80-entry phrase table. This keeps laughter, Worlord substitution, fragment counts, and phrase boundaries in known-good locations while the Klingon SC-01 pronunciation is tuned.
 
-The first prototype proved that MAME could read Klingon X11 text and that its
-SC-01 records produced speech, but its fragment IDs were allocated mostly in
-phrase-creation order. That made the Votrax library misleading: for example,
-fragment `$04` was only punctuation even though English/German fragment `$04`
-means “The Wizard of Wor.”
+## Votrax JSON versus X11 ROM
 
-This revision fixes the data model before pronunciation tuning continues.
+`votrax_library_wowk.json` is for direct player audition. Every record ends with `$3F STOP` so selecting any library item has a deterministic playback end.
 
-## Compatibility layout
+The X11 ROM does **not** store that terminal STOP. Wizard of Wor already sends STOP when the speech queue becomes empty. The ROM record therefore stores only the direct fragment phoneme bytes and its leading length.
 
-| Address | Field |
-| --- | --- |
-| `$C000` | fragment-pointer table pointer |
-| `$C002` | 80-entry phrase-table pointer |
-| `$C004` | six foreign-mode coinage values |
-| `$C00A` | expected additive checksum (`$00`) |
-| `$C00B` | alternate-font pointer |
-| `$C00D` | 23 localized display records |
-| `$C1D1` | alignment byte |
-| `$C1D2` | reserved alternate-font area |
-| `$C200` | Klingon speech records |
-| `$CD8D` | 84-slot fragment pointer table |
-| `$CE35` | 80-entry phrase table |
-| `$CF1D` | checksum compensation |
-| `$CFEB` | ROM identification tail |
+## Runtime structure
 
-The fixed addresses from `$C1D1` onward deliberately match the known-good German
-ROM. The pointer-based ABI does not require all of them, but retaining them
-removes an unnecessary variable during runtime testing.
+- X11 header: `$C000-$C00C`
+- 23 localized text records: `$C00D-$C1D0`
+- alignment byte: `$C1D1`
+- alternate font area: `$C1D2-$C1FF`
+- Klingon speech records: `$C200-$C8CF`
+- explicit erased fill through `$CD8C`
+- 84 fragment-pointer slots: `$CD8D-$CE34`
+- 80 phrase records: `$CE35-$CF1A`
+- erased alignment: `$CF1B-$CF1C`
+- checksum compensation: `$CF1D`
+- preserved compatibility tail: `$CFEB-$CFFF`
 
-## Fragment IDs versus phrase IDs
-
-The game has 80 phrase IDs (`$00-$4F`). Those phrase IDs expand into reusable
-language-local fragments.
-
-Klingon fragments `$00-$4E` now follow the English semantic fragment slots:
-
-- `$04` = `Wor 'IDnar pIn` — “The Wizard of Wor”
-- `$0B` = `HISam` — “Find me”
-- `$10` = laughter
-- `$09/$37` = `SuvwI'`
-- `$40/$41` = `SuvwI' joH`
-- `$50-$52` = Klingon-only grammar helpers
-- `$4F` and `$53` = null
-
-`KLINGON_PHRASE_MAP.md` contains separate fragment and phrase tables so the two
-namespaces cannot be mistaken for each other.
+Slots `$4F-$53` are null in this compatibility build.
 
 ## Rank substitution
 
-The resident game performs:
+The resident code still performs:
 
 ```text
 $09 -> $40
 $37 -> $41
 ```
 
-when `Dungeon_Class != 0`. The Klingon slots preserve this contract, changing
-`SuvwI'` to `SuvwI' joH` before the X11 fragment pointer is resolved.
+when `Dungeon_Class != 0`. Those four Klingon slots correspond to `SuvwI'` and `SuvwI' joH`.
 
-## Speech cadence
+## zmac v1.3
 
-The first prototype ended nearly every Klingon fragment with `PA1`. That did not
-match the original WoW fragment boundaries and inserted long pauses inside some
-multi-fragment phrases.
+After the initial `ORG $C000`, the source contains no further `ORG` gaps. Every unused byte is emitted explicitly as `$FF`. This avoids the assembler-fill mismatch that caused the previous source to assemble to a nonzero checksum even though the separately generated reference binary had checksum zero.
 
-For `$00-$4E`, this revision mirrors the corresponding English fragment's
-leading/trailing `PA0`/`PA1` boundary behavior. Fragments intended to join
-directly no longer gain an artificial final pause.
-
-The ROM currently stores neutral direct SC-01 values in bits 0-5 with bits 6-7
-clear. Inflection is deliberately deferred until the phrase selection, queueing,
-and gameplay behavior are stable.
-
-## Display text
-
-The arcade scanner treats bytes below `$30` as record boundaries, so normal
-Klingon apostrophes cannot be emitted as display characters. Screen strings use
-uppercase apostrophe-free transliteration and `@` for spaces; canonical Klingon
-is retained in comments.
-
-Each display record is padded to the exact encoded length of its German
-counterpart. This keeps the downstream X11 layout fixed.
-
-## Build and MAME filename
-
-Use:
-
-```sh
-./build.sh -k
-./build.sh -klingon
-./build.sh --klingon
-```
-
-The project artifact is written as `roms/klingon.x11`.
-
-MAME's existing `wowg` definition expects the X11 socket filename `german.x11`.
-For a Klingon build, `build.sh` stages the same Klingon image as `german.x11`
-inside `wow.zip` while retaining the truthful `klingon.x11` artifact on disk.
-
-German and Klingon are mutually exclusive because they occupy the same X11
-socket.
-
-## Validation
+## Reference image
 
 - size: 4096 bytes
-- range: `$C000-$CFFF`
 - additive checksum: `$00`
-- checksum compensation: `$31` at `$CF1D`
-- CRC32: `8024422a`
-- fragment-pointer slots: 84
-- actual Klingon fragments: 82
-- game phrase records: 80
-
-The Klingon translation and SC-01 pronunciation remain experimental. Structural
-correctness and pronunciation quality are intentionally treated as separate
-test phases.
+- checksum compensation: `$BC`
+- CRC32: `7c9e5c39`

@@ -1,5 +1,5 @@
-# build.sh
 #!/usr/bin/env bash
+# build.sh
 set -euo pipefail
 
 readonly ROM_SIZE=$((0x1000))
@@ -21,8 +21,8 @@ readonly GERMAN_SOURCE="$SOURCE_DIR/german/GERMAN_X11.asm"
 readonly GERMAN_OUT_FILE="$ROMS_DIR/german.x11"
 readonly KLINGON_SOURCE="$SOURCE_DIR/klingon/KLINGON_X11.asm"
 readonly KLINGON_OUT_FILE="$ROMS_DIR/klingon.x11"
-readonly KLINGON_MAME_STAGE_DIR="$BUILD_DIR/klingon_mame"
-readonly KLINGON_MAME_X11_FILE="$KLINGON_MAME_STAGE_DIR/german.x11"
+readonly KLINGON_STAGE_DIR="$BUILD_DIR/klingon-package"
+readonly KLINGON_MAME_FILE="$KLINGON_STAGE_DIR/german.x11"
 
 readonly -a ROM_NAMES=(
     "wow.x1"
@@ -87,10 +87,14 @@ prepare_output_directories() {
     local rom_name
     rm -rf -- "$BUILD_DIR"
     mkdir -p -- "$BUILD_DIR" "$ROMS_DIR"
+
     for rom_name in "${ROM_NAMES[@]}"; do
         rm -f -- "$ROMS_DIR/$rom_name"
     done
-    rm -f -- "$GERMAN_OUT_FILE" "$KLINGON_OUT_FILE"
+
+    # Do not remove one language ROM while building the other.
+    [[ "$BUILD_GERMAN" == true ]] && rm -f -- "$GERMAN_OUT_FILE"
+    [[ "$BUILD_KLINGON" == true ]] && rm -f -- "$KLINGON_OUT_FILE"
     rm -f -- "$ZIP_FILE"
 }
 
@@ -117,6 +121,13 @@ assemble_source() {
     [[ -s "$LST_FILE" ]] || fail "zmac did not create $LST_FILE"
     log "     image: $CIM_FILE ($(stat -c '%s bytes' "$CIM_FILE"))"
     log "   listing: $LST_FILE"
+}
+
+checksum8_file() {
+    od -An -v -tu1 "$1" | awk '
+        { for (i = 1; i <= NF; i++) sum = (sum + $i) % 256 }
+        END { print sum + 0 }
+    '
 }
 
 assemble_german() {
@@ -150,6 +161,7 @@ assemble_klingon() {
     log "[2.5/4] Assembling optional Klingon ROM: KLINGON_X11.asm"
 
     local klingon_tmp_cim="$BUILD_DIR/KLINGON_X11.cim"
+    local klingon_checksum
 
     if "$ZMAC_BIN" --version 2>&1 | grep -q '1\.3'; then
         log "      Detected zmac v1.3 compatibility mode for Klingon ROM"
@@ -166,17 +178,20 @@ assemble_klingon() {
     fi
 
     [[ -s "$klingon_tmp_cim" ]] || fail "zmac did not create $klingon_tmp_cim"
-    [[ "$(stat -c '%s' "$klingon_tmp_cim")" -eq "$ROM_SIZE" ]] || fail "Klingon X11 image must be exactly 4096 bytes"
+    [[ "$(stat -c '%s' "$klingon_tmp_cim")" -eq "$ROM_SIZE" ]] || fail "Klingon X11 image must be exactly $ROM_SIZE bytes"
+
+    # Verify the X11 header actually resolved to the intended tables. This catches
+    # old-assembler symbol/address failures before a bad language ROM reaches MAME.
+    local h0 h1 h2 h3
+    read -r h0 h1 h2 h3 < <(od -An -N4 -tu1 "$klingon_tmp_cim")
+    [[ "$h0" -eq 141 && "$h1" -eq 205 && "$h2" -eq 53 && "$h3" -eq 206 ]] || \
+        fail "Klingon X11 header pointers are invalid; expected fragment=$CD8D phrase=$CE35"
+
+    klingon_checksum="$(checksum8_file "$klingon_tmp_cim")"
+    [[ "$klingon_checksum" -eq 0 ]] || fail "Klingon X11 additive checksum is $klingon_checksum; source image is invalid"
 
     cp -- "$klingon_tmp_cim" "$KLINGON_OUT_FILE"
-
-    # wowg names the physical X11 socket image german.x11. Keep the repository
-    # artifact named klingon.x11 and stage only the ZIP entry under MAME's name.
-    mkdir -p -- "$KLINGON_MAME_STAGE_DIR"
-    cp -- "$klingon_tmp_cim" "$KLINGON_MAME_X11_FILE"
-
-    log "   klingon: $KLINGON_OUT_FILE ($(stat -c '%s bytes' "$KLINGON_OUT_FILE"))"
-    log "      MAME: staged as german.x11 inside $ZIP_NAME"
+    log "   klingon: $KLINGON_OUT_FILE ($(stat -c '%s bytes' "$KLINGON_OUT_FILE"), checksum 0x00)"
 }
 
 slice_roms() {
@@ -227,12 +242,14 @@ create_zip() {
     fi
 
     if [[ "$BUILD_KLINGON" == true ]]; then
-        if [[ -f "$KLINGON_MAME_X11_FILE" ]]; then
-            zip_inputs+=("$KLINGON_MAME_X11_FILE")
-            log "      Including Klingon X11 ROM as MAME socket filename: german.x11"
-        else
-            fail "Klingon ROM build was requested but staged MAME file is missing: $KLINGON_MAME_X11_FILE"
-        fi
+        [[ -f "$KLINGON_OUT_FILE" ]] || fail "Klingon ROM build was requested but file is missing: $KLINGON_OUT_FILE"
+
+        # MAME's existing WoW X11 socket entry is named german.x11. Stage only a
+        # temporary ZIP-entry alias; roms/german.x11 is never removed or modified.
+        mkdir -p -- "$KLINGON_STAGE_DIR"
+        cp -- "$KLINGON_OUT_FILE" "$KLINGON_MAME_FILE"
+        zip_inputs+=("$KLINGON_MAME_FILE")
+        log "      MAME ZIP member german.x11 <- Klingon image (roms/german.x11 is untouched)"
     fi
 
     (
@@ -258,8 +275,8 @@ parse_arguments() {
             -h|--help)
                 log "Usage: $0 [options]"
                 log "Options:"
-                log "  -g, --german              Assemble German X11 language ROM and include in zip"
-                log "  -k, -klingon, --klingon   Assemble Klingon X11 language ROM and include in zip"
+                log "  -g, --german              Assemble German X11 ROM and include it in zip"
+                log "  -k, -klingon, --klingon   Assemble Klingon X11 ROM and include it in the X11 socket"
                 log "  -h, --help                Display this help message"
                 exit 0
                 ;;
@@ -275,7 +292,7 @@ main() {
     parse_arguments "$@"
 
     if [[ "$BUILD_GERMAN" == true && "$BUILD_KLINGON" == true ]]; then
-        fail "German and Klingon target the same X11 socket; select only one language ROM."
+        fail "German and Klingon both target the X11 socket; select only one."
     fi
 
     [[ -f "$SOURCE_FILE" ]] || fail "Source file not found: $SOURCE_FILE"
@@ -283,6 +300,8 @@ main() {
     require_command stat
     require_command tr
     require_command zip
+    require_command od
+    require_command awk
 
     ZMAC_BIN="$(resolve_zmac)"
 
