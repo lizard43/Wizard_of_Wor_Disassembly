@@ -1,5 +1,5 @@
-#!/usr/bin/env bash
 # build.sh
+#!/usr/bin/env bash
 set -euo pipefail
 
 readonly ROM_SIZE=$((0x1000))
@@ -21,6 +21,8 @@ readonly GERMAN_SOURCE="$SOURCE_DIR/german/GERMAN_X11.asm"
 readonly GERMAN_OUT_FILE="$ROMS_DIR/german.x11"
 readonly KLINGON_SOURCE="$SOURCE_DIR/klingon/KLINGON_X11.asm"
 readonly KLINGON_OUT_FILE="$ROMS_DIR/klingon.x11"
+readonly KLINGON_MAME_STAGE_DIR="$BUILD_DIR/klingon_mame"
+readonly KLINGON_MAME_X11_FILE="$KLINGON_MAME_STAGE_DIR/german.x11"
 
 readonly -a ROM_NAMES=(
     "wow.x1"
@@ -142,6 +144,7 @@ assemble_german() {
     log "    german: $GERMAN_OUT_FILE ($(stat -c '%s bytes' "$GERMAN_OUT_FILE"))"
 }
 
+
 assemble_klingon() {
     [[ -f "$KLINGON_SOURCE" ]] || fail "Klingon source file not found: $KLINGON_SOURCE"
     log "[2.5/4] Assembling optional Klingon ROM: KLINGON_X11.asm"
@@ -163,8 +166,17 @@ assemble_klingon() {
     fi
 
     [[ -s "$klingon_tmp_cim" ]] || fail "zmac did not create $klingon_tmp_cim"
+    [[ "$(stat -c '%s' "$klingon_tmp_cim")" -eq "$ROM_SIZE" ]] || fail "Klingon X11 image must be exactly 4096 bytes"
+
     cp -- "$klingon_tmp_cim" "$KLINGON_OUT_FILE"
+
+    # wowg names the physical X11 socket image german.x11. Keep the repository
+    # artifact named klingon.x11 and stage only the ZIP entry under MAME's name.
+    mkdir -p -- "$KLINGON_MAME_STAGE_DIR"
+    cp -- "$klingon_tmp_cim" "$KLINGON_MAME_X11_FILE"
+
     log "   klingon: $KLINGON_OUT_FILE ($(stat -c '%s bytes' "$KLINGON_OUT_FILE"))"
+    log "      MAME: staged as german.x11 inside $ZIP_NAME"
 }
 
 slice_roms() {
@@ -215,11 +227,11 @@ create_zip() {
     fi
 
     if [[ "$BUILD_KLINGON" == true ]]; then
-        if [[ -f "$KLINGON_OUT_FILE" ]]; then
-            zip_inputs+=("$KLINGON_OUT_FILE")
-            log "      Including optional Klingon language ROM: $KLINGON_OUT_FILE"
+        if [[ -f "$KLINGON_MAME_X11_FILE" ]]; then
+            zip_inputs+=("$KLINGON_MAME_X11_FILE")
+            log "      Including Klingon X11 ROM as MAME socket filename: german.x11"
         else
-            fail "Klingon ROM build was requested but file is missing: $KLINGON_OUT_FILE"
+            fail "Klingon ROM build was requested but staged MAME file is missing: $KLINGON_MAME_X11_FILE"
         fi
     fi
 
