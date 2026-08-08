@@ -182,6 +182,25 @@ LD1D6       EQU     $D1D6               ; Diagnostic input scratch; runtime role
 LD1D7       EQU     $D1D7               ; Diagnostic input scratch; runtime role not fully identified
 LD349       EQU     $D349               ; Read by the pending-coin handler; producer not yet identified
 
+;******************************************************************************
+; X11 FOREIGN-LANGUAGE ROM ABI ($C000-$CFFF)
+;
+; The language DIP is sampled at each localization decision. Bit 3 set selects
+; the built-in English resources; bit 3 clear selects the X11 expansion ROM.
+; The X11 header contains pointers/tables used independently by text rendering,
+; speech phrase expansion, character rendering, coinage, and diagnostics.
+;******************************************************************************
+X11_Speech_Fragment_Table_Ptr    EQU     $C000
+X11_Speech_Phrase_Table_Ptr      EQU     $C002
+X11_Coinage_Value_Table          EQU     $C004
+X11_ROM_Checksum_Expected        EQU     $C00A
+X11_Alternate_Font_Ptr           EQU     $C00B
+X11_Localized_Text_Table         EQU     $C00D
+
+LANGUAGE_DIP_BIT                 EQU     3
+SPEECH_PHRASE_COUNT              EQU     $50
+SPEECH_FRAGMENT_COUNT_MASK       EQU     $7F
+
 ; ------------------------------------------------------------------------------
 ; UNRESOLVED ADDRESS CONSTANTS
 ; ------------------------------------------------------------------------------

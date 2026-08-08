@@ -386,14 +386,14 @@ L016F:      ld      de,$051A            ; String formatting and color attributes
             ld      hl,$0000            ; HL = $0000 (Start of ROM memory)
 
 ;******************************************************************************************
-; ----> CHECK DIP SWITCH FOR FOREIGN ROM
+; ----> SELECT DIAGNOSTIC ROM COUNT FROM LANGUAGE DIP
 ;******************************************************************************************
             ld      a,($D347)           ; (Dummy read)
             in      a, (SETTINGS)       ; Read Dip Switches (Port $13)
-            bit     3,a                 ; Check Language Switch (On = English)
-            ld      b,$07               ; Default to 7 ROMs (A through G)
+            bit     LANGUAGE_DIP_BIT,a  ; 1 = English, 0 = X11 foreign-language ROM
+            ld      b,$07               ; English: test the seven resident program ROMs
             jr      nz,romcheck         ; IF English: Jump to test
-            inc     b                   ; IF Foreign: Set count to 8 ROMs (A through X)
+            inc     b                   ; Foreign: also test the X11 ROM as diagnostic ROM X
 
 ;******************************************************************************************
 ; ----> BEGIN ROM CHECK LOOP
@@ -410,8 +410,8 @@ romcheck:   push    bc                  ; Save ROM loop counter
 
 L019E:      cp      $B0                 ; Is pointer at $B000 (Empty socket)?
             jr      nz,L01A7            ; IF NOT: Skip ahead
-            ld      de,$C00A            ; IF YES: Redirect expected checksum pointer
-            ld      h,$C0               ; And jump pointer to Alternate ROM space ($C000)
+            ld      de,X11_ROM_Checksum_Expected ; Expected checksum byte is stored in the X11 header
+            ld      h,$C0               ; Redirect ROM scan to the X11 image at $C000
 ;******************************************************************************************
 ; ----> 4KB CHECKSUM CALCULATION (modulo-256 checksum)
 ;******************************************************************************************
@@ -983,7 +983,7 @@ L04B3:      ld      l,a                 ; L = table entry
             sub     $2C                 ; Check for alternate characters???
             ld      de,CHRTBL           ; Entry to character table
             jr      c,L04C2             ; Skip alternate ROM set
-            ld      hl,LC00B            ; Entry of table to alternate ROM character set
+            ld      hl,X11_Alternate_Font_Ptr ; X11 pointer to alternate glyph data
             ld      e,(hl)              ; \
             inc     hl                  ;  Manipulations for Alternate ROM set.
             ld      d,(hl)              ;  Need to figure out what it does later... ???
@@ -1305,18 +1305,38 @@ L0781:      call    Stream_Fetch_Byte_B
 ;
 ;*********************************************************
 ;
-L078B:      ld      a,($D347)
-            in      a, (SETTINGS)       ; Check for language...
-            bit     3,a                 ; Off=Foreign, On=English (active HIGH)
+;******************************************************************************
+; SELECT LOCALIZED TEXT RECORD
+;
+; Input:
+;   B  = 1-based localized text record number.
+;
+; Output:
+;   HL = first character of the selected record.
+;   B  = record length.
+;   A  = record length plus LD1E2, preserving the original caller contract.
+;
+; Text records are length-prefixed. Character bytes are $30 and above, while
+; the next record begins with a length byte below $30. Consequently, the table
+; format supports record lengths $00-$2F (47 characters maximum).
+;
+; Language DIP bit 3:
+;   1 = built-in English table beginning at Text_Insert_Coin
+;   0 = X11 localized table beginning at $C00D
+;******************************************************************************
+Select_Localized_Text_Record:
+            ld      a,($D347)           ; Preserved original read; IN below supplies the DIP value
+            in      a,(SETTINGS)
+            bit     LANGUAGE_DIP_BIT,a
             ld      hl,Text_Insert_Coin
-            jr      nz,L079A
-            ld      hl,LC00D
-L079A:      ld      a,(hl)
+            jr      nz,L079A            ; English selected
+            ld      hl,X11_Localized_Text_Table
+L079A:      ld      a,(hl)              ; Length bytes are below $30
             inc     hl
             cp      $30
-            jr      nc,L079A
-            djnz    L079A
-            ld      b,a
+            jr      nc,L079A            ; Skip character data until the next length byte
+            djnz    L079A               ; Continue until the requested record is reached
+            ld      b,a                 ; Return selected record length
             ld      a,(LD1E2)
             add     a,b
             ret
@@ -1356,7 +1376,7 @@ L07D3:      call    Stream_Fetch_Byte_A
 ;
             call    Stream_Fetch_Byte_B
             call    L07A8
-            call    L078B
+            call    Select_Localized_Text_Record
             jr      L07D3
 ;
 ;*****************************************************************************
@@ -1365,7 +1385,7 @@ L07D3:      call    Stream_Fetch_Byte_A
 ;*****************************************************************************
 ;
             call    Stream_Fetch_Byte_B
-            call    L078B
+            call    Select_Localized_Text_Record
             sub     $29
             cpl
             ld      e,a
@@ -2364,10 +2384,10 @@ L0E3E:      ld      d,$0E
             in      a, (SETTINGS)
             ld      b,a
             exx
-            ld      de,Coinage_Value_Table
-            bit     3,a
+            ld      de,Coinage_Value_Table ; Built-in English coinage conversion values
+            bit     LANGUAGE_DIP_BIT,a
             jr      nz,L0E54
-            ld      de,LC004
+            ld      de,X11_Coinage_Value_Table ; Foreign-mode coinage values supplied by X11
 L0E54:      exx
             xor     a
             ex      af,af'
@@ -8489,56 +8509,79 @@ L827B:      exx
 ;
 
 Queue_Speech_Request:
-            cp      $50
+            ; A is the language-independent phrase ID. The game defines 80
+            ; phrase IDs ($00-$4F); values outside that range are ignored.
+            cp      SPEECH_PHRASE_COUNT
             jr      nc,L82F4
-            ld      hl,L9514
+
+            ; Select the phrase-definition table. English is resident in the
+            ; main ROM; foreign mode obtains the table address from X11 $C002.
+            ld      hl,English_Speech_Phrase_Table
             inc     a
-            ld      c,a
-            ld      a,($D347)
-            in      a, (SETTINGS)
-            bit     3,a
+            ld      c,a                 ; C = 1-based phrase record to locate
+            ld      a,($D347)           ; Preserved original read; overwritten by IN
+            in      a,(SETTINGS)
+            bit     LANGUAGE_DIP_BIT,a
             jr      nz,L8292
-            ld      hl,(LC002)
-L8292:      ld      a,$7F
+            ld      hl,(X11_Speech_Phrase_Table_Ptr)
+
+            ; Phrase records begin with $81-$84. Bytes <= $7F are fragment
+            ; indexes and are skipped while locating the requested marker.
+L8292:      ld      a,SPEECH_FRAGMENT_COUNT_MASK
 L8294:      cp      (hl)
             jr      nc,L8298
-            dec     c
+            dec     c                   ; Found a phrase marker (> $7F)
 L8298:      inc     hl
             jr      nz,L8294
+
+            ; Low seven bits of the marker are the number of fragment indexes
+            ; that make up this phrase. A zero count suppresses the request.
             dec     hl
             ld      a,(hl)
-            and     $7F
+            and     SPEECH_FRAGMENT_COUNT_MASK
             jr      z,L82F4
             ld      c,a
             di
+
 L82A3:      inc     hl
             ld      a,(LD350)
             or      a
-            ld      a,(hl)
+            ld      a,(hl)              ; A = speech fragment index
             jr      z,L82B7
+
+            ; When LD350 is nonzero, two fragment IDs are substituted before
+            ; pointer lookup. The gameplay meaning of LD350 remains unresolved;
+            ; preserve these substitutions in every language table.
             cp      $09
             jr      nz,L82B1
             ld      a,$40
 L82B1:      cp      $37
             jr      nz,L82B7
             ld      a,$41
+
 L82B7:      exx
-            rlca
-            ld      hl,L9476
+            rlca                        ; 16-bit pointer table: index * 2
+            ld      hl,English_Speech_Fragment_Pointers
             ld      e,a
-            ld      a,($D347)
-            in      a, (SETTINGS)
-            bit     3,a
+
+            ; Select the fragment-pointer table independently of the phrase
+            ; table. Foreign mode obtains this address from X11 $C000.
+            ld      a,($D347)           ; Preserved original read; overwritten by IN
+            in      a,(SETTINGS)
+            bit     LANGUAGE_DIP_BIT,a
             jr      nz,L82C9
-            ld      hl,(LC000)
+            ld      hl,(X11_Speech_Fragment_Table_Ptr)
+
 L82C9:      ld      d,$00
             add     hl,de
-            ld      e,(hl)
+            ld      e,(hl)              ; Read little-endian fragment address
             ld      a,e
             inc     hl
-            or      (hl)
+            or      (hl)                ; Null pointer means no fragment is queued
             jr      z,L82EA
             ld      d,(hl)
+
+            ; Queue the fragment pointer in the circular speech queue.
             ld      hl,(Speech_Queue_Write_Pointer)
             ld      (hl),e
             inc     hl
@@ -8546,12 +8589,12 @@ L82C9:      ld      d,$00
             inc     hl
             ex      de,hl
             ld      hl,Speech_Queue_Last_Record
-            and     a
+            and     a                   ; Clear carry before range comparison
             sbc     hl,de
             jr      nc,L82E6
             ld      de,Speech_Queue_Buffer
-L82E6:
-            ld      (Speech_Queue_Write_Pointer),de
+L82E6:      ld      (Speech_Queue_Write_Pointer),de
+
 L82EA:      exx
             dec     c
             jr      nz,L82A3
@@ -11611,320 +11654,184 @@ L9467:      inc     d
             inc     hl
             jr      z,L94B3
             add     a,e
-L9476:      ld      h,(hl)
-            adc     a,e
-L9478:      add     a,h
-            adc     a,e
-            pop     bc
-            adc     a,e
-            sub     $8B
-            rst     18H
-            adc     a,e
-            pop     af
-            adc     a,e
-            dec     e
-            adc     a,h
-            ld      a,($3F8C)
-            adc     a,l
-L9488:      ld      c,(hl)
-            adc     a,l
-            ld      (hl),a
-            adc     a,(hl)
-            adc     a,e
-            adc     a,(hl)
-            sub     (hl)
-            adc     a,(hl)
-            xor     c
-            adc     a,(hl)
-            or      d
-            adc     a,(hl)
-            out     ($8E),a
-            jp      p,LFD8E
-            adc     a,(hl)
-            jr      nz,L942B
-            ld      b,c
-            adc     a,a
-            ld      h,l
-            adc     a,a
-L94A0:      add     a,e
-            adc     a,a
-            or      l
-            adc     a,a
-            ret     z
-            adc     a,a
-            ret     p
-            adc     a,a
-            inc     e
-            sub     b
-            ld      d,l
-L94AB:      adc     a,l
-            add     hl,hl
-            adc     a,l
-            adc     a,d
-            adc     a,l
-            or      l
-            adc     a,l
-            DB      $dd,$8d
-            nop
-            adc     a,(hl)
-            ld      c,e
-            adc     a,(hl)
-            inc     h
-            adc     a,(hl)
-            ld      e,c
-            adc     a,h
-            ld      a,b
-            adc     a,h
-            sbc     a,b
-            adc     a,h
-L94C0:      push    bc
-            adc     a,h
-            rst     30H
-            adc     a,h
-            dec     c
-            adc     a,l
-            ld      a,(hl)
-            sub     c
-            dec     hl
-            sub     b
-            ld      b,h
-L94CB:      sub     b
-            ld      l,e
-            sub     b
-            sub     e
-            sub     b
-            or      (hl)
-            sub     b
-            ret     nc
-            sub     b
-            jp      p,L1F90
-            sub     c
-            ld      b,b
-            sub     c
-            ld      d,a
-            sub     c
-            and     c
-            sub     c
-            adc     a,$91
-            ld      (hl),e
-            adc     a,l
-            dec     (hl)
-            adc     a,a
-            rst     30H
-            sub     c
-            rst     38H
-            sub     c
-            rla
-            sub     d
-            daa
-            sub     d
-            ld      b,l
-            sub     d
-            ld      (hl),b
-            sub     d
-            sub     h
-            sub     d
-            xor     e
-            sub     d
-            rst     08H
-            sub     d
-            and     c
-            adc     a,a
-            xor     d
-            adc     a,a
-            ret     po
-            sub     d
-L94FC:      inc     bc
-            sub     e
-            ld      h,$93
-            dec     a
-            sub     e
-            ld      e,a
-            sub     e
-            adc     a,a
-            sub     e
-            xor     e
-            sub     e
-            res     2,e
-            ret     m
-            sub     e
-            dec     d
-            sub     h
-            ld      a,(L5A94)
-            sub     h
-            or      (hl)
-L9513:      adc     a,e
-L9514:      add     a,c
-            ld      a,(bc)
-            add     a,d
-            dec     bc
-            inc     b
-            add     a,c
-            ld      a,(bc)
-            add     a,d
-            inc     c
-L951D:      djnz    L94A0
-            ld      a,(bc)
-            add     a,d
-            dec     bc
-            inc     b
-            add     a,c
-            ld      a,(bc)
-            add     a,d
-            inc     c
-            djnz    L94AB
-            dec     c
-            add     hl,bc
-            add     a,d
-            ld      c,$04
-            add     a,c
-            rrca
-            add     a,d
-            ld      de,L8210
-            ld      e,$36
-            add     a,c
-            dec     l
-            add     a,d
-            ld      l,$10
-            add     a,d
-            cpl
-            djnz    L94C0
-            nop
-            add     a,d
-            ld      c,(hl)
-            ld      (bc),a
-            add     a,d
-            inc     bc
-            inc     b
-            add     a,d
-            dec     b
-            djnz    L94CB
-            ld      b,$81
-L954C:      rlca
-            add     a,d
-            ex      af,af'
-            scf
-            add     a,d
-            inc     sp
-            ld      (hl),$81
-            inc     hl
-            add     a,d
-            inc     h
-            ld      (hl),$82
-            daa
-            ld      (hl),$82
-            dec     h
-            ld      (hl),$82
-            jr      nc,L9597
-            add     a,d
-L9562:      ld      sp,L8109
-            ld      (P2_Life_Icon_Primary_Byte_20),a
-L9568:      add     a,d
-            ld      (de),a
-            ld      (hl),$81
-            inc     de
-            add     a,c
-L956E:      inc     d
-            add     a,d
-            dec     d
-            ld      b,b
-            add     a,d
-            scf
-L9574:      ld      h,$82
-            inc     (hl)
-            djnz    L94FC
-            add     hl,bc
-L957A:      ld      (L8210),hl
-            dec     (hl)
-            scf
-            add     a,d
-            ld      a,(de)
-            ld      (hl),$81
-            dec     de
-            add     a,d
-            inc     e
-            ld      (hl),$82
-            ld      bc,L8236
-            rra
-            add     hl,bc
-            add     a,d
-            add     hl,bc
-            jr      nz,L9513
-            ld      hl,L8236
-            jr      z,L95CC
-            add     a,e
-L9597:      ld      d,$04
-            djnz    L951D
-            rla
-            scf
-            add     a,d
-            jr      L95D7
-            add     a,d
-            inc     b
-            add     hl,de
-            add     a,d
-            add     hl,hl
-            scf
-            add     a,c
-            ld      hl,(L2B82)
-            ld      (hl),$81
-            inc     l
-            add     a,e
-            jr      c,L95B4
-            djnz    L9535
-            add     hl,sp
-            scf
-L95B4:      ld      (hl),$82
-            ld      a,(L8210)
-            dec     sp
-            ld      (hl),$82
-            inc     a
-            scf
-            add     a,d
-            add     hl,bc
-            dec     a
-            add     a,d
-            ld      a,$10
-            add     a,e
-            ccf
-            inc     (hl)
-            djnz    L954C
-            ld      b,c
-            ld      b,d
-            ld      (hl),$83
-            ld      b,c
-            ld      b,e
-            ld      (hl),$83
-            ld      b,h
-            ld      (bc),a
-            ld      (hl),$81
-            ld      b,l
-            add     a,d
-L95D7:      ld      b,(hl)
-            ld      (hl),$82
-            ld      b,a
-            ld      (hl),$82
-            ld      c,b
-            djnz    L9562
-            ld      c,c
-            ld      (hl),$82
-            ld      c,d
-            djnz    L9568
-            ld      c,e
-            djnz    L956B
-            ld      c,h
-            djnz    L956E
-            ld      c,l
-            ld      (hl),$82
-            ld      c,d
-            djnz    L9574
-            ld      c,e
-            ld      (hl),$82
-            ld      c,h
-            djnz    L957A
-            ld      c,l
-            ld      (hl),$00
+;******************************************************************************
+; ENGLISH SPEECH TABLES
+;
+; Queue_Speech_Request accepts phrase IDs $00-$4F. Each phrase record begins
+; with a marker byte whose high bit identifies the record and whose low seven
+; bits specify the number of speech fragments that follow. Fragment indexes are
+; resolved through English_Speech_Fragment_Pointers. Each resolved fragment is
+; a length-prefixed SC-01 stream consumed by Service_Speech_Queue.
+;
+; The foreign-language X11 ROM supplies equivalent phrase and fragment-pointer
+; tables through the ABI pointers at $C002 and $C000 respectively.
+;******************************************************************************
+English_Speech_Fragment_Pointers:
+            DW      $8B66               ; fragment $00
+L9478:
+            DW      $8B84               ; fragment $01
+            DW      $8BC1               ; fragment $02
+            DW      $8BD6               ; fragment $03
+            DW      $8BDF               ; fragment $04
+            DW      $8BF1               ; fragment $05
+            DW      $8C1D               ; fragment $06
+            DW      $8C3A               ; fragment $07
+            DW      $8D3F               ; fragment $08
+L9488:
+            DW      $8D4E               ; fragment $09
+            DW      $8E77               ; fragment $0A
+            DW      $8E8B               ; fragment $0B
+            DW      $8E96               ; fragment $0C
+            DW      $8EA9               ; fragment $0D
+            DW      $8EB2               ; fragment $0E
+            DW      $8ED3               ; fragment $0F
+            DW      $8EF2               ; fragment $10
+            DW      $8EFD               ; fragment $11
+            DW      $8F20               ; fragment $12
+            DW      $8F41               ; fragment $13
+            DW      $8F65               ; fragment $14
+            DW      $8F83               ; fragment $15
+            DW      $8FB5               ; fragment $16
+            DW      $8FC8               ; fragment $17
+            DW      $8FF0               ; fragment $18
+            DW      $901C               ; fragment $19
+            DW      $8D55               ; fragment $1A
+            DW      $8D29               ; fragment $1B
+            DW      $8D8A               ; fragment $1C
+            DW      $8DB5               ; fragment $1D
+            DW      $8DDD               ; fragment $1E
+            DW      $8E00               ; fragment $1F
+            DW      $8E4B               ; fragment $20
+            DW      $8E24               ; fragment $21
+            DW      $8C59               ; fragment $22
+            DW      $8C78               ; fragment $23
+            DW      $8C98               ; fragment $24
+            DW      $8CC5               ; fragment $25
+            DW      $8CF7               ; fragment $26
+            DW      $8D0D               ; fragment $27
+            DW      $917E               ; fragment $28
+            DW      $902B               ; fragment $29
+            DW      $9044               ; fragment $2A
+            DW      $906B               ; fragment $2B
+            DW      $9093               ; fragment $2C
+            DW      $90B6               ; fragment $2D
+            DW      $90D0               ; fragment $2E
+            DW      $90F2               ; fragment $2F
+            DW      $911F               ; fragment $30
+            DW      $9140               ; fragment $31
+            DW      $9157               ; fragment $32
+            DW      $91A1               ; fragment $33
+            DW      $91CE               ; fragment $34
+            DW      $8D73               ; fragment $35
+            DW      $8F35               ; fragment $36
+            DW      $91F7               ; fragment $37
+            DW      $91FF               ; fragment $38
+            DW      $9217               ; fragment $39
+            DW      $9227               ; fragment $3A
+            DW      $9245               ; fragment $3B
+            DW      $9270               ; fragment $3C
+            DW      $9294               ; fragment $3D
+            DW      $92AB               ; fragment $3E
+            DW      $92CF               ; fragment $3F
+            DW      $8FA1               ; fragment $40
+            DW      $8FAA               ; fragment $41
+            DW      $92E0               ; fragment $42
+            DW      $9303               ; fragment $43
+            DW      $9326               ; fragment $44
+            DW      $933D               ; fragment $45
+            DW      $935F               ; fragment $46
+            DW      $938F               ; fragment $47
+            DW      $93AB               ; fragment $48
+            DW      $93CB               ; fragment $49
+            DW      $93F8               ; fragment $4A
+            DW      $9415               ; fragment $4B
+            DW      $943A               ; fragment $4C
+            DW      $945A               ; fragment $4D
+            DW      $8BB6               ; fragment $4E
 
+English_Speech_Phrase_Table:
+            DB      $81,$0A              ; phrase $00: 1 fragment ($0A)
+            DB      $82,$0B,$04          ; phrase $01: 2 fragments ($0B $04)
+            DB      $81,$0A              ; phrase $02: 1 fragment ($0A)
+            DB      $82,$0C,$10          ; phrase $03: 2 fragments ($0C $10)
+            DB      $81,$0A              ; phrase $04: 1 fragment ($0A)
+            DB      $82,$0B,$04          ; phrase $05: 2 fragments ($0B $04)
+            DB      $81,$0A              ; phrase $06: 1 fragment ($0A)
+            DB      $82,$0C,$10          ; phrase $07: 2 fragments ($0C $10)
+            DB      $82,$0D,$09          ; phrase $08: 2 fragments ($0D $09)
+            DB      $82,$0E,$04          ; phrase $09: 2 fragments ($0E $04)
+            DB      $81,$0F              ; phrase $0A: 1 fragment ($0F)
+            DB      $82,$11,$10          ; phrase $0B: 2 fragments ($11 $10)
+            DB      $82,$1E,$36          ; phrase $0C: 2 fragments ($1E $36)
+            DB      $81,$2D              ; phrase $0D: 1 fragment ($2D)
+            DB      $82,$2E,$10          ; phrase $0E: 2 fragments ($2E $10)
+            DB      $82,$2F,$10          ; phrase $0F: 2 fragments ($2F $10)
+            DB      $81,$00              ; phrase $10: 1 fragment ($00)
+            DB      $82,$4E,$02          ; phrase $11: 2 fragments ($4E $02)
+            DB      $82,$03,$04          ; phrase $12: 2 fragments ($03 $04)
+            DB      $82,$05,$10          ; phrase $13: 2 fragments ($05 $10)
+            DB      $81,$06              ; phrase $14: 1 fragment ($06)
+            DB      $81,$07              ; phrase $15: 1 fragment ($07)
+            DB      $82,$08,$37          ; phrase $16: 2 fragments ($08 $37)
+            DB      $82,$33,$36          ; phrase $17: 2 fragments ($33 $36)
+            DB      $81,$23              ; phrase $18: 1 fragment ($23)
+            DB      $82,$24,$36          ; phrase $19: 2 fragments ($24 $36)
+            DB      $82,$27,$36          ; phrase $1A: 2 fragments ($27 $36)
+            DB      $82,$25,$36          ; phrase $1B: 2 fragments ($25 $36)
+            DB      $82,$30,$36          ; phrase $1C: 2 fragments ($30 $36)
+            DB      $82,$31,$09          ; phrase $1D: 2 fragments ($31 $09)
+            DB      $81,$32              ; phrase $1E: 1 fragment ($32)
+            DB      $81,$1D              ; phrase $1F: 1 fragment ($1D)
+            DB      $82,$12,$36          ; phrase $20: 2 fragments ($12 $36)
+            DB      $81,$13              ; phrase $21: 1 fragment ($13)
+            DB      $81,$14              ; phrase $22: 1 fragment ($14)
+            DB      $82,$15,$40          ; phrase $23: 2 fragments ($15 $40)
+            DB      $82,$37,$26          ; phrase $24: 2 fragments ($37 $26)
+            DB      $82,$34,$10          ; phrase $25: 2 fragments ($34 $10)
+            DB      $83,$09,$22,$10      ; phrase $26: 3 fragments ($09 $22 $10)
+            DB      $82,$35,$37          ; phrase $27: 2 fragments ($35 $37)
+            DB      $82,$1A,$36          ; phrase $28: 2 fragments ($1A $36)
+            DB      $81,$1B              ; phrase $29: 1 fragment ($1B)
+            DB      $82,$1C,$36          ; phrase $2A: 2 fragments ($1C $36)
+            DB      $82,$01,$36          ; phrase $2B: 2 fragments ($01 $36)
+            DB      $82,$1F,$09          ; phrase $2C: 2 fragments ($1F $09)
+            DB      $82,$09,$20          ; phrase $2D: 2 fragments ($09 $20)
+            DB      $82,$21,$36          ; phrase $2E: 2 fragments ($21 $36)
+            DB      $82,$28,$36          ; phrase $2F: 2 fragments ($28 $36)
+            DB      $83,$16,$04,$10      ; phrase $30: 3 fragments ($16 $04 $10)
+            DB      $82,$17,$37          ; phrase $31: 2 fragments ($17 $37)
+            DB      $82,$18,$37          ; phrase $32: 2 fragments ($18 $37)
+            DB      $82,$04,$19          ; phrase $33: 2 fragments ($04 $19)
+            DB      $82,$29,$37          ; phrase $34: 2 fragments ($29 $37)
+            DB      $81,$2A              ; phrase $35: 1 fragment ($2A)
+            DB      $82,$2B,$36          ; phrase $36: 2 fragments ($2B $36)
+            DB      $81,$2C              ; phrase $37: 1 fragment ($2C)
+            DB      $83,$38,$04,$10      ; phrase $38: 3 fragments ($38 $04 $10)
+            DB      $83,$39,$37,$36      ; phrase $39: 3 fragments ($39 $37 $36)
+            DB      $82,$3A,$10          ; phrase $3A: 2 fragments ($3A $10)
+            DB      $82,$3B,$36          ; phrase $3B: 2 fragments ($3B $36)
+            DB      $82,$3C,$37          ; phrase $3C: 2 fragments ($3C $37)
+            DB      $82,$09,$3D          ; phrase $3D: 2 fragments ($09 $3D)
+            DB      $82,$3E,$10          ; phrase $3E: 2 fragments ($3E $10)
+            DB      $83,$3F,$34,$10      ; phrase $3F: 3 fragments ($3F $34 $10)
+            DB      $83,$41,$42,$36      ; phrase $40: 3 fragments ($41 $42 $36)
+            DB      $83,$41,$43,$36      ; phrase $41: 3 fragments ($41 $43 $36)
+            DB      $83,$44,$02,$36      ; phrase $42: 3 fragments ($44 $02 $36)
+            DB      $81,$45              ; phrase $43: 1 fragment ($45)
+            DB      $82,$46,$36          ; phrase $44: 2 fragments ($46 $36)
+            DB      $82,$47,$36          ; phrase $45: 2 fragments ($47 $36)
+            DB      $82,$48,$10          ; phrase $46: 2 fragments ($48 $10)
+            DB      $82,$49,$36          ; phrase $47: 2 fragments ($49 $36)
+            DB      $82,$4A,$10          ; phrase $48: 2 fragments ($4A $10)
+            DB      $82,$4B,$10          ; phrase $49: 2 fragments ($4B $10)
+            DB      $82,$4C,$10          ; phrase $4A: 2 fragments ($4C $10)
+            DB      $82,$4D,$36          ; phrase $4B: 2 fragments ($4D $36)
+            DB      $82,$4A,$10          ; phrase $4C: 2 fragments ($4A $10)
+            DB      $82,$4B,$36          ; phrase $4D: 2 fragments ($4B $36)
+            DB      $82,$4C,$10          ; phrase $4E: 2 fragments ($4C $10)
+            DB      $82,$4D,$36          ; phrase $4F: 2 fragments ($4D $36)
+English_Speech_Phrase_Table_Padding:
+            DB      $00                 ; alignment/padding byte before sprite data
             DB      $ff,$ff,$ff,$ff,$ff
 ;*******************************************************************************
 ; GARWOR_1
