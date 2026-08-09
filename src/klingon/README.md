@@ -65,6 +65,8 @@ Use:
 
 ```bash
 ./build.sh -k
+or
+build.bat -k
 ```
 
 The Klingon build first creates `roms/wowk.zip`. It contains the seven WoW CPU ROMs, `sc01.bin` when present, and the language ROM as `klingon.x11`.
