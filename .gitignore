@@ -25,6 +25,7 @@ Thumbs.db
 
 # Explicit exceptions for required scripts & structure
 !build.bat
+!src/klingon/*.bat
 !tools/
 !tools/.gitkeep
 !roms/sc01a.bin
