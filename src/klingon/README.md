@@ -1,50 +1,91 @@
 <!-- README.md -->
 # Wizard of Wor Klingon X11
 
-This revision resets the Klingon experiment to a deliberately conservative runtime architecture.
+This directory contains the Klingon (`tlhIngan Hol`) X11 language ROM for Wizard of Wor. The ROM uses the same 4 KB data interface as the German X11 ROM.
 
-The Klingon fragment namespace now matches the resident English fragment namespace exactly: 79 fragment IDs `$00-$4E`. The X11 ROM uses the exact resident English 80-entry phrase table. This keeps laughter, Worlord substitution, fragment counts, and phrase boundaries in known-good locations while the Klingon SC-01 pronunciation is tuned.
+## X11 interface
 
-## Votrax JSON versus X11 ROM
+| Address | Field | Klingon ROM use |
+|---|---|---|
+| `$C000` | speech-fragment pointer-table pointer | `$CD8D` |
+| `$C002` | speech-phrase table pointer | `$CE35` |
+| `$C004` | foreign coinage values | retained from German X11 |
+| `$C00A` | expected diagnostic checksum | `$00` |
+| `$C00B` | alternate-font pointer | `$C1D2` |
+| `$C00D` | localized display table | 23 length-prefixed records |
+| `$C200` | speech record area | fixed German physical record layout |
+| `$CD8D` | fragment pointer table | 84 slots (`$00-$53`) |
+| `$CE35` | phrase table | 80 game phrase IDs (`$00-$4F`) |
+| `$CF1D` | checksum compensation | `$DC` in this image |
+| `$CFEB` | ROM identification | `KLINGONWIZARD` / `DNA` |
 
-`votrax_library_wowk.json` is for direct player audition. Every record ends with `$3F STOP` so selecting any library item has a deterministic playback end.
+## Display text
 
-The X11 ROM does **not** store that terminal STOP. Wizard of Wor already sends STOP when the speech queue becomes empty. The ROM record therefore stores only the direct fragment phoneme bytes and its leading length.
+The game scans localized strings as a length byte below `$30` followed by character bytes at or above `$30`. Klingon cannot store ASCII apostrophe `$27` directly in a text record.
 
-## Runtime structure
+This ROM uses two safe extended character codes that `char2gfx` already routes through the X11 alternate-font pointer:
 
-- X11 header: `$C000-$C00C`
-- 23 localized text records: `$C00D-$C1D0`
-- alignment byte: `$C1D1`
-- alternate font area: `$C1D2-$C1FF`
-- Klingon speech records: `$C200-$C8CF`
-- explicit erased fill through `$CD8C`
-- 84 fragment-pointer slots: `$CD8D-$CE34`
-- 80 phrase records: `$CE35-$CF1A`
-- erased alignment: `$CF1B-$CF1C`
-- checksum compensation: `$CF1D`
-- preserved compatibility tail: `$CFEB-$CFFF`
+- `$62` = Klingon apostrophe `'`
+- `$63` = lowercase `q`
 
-Slots `$4F-$53` are null in this compatibility build.
+The apostrophe is a consonant in Klingon, and `q` and `Q` are different letters. Preserving those two forms makes the arcade display much closer to normal Klingon orthography. The other alphabetic characters use the resident uppercase WoW glyphs.
 
-## Rank substitution
+The 23 display strings use natural record lengths. They do not have to match the German string lengths; the main program searches the records dynamically. Unused bytes before `$C1D1` remain erased so the speech area still begins at `$C200`.
 
-The resident code still performs:
+## Speech layout
+
+The current working speech data retains the German X11 physical record addresses and count bytes. For every speech payload position, stored bits 7-6 remain unchanged from the working German-template baseline; the Klingon pronunciation occupies the low six SC-01 phoneme bits.
+
+The pointer table remains at `$CD8D`, with `$4F` null. Slots `$50-$52` are short Klingon grammar helpers used by the phrase table; `$53` remains a non-null compatibility record but is not referenced by Klingon phrases.
+
+The phrase table is language-local. It is based on the resident English semantic composition, with seven deliberate Klingon changes: `$08`, `$11`, `$12`, `$23`, `$30`, `$33`, and `$42`. These changes select the padded rank token where appropriate, correct Klingon word order, add the minimum required grammar helpers, and avoid a duplicated “dungeons of Wor” fragment.
+
+The resident `Dungeon_Class` substitution remains unchanged:
 
 ```text
 $09 -> $40
 $37 -> $41
 ```
 
-when `Dungeon_Class != 0`. Those four Klingon slots correspond to `SuvwI'` and `SuvwI' joH`.
+This changes the spoken rank from Worrior to Worlord before the selected fragment pointer is resolved.
 
-## zmac v1.3
+## Translation status
 
-After the initial `ORG $C000`, the source contains no further `ORG` gaps. Every unused byte is emitted explicitly as `$FF`. This avoids the assembler-fill mismatch that caused the previous source to assemble to a nonzero checksum even though the separately generated reference binary had checksum zero.
+The display strings received a targeted language cleanup using established vocabulary such as `chen'ong` (maze), `tlhapragh` (monster), `Huch jengva'` (coin), `mIvwa'mey` (score/tally), `leQ` (button/switch), and `HotlhwI'` (scanner).
 
-## Reference image
+## Runtime status
 
-- size: 4096 bytes
-- additive checksum: `$00`
-- checksum compensation: `$BC`
-- CRC32: `7c9e5c39`
+Current MAME testing shows the Klingon set progressing normally through attract mode, score tables, instruction screens, coin/player selection, radar display, and active gameplay. Speech is event-driven with normal pauses rather than the previous continuous-output failure.
+
+This establishes the X11 runtime structure as working. It does not by itself certify every Klingon translation or SC-01 pronunciation; the remaining language items are tracked in `KLINGON_PHRASE_MAP.md`.
+
+## Build and validation
+
+Use:
+
+```bash
+./build.sh -k
+```
+
+The Klingon build first creates `roms/wowk.zip`. It contains the seven WoW CPU ROMs, `sc01.bin` when present, and the language ROM as `klingon.x11`.
+
+MAME 0.280 does not define a `wowk` machine. The Astrocade driver defines `wowg` for the foreign-language X11 configuration and expects the X11 ROM to be named `german.x11`. After `wowk.zip` is created, the build runs `src/klingon/renameK.sh`. The script copies `wowk.zip` to `roms/wowg.zip` and renames only the X11 archive member:
+
+```text
+wowk.zip:klingon.x11
+        ->
+wowg.zip:german.x11
+```
+
+The X11 data is unchanged; only its filename inside the MAME compatibility archive changes. `wowk.zip` remains the Klingon project artifact. The generated `wowg.zip` is the package used to run Klingon with the existing MAME driver.
+
+Run it with:
+
+```bash
+mame -window -skip_gameinfo -rompath roms/ wowg
+```
+
+The `-k` build therefore produces:
+
+- `roms/wowk.zip` containing `wow.x1` through `wow.x7`, `sc01.bin`, and `klingon.x11`
+- `roms/wowg.zip` containing the same game and speech ROMs, with the Klingon X11 stored as `german.x11`

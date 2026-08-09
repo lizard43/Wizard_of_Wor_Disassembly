@@ -23,6 +23,8 @@ readonly GERMAN_SOURCE="$SOURCE_DIR/german/GERMAN_X11.asm"
 readonly GERMAN_OUT_FILE="$ROMS_DIR/german.x11"
 readonly KLINGON_SOURCE="$SOURCE_DIR/klingon/KLINGON_X11.asm"
 readonly KLINGON_OUT_FILE="$ROMS_DIR/klingon.x11"
+readonly KLINGON_RENAME_SCRIPT="$SOURCE_DIR/klingon/renameK.sh"
+readonly KLINGON_MAME_ZIP_FILE="$ROMS_DIR/wowg.zip"
 
 readonly -a ROM_NAMES=(
     "wow.x1"
@@ -239,6 +241,21 @@ create_zip() {
     log "   archive: $target_zip ($(stat -c '%s bytes' "$target_zip"))"
 }
 
+
+create_klingon_mame_zip() {
+    [[ -f "$KLINGON_RENAME_SCRIPT" ]] || fail "Klingon rename script not found: $KLINGON_RENAME_SCRIPT"
+
+    log "[4.5/4] Creating MAME-compatible Klingon archive"
+    (
+        cd -- "$(dirname -- "$KLINGON_RENAME_SCRIPT")"
+        bash "./$(basename -- "$KLINGON_RENAME_SCRIPT")"
+    ) || fail "Could not create MAME-compatible Klingon archive"
+
+    [[ -s "$KLINGON_MAME_ZIP_FILE" ]] || fail "MAME-compatible archive was not created: $KLINGON_MAME_ZIP_FILE"
+    log "   archive: $KLINGON_MAME_ZIP_FILE"
+    log "      X11: klingon.x11 packaged as german.x11 for the MAME wowg driver"
+}
+
 parse_arguments() {
     while [[ $# -gt 0 ]]; do
         case "$1" in
@@ -305,6 +322,10 @@ main() {
         log "[4/4] Creating $ZIP_NAME"
     fi
     create_zip
+
+    if [[ "$BUILD_KLINGON" == true ]]; then
+        create_klingon_mame_zip
+    fi
     log
 
     log "Build complete."
@@ -312,7 +333,8 @@ main() {
     [[ "$BUILD_GERMAN" == true ]] && log " German ROM: $GERMAN_OUT_FILE"
     [[ "$BUILD_KLINGON" == true ]] && log "Klingon ROM: $KLINGON_OUT_FILE"
     if [[ "$BUILD_KLINGON" == true ]]; then
-        log "  MAME ZIP: $KLINGON_ZIP_FILE"
+        log "Klingon ZIP: $KLINGON_ZIP_FILE"
+        log "   MAME ZIP: $KLINGON_MAME_ZIP_FILE"
     else
         log "  MAME ZIP: $ZIP_FILE"
     fi

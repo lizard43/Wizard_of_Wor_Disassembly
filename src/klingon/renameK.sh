@@ -4,7 +4,7 @@
 set -e
 
 # Define relative paths based on script location in tools/
-ROM_DIR="../roms"
+ROM_DIR="../../roms"
 SRC_ZIP="$ROM_DIR/wowk.zip"
 DST_ZIP="$ROM_DIR/wowg.zip"
 
