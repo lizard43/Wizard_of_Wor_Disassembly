@@ -28,4 +28,5 @@ Thumbs.db
 !src/klingon/*.bat
 !tools/
 !tools/.gitkeep
+!roms/sc01.bin
 !roms/sc01a.bin
