@@ -1,9 +1,11 @@
 #!/usr/bin/env bash
+# build.sh
 set -euo pipefail
 
 readonly ROM_SIZE=$((0x1000))
 readonly SOURCE_NAME="wow_disassembly.asm"
 readonly ZIP_NAME="wow.zip"
+readonly KLINGON_ZIP_NAME="wowk.zip"
 readonly REPO_ROOT="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)"
 readonly SOURCE_DIR="$REPO_ROOT/src"
 readonly BUILD_DIR="$SOURCE_DIR/zout"
@@ -13,11 +15,16 @@ readonly SOURCE_STEM="${SOURCE_NAME%.asm}"
 readonly CIM_FILE="$BUILD_DIR/$SOURCE_STEM.cim"
 readonly LST_FILE="$BUILD_DIR/$SOURCE_STEM.lst"
 readonly ZIP_FILE="$ROMS_DIR/$ZIP_NAME"
+readonly KLINGON_ZIP_FILE="$ROMS_DIR/$KLINGON_ZIP_NAME"
 readonly SC01_FILE="$ROMS_DIR/sc01.bin"
 
-# German specific paths
+# Optional language ROM paths
 readonly GERMAN_SOURCE="$SOURCE_DIR/german/GERMAN_X11.asm"
 readonly GERMAN_OUT_FILE="$ROMS_DIR/german.x11"
+readonly KLINGON_SOURCE="$SOURCE_DIR/klingon/KLINGON_X11.asm"
+readonly KLINGON_OUT_FILE="$ROMS_DIR/klingon.x11"
+readonly KLINGON_RENAME_SCRIPT="$SOURCE_DIR/klingon/renameK.sh"
+readonly KLINGON_MAME_ZIP_FILE="$ROMS_DIR/wowg.zip"
 
 readonly -a ROM_NAMES=(
     "wow.x1"
@@ -40,6 +47,7 @@ readonly -a ROM_ADDRESSES=(
 
 # Global configuration variable controlled by arguments
 BUILD_GERMAN=false
+BUILD_KLINGON=false
 
 log() {
     printf '%s\n' "$*"
@@ -85,7 +93,12 @@ prepare_output_directories() {
         rm -f -- "$ROMS_DIR/$rom_name"
     done
     rm -f -- "$GERMAN_OUT_FILE"
-    rm -f -- "$ZIP_FILE"
+    [[ "$BUILD_KLINGON" == true ]] && rm -f -- "$KLINGON_OUT_FILE"
+    if [[ "$BUILD_KLINGON" == true ]]; then
+        rm -f -- "$KLINGON_ZIP_FILE"
+    else
+        rm -f -- "$ZIP_FILE"
+    fi
 }
 
 assemble_source() {
@@ -138,6 +151,32 @@ assemble_german() {
     log "    german: $GERMAN_OUT_FILE ($(stat -c '%s bytes' "$GERMAN_OUT_FILE"))"
 }
 
+
+assemble_klingon() {
+    [[ -f "$KLINGON_SOURCE" ]] || fail "Klingon source file not found: $KLINGON_SOURCE"
+    log "[2.5/4] Assembling Optional Klingon ROM: KLINGON_X11.asm"
+
+    local klingon_tmp_cim="$BUILD_DIR/KLINGON_X11.cim"
+
+    if "$ZMAC_BIN" --version 2>&1 | grep -q '1\.3'; then
+        log "      Detected zmac v1.3 compatibility mode for Klingon ROM"
+        (
+            cd -- "$REPO_ROOT"
+            "$ZMAC_BIN" -o "$klingon_tmp_cim" -x "$BUILD_DIR/KLINGON_X11.lst" "$KLINGON_SOURCE"
+        ) || fail "zmac v1.3 failed on Klingon ROM."
+    else
+        log "      Detected modern zmac mode for Klingon ROM"
+        (
+            cd -- "$REPO_ROOT"
+            "$ZMAC_BIN" -I "$REPO_ROOT" -I "$SOURCE_DIR" -I "$SOURCE_DIR/klingon" --od "$BUILD_DIR" --oo cim,lst "$KLINGON_SOURCE"
+        ) || fail "zmac failed on Klingon ROM."
+    fi
+
+    [[ -s "$klingon_tmp_cim" ]] || fail "zmac did not create $klingon_tmp_cim"
+    cp -- "$klingon_tmp_cim" "$KLINGON_OUT_FILE"
+    log "   klingon: $KLINGON_OUT_FILE ($(stat -c '%s bytes' "$KLINGON_OUT_FILE"))"
+}
+
 slice_roms() {
     local cim_size local index local rom_name local start_address local end_address local output_file local output_size
     cim_size="$(stat -c '%s' "$CIM_FILE")"
@@ -163,7 +202,12 @@ slice_roms() {
 
 create_zip() {
     local rom_name
+    local target_zip="$ZIP_FILE"
     local -a zip_inputs=()
+
+    if [[ "$BUILD_KLINGON" == true ]]; then
+        target_zip="$KLINGON_ZIP_FILE"
+    fi
 
     for rom_name in "${ROM_NAMES[@]}"; do
         zip_inputs+=("$ROMS_DIR/$rom_name")
@@ -177,21 +221,39 @@ create_zip() {
     fi
 
     if [[ "$BUILD_GERMAN" == true ]]; then
-        if [[ -f "$GERMAN_OUT_FILE" ]]; then
-            zip_inputs+=("$GERMAN_OUT_FILE")
-            log "      Including optional German language ROM: $GERMAN_OUT_FILE"
-        else
-            fail "German ROM build was requested but file is missing: $GERMAN_OUT_FILE"
-        fi
+        [[ -f "$GERMAN_OUT_FILE" ]] || fail "German ROM build was requested but file is missing: $GERMAN_OUT_FILE"
+        zip_inputs+=("$GERMAN_OUT_FILE")
+        log "      Including optional German language ROM: $GERMAN_OUT_FILE"
+    fi
+
+    if [[ "$BUILD_KLINGON" == true ]]; then
+        [[ -f "$KLINGON_OUT_FILE" ]] || fail "Klingon ROM build was requested but file is missing: $KLINGON_OUT_FILE"
+        zip_inputs+=("$KLINGON_OUT_FILE")
+        log "      Including optional Klingon language ROM: $KLINGON_OUT_FILE"
     fi
 
     (
         cd -- "$ROMS_DIR"
-        zip -q -j -X "$ZIP_FILE" "${zip_inputs[@]}"
-    ) || fail "Could not create $ZIP_FILE"
+        zip -q -j -X "$target_zip" "${zip_inputs[@]}"
+    ) || fail "Could not create $target_zip"
 
-    [[ -s "$ZIP_FILE" ]] || fail "ZIP archive was not created: $ZIP_FILE"
-    log "   archive: $ZIP_FILE ($(stat -c '%s bytes' "$ZIP_FILE"))"
+    [[ -s "$target_zip" ]] || fail "ZIP archive was not created: $target_zip"
+    log "   archive: $target_zip ($(stat -c '%s bytes' "$target_zip"))"
+}
+
+
+create_klingon_mame_zip() {
+    [[ -f "$KLINGON_RENAME_SCRIPT" ]] || fail "Klingon rename script not found: $KLINGON_RENAME_SCRIPT"
+
+    log "[4.5/4] Creating MAME-compatible Klingon archive"
+    (
+        cd -- "$(dirname -- "$KLINGON_RENAME_SCRIPT")"
+        bash "./$(basename -- "$KLINGON_RENAME_SCRIPT")"
+    ) || fail "Could not create MAME-compatible Klingon archive"
+
+    [[ -s "$KLINGON_MAME_ZIP_FILE" ]] || fail "MAME-compatible archive was not created: $KLINGON_MAME_ZIP_FILE"
+    log "   archive: $KLINGON_MAME_ZIP_FILE"
+    log "      X11: klingon.x11 packaged as german.x11 for the MAME wowg driver"
 }
 
 parse_arguments() {
@@ -201,11 +263,16 @@ parse_arguments() {
                 BUILD_GERMAN=true
                 shift
                 ;;
+            -k|-klingon|--klingon)
+                BUILD_KLINGON=true
+                shift
+                ;;
             -h|--help)
                 log "Usage: $0 [options]"
                 log "Options:"
-                log "  -g, --german    Also assemble German language expansion and include in zip"
-                log "  -h, --help      Display this help message"
+                log "  -g, --german              Assemble German language expansion and include it in wow.zip"
+                log "  -k, -klingon, --klingon   Assemble Klingon language expansion and include it in wowk.zip"
+                log "  -h, --help                Display this help message"
                 exit 0
                 ;;
             *)
@@ -218,6 +285,10 @@ parse_arguments() {
 main() {
     local ZMAC_BIN
     parse_arguments "$@"
+
+    if [[ "$BUILD_GERMAN" == true && "$BUILD_KLINGON" == true ]]; then
+        fail "Select either German or Klingon, not both."
+    fi
 
     [[ -f "$SOURCE_FILE" ]] || fail "Source file not found: $SOURCE_FILE"
     require_command dd
@@ -239,18 +310,34 @@ main() {
 
     if [[ "$BUILD_GERMAN" == true ]]; then
         assemble_german
+    elif [[ "$BUILD_KLINGON" == true ]]; then
+        assemble_klingon
     fi
 
     slice_roms
 
-    log "[4/4] Creating $ZIP_NAME"
+    if [[ "$BUILD_KLINGON" == true ]]; then
+        log "[4/4] Creating $KLINGON_ZIP_NAME"
+    else
+        log "[4/4] Creating $ZIP_NAME"
+    fi
     create_zip
+
+    if [[ "$BUILD_KLINGON" == true ]]; then
+        create_klingon_mame_zip
+    fi
     log
 
     log "Build complete."
     log "  ROM files: $ROMS_DIR/wow.x{1..7}"
     [[ "$BUILD_GERMAN" == true ]] && log " German ROM: $GERMAN_OUT_FILE"
-    log "  MAME ZIP: $ZIP_FILE"
+    [[ "$BUILD_KLINGON" == true ]] && log "Klingon ROM: $KLINGON_OUT_FILE"
+    if [[ "$BUILD_KLINGON" == true ]]; then
+        log "Klingon ZIP: $KLINGON_ZIP_FILE"
+        log "   MAME ZIP: $KLINGON_MAME_ZIP_FILE"
+    else
+        log "  MAME ZIP: $ZIP_FILE"
+    fi
 }
 
 main "$@"
