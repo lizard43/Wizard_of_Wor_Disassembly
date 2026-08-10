@@ -3,6 +3,8 @@
 
 This document describes the current Klingon X11 image. Game phrase IDs and speech fragment IDs are separate namespaces. Phrase IDs are the 80 language-independent requests made by Wizard of Wor; the Klingon phrase table expands each request into one to four language-local fragment IDs.
 
+Related documentation: [`README.md`](README.md) · [`docs/SPEECH_MAP.md`](../../docs/SPEECH_MAP.md)
+
 ## Display text map
 
 `$62` is the X11 apostrophe glyph and `$63` is the X11 lowercase `q` glyph. The canonical column below is the intended Klingon wording; the ROM encodes those two characters through the alternate font while using the resident uppercase glyphs for the rest.

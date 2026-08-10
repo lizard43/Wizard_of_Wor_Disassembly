@@ -3,7 +3,7 @@
 
 This directory contains the reverse source for the 4 KB German language ROM used by Wizard of Wor in socket X11. The cleaned source preserves the original ROM bytes while documenting the data interface expected by the main game program.
 
-The complete speech reference is maintained in [`../../doc/SPEECH_MAP.md`](../../doc/SPEECH_MAP.md). That document is the canonical cross-language map for the 79 resident English speech fragments, the 80 game-level phrase IDs, and the corresponding German phrase compositions. This README documents the X11 ROM interface and runtime behavior rather than duplicating those tables.
+The complete speech reference is maintained in [`../../docs/SPEECH_MAP.md`](../../docs/SPEECH_MAP.md). That document is the canonical cross-language map for the 79 resident English speech fragments, the 80 game-level phrase IDs, and the corresponding German phrase compositions. This README documents the X11 ROM interface and runtime behavior rather than duplicating those tables.
 
 ## X11 language-ROM interface
 
@@ -54,7 +54,7 @@ Because this substitution occurs before the English/German fragment table is sel
 
 Each speech fragment begins with a byte count followed by that many encoded SC-01 bytes. Bit 7 participates in the game's stateful inflection encoding: playback XORs the stored byte with the previous inflection state before sending the resulting command to the SC-01 interface.
 
-See [`../../doc/SPEECH_MAP.md`](../../doc/SPEECH_MAP.md) for all 80 phrase compositions and the resulting English and German speech.
+See [`../../docs/SPEECH_MAP.md`](../../docs/SPEECH_MAP.md) for all 80 phrase compositions and the resulting English and German speech.
 
 ## Diagnostics and checksum
 

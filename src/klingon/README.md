@@ -3,6 +3,8 @@
 
 This directory contains the Klingon (`tlhIngan Hol`) X11 language ROM for Wizard of Wor. The ROM uses the same 4 KB data interface as the German X11 ROM.
 
+Related documentation: [`KLINGON_PHRASE_MAP.md`](KLINGON_PHRASE_MAP.md) · [`docs/SPEECH_MAP.md`](../../docs/SPEECH_MAP.md)
+
 ## X11 interface
 
 | Address | Field | Klingon ROM use |
@@ -57,21 +59,41 @@ The display strings received a targeted language cleanup using established vocab
 
 Current MAME testing shows the Klingon set progressing normally through attract mode, score tables, instruction screens, coin/player selection, radar display, and active gameplay. Speech is event-driven with normal pauses rather than the previous continuous-output failure.
 
-This establishes the X11 runtime structure as working. It does not by itself certify every Klingon translation or SC-01 pronunciation; the remaining language items are tracked in `KLINGON_PHRASE_MAP.md`.
+This establishes the X11 runtime structure as working. It does not by itself certify every Klingon translation or SC-01 pronunciation; the remaining language items are tracked in [`KLINGON_PHRASE_MAP.md`](KLINGON_PHRASE_MAP.md).
 
 ## Build and validation
 
-Use:
+### Linux
+
+Build the Klingon ROM and project archive with:
 
 ```bash
 ./build.sh -k
-or
-build.bat -k
 ```
 
-The Klingon build first creates `roms/wowk.zip`. It contains the seven WoW CPU ROMs, `sc01.bin` when present, and the language ROM as `klingon.x11`.
+The Klingon build creates `roms/wowk.zip` containing:
 
-MAME 0.280 does not define a `wowk` machine. The Astrocade driver defines `wowg` for the foreign-language X11 configuration and expects the X11 ROM to be named `german.x11`. After `wowk.zip` is created, the build runs `src/klingon/renameK.sh`. The script copies `wowk.zip` to `roms/wowg.zip` and renames only the X11 archive member:
+```text
+wow.x1
+wow.x2
+wow.x3
+wow.x4
+wow.x5
+wow.x6
+wow.x7
+sc01.bin
+klingon.x11
+```
+
+MAME 0.280 does not define a `wowk` machine. The Astrocade driver defines `wowg` for the foreign-language X11 configuration and expects the X11 ROM to be named `german.x11`.
+
+After `wowk.zip` is created, `build.sh -k` runs:
+
+```text
+src/klingon/renameK.sh
+```
+
+The script copies `wowk.zip` to `roms/wowg.zip` and renames only the X11 member:
 
 ```text
 wowk.zip:klingon.x11
@@ -79,15 +101,61 @@ wowk.zip:klingon.x11
 wowg.zip:german.x11
 ```
 
-The X11 data is unchanged; only its filename inside the MAME compatibility archive changes. `wowk.zip` remains the Klingon project artifact. The generated `wowg.zip` is the package used to run Klingon with the existing MAME driver.
+The X11 data is unchanged. `wowk.zip` remains the Klingon project archive, while `wowg.zip` is the compatibility archive used by the existing MAME `wowg` driver.
 
-Run it with:
+Run Klingon with:
 
 ```bash
 mame -window -skip_gameinfo -rompath roms/ wowg
 ```
 
-The `-k` build therefore produces:
+### Windows
 
-- `roms/wowk.zip` containing `wow.x1` through `wow.x7`, `sc01.bin`, and `klingon.x11`
-- `roms/wowg.zip` containing the same game and speech ROMs, with the Klingon X11 stored as `german.x11`
+The Windows build provides the same Klingon flow:
+
+```bat
+build.bat -k
+```
+
+The following forms are equivalent:
+
+```bat
+build.bat -k
+build.bat -klingon
+build.bat --klingon
+```
+
+The batch build assembles:
+
+```text
+src\klingon\KLINGON_X11.asm
+        ->
+src\zout\KLINGON_X11.hex
+src\zout\KLINGON_X11.lst
+        ->
+roms\klingon.x11
+        ->
+roms\wowk.zip
+```
+
+After `wowk.zip` is created, `build.bat -k` runs:
+
+```text
+src\klingon\renameK.bat
+```
+
+`renameK.bat` creates `roms\wowg.zip` and renames the X11 member from `klingon.x11` to `german.x11`, matching the filename expected by the MAME `wowg` driver. The ROM contents are not modified.
+
+Run Klingon on Windows with:
+
+```bat
+mame.exe -window -skip_gameinfo -rompath roms wowg
+```
+
+The Klingon build therefore produces two archives on either platform:
+
+- `roms/wowk.zip` — project archive containing the Klingon X11 as `klingon.x11`
+- `roms/wowg.zip` — MAME runtime archive containing the same Klingon X11 as `german.x11`
+
+Normal builds and German `-g` builds retain their existing behavior. The `wowg.zip` compatibility copy containing Klingon is generated only by the Klingon `-k` build.
+
