@@ -5,6 +5,7 @@ set -euo pipefail
 readonly ROM_SIZE=$((0x1000))
 readonly SOURCE_NAME="wow_disassembly.asm"
 readonly ZIP_NAME="wow.zip"
+readonly GERMAN_ZIP_NAME="wowg.zip"
 readonly KLINGON_ZIP_NAME="wowk.zip"
 readonly REPO_ROOT="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)"
 readonly SOURCE_DIR="$REPO_ROOT/src"
@@ -15,6 +16,7 @@ readonly SOURCE_STEM="${SOURCE_NAME%.asm}"
 readonly CIM_FILE="$BUILD_DIR/$SOURCE_STEM.cim"
 readonly LST_FILE="$BUILD_DIR/$SOURCE_STEM.lst"
 readonly ZIP_FILE="$ROMS_DIR/$ZIP_NAME"
+readonly GERMAN_ZIP_FILE="$ROMS_DIR/$GERMAN_ZIP_NAME"
 readonly KLINGON_ZIP_FILE="$ROMS_DIR/$KLINGON_ZIP_NAME"
 readonly SC01_FILE="$ROMS_DIR/sc01.bin"
 
@@ -24,7 +26,7 @@ readonly GERMAN_OUT_FILE="$ROMS_DIR/german.x11"
 readonly KLINGON_SOURCE="$SOURCE_DIR/klingon/KLINGON_X11.asm"
 readonly KLINGON_OUT_FILE="$ROMS_DIR/klingon.x11"
 readonly KLINGON_RENAME_SCRIPT="$SOURCE_DIR/klingon/renameK.sh"
-readonly KLINGON_MAME_ZIP_FILE="$ROMS_DIR/wowg.zip"
+readonly KLINGON_MAME_ZIP_FILE="$GERMAN_ZIP_FILE"
 
 readonly -a ROM_NAMES=(
     "wow.x1"
@@ -95,7 +97,9 @@ prepare_output_directories() {
     rm -f -- "$GERMAN_OUT_FILE"
     [[ "$BUILD_KLINGON" == true ]] && rm -f -- "$KLINGON_OUT_FILE"
     if [[ "$BUILD_KLINGON" == true ]]; then
-        rm -f -- "$KLINGON_ZIP_FILE"
+        rm -f -- "$KLINGON_ZIP_FILE" "$KLINGON_MAME_ZIP_FILE"
+    elif [[ "$BUILD_GERMAN" == true ]]; then
+        rm -f -- "$GERMAN_ZIP_FILE"
     else
         rm -f -- "$ZIP_FILE"
     fi
@@ -182,7 +186,7 @@ slice_roms() {
     cim_size="$(stat -c '%s' "$CIM_FILE")"
     (( cim_size > ROM_ADDRESSES[${#ROM_ADDRESSES[@]} - 1] )) || fail "Assembled image is too short for the ROM map: $cim_size bytes"
 
-    log "[3/4] Splitting the CPU image into 4 KiB ROMs"
+    log "[3/4] Splitting the CPU image into 4 KB ROMs"
     log "      The video-memory gap at \$4000-\$7FFF is not packaged."
 
     for index in "${!ROM_NAMES[@]}"; do
@@ -205,7 +209,9 @@ create_zip() {
     local target_zip="$ZIP_FILE"
     local -a zip_inputs=()
 
-    if [[ "$BUILD_KLINGON" == true ]]; then
+    if [[ "$BUILD_GERMAN" == true ]]; then
+        target_zip="$GERMAN_ZIP_FILE"
+    elif [[ "$BUILD_KLINGON" == true ]]; then
         target_zip="$KLINGON_ZIP_FILE"
     fi
 
@@ -270,8 +276,8 @@ parse_arguments() {
             -h|--help)
                 log "Usage: $0 [options]"
                 log "Options:"
-                log "  -g, --german              Assemble German language expansion and include it in wow.zip"
-                log "  -k, -klingon, --klingon   Assemble Klingon language expansion and include it in wowk.zip"
+                log "  -g, --german              Build the MAME-ready German archive wowg.zip"
+                log "  -k, -klingon, --klingon   Build wowk.zip and the MAME-ready wowg.zip alias"
                 log "  -h, --help                Display this help message"
                 exit 0
                 ;;
@@ -318,6 +324,8 @@ main() {
 
     if [[ "$BUILD_KLINGON" == true ]]; then
         log "[4/4] Creating $KLINGON_ZIP_NAME"
+    elif [[ "$BUILD_GERMAN" == true ]]; then
+        log "[4/4] Creating $GERMAN_ZIP_NAME"
     else
         log "[4/4] Creating $ZIP_NAME"
     fi
@@ -335,6 +343,8 @@ main() {
     if [[ "$BUILD_KLINGON" == true ]]; then
         log "Klingon ZIP: $KLINGON_ZIP_FILE"
         log "   MAME ZIP: $KLINGON_MAME_ZIP_FILE"
+    elif [[ "$BUILD_GERMAN" == true ]]; then
+        log "  MAME ZIP: $GERMAN_ZIP_FILE"
     else
         log "  MAME ZIP: $ZIP_FILE"
     fi

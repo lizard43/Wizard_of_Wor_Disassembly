@@ -38,8 +38,8 @@ if "%~1"=="-k" (
 if "%~1"=="--help" (
     echo Usage: build.bat [options]
     echo Options:
-    echo   -g, --german              Assemble German language expansion and include it in wow.zip
-    echo   -k, -klingon, --klingon   Assemble Klingon language expansion and include it in wowk.zip
+    echo   -g, --german              Build German wowg.zip
+    echo   -k, --klingon   Build wowk.zip and the MAME wowg.zip alias
     echo   --help                     Display this help message
     exit /b 0
 )
@@ -90,6 +90,13 @@ if exist "roms\german.x11" del /f /q "roms\german.x11"
 if "%BUILD_KLINGON%"=="true" (
     if exist "roms\klingon.x11" del /f /q "roms\klingon.x11"
     if exist "roms\wowk.zip" del /f /q "roms\wowk.zip"
+    if exist "roms\wowg.zip" del /f /q "roms\wowg.zip"
+)
+if "%BUILD_GERMAN%"=="true" (
+    if exist "roms\wowg.zip" del /f /q "roms\wowg.zip"
+)
+if "%BUILD_GERMAN%"=="false" if "%BUILD_KLINGON%"=="false" (
+    if exist "roms\wow.zip" del /f /q "roms\wow.zip"
 )
 
 echo [2/4] Assembling wow_disassembly.asm
@@ -214,6 +221,9 @@ if %ERRORLEVEL% neq 0 (
 if "%BUILD_KLINGON%"=="true" (
     set "TARGET_ZIP=roms\wowk.zip"
     echo [4/4] Packaging roms\wowk.zip...
+) else if "%BUILD_GERMAN%"=="true" (
+    set "TARGET_ZIP=roms\wowg.zip"
+    echo [4/4] Packaging roms\wowg.zip...
 ) else (
     set "TARGET_ZIP=roms\wow.zip"
     echo [4/4] Packaging roms\wow.zip...
@@ -253,9 +263,14 @@ if "%BUILD_KLINGON%"=="true" (
 echo.
 echo =======================================================================
 echo BUILD SUCCESSFUL!
-if "%BUILD_KLINGON%"=="true" (
+if "%BUILD_GERMAN%"=="true" (
+    echo German ROM:          roms\german.x11
+    echo MAME runtime archive: roms\wowg.zip
+) else if "%BUILD_KLINGON%"=="true" (
     echo Klingon project archive: roms\wowk.zip
     echo MAME runtime archive:    roms\wowg.zip
+) else (
+    echo MAME archive:            roms\wow.zip
 )
 echo =======================================================================
 pause

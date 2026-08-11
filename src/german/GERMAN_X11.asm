@@ -3,7 +3,7 @@
 ; Wizard of Wor - German X11 Foreign-Language ROM
 ;==============================================================================
 ;
-; Reverse source for the 4 KiB language ROM installed at $C000-$CFFF.
+; Reverse source for the 4 KB language ROM installed at $C000-$CFFF.
 ; Original reverse engineering/disassembly attributed to Richard C. Degler.
 ;
 ; The main Wizard of Wor program treats X11 as a data-driven localization
@@ -1156,7 +1156,7 @@ German_Speech_Phrase_Table:
         DB      $82,$4C,$10          ; phrase $4E: 2 fragments ($4C $10)
         DB      $83,$41,$4D,$36      ; phrase $4F: 3 fragments ($41 $4D $36)
 German_Checksum_Compensation:
-        DB      $B6             ; Balances the complete 4 KiB additive checksum to $00
+        DB      $B6             ; Balances the complete 4 KB additive checksum to $00
 ; End of German speech phrase data.
 
 ; $CF1E-$CFEA: unused ROM space filled with $FF.

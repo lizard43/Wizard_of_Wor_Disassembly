@@ -8,8 +8,10 @@
 ; pointer table, header addresses, and checksum location are unchanged.
 ;
 ; Localized display records use their own natural lengths, as the game selects
-; records dynamically. Two alternate-font glyphs preserve the Klingon apostrophe
-; and the q/Q distinction without introducing bytes below $30 into text records.
+; records dynamically. Text $01 is padded inside its existing 18-byte record so
+; all visible glyphs remain within the attract screen's 15-cell flashing field.
+; Two alternate-font glyphs preserve the Klingon apostrophe and the q/Q
+; distinction without introducing bytes below $30 into text records.
 ;
 ; The phrase table is language-local. It uses the resident-English composition as
 ; the semantic baseline and changes seven phrase records where Klingon word order
@@ -39,10 +41,12 @@ K_HDR:
 ;==============================================================================
 
 ; Text $01: INSERT COIN
-; tlhIngan Hol: Huch jengva' yIlan
+; tlhIngan Hol: Huch yIlan
+; The four blank cells on each side prevent the attract-screen eraser from
+; leaving glyphs behind while preserving the original 18-byte record footprint.
 K_T01:
-        DB      $12,$48,$55,$43,$48,$40,$4A,$45,$4E,$47,$56,$41
-        DB      $62,$40,$59,$49,$4C,$41,$4E
+        DB      $12,$40,$40,$40,$40,$48,$55,$43,$48,$40,$59,$49
+        DB      $4C,$41,$4E,$40,$40,$40,$40
 
 ; Text $02: HIGH SCORES
 ; tlhIngan Hol: mIvwa'mey nIv
@@ -757,11 +761,12 @@ K_F46:
         DB      $03,$03,$03,$03,$BE
 
 ; Fragment $47 at $CC53; fixed German slot length $1E.
-; Working speech: Thor, Bur, Gar! SopmeH yIghuH.
+; Working speech: Thor, Bur, Gar! Soj yISop.
+; This wording avoids the SC-01 P-to-M transition that destabilizes MAME audio.
 K_F47:
         DB      $1E,$AA,$1B,$26,$2B,$03,$0E,$28,$2B,$03,$1C,$15
-        DB      $2B,$3E,$11,$26,$25,$0C,$3B,$1B,$03,$29,$27,$1C
-        DB      $1B,$28,$1B,$03,$03,$03,$BE
+        DB      $2B,$3E,$11,$26,$1E,$1A,$03,$29,$27,$11,$26,$25
+        DB      $03,$03,$03,$03,$03,$03,$BE
 
 ; Fragment $48 at $CC72; fixed German slot length $26.
 ; Working speech: DaSlIj yIrar!
@@ -857,8 +862,10 @@ K_PHR:
 K_PFILL:
         DB      $FF,$FF
 
+; Compensates for the text $01 and fragment $47 replacements; the additive
+; checksum is unchanged.
 K_CSUM:
-        DB      $DC
+        DB      $9D
 
 ; Erased ROM area through $CFEA.
 K_FILL:
