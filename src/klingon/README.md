@@ -4,6 +4,8 @@ This directory contains an experimental 4 KB Klingon X11 ROM for Wizard of Wor. 
 
 The ROM is data-only. The resident game continues to perform phrase selection, rank substitution, queue management, and SC-01 playback.
 
+The resident English fragment and phrase reference is maintained in [`../../docs/SPEECH_MAP.md`](../../docs/SPEECH_MAP.md).
+
 ## X11 interface
 
 | Address | Field | Purpose |
@@ -50,6 +52,8 @@ The arcade text uses the custom apostrophe and lowercase-`q` glyphs where requir
 
 The main IDs `$00-$4E` retain their English semantic roles. `$50-$52` are Klingon grammar helpers, and `$53` is an unreferenced compatibility record. Stored bits 6-7 remain part of the game's inflection encoding.
 
+The Klingon low-six-bit phoneme choices and the stored upper two bits have different provenance: the pronunciation is project-created, while the upper-bit pattern is retained from the working German-template layout. A Votrax/player stream masked to six bits is therefore suitable for listening work but is not a complete source for rebuilding `KLINGON_X11.asm`.
+
 | ID | English fragment or role | Klingon equivalent | Klingon record | Notes |
 | ---: | --- | --- | --- | --- |
 | `$00` | Kill Worluk for double score | `Worluk yIHoH. cha'logh mIvwa' DaSuq.` | `$C200` · 41 bytes |  |
@@ -64,7 +68,7 @@ The main IDs `$00-$4E` retain their English semantic roles. `$50-$52` are Klingo
 | `$09` | Worrior | `SuvwI'.` | `$C462` · 6 bytes |  |
 | `$0A` | Hey, insert coin | `Huch yIlan.` | `$C5BA` · 21 bytes |  |
 | `$0B` | Find me | `HISam.` | `$C5D0` · 15 bytes |  |
-| `$0C` | I'm out of spite | `jISo'.` | `$C5E0` · 19 bytes |  |
+| `$0C` | I'm out of sight | `jISo'.` | `$C5E0` · 19 bytes |  |
 | `$0D` | Get ready | `yIghuH.` | `$C5F4` · 11 bytes |  |
 | `$0E` | You'd better hope you don't find me | `HISambe' 'e' yItul.` | `$C600` · 49 bytes |  |
 | `$0F` | Another coin for my treasure chest | `latlh Huch vIHev.` | `$C632` · 43 bytes |  |
@@ -146,11 +150,11 @@ The seven phrase records that require Klingon word order or helper fragments are
 | `$00` | Hey, insert coin | Huch yIlan. | `$0A` |  |
 | `$01` | Find me, the Wizard of Wor | HISam, Wor 'IDnar pIn. | `$0B` + `$04` |  |
 | `$02` | Hey, insert coin | Huch yIlan. | `$0A` |  |
-| `$03` | I'm out of spite. Ha ha ha ha! | jISo'. Ha ha ha ha! | `$0C` + `$10` |  |
+| `$03` | I'm out of sight. Ha ha ha ha! | jISo'. Ha ha ha ha! | `$0C` + `$10` |  |
 | `$04` | Hey, insert coin | Huch yIlan. | `$0A` |  |
 | `$05` | Find me, the Wizard of Wor | HISam, Wor 'IDnar pIn. | `$0B` + `$04` |  |
 | `$06` | Hey, insert coin | Huch yIlan. | `$0A` |  |
-| `$07` | I'm out of spite. Ha ha ha ha! | jISo'. Ha ha ha ha! | `$0C` + `$10` |  |
+| `$07` | I'm out of sight. Ha ha ha ha! | jISo'. Ha ha ha ha! | `$0C` + `$10` |  |
 | `$08` | Get ready, Worrior | yIghuH, SuvwI' / SuvwI' joH. | `$0D` + `$37` | Composition changed for Klingon word order or a helper fragment |
 | `$09` | You'd better hope you don't find me, the Wizard of Wor | HISambe' 'e' yItul, Wor 'IDnar pIn. | `$0E` + `$04` |  |
 | `$0A` | Another coin for my treasure chest | latlh Huch vIHev. | `$0F` |  |
@@ -227,7 +231,7 @@ The seven phrase records that require Klingon word order or helper fragments are
 ## Known language and speech issues
 
 - Fragments `$00` and `$2E` speak `mIvwa'` for “score,” while the display uses `mIvwa'mey`; changing them requires another SC-01 pronunciation pass.
-- Fragment `$0C` uses `jISo'` for the line commonly understood as “I'm out of sight.” The resident source text says “spite,” so the translation remains provisional.
+- Fragment `$0C` corresponds to the spoken line “I'm out of sight.” The legacy resident symbol still says `Spite`; `jISo'` remains a working Klingon rendering that can be refined independently.
 - Fragment `$1B` uses `yIHIv` for “go after them.” The plural-object imperative, likely `tIHIv`, should be reviewed.
 - Fragments `$46` and `$4D` use transitive `So'` constructions for “hide.” Reflexive wording should be reviewed during the same pronunciation pass.
 
