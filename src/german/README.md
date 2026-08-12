@@ -4,6 +4,8 @@ This directory contains the reconstructed 4 KB German X11 ROM for Wizard of Wor.
 
 The ROM is data-only. The resident game continues to perform phrase selection, rank substitution, queue management, and SC-01 playback.
 
+The resident English fragment and phrase reference is maintained in [`../../docs/SPEECH_MAP.md`](../../docs/SPEECH_MAP.md).
+
 ## X11 interface
 
 | Address | Field | Purpose |
@@ -51,6 +53,8 @@ The source uses ASCII-compatible German spellings because the game does not supp
 
 The German pointer table contains 84 slots. IDs `$00-$4E` correspond to the resident English meanings, `$4F` is null, and `$50-$53` support German phrase composition. Each record begins with its encoded payload count.
 
+The ROM records preserve the complete encoded SC-01 bytes. Bits 0-5 select the phoneme; bits 6-7 carry the game's stateful inflection/control state. Six-bit Votrax/player data is useful for audition, but it is derivative data and must not be used to reconstruct the ROM.
+
 | ID | English fragment | German equivalent | German record | Notes |
 | ---: | --- | --- | --- | --- |
 | `$00` | Kill Worluk for double score | Vernichte Worluk für doppelte Punktzahl | `$C200` · 41 bytes |  |
@@ -65,7 +69,7 @@ The German pointer table contains 84 slots. IDs `$00-$4E` correspond to the resi
 | `$09` | Worrior | Worrior | `$C462` · 6 bytes |  |
 | `$0A` | Hey, insert coin | Hey, wirf Geld ein | `$C5BA` · 21 bytes |  |
 | `$0B` | Find me | Such mich, den | `$C5D0` · 15 bytes |  |
-| `$0C` | I'm out of spite | Ich bin unsichtbar | `$C5E0` · 19 bytes |  |
+| `$0C` | I'm out of sight | Ich bin unsichtbar | `$C5E0` · 19 bytes |  |
 | `$0D` | Get ready | Sei bereit | `$C5F4` · 11 bytes |  |
 | `$0E` | You'd better hope you don't find me | Gnade dir Gott, wenn du den Wizard von Wor findest | `$C600` · 49 bytes |  |
 | `$0F` | Another coin for my treasure chest | Eine weitere Münze für meine Brieftasche | `$C632` · 43 bytes |  |
@@ -147,11 +151,11 @@ Phrase IDs are unchanged from English, but several German records use different 
 | `$00` | Hey, insert coin | Hey, wirf Geld ein | `$0A` | `$0A` |  |
 | `$01` | Find me, the Wizard of Wor | Such mich, den Wizard von Wor | `$0B` + `$04` | `$0B` + `$04` |  |
 | `$02` | Hey, insert coin | Hey, wirf Geld ein | `$0A` | `$0A` |  |
-| `$03` | I'm out of spite. Ha ha ha ha! | Ich bin unsichtbar. Ha ha ha ha! | `$0C` + `$10` | `$0C` + `$10` |  |
+| `$03` | I'm out of sight. Ha ha ha ha! | Ich bin unsichtbar. Ha ha ha ha! | `$0C` + `$10` | `$0C` + `$10` |  |
 | `$04` | Hey, insert coin | Hey, wirf Geld ein | `$0A` | `$0A` |  |
 | `$05` | Find me, the Wizard of Wor | Such mich, den Wizard von Wor | `$0B` + `$04` | `$0B` + `$04` |  |
 | `$06` | Hey, insert coin | Hey, wirf Geld ein | `$0A` | `$0A` |  |
-| `$07` | I'm out of spite. Ha ha ha ha! | Ich bin unsichtbar. Ha ha ha ha! | `$0C` + `$10` | `$0C` + `$10` |  |
+| `$07` | I'm out of sight. Ha ha ha ha! | Ich bin unsichtbar. Ha ha ha ha! | `$0C` + `$10` | `$0C` + `$10` |  |
 | `$08` | Get ready, Worrior | Sei bereit, Worrior | `$0D` + `$09` | `$0D` + `$09` |  |
 | `$09` | You'd better hope you don't find me, the Wizard of Wor | Gnade dir Gott, wenn du den Wizard von Wor findest | `$0E` + `$04` | `$0E` | Composition differs to produce German word order |
 | `$0A` | Another coin for my treasure chest | Eine weitere Münze für meine Brieftasche | `$0F` | `$0F` |  |
@@ -260,5 +264,7 @@ The Klingon build also creates `roms/wowg.zip` as its MAME compatibility archive
 ## Verification and provenance
 
 The speech and display data retain the existing German reconstruction credited in the source to Richard C. Degler. The tables above organize that work without changing its encoded bytes. Entries marked for listening verification remain unresolved transcriptions, not new translations.
+
+The English semantic text uses the spoken `$0C` line “I'm out of sight”; the legacy resident symbol `SPK_Im_Out_Of_Spite` remains unchanged as source provenance.
 
 Verification should cover the 4096-byte image, header pointers, 23 display records, 84 fragment slots, 80 phrase records, helper-fragment references, rank substitution, and a whole-image additive checksum of `$00`. Runtime review should include attract speech, instructions, coin-up, both rank forms, gameplay taunts, and end-of-game speech.

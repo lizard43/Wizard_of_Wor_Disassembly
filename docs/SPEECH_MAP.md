@@ -1,6 +1,6 @@
 # Wizard of Wor speech map
 
-This document maps the English speech used by Wizard of Wor. It covers the resident Astrocade/SC-01 fragment data, the 80 phrase records, and the runtime rules that join them. Language-ROM translations are documented separately in [the German X11 notes](../src/german/GERMAN_README.md) and [the Klingon X11 notes](../src/klingon/KLINGON_README.md).
+This document maps the English speech used by Wizard of Wor. It covers the resident Astrocade/SC-01 fragment data, the 80 phrase records, and the runtime rules that join them.
 
 ## Speech path
 
@@ -13,7 +13,9 @@ The Language DIP switch selects the source of both tables independently:
 | Fragment-pointer table | Resident game ROM | Pointer read from X11 `$C000` |
 | Phrase table | Resident game ROM | Pointer read from X11 `$C002` |
 
-Phrase headers are `$81-$84`; the low seven bits give the number of fragment IDs that follow. Fragment records begin with a payload count. Bits 0-5 select the SC-01 phoneme, while bits 6-7 retain the game's stateful inflection data. They must remain intact in ROM builds.
+Phrase headers are `$81-$84`; the low seven bits give the number of fragment IDs that follow. Fragment records begin with a payload count. Bits 0-5 select the SC-01 phoneme, while bits 6-7 retain the game's stateful inflection/control state. They must remain intact in ROM builds.
+
+The encoded ROM bytes are the reconstruction authority. A six-bit SC-01 audition/player stream may be derived with `encoded_byte & $3F`, but that derived stream cannot be used to regenerate an X11 or resident speech record because it has discarded the upper-bit state.
 
 When `Dungeon_Class != 0`, the runtime substitutes fragment `$09 -> $40` and `$37 -> $41`, changing “Worrior” to “Worlord” without duplicating phrase records.
 
@@ -35,7 +37,7 @@ The resident English pointer table contains 79 records, IDs `$00-$4E`. Payload c
 | `$09` | Worrior | `$8D4E` | 6 | `SPK_Worrior` | Runtime rank substitution may replace this with the Worlord form |
 | `$0A` | Hey, insert coin | `$8E77` | 19 | `SPK_Hey_Insert_Coin` |  |
 | `$0B` | Find me | `$8E8B` | 10 | `SPK_Find_Me` |  |
-| `$0C` | I'm out of spite | `$8E96` | 18 | `SPK_Im_Out_Of_Spite` | Source label and phrase table read “spite”; the spoken line is commonly understood as “sight” |
+| `$0C` | I'm out of sight | `$8E96` | 18 | `SPK_Im_Out_Of_Spite` | Legacy source label retains `Spite`; documentation uses the spoken line “sight” |
 | `$0D` | Get ready | `$8EA9` | 8 | `SPK_Get_Ready` |  |
 | `$0E` | You'd better hope you don't find me | `$8EB2` | 32 | `SPK_Youd_Better_Hope_You_Dont_Find_Me` |  |
 | `$0F` | Another coin for my treasure chest | `$8ED3` | 30 | `SPK_Another_Coin_For_My_Treasure_Chest` |  |
@@ -112,11 +114,11 @@ The resident phrase table contains 80 records, IDs `$00-$4F`. Duplicate lines an
 | `$00` | `$0A` | Hey, insert coin |  |
 | `$01` | `$0B` + `$04` | Find me, the Wizard of Wor |  |
 | `$02` | `$0A` | Hey, insert coin |  |
-| `$03` | `$0C` + `$10` | I'm out of spite. Ha ha ha ha! |  |
+| `$03` | `$0C` + `$10` | I'm out of sight. Ha ha ha ha! |  |
 | `$04` | `$0A` | Hey, insert coin |  |
 | `$05` | `$0B` + `$04` | Find me, the Wizard of Wor |  |
 | `$06` | `$0A` | Hey, insert coin |  |
-| `$07` | `$0C` + `$10` | I'm out of spite. Ha ha ha ha! |  |
+| `$07` | `$0C` + `$10` | I'm out of sight. Ha ha ha ha! |  |
 | `$08` | `$0D` + `$09` | Get ready, Worrior | Worrior fragment changes to Worlord when `Dungeon_Class != 0` |
 | `$09` | `$0E` + `$04` | You'd better hope you don't find me, the Wizard of Wor |  |
 | `$0A` | `$0F` | Another coin for my treasure chest |  |
@@ -195,4 +197,4 @@ The resident phrase table contains 80 records, IDs `$00-$4F`. Duplicate lines an
 - Phrase IDs and fragment IDs are separate namespaces.
 - Foreign X11 images may add helper fragments above `$4E`, but the resident English table ends at `$4E`.
 - The fragment queue stores two-byte record pointers; the playback service sends the stop command only after the queue is empty.
-- The source text for fragment `$0C` reads “I'm out of spite.” The spoken line is often interpreted as “I'm out of sight”; translation notes should identify that ambiguity instead of silently changing the source map.
+- Fragment `$0C` is documented by its spoken result, “I'm out of sight.” The legacy symbol `SPK_Im_Out_Of_Spite` is retained as source provenance and should not be silently renamed in code.
