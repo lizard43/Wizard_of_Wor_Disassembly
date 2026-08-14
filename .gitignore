@@ -13,7 +13,7 @@ src/zout/
 *.exe
 *.zip
 *.x*
-*.cfg
+*.diff
 
 # Personal scratch files reserved for the repository maintainer
 *Ω*
@@ -22,6 +22,8 @@ src/zout/
 .DS_Store
 Thumbs.db
 *.lnk
+*.cfg
+console_history
 
 # Explicit exceptions for required scripts & structure
 !build.bat
