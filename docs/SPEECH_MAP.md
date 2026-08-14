@@ -26,11 +26,11 @@ The resident English pointer table contains 79 records, IDs `$00-$4E`. Payload c
 | ID | English fragment | Address | Bytes | Source label | Notes |
 | ---: | --- | ---: | ---: | --- | --- |
 | `$00` | Kill Worluk for double score | `$8B66` | 29 | `SPK_Kill_Worluk_For_Double_Score` |  |
-| `$01` | If you get too powerful, I'll take care of you myself | `$8B84` | 49 | `SPK_If_You_Get_Too_Powerful_Ill_Take_Care_Of_You_Myself` |  |
+| `$01` | If you get too powerful, I'll take care of you myself | `$8B84` | 49 | `SPK_F01_If_Too_Powerful` |  |
 | `$02` | The dungeons of Wor | `$8BC1` | 20 | `SPK_The_Dungeons_Of_Wor` |  |
 | `$03` | I am | `$8BD6` | 8 | `SPK_I_Am` |  |
 | `$04` | The Wizard of Wor | `$8BDF` | 17 | `SPK_The_Wizard_Of_Wor` |  |
-| `$05` | One bite from my pretties, and you'll explode | `$8BF1` | 43 | `SPK_One_Bite_From_My_Pretties_And_Youll_Explode` |  |
+| `$05` | One bite from my pretties, and you'll explode | `$8BF1` | 43 | `SPK_F05_One_Bite_Pretties` |  |
 | `$06` | My creatures are radioactive | `$8C1D` | 28 | `SPK_My_Creatures_Are_Radioactive` |  |
 | `$07` | Worluk will escape through the door | `$8C3A` | 30 | `SPK_Worluk_Will_Escape_Through_The_Door` |  |
 | `$08` | Watch the radar | `$8D3F` | 14 | `SPK_Watch_The_Radar` |  |
@@ -44,47 +44,47 @@ The resident English pointer table contains 79 records, IDs `$00-$4E`. Payload c
 | `$10` | Ha ha ha ha | `$8EF2` | 10 | `SPK_Ha_Ha_Ha_Ha` |  |
 | `$11` | Ah good! My pets were getting hungry | `$8EFD` | 34 | `SPK_Ah_Good_My_Pets_Were_Getting_Hungry` |  |
 | `$12` | You'll get the Arena | `$8F20` | 20 | `SPK_Youll_Get_The_Arena` |  |
-| `$13` | Another worrior for my babies to devour | `$8F41` | 35 | `SPK_Another_Worrior_For_My_Babies_To_Devour` |  |
+| `$13` | Another worrior for my babies to devour | `$8F41` | 35 | `SPK_F13_Worrior_For_Babies` |  |
 | `$14` | Keep going and you will find me | `$8F65` | 29 | `SPK_Keep_Going_And_You_Will_Find_Me` |  |
 | `$15` | A few more dungeons and you'll be a | `$8F83` | 29 | `SPK_A_Few_More_Dungeons_And_Youll_Be_A` |  |
 | `$16` | Come back for more with | `$8FB5` | 18 | `SPK_Come_Back_For_More_With` |  |
-| `$17` | The dungeons of Wor await your return | `$8FC8` | 39 | `SPK_The_Dungeons_Of_Wor_Await_Your_Return` |  |
-| `$18` | Deep in the caverns of Wor, you will meet me | `$8FF0` | 43 | `SPK_Deep_In_The_Caverns_Of_Wor_You_Will_Meet_Me` |  |
+| `$17` | The dungeons of Wor await your return | `$8FC8` | 39 | `SPK_F17_Dungeons_Await_Return` |  |
+| `$18` | Deep in the caverns of Wor, you will meet me | `$8FF0` | 43 | `SPK_F18_Deep_Caverns_Meet_Me` |  |
 | `$19` | thanks you | `$901C` | 14 | `SPK_Thanks_You` |  |
 | `$1A` | Now you get the heavyweights | `$8D55` | 29 | `SPK_Now_You_Get_The_Heavyweights` |  |
 | `$1B` | Garwor, go after them | `$8D29` | 21 | `SPK_Garwor_Go_After_Them` |  |
-| `$1C` | If you try any harder, you'll only meet with doom | `$8D8A` | 42 | `SPK_If_You_Try_Any_Harder_Youll_Only_Meet_With_Doom` |  |
-| `$1D` | Burwor, Garwor, and Thorwor will do you in | `$8DB5` | 39 | `SPK_Burwor_Garwor_And_Thorwor_Will_Do_You_In` |  |
+| `$1C` | If you try any harder, you'll only meet with doom | `$8D8A` | 42 | `SPK_F1C_Try_Harder_Meet_Doom` |  |
+| `$1D` | Burwor, Garwor, and Thorwor will do you in | `$8DB5` | 39 | `SPK_F1D_Bur_Gar_Thor_Do_You_In` |  |
 | `$1E` | My worlings are very very hungry | `$8DDD` | 34 | `SPK_My_Worlings_Are_Very_Very_Hungry` |  |
-| `$1F` | My magic is stronger than your weapons | `$8E00` | 35 | `SPK_My_Magic_Is_Stronger_Than_Your_Weapons` |  |
-| `$20` | While you developed science, we developed magic | `$8E4B` | 43 | `SPK_While_You_Developed_Science_We_Developed_Magic` |  |
-| `$21` | Your bones will lie in the dungeons of Wor | `$8E24` | 38 | `SPK_Your_Bones_Will_Lie_In_The_Dungeons_Of_Wor` |  |
-| `$22` | You won't have a chance for your dance | `$8C59` | 30 | `SPK_You_Wont_Have_A_Chance_For_Your_Dance` |  |
+| `$1F` | My magic is stronger than your weapons | `$8E00` | 35 | `SPK_F1F_Magic_Stronger_Weapons` |  |
+| `$20` | While you developed science, we developed magic | `$8E4B` | 43 | `SPK_F20_Science_Vs_Magic` |  |
+| `$21` | Your bones will lie in the dungeons of Wor | `$8E24` | 38 | `SPK_F21_Bones_In_Dungeons` |  |
+| `$22` | You won't have a chance for your dance | `$8C59` | 30 | `SPK_F22_No_Chance_For_Dance` |  |
 | `$23` | Remember, I'm the Wizard, not you | `$8C78` | 31 | `SPK_Remember_Im_The_Wizard_Not_You` |  |
-| `$24` | If you can't beat the rest, then you'll never get the best | `$8C98` | 44 | `SPK_If_You_Cant_Beat_The_Rest_Then_Youll_Never_Get_The_Best` |  |
-| `$25` | If you destroy my babies, I'll pop you in the oven | `$8CC5` | 49 | `SPK_If_You_Destroy_My_Babies_Ill_Pop_You_In_The_Oven` |  |
+| `$24` | If you can't beat the rest, then you'll never get the best | `$8C98` | 44 | `SPK_F24_Cant_Beat_Rest` |  |
+| `$25` | If you destroy my babies, I'll pop you in the oven | `$8CC5` | 49 | `SPK_F25_Destroy_My_Babies` |  |
 | `$26` | Now I'm getting mad | `$8CF7` | 21 | `SPK_Now_Im_Getting_Mad` |  |
 | `$27` | You'll never leave Wor alive | `$8D0D` | 27 | `SPK_Youll_Never_Leave_Wor_Alive` |  |
 | `$28` | Garwor and Thorwor become invisible | `$917E` | 34 | `SPK_Garwor_And_Thorwor_Become_Invisible` |  |
 | `$29` | You know you can do better | `$902B` | 24 | `SPK_You_Know_You_Can_Do_Better` |  |
-| `$2A` | Hurry back, I can't wait to do it again | `$9044` | 38 | `SPK_Hurry_Back_I_Cant_Wait_To_Do_It_Again` |  |
-| `$2B` | You can start anew, but for now you're through | `$906B` | 39 | `SPK_You_Can_Start_Anew_But_For_Now_Youre_Through` |  |
-| `$2C` | He he he ho ho ho ha ha ha ha, that was fun | `$9093` | 34 | `SPK_He_He_He_Ho_Ho_Ho_Ha_Ha_Ha_Ha_That_Was_Fun` |  |
+| `$2A` | Hurry back, I can't wait to do it again | `$9044` | 38 | `SPK_F2A_Hurry_Back` |  |
+| `$2B` | You can start anew, but for now you're through | `$906B` | 39 | `SPK_F2B_Start_Anew_Youre_Through` |  |
+| `$2C` | He he he ho ho ho ha ha ha ha, that was fun | `$9093` | 34 | `SPK_F2C_He_Ho_Ha_That_Was_Fun` |  |
 | `$2D` | Welcome to my world of Wor | `$90B6` | 25 | `SPK_Welcome_To_My_World_Of_Wor` |  |
-| `$2E` | So you've come to score in the world of Wor | `$90D0` | 33 | `SPK_So_Youve_Come_To_Score_In_The_World_Of_Wor` |  |
-| `$2F` | You're off to see the Wizard, the magical Wizard of Wor | `$90F2` | 44 | `SPK_Youre_Off_To_See_The_Wizard_The_Magical_Wizard_Of_Wor` |  |
+| `$2E` | So you've come to score in the world of Wor | `$90D0` | 33 | `SPK_F2E_Come_To_Score` |  |
+| `$2F` | You're off to see the Wizard, the magical Wizard of Wor | `$90F2` | 44 | `SPK_F2F_Off_To_See_Wizard` |  |
 | `$30` | Burwor hasn't eaten anyone in months | `$911F` | 32 | `SPK_Burwor_Hasnt_Eaten_Anyone_In_Months` |  |
 | `$31` | My babies breathe fire | `$9140` | 22 | `SPK_My_Babies_Breathe_Fire` |  |
 | `$32` | I'll fry you with my lightning bolts | `$9157` | 38 | `SPK_Ill_Fry_You_With_My_Lightning_Bolts` |  |
-| `$33` | Thorwor is red, mean, and hungry for space food | `$91A1` | 44 | `SPK_Thorwor_Is_Red_Mean_And_Hungry_For_Space_Food` |  |
-| `$34` | Worrior fear, I draw near, each time I appear | `$91CE` | 40 | `SPK_Worrior_Fear_I_Draw_Near_Each_Time_I_Appear` |  |
+| `$33` | Thorwor is red, mean, and hungry for space food | `$91A1` | 44 | `SPK_F33_Thorwor_Red_Hungry` |  |
+| `$34` | Worrior fear, I draw near, each time I appear | `$91CE` | 40 | `SPK_F34_Worrior_Fear` |  |
 | `$35` | You're asking for trouble | `$8D73` | 22 | `SPK_Youre_Asking_For_Trouble` |  |
 | `$36` | Ha ha ha ha (padded) | `$8F35` | 11 | `SPK_Ha_Ha_Ha_Ha_Padded` |  |
 | `$37` | Worrior (padded) | `$91F7` | 7 | `SPK_Worrior_Padded` | Runtime rank substitution may replace this with the Worlord form |
 | `$38` | You've just been fried by | `$91FF` | 23 | `SPK_Youve_Just_Been_Fried_By` |  |
 | `$39` | Bite the bolt | `$9217` | 15 | `SPK_Bite_The_Bolt` |  |
 | `$3A` | Wasn't that lightning bolt delicious | `$9227` | 29 | `SPK_Wasnt_That_Lightning_Bolt_Delicious` |  |
-| `$3B` | And my teleporting spell can be even faster | `$9245` | 42 | `SPK_And_My_Teleporting_Spell_Can_Be_Even_Faster` |  |
+| `$3B` | And my teleporting spell can be even faster | `$9245` | 42 | `SPK_F3B_Teleport_Spell_Faster` |  |
 | `$3C` | Now you know the taste of my magic | `$9270` | 35 | `SPK_Now_You_Know_The_Taste_Of_My_Magic` |  |
 | `$3D` | Maybe you'll see me again | `$9294` | 22 | `SPK_Maybe_Youll_See_Me_Again` |  |
 | `$3E` | Your explosion was music to my ears | `$92AB` | 35 | `SPK_Your_Explosion_Was_Music_To_My_Ears` |  |
@@ -94,11 +94,11 @@ The resident English pointer table contains 79 records, IDs `$00-$4E`. Payload c
 | `$42` | Be forewarned! You approach the Pit | `$92E0` | 34 | `SPK_Be_Forewarned_You_Approach_The_Pit` |  |
 | `$43` | Your path leads directly to the Pit | `$9303` | 34 | `SPK_Your_Path_Leads_Directly_To_The_Pit` |  |
 | `$44` | Deeper, ever deeper into | `$9326` | 22 | `SPK_Deeper_Ever_Deeper_Into` |  |
-| `$45` | Beware! You are in the Worlord dungeons | `$933D` | 33 | `SPK_Beware_You_Are_In_The_Worlord_Dungeons` |  |
-| `$46` | Ah! You thought you could hide, but I'm the dungeon master | `$935F` | 47 | `SPK_Ah_You_Thought_You_Could_Hide_But_Im_The_Dungeon_Master` |  |
+| `$45` | Beware! You are in the Worlord dungeons | `$933D` | 33 | `SPK_F45_Worlord_Dungeons` |  |
+| `$46` | Ah! You thought you could hide, but I'm the dungeon master | `$935F` | 47 | `SPK_F46_Dungeon_Master` |  |
 | `$47` | Thor, Bur, Gar! Dinner's ready | `$938F` | 27 | `SPK_Thor_Bur_Gar_Dinners_Ready` |  |
 | `$48` | Hey! Your space boots untied | `$93AB` | 31 | `SPK_Hey_Your_Space_Boots_Untied` |  |
-| `$49` | My beasts run wild in the Worlord dungeons | `$93CB` | 44 | `SPK_My_Beasts_Run_Wild_In_The_Worlord_Dungeons` |  |
+| `$49` | My beasts run wild in the Worlord dungeons | `$93CB` | 44 | `SPK_F49_Beasts_Wild_Worlord` |  |
 | `$4A` | Now your only chance is your dance | `$93F8` | 28 | `SPK_Now_Your_Only_Chance_Is_Your_Dance` |  |
 | `$4B` | Are you fit to survive the Pit | `$9415` | 36 | `SPK_Are_You_Fit_To_Survive_The_Pit` |  |
 | `$4C` | Oops! I must have forgotten the walls | `$943A` | 31 | `SPK_Oops_I_Must_Have_Forgotten_The_Walls` |  |
