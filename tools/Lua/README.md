@@ -13,7 +13,7 @@ From the repository root:
 ```sh
 mame -console -window -autoboot_script tools/Lua/wow_speech_browser.lua wow
 
-mame -console -window -autoboot_script tools/Lua/wow_speech_browser.lua -rompath wowg
+mame -console -window -autoboot_script tools/Lua/wow_speech_browser.lua wowg
 
 mame -console -window -autoboot_script tools/Lua/wow_speech_browser.lua -rompath roms/ wow
 
