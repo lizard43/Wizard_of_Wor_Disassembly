@@ -10068,7 +10068,7 @@ SPK_Kill_Worluk_For_Double_Score:
             DB      $26,$35,$2B,$3E,$83
 
 ; Fragment $01 @ $8B84: "If you get too powerful, I'll take care of you myself"
-SPK_If_You_Get_Too_Powerful_Ill_Take_Care_Of_You_Myself:
+SPK_F01_If_Too_Powerful:
             DB      $31                 ; encoded SC-01 byte count
             DB      $27,$1D,$22,$09,$36,$28,$1C,$3B
             DB      $00,$2A,$2A,$28,$37,$25,$15,$2D
@@ -10104,7 +10104,7 @@ SPK_The_Wizard_Of_Wor:
             DB      $3E
 
 ; Fragment $05 @ $8BF1: "One bite from my pretties, and you'll explode"
-SPK_One_Bite_From_My_Pretties_And_Youll_Explode:
+SPK_F05_One_Bite_Pretties:
             DB      $2B                 ; encoded SC-01 byte count
             DB      $2D,$33,$0D,$0E,$23,$08,$29,$2A
             DB      $1D,$2B,$33,$0C,$0C,$15,$09,$22
@@ -10130,7 +10130,7 @@ SPK_Worluk_Will_Escape_Through_The_Door:
             DB      $33,$1E,$26,$35,$2B,$3E
 
 ; Fragment $22 @ $8C59: "You won't have a chance for your dance"
-SPK_You_Wont_Have_A_Chance_For_Your_Dance:
+SPK_F22_No_Chance_For_Dance:
             DB      $1E                 ; encoded SC-01 byte count
             DB      $22,$36,$28,$2D,$35,$0D,$2A,$1B
             DB      $6F,$0A,$0F,$03,$06,$2A,$10,$6E
@@ -10146,7 +10146,7 @@ SPK_Remember_Im_The_Wizard_Not_You:
             DB      $2A,$29,$36,$37,$37,$3E,$83
 
 ; Fragment $24 @ $8C98: "If you can't beat the rest, then you'll never get the best"
-SPK_If_You_Cant_Beat_The_Rest_Then_Youll_Never_Get_The_Best:
+SPK_F24_Cant_Beat_Rest:
             DB      $2C                 ; encoded SC-01 byte count
             DB      $4B,$5D,$29,$09,$37,$19,$2F,$00
             DB      $0D,$2A,$3E,$0E,$7C,$2A,$38,$32
@@ -10156,7 +10156,7 @@ SPK_If_You_Cant_Beat_The_Rest_Then_Youll_Never_Get_The_Best:
             DB      $1F,$2A,$03,$83
 
 ; Fragment $25 @ $8CC5: "If you destroy my babies, I'll pop you in the oven"
-SPK_If_You_Destroy_My_Babies_Ill_Pop_You_In_The_Oven:
+SPK_F25_Destroy_My_Babies:
             DB      $31                 ; encoded SC-01 byte count
             DB      $83,$27,$1D,$29,$09,$28,$1E,$3C
             DB      $1F,$2A,$2B,$35,$23,$09,$21,$0C
@@ -10215,7 +10215,7 @@ SPK_Youre_Asking_For_Trouble:
             DB      $73,$4E,$23,$18,$3E,$83
 
 ; Fragment $1C @ $8D8A: "If you try any harder, you'll only meet with doom"
-SPK_If_You_Try_Any_Harder_Youll_Only_Meet_With_Doom:
+SPK_F1C_Try_Harder_Meet_Doom:
             DB      $2A                 ; encoded SC-01 byte count
             DB      $27,$1D,$29,$36,$28,$2A,$2B,$15
             DB      $00,$09,$29,$6F,$0D,$29,$1B,$55
@@ -10225,7 +10225,7 @@ SPK_If_You_Try_Any_Harder_Youll_Only_Meet_With_Doom:
             DB      $3E,$83
 
 ; Fragment $1D @ $8DB5: "Burwor, Garwor, and Thorwor will do you in"
-SPK_Burwor_Garwor_And_Thorwor_Will_Do_You_In:
+SPK_F1D_Bur_Gar_Thor_Do_You_In:
             DB      $27                 ; encoded SC-01 byte count
             DB      $83,$0E,$7A,$6B,$2D,$26,$2B,$3E
             DB      $1C,$55,$6B,$2D,$26,$2B,$3E,$2F
@@ -10243,7 +10243,7 @@ SPK_My_Worlings_Are_Very_Very_Hungry:
             DB      $3E,$83
 
 ; Fragment $1F @ $8E00: "My magic is stronger than your weapons"
-SPK_My_Magic_Is_Stronger_Than_Your_Weapons:
+SPK_F1F_Magic_Stronger_Weapons:
             DB      $23                 ; encoded SC-01 byte count
             DB      $0C,$15,$40,$49,$69,$0C,$6F,$1E
             DB      $1A,$0B,$19,$27,$12,$1F,$2A,$2B
@@ -10252,7 +10252,7 @@ SPK_My_Magic_Is_Stronger_Than_Your_Weapons:
             DB      $0D,$1F,$3E
 
 ; Fragment $21 @ $8E24: "Your bones will lie in the dungeons of Wor"
-SPK_Your_Bones_Will_Lie_In_The_Dungeons_Of_Wor:
+SPK_F21_Bones_In_Dungeons:
             DB      $26                 ; encoded SC-01 byte count
             DB      $83,$29,$34,$34,$2B,$4E,$26,$34
             DB      $4D,$1F,$2D,$27,$18,$03,$18,$15
@@ -10261,7 +10261,7 @@ SPK_Your_Bones_Will_Lie_In_The_Dungeons_Of_Wor:
             DB      $26,$35,$2B,$2B,$3E,$83
 
 ; Fragment $20 @ $8E4B: "While you developed science, we developed magic"
-SPK_While_You_Developed_Science_We_Developed_Magic:
+SPK_F20_Science_Vs_Magic:
             DB      $2B                 ; encoded SC-01 byte count
             DB      $2D,$15,$00,$09,$18,$22,$76,$68
             DB      $1E,$3C,$0F,$02,$18,$23,$25,$2A
@@ -10340,7 +10340,7 @@ SPK_Ha_Ha_Ha_Ha_Padded:
             DB      $15,$3E,$83
 
 ; Fragment $13 @ $8F41: "Another worrior for my babies to devour"
-SPK_Another_Worrior_For_My_Babies_To_Devour:
+SPK_F13_Worrior_For_Babies:
             DB      $23                 ; encoded SC-01 byte count
             DB      $15,$0D,$32,$38,$3A,$03,$2D,$26
             DB      $2B,$29,$3A,$1D,$35,$2B,$0C,$15
@@ -10383,7 +10383,7 @@ SPK_Come_Back_For_More_With:
             DB      $27,$39
 
 ; Fragment $17 @ $8FC8: "The dungeons of Wor await your return"
-SPK_The_Dungeons_Of_Wor_Await_Your_Return:
+SPK_F17_Dungeons_Await_Return:
             DB      $27                 ; encoded SC-01 byte count
             DB      $83,$38,$33,$1E,$73,$4D,$1A,$3B
             DB      $0D,$1F,$03,$33,$0F,$03,$2D,$26
@@ -10392,7 +10392,7 @@ SPK_The_Dungeons_Of_Wor_Await_Your_Return:
             DB      $3C,$2A,$7A,$2B,$0D,$3E,$83
 
 ; Fragment $18 @ $8FF0: "Deep in the caverns of Wor, you will meet me"
-SPK_Deep_In_The_Caverns_Of_Wor_You_Will_Meet_Me:
+SPK_F18_Deep_Caverns_Meet_Me:
             DB      $2B                 ; encoded SC-01 byte count
             DB      $83,$1E,$6C,$3C,$25,$27,$0D,$38
             DB      $33,$03,$19,$2E,$0F,$3A,$0D,$1F
@@ -10415,7 +10415,7 @@ SPK_You_Know_You_Can_Do_Better:
             DB      $36,$28,$0E,$7B,$2A,$3A,$3E,$83
 
 ; Fragment $2A @ $9044: "Hurry back, I can't wait to do it again"
-SPK_Hurry_Back_I_Cant_Wait_To_Do_It_Again:
+SPK_F2A_Hurry_Back:
             DB      $26                 ; encoded SC-01 byte count
             DB      $1B,$7A,$6B,$29,$0E,$2F,$00,$19
             DB      $3E,$3E,$15,$00,$09,$29,$19,$2F
@@ -10424,7 +10424,7 @@ SPK_Hurry_Back_I_Cant_Wait_To_Do_It_Again:
             DB      $32,$1C,$45,$42,$0D,$3E
 
 ; Fragment $2B @ $906B: "You can start anew, but for now you're through"
-SPK_You_Can_Start_Anew_But_For_Now_Youre_Through:
+SPK_F2B_Start_Anew_Youre_Through:
             DB      $27                 ; encoded SC-01 byte count
             DB      $22,$36,$28,$19,$2F,$00,$0D,$1F
             DB      $2A,$55,$2B,$2A,$15,$0D,$76,$37
@@ -10433,7 +10433,7 @@ SPK_You_Can_Start_Anew_But_For_Now_Youre_Through:
             DB      $2B,$39,$2B,$77,$37,$3E,$BE
 
 ; Fragment $2C @ $9093: "He he he ho ho ho ha ha ha ha, that was fun"
-SPK_He_He_He_Ho_Ho_Ho_Ha_Ha_Ha_Ha_That_Was_Fun:
+SPK_F2C_He_Ho_Ha_That_Was_Fun:
             DB      $22                 ; encoded SC-01 byte count
             DB      $1B,$6C,$1B,$6C,$1B,$6C,$1B,$26
             DB      $1B,$26,$1B,$26,$1B,$15,$1B,$15
@@ -10450,7 +10450,7 @@ SPK_Welcome_To_My_World_Of_Wor:
             DB      $3E
 
 ; Fragment $2E @ $90D0: "So you've come to score in the world of Wor"
-SPK_So_Youve_Come_To_Score_In_The_World_Of_Wor:
+SPK_F2E_Come_To_Score:
             DB      $21                 ; encoded SC-01 byte count
             DB      $1F,$66,$29,$36,$37,$0F,$19,$73
             DB      $4C,$2A,$37,$1F,$19,$26,$35,$2B
@@ -10459,7 +10459,7 @@ SPK_So_Youve_Come_To_Score_In_The_World_Of_Wor:
             DB      $3E
 
 ; Fragment $2F @ $90F2: "You're off to see the Wizard, the magical Wizard of Wor"
-SPK_Youre_Off_To_See_The_Wizard_The_Magical_Wizard_Of_Wor:
+SPK_F2F_Off_To_See_Wizard:
             DB      $2C                 ; encoded SC-01 byte count
             DB      $29,$34,$34,$2B,$3D,$1D,$2A,$36
             DB      $37,$9F,$3C,$29,$38,$33,$AD,$27
@@ -10502,7 +10502,7 @@ SPK_Garwor_And_Thorwor_Become_Invisible:
             DB      $3E,$83
 
 ; Fragment $33 @ $91A1: "Thorwor is red, mean, and hungry for space food"
-SPK_Thorwor_Is_Red_Mean_And_Hungry_For_Space_Food:
+SPK_F33_Thorwor_Red_Hungry:
             DB      $2C                 ; encoded SC-01 byte count
             DB      $83,$39,$26,$2B,$2D,$26,$2B,$3E
             DB      $27,$12,$2B,$3B,$1E,$3E,$0C,$3C
@@ -10512,7 +10512,7 @@ SPK_Thorwor_Is_Red_Mean_And_Hungry_For_Space_Food:
             DB      $37,$1E,$3E,$83
 
 ; Fragment $34 @ $91CE: "Worrior fear, I draw near, each time I appear"
-SPK_Worrior_Fear_I_Draw_Near_Each_Time_I_Appear:
+SPK_F34_Worrior_Fear:
             DB      $28                 ; encoded SC-01 byte count
             DB      $2D,$26,$2B,$29,$3A,$1D,$21,$0A
             DB      $2B,$3E,$15,$00,$09,$29,$1E,$2B
@@ -10547,7 +10547,7 @@ SPK_Wasnt_That_Lightning_Bolt_Delicious:
             DB      $0B,$11,$32,$1F,$3E
 
 ; Fragment $3B @ $9245: "And my teleporting spell can be even faster"
-SPK_And_My_Teleporting_Spell_Can_Be_Even_Faster:
+SPK_F3B_Teleport_Spell_Faster:
             DB      $2A                 ; encoded SC-01 byte count
             DB      $83,$2E,$0D,$1E,$03,$0C,$15,$0B
             DB      $22,$2A,$02,$18,$02,$25,$26,$2B
@@ -10613,7 +10613,7 @@ SPK_Deeper_Ever_Deeper_Into:
             DB      $27,$0D,$2A,$28,$3E,$83
 
 ; Fragment $45 @ $933D: "Beware! You are in the Worlord dungeons"
-SPK_Beware_You_Are_In_The_Worlord_Dungeons:
+SPK_F45_Worlord_Dungeons:
             DB      $21                 ; encoded SC-01 byte count
             DB      $83,$0E,$29,$2D,$3B,$2B,$3E,$29
             DB      $36,$28,$15,$2B,$27,$0D,$38,$33
@@ -10622,7 +10622,7 @@ SPK_Beware_You_Are_In_The_Worlord_Dungeons:
             DB      $83
 
 ; Fragment $46 @ $935F: "Ah! You thought you could hide, but I'm the dungeon master"
-SPK_Ah_You_Thought_You_Could_Hide_But_Im_The_Dungeon_Master:
+SPK_F46_Dungeon_Master:
             DB      $2F                 ; encoded SC-01 byte count
             DB      $83,$24,$15,$3E,$29,$36,$28,$39
             DB      $3D,$2A,$29,$36,$28,$19,$17,$1E
@@ -10648,7 +10648,7 @@ SPK_Hey_Your_Space_Boots_Untied:
             DB      $0D,$2A,$15,$0A,$22,$1E,$3E
 
 ; Fragment $49 @ $93CB: "My beasts run wild in the Worlord dungeons"
-SPK_My_Beasts_Run_Wild_In_The_Worlord_Dungeons:
+SPK_F49_Beasts_Wild_Worlord:
             DB      $2C                 ; encoded SC-01 byte count
             DB      $83,$0C,$15,$00,$09,$22,$0E,$2C
             DB      $3C,$1F,$2A,$1F,$03,$2B,$33,$0D
@@ -10709,11 +10709,11 @@ SPK_Where_Are_You_Going_To_Hide_Now:
 ;******************************************************************************
 English_Speech_Fragment_Pointers:
             DW      SPK_Kill_Worluk_For_Double_Score                                 ; fragment $00: "Kill Worluk for double score"
-            DW      SPK_If_You_Get_Too_Powerful_Ill_Take_Care_Of_You_Myself          ; fragment $01: "If you get too powerful, I'll take care of you myself"
+            DW      SPK_F01_If_Too_Powerful          ; fragment $01: "If you get too powerful, I'll take care of you myself"
             DW      SPK_The_Dungeons_Of_Wor                                          ; fragment $02: "The dungeons of Wor"
             DW      SPK_I_Am                                                         ; fragment $03: "I am"
             DW      SPK_The_Wizard_Of_Wor                                            ; fragment $04: "The Wizard of Wor"
-            DW      SPK_One_Bite_From_My_Pretties_And_Youll_Explode                  ; fragment $05: "One bite from my pretties, and you'll explode"
+            DW      SPK_F05_One_Bite_Pretties                  ; fragment $05: "One bite from my pretties, and you'll explode"
             DW      SPK_My_Creatures_Are_Radioactive                                 ; fragment $06: "My creatures are radioactive"
             DW      SPK_Worluk_Will_Escape_Through_The_Door                          ; fragment $07: "Worluk will escape through the door"
             DW      SPK_Watch_The_Radar                                              ; fragment $08: "Watch the radar"
@@ -10727,47 +10727,47 @@ English_Speech_Fragment_Pointers:
             DW      SPK_Ha_Ha_Ha_Ha                                                  ; fragment $10: "Ha ha ha ha"
             DW      SPK_Ah_Good_My_Pets_Were_Getting_Hungry                          ; fragment $11: "Ah good! My pets were getting hungry"
             DW      SPK_Youll_Get_The_Arena                                          ; fragment $12: "You'll get the Arena"
-            DW      SPK_Another_Worrior_For_My_Babies_To_Devour                      ; fragment $13: "Another worrior for my babies to devour"
+            DW      SPK_F13_Worrior_For_Babies                      ; fragment $13: "Another worrior for my babies to devour"
             DW      SPK_Keep_Going_And_You_Will_Find_Me                              ; fragment $14: "Keep going and you will find me"
             DW      SPK_A_Few_More_Dungeons_And_Youll_Be_A                           ; fragment $15: "A few more dungeons and you'll be a"
             DW      SPK_Come_Back_For_More_With                                      ; fragment $16: "Come back for more with"
-            DW      SPK_The_Dungeons_Of_Wor_Await_Your_Return                        ; fragment $17: "The dungeons of Wor await your return"
-            DW      SPK_Deep_In_The_Caverns_Of_Wor_You_Will_Meet_Me                  ; fragment $18: "Deep in the caverns of Wor, you will meet me"
+            DW      SPK_F17_Dungeons_Await_Return                        ; fragment $17: "The dungeons of Wor await your return"
+            DW      SPK_F18_Deep_Caverns_Meet_Me                  ; fragment $18: "Deep in the caverns of Wor, you will meet me"
             DW      SPK_Thanks_You                                                   ; fragment $19: "thanks you"
             DW      SPK_Now_You_Get_The_Heavyweights                                 ; fragment $1A: "Now you get the heavyweights"
             DW      SPK_Garwor_Go_After_Them                                         ; fragment $1B: "Garwor, go after them"
-            DW      SPK_If_You_Try_Any_Harder_Youll_Only_Meet_With_Doom              ; fragment $1C: "If you try any harder, you'll only meet with doom"
-            DW      SPK_Burwor_Garwor_And_Thorwor_Will_Do_You_In                     ; fragment $1D: "Burwor, Garwor, and Thorwor will do you in"
+            DW      SPK_F1C_Try_Harder_Meet_Doom              ; fragment $1C: "If you try any harder, you'll only meet with doom"
+            DW      SPK_F1D_Bur_Gar_Thor_Do_You_In                     ; fragment $1D: "Burwor, Garwor, and Thorwor will do you in"
             DW      SPK_My_Worlings_Are_Very_Very_Hungry                             ; fragment $1E: "My worlings are very very hungry"
-            DW      SPK_My_Magic_Is_Stronger_Than_Your_Weapons                       ; fragment $1F: "My magic is stronger than your weapons"
-            DW      SPK_While_You_Developed_Science_We_Developed_Magic               ; fragment $20: "While you developed science, we developed magic"
-            DW      SPK_Your_Bones_Will_Lie_In_The_Dungeons_Of_Wor                   ; fragment $21: "Your bones will lie in the dungeons of Wor"
-            DW      SPK_You_Wont_Have_A_Chance_For_Your_Dance                        ; fragment $22: "You won't have a chance for your dance"
+            DW      SPK_F1F_Magic_Stronger_Weapons                       ; fragment $1F: "My magic is stronger than your weapons"
+            DW      SPK_F20_Science_Vs_Magic               ; fragment $20: "While you developed science, we developed magic"
+            DW      SPK_F21_Bones_In_Dungeons                   ; fragment $21: "Your bones will lie in the dungeons of Wor"
+            DW      SPK_F22_No_Chance_For_Dance                        ; fragment $22: "You won't have a chance for your dance"
             DW      SPK_Remember_Im_The_Wizard_Not_You                               ; fragment $23: "Remember, I'm the Wizard, not you"
-            DW      SPK_If_You_Cant_Beat_The_Rest_Then_Youll_Never_Get_The_Best      ; fragment $24: "If you can't beat the rest, then you'll never get the best"
-            DW      SPK_If_You_Destroy_My_Babies_Ill_Pop_You_In_The_Oven             ; fragment $25: "If you destroy my babies, I'll pop you in the oven"
+            DW      SPK_F24_Cant_Beat_Rest      ; fragment $24: "If you can't beat the rest, then you'll never get the best"
+            DW      SPK_F25_Destroy_My_Babies             ; fragment $25: "If you destroy my babies, I'll pop you in the oven"
             DW      SPK_Now_Im_Getting_Mad                                           ; fragment $26: "Now I'm getting mad"
             DW      SPK_Youll_Never_Leave_Wor_Alive                                  ; fragment $27: "You'll never leave Wor alive"
             DW      SPK_Garwor_And_Thorwor_Become_Invisible                          ; fragment $28: "Garwor and Thorwor become invisible"
             DW      SPK_You_Know_You_Can_Do_Better                                   ; fragment $29: "You know you can do better"
-            DW      SPK_Hurry_Back_I_Cant_Wait_To_Do_It_Again                        ; fragment $2A: "Hurry back, I can't wait to do it again"
-            DW      SPK_You_Can_Start_Anew_But_For_Now_Youre_Through                 ; fragment $2B: "You can start anew, but for now you're through"
-            DW      SPK_He_He_He_Ho_Ho_Ho_Ha_Ha_Ha_Ha_That_Was_Fun                   ; fragment $2C: "He he he ho ho ho ha ha ha ha, that was fun"
+            DW      SPK_F2A_Hurry_Back                        ; fragment $2A: "Hurry back, I can't wait to do it again"
+            DW      SPK_F2B_Start_Anew_Youre_Through                 ; fragment $2B: "You can start anew, but for now you're through"
+            DW      SPK_F2C_He_Ho_Ha_That_Was_Fun                   ; fragment $2C: "He he he ho ho ho ha ha ha ha, that was fun"
             DW      SPK_Welcome_To_My_World_Of_Wor                                   ; fragment $2D: "Welcome to my world of Wor"
-            DW      SPK_So_Youve_Come_To_Score_In_The_World_Of_Wor                   ; fragment $2E: "So you've come to score in the world of Wor"
-            DW      SPK_Youre_Off_To_See_The_Wizard_The_Magical_Wizard_Of_Wor        ; fragment $2F: "You're off to see the Wizard, the magical Wizard of Wor"
+            DW      SPK_F2E_Come_To_Score                   ; fragment $2E: "So you've come to score in the world of Wor"
+            DW      SPK_F2F_Off_To_See_Wizard        ; fragment $2F: "You're off to see the Wizard, the magical Wizard of Wor"
             DW      SPK_Burwor_Hasnt_Eaten_Anyone_In_Months                          ; fragment $30: "Burwor hasn't eaten anyone in months"
             DW      SPK_My_Babies_Breathe_Fire                                       ; fragment $31: "My babies breathe fire"
             DW      SPK_Ill_Fry_You_With_My_Lightning_Bolts                          ; fragment $32: "I'll fry you with my lightning bolts"
-            DW      SPK_Thorwor_Is_Red_Mean_And_Hungry_For_Space_Food                ; fragment $33: "Thorwor is red, mean, and hungry for space food"
-            DW      SPK_Worrior_Fear_I_Draw_Near_Each_Time_I_Appear                  ; fragment $34: "Worrior fear, I draw near, each time I appear"
+            DW      SPK_F33_Thorwor_Red_Hungry                ; fragment $33: "Thorwor is red, mean, and hungry for space food"
+            DW      SPK_F34_Worrior_Fear                  ; fragment $34: "Worrior fear, I draw near, each time I appear"
             DW      SPK_Youre_Asking_For_Trouble                                     ; fragment $35: "You're asking for trouble"
             DW      SPK_Ha_Ha_Ha_Ha_Padded                                           ; fragment $36: "Ha ha ha ha (padded)"
             DW      SPK_Worrior_Padded                                               ; fragment $37: "Worrior (padded)"
             DW      SPK_Youve_Just_Been_Fried_By                                     ; fragment $38: "You've just been fried by"
             DW      SPK_Bite_The_Bolt                                                ; fragment $39: "Bite the bolt"
             DW      SPK_Wasnt_That_Lightning_Bolt_Delicious                          ; fragment $3A: "Wasn't that lightning bolt delicious"
-            DW      SPK_And_My_Teleporting_Spell_Can_Be_Even_Faster                  ; fragment $3B: "And my teleporting spell can be even faster"
+            DW      SPK_F3B_Teleport_Spell_Faster                  ; fragment $3B: "And my teleporting spell can be even faster"
             DW      SPK_Now_You_Know_The_Taste_Of_My_Magic                           ; fragment $3C: "Now you know the taste of my magic"
             DW      SPK_Maybe_Youll_See_Me_Again                                     ; fragment $3D: "Maybe you'll see me again"
             DW      SPK_Your_Explosion_Was_Music_To_My_Ears                          ; fragment $3E: "Your explosion was music to my ears"
@@ -10777,11 +10777,11 @@ English_Speech_Fragment_Pointers:
             DW      SPK_Be_Forewarned_You_Approach_The_Pit                           ; fragment $42: "Be forewarned! You approach the Pit"
             DW      SPK_Your_Path_Leads_Directly_To_The_Pit                          ; fragment $43: "Your path leads directly to the Pit"
             DW      SPK_Deeper_Ever_Deeper_Into                                      ; fragment $44: "Deeper, ever deeper into"
-            DW      SPK_Beware_You_Are_In_The_Worlord_Dungeons                       ; fragment $45: "Beware! You are in the Worlord dungeons"
-            DW      SPK_Ah_You_Thought_You_Could_Hide_But_Im_The_Dungeon_Master      ; fragment $46: "Ah! You thought you could hide, but I'm the dungeon master"
+            DW      SPK_F45_Worlord_Dungeons                       ; fragment $45: "Beware! You are in the Worlord dungeons"
+            DW      SPK_F46_Dungeon_Master      ; fragment $46: "Ah! You thought you could hide, but I'm the dungeon master"
             DW      SPK_Thor_Bur_Gar_Dinners_Ready                                   ; fragment $47: "Thor, Bur, Gar! Dinner's ready"
             DW      SPK_Hey_Your_Space_Boots_Untied                                  ; fragment $48: "Hey! Your space boots untied"
-            DW      SPK_My_Beasts_Run_Wild_In_The_Worlord_Dungeons                   ; fragment $49: "My beasts run wild in the Worlord dungeons"
+            DW      SPK_F49_Beasts_Wild_Worlord                   ; fragment $49: "My beasts run wild in the Worlord dungeons"
             DW      SPK_Now_Your_Only_Chance_Is_Your_Dance                           ; fragment $4A: "Now your only chance is your dance"
             DW      SPK_Are_You_Fit_To_Survive_The_Pit                               ; fragment $4B: "Are you fit to survive the Pit"
             DW      SPK_Oops_I_Must_Have_Forgotten_The_Walls                         ; fragment $4C: "Oops! I must have forgotten the walls"
