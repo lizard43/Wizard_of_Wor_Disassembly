@@ -13,6 +13,7 @@ src/zout/
 *.exe
 *.zip
 *.x*
+*.diff
 
 # Personal scratch files reserved for the repository maintainer
 *Ω*
