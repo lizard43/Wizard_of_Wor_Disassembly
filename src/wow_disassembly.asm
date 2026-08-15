@@ -3,8 +3,8 @@
 ;*****************************************************************************
 ; SOUND STREAM ENTRY ALIASES
 ;
-; Dispatcher stream entry addresses that lie inside existing byte-emitting
-; statements in the sound-stream data region.
+; Dispatcher-visible stream entries that fall inside byte-emitting statements
+; in the stream-data representation.
 ;*****************************************************************************
 Sound_Stream_R3_B1_Secondary     EQU     L890E       ; R3.B1 secondary stream
 Sound_Stream_R1_B5_Primary       EQU     L8971       ; R1.B5 primary stream; requested by coin-input handler
@@ -2340,26 +2340,26 @@ L0DCF:      and     a
             ld      (ix+$05),$01
             ret
 L0DD6:      bit     2,(ix+$07)
-            ld      hl,Sound_Request_2
+            ld      hl,Sound_Request_2     ; Request bank 2
             jr      z,L0DFA
-            inc     hl
+            inc     hl                  ; -> Sound_Request_3
             ld      a,(LD1EB)
             and     a
-            ld      a,$02
+            ld      a,$02               ; R3.B1 request value
             jr      z,L0DF7
-            rra
+            rra                         ; -> $01, R3.B0 request value
             ld      b,a
             ld      a,(LD1C6)
             and     a
             ld      a,b
             jr      z,L0DF7
-            ld      hl,Sound_Request_4
-            set     0,(hl)
+            ld      hl,Sound_Request_4     ; Request bank 4
+            set     0,(hl)              ; R4.B0
             ret
 L0DF7:      or      (hl)
             ld      (hl),a
             ret
-L0DFA:      set     0,(hl)
+L0DFA:      set     0,(hl)              ; R2.B0
             ld      a,(LD1C6)
             and     a
             ret     z
@@ -2498,7 +2498,7 @@ L0EE3:      bit     3,b
             ld      hl,LD342
 L0EF4:      inc     (hl)
             ld      hl,Sound_Request_1
-            set     5,(hl)
+            set     5,(hl)              ; R1.B5
             ld      a,$01
             ld      (Sound_Service_Enabled),a ; Enable runtime sound service after coin event
             ret
@@ -2968,14 +2968,16 @@ Poll_Combined_Player_Inputs:
             ret
 ;
 ;*****************************************************************************
+; POST REQUEST BANK 1 FROM THE FOREGROUND COMMAND STREAM
 ;
-;
+; Fetches one command-stream byte, posts it to $D240, and copies the same value
+; to the sound/speech service gate at $D244.
 ;*****************************************************************************
 Fetch_Sound_Request_From_Stream:
             ld      a,(iy+$00)
             inc     iy
             ld      (Sound_Request_1),a
-            ld      (Sound_Service_Enabled),a ; Same byte becomes the runtime service-gate value
+            ld      (Sound_Service_Enabled),a ; Same byte controls the runtime service gate
             ret
             in      a, (COINPORT)
             bit     7,a                 ; Check to see if <function> is active
@@ -3080,13 +3082,11 @@ Read_Attract_Sound_DIP:
             ret
 ;
 ;*****************************************************************************
-; REQUEST SOUND R4.B3 BY REPLACING REQUEST BYTE 4
+; REQUEST SOUND R4.B3
 ;
-; Writes $08 directly to Sound_Request_4 rather than ORing/setting a bit. This
-; clears any other pending bits in request byte 4 before R4.B3 is dispatched.
-; It does not itself abort an active engine: Install_Sound_Stream still applies
-; the engine-record priority test. R4.B3 installs priority-1 streams; R4.B0 is
-; the request-4 priority-2 event. Exact gameplay identity remains unresolved.
+; Writes $08 to request bank 4, replacing the complete pending byte.
+; The dispatcher installs priority-1 streams $8B2E (primary) and $8B5D
+; (secondary), subject to the per-engine priority check.
 ;*****************************************************************************
 Request_Sound_R4_B3_Override:
             ld      a,$08               ; R4.B3
@@ -4110,7 +4110,7 @@ L2070:      bit     0,c
             ret     z
             res     2,(ix+$00)
             ld      hl,Sound_Request_2
-            set     6,(hl)
+            set     6,(hl)              ; R2.B6
             ret
 L2080:      nop
 L2081:      ld      hl,LD040
@@ -4576,9 +4576,9 @@ L23D2:      ld      (ix+$14),c
             bit     2,(ix+$07)
             ld      hl,Sound_Request_2
             jr      nz,L23F3
-            set     1,(hl)
+            set     1,(hl)              ; R2.B1
             ret
-L23F3:      inc     hl
+L23F3:      inc     hl                  ; -> Sound_Request_3
             ld      a,(LD1EB)
             and     a
             ld      a,$08
@@ -4589,9 +4589,9 @@ L23FD:      ld      a,(LD1C6)
             ld      a,b
             jr      z,L240A
             ld      hl,Sound_Request_4
-            set     2,(hl)
+            set     2,(hl)              ; R4.B2
             ret
-L240A:      rrca
+L240A:      rrca                        ; $08 -> $04, R3.B2
             or      (hl)
             ld      (hl),a
             ret
@@ -5234,7 +5234,7 @@ L28CD:      ld      hl,LD1C7
             and     a
             ret     nz
             ld      hl,Sound_Request_4
-            set     1,(hl)
+            set     1,(hl)              ; R4.B1
             ld      a,(Dungeon_Number)
             ld      b,a
             ld      a,$B0
@@ -5476,9 +5476,9 @@ L2A90:      ld      a,(LD1C6)
             and     $0C
             jp      pe,L2AEB
             bit     2,a
-            ld      a,$10
+            ld      a,$10               ; R2.B4 request value
             jr      nz,L2AB7
-L2AB5:      or      (hl)
+L2AB5:      or      (hl)                ; Post selected R2 request bit
             ld      (hl),a
 L2AB7:      call    L2614
             ld      a,r
@@ -5505,9 +5505,9 @@ L2AE3:      pop     af
             ret
 L2AEB:      ld      a,(LD1EB)
             and     a
-            ld      a,$08
+            ld      a,$08               ; R2.B3 request value
             jr      z,L2AB5
-            rrca
+            rrca                        ; -> $04, R2.B2 request value
             jr      L2AB5
 L2AF6:      ld      a,(ix+$00)
             and     $88
@@ -5699,7 +5699,7 @@ L2C28:      push    af
             ld      a,$03
             ld      (LD047),a
             ld      hl,Sound_Request_3
-            set     7,(hl)
+            set     7,(hl)              ; R3.B7
             ld      iy,$121D
             ld      a,$20
             ld      (LD04D),a
@@ -6079,7 +6079,7 @@ L2F1B:      jr      z,L2F42
             ld      (LD1BA),a
             ld      (LD1D8),a
             ld      hl,Sound_Request_3
-            set     5,(hl)
+            set     5,(hl)              ; R3.B5
             call    Enable_Sparkle_Colors
             jp      L30BA
 L2F42:      ld      a,$0A
@@ -6089,7 +6089,7 @@ L2F42:      ld      a,$0A
             set     0,(hl)
             call    L3125
             ld      hl,Sound_Request_3
-            set     4,(hl)
+            set     4,(hl)              ; R3.B4
             exx
             jr      L2F65
 L2F58:      ld      e,(ix+$05)
@@ -8092,24 +8092,29 @@ THORWOR_3_UP:
 ; NATIVE SOUND / SPEECH HIGH-ROM API
 ;
 ; $8000 -> periodic sound/speech service
-; $8003 -> consume $D240-$D243 requests and decode newly installed streams
-; $8006 -> reset both Astrocade sound-engine records
+; $8003 -> consume $D240-$D243 requests and decode ready sound streams
+; $8006 -> initialize both sound engines and validate speech-queue state
+; $8009 -> queue one language-independent speech phrase ID
+; $800C -> validate/reset speech-queue state
 ;
-; Non-speech sound is driven by two 18-byte engine records. Each record has a
-; 42-byte, six-slot modulator area immediately before it:
+; Non-speech sound uses two 18-byte software engine records. Each record has a
+; 42-byte area of six 7-byte modulator slots immediately before it:
 ;   $D246-$D26F modulator area  -> $D270-$D281 primary engine record
 ;   $D282-$D2AB modulator area  -> $D2AC-$D2BD secondary engine record
-; The primary controller uses $10-$17 / block port $18; the secondary uses
-; $50-$57 / block port $58.
+; The primary Astrocade custom I/O IC uses $10-$17 / block port $18; the
+; secondary custom I/O IC uses $50-$57 / block port $58.
 ;*****************************************************************************
 Sound_Service_Entry:
 L8000:      jp      Service_Sound_And_Speech ; $8000 periodic service
 Sound_Request_Dispatch_Entry:
 L8003:      jp      Dispatch_Sound_Requests ; $8003 request/stream dispatcher
 Sound_Reset_All_Entry:
-            jp      Init_All_Sound_Engines ; $8006 -> reset both sound-engine records
+            jp      Init_All_Sound_Engines ; $8006 sound initialization / speech-queue validation
+Speech_Request_Entry:
 L8009:
             jp      Queue_Speech_Request
+Speech_Queue_Validate_Entry:
+L800C:
             jp      Validate_Speech_Queue_State
 
 ; If bit 7 is set, negate A and clear bit 7; otherwise return A unchanged.
@@ -8121,12 +8126,12 @@ L800F:      bit     7,a
 L8018:      ret
 ;
 ;*****************************************************************************************
-; RESET ONE SOUND-ENGINE RECORD AND ITS ASTROCADE CHIP
+; RESET ONE SOUND-ENGINE RECORD AND ITS ASTROCADE CUSTOM I/O IC
 ;
 ; DE points at the engine record. Byte 0 contains the block-output port ($18
 ; primary or $58 secondary). The routine sets STREAM_READY, clears record bytes
-; +$03 through +$10, outputs eight zero bytes through SNDBX to silence the chip,
-; and clears the 42-byte modulator area immediately preceding the record.
+; +$03 through +$10, transfers eight zero bytes to the sound registers, and
+; clears the 42-byte modulator area immediately preceding the record.
 ;*****************************************************************************************
 Reset_Sound_Engine_Record:
 L8019:      ld      hl,L0011
@@ -8154,7 +8159,8 @@ L8019:      ld      hl,L0011
             ldir                        ; (DE+3) to (DE+16) = 0 (14 bytes)
 
 
-            ; Eight cleared bytes silence all Astrocade sound registers.
+            ; Record bytes +$03..+$0A are zero here; the block transfer clears
+            ; all eight sound registers on the selected custom I/O IC.
             pop     hl
             pop     bc
             otir                        ; SNDBX transfer of eight zero bytes
@@ -8179,10 +8185,14 @@ L8019:      ld      hl,L0011
 ; UPDATE ONE 7-BYTE SOUND MODULATOR SLOT
 ;
 ; IY = engine record, DE = signed record-relative slot offset, B = current value.
-; The routine advances the selected slot when its countdown expires and returns
-; the resulting parameter value in B. Slot control bits select arithmetic, random,
-; state-transition, and completion paths; bit 5 can set SNDREC_STREAM_READY when
-; the slot reaches its programmed completion path.
+; Slot layout:
+;   +0 countdown       +1 reload value      +2 control flags
+;   +3 step value      +4 boundary A        +5 boundary B
+;   +6 completion count
+;
+; Control bit 0 enables the slot, bit 2 selects the random path, bit 3 selects
+; the completion/transition path, and bit 5 sets SNDREC_STREAM_READY when the
+; completion count expires. The resulting parameter value returns in B.
 ;*****************************************************************************************
 Update_Sound_Modulator_Slot:
 L8049:      push    iy
@@ -8288,11 +8298,12 @@ L80E4:      ret
 ;*****************************************************************************************
 ; SERVICE ONE SOUND-ENGINE RECORD
 ;
-; IY selects the primary or secondary engine record. If a stream wait counter
-; expires, SNDREC_STREAM_READY is set so the foreground dispatcher can continue
-; decoding. Active modulator slots update the resident register image. The final
-; OTIR begins at record +$04 and therefore transfers VOLN, VOLAB, VOLC, VIBRA,
-; TONEC, TONEB, TONEA, TONMO to descending hardware ports $17-$10 or $57-$50.
+; IY selects the primary or secondary engine record. Wait expiry sets
+; SNDREC_STREAM_READY. Slot 1 updates VOLN, slot 3 updates VIBRA, slot 4 updates
+; the A/B/C tone volumes together, and slot 5 updates TONMO. Slots 0 and 2 drive
+; slot 5's reload and step values. Record byte +$0C enables the slot-5-to-slot-4
+; coupling path. The final OTIR transfers record +$04..+$0B to descending hardware
+; ports $17-$10 or $57-$50.
 ;*****************************************************************************************
 Service_Sound_Engine_Record:
 L80E6:      xor     a
@@ -8306,6 +8317,7 @@ L80E6:      xor     a
             dec     (iy+$0d)
             jr      nz,L8104
             ld      (iy+$11),$01
+Service_Master_Reload_Modulator:
 L8104:      cp      (iy-$2a)
             jr      z,L8116
 L8109:      ld      b,(iy-$06)
@@ -8313,6 +8325,7 @@ L8109:      ld      b,(iy-$06)
             call    L8049
             ld      (iy-$06),b
             xor     a
+Service_Master_Step_Modulator:
 L8116:      cp      (iy-$1c)
             jr      z,L8136
             ld      a,(iy-$04)
@@ -8327,6 +8340,7 @@ L8116:      cp      (iy-$1c)
             neg
 L8132:      ld      (iy-$04),a
             xor     a
+Service_Noise_Modulator:
 L8136:      cp      (iy-$23)
             jr      z,L8148
             ld      b,(iy+$04)
@@ -8334,6 +8348,7 @@ L8136:      cp      (iy-$23)
             call    L8049
             ld      (iy+$04),b
             xor     a
+Service_Master_Oscillator_Modulator:
 L8148:      cp      (iy-$07)
             jr      z,L818B
             inc     a
@@ -8342,6 +8357,9 @@ L8148:      cp      (iy-$07)
             ld      a,(iy+$0c)
             or      a
             jr      z,L817E
+Service_Master_Volume_Coupling:
+            ; Slot 5 countdown = 1 and coupling enabled: seed slot 4 from the
+            ; master-oscillator modulator state and prime its volume transition.
             ld      a,(iy-$06)
             rlca
             rlca
@@ -8366,6 +8384,7 @@ L817E:      ld      b,(iy+$0b)
             call    L8049
             ld      (iy+$0b),b
             xor     a
+Service_Tone_Volume_Modulator:
 L818B:      cp      (iy-$0e)
             jr      z,L81AF
             ld      a,(iy+$05)
@@ -8385,6 +8404,7 @@ L818B:      cp      (iy-$0e)
             or      b
             ld      (iy+$06),a
             xor     a
+Service_Vibrato_Modulator:
 L81AF:      cp      (iy-$15)
             jr      z,L81C1
             ld      b,(iy+$07)
@@ -8405,15 +8425,15 @@ L81C5:      ld      c,(iy+$00)
             add     hl,de
             ld      b,$08
             otir
+Sound_Register_Output_Return:
 L81D8:      ret
 ;*****************************************************************************************
 ; ----> Play_Next_Phoneme
 ;
-;       Checks whether the Votrax SC-01A is ready and decodes the next 8-bit
-;       speech command from the active fragment. Bits 0-5 are the SC-01 phoneme
-;       code; the upper bits carry inflection/control information. Bit 7 is
-;       stored differentially and is XORed with the saved bit-7 state before the
-;       complete command byte is presented to the speech interface.
+;       Checks the Votrax SC-01A ready signal and decodes the next 8-bit command
+;       from the active fragment. Bits 0-5 select the phoneme. Bit 6 passes
+;       directly from ROM. Bit 7 is differential: it is XORed with the saved
+;       decoded bit-7 state, then the new decoded bit 7 becomes the saved state.
 ;*****************************************************************************************
 Play_Next_Phoneme:
             in      a, (P1PORT)             ; Read Port $12 (Player 1 / Votrax Status)
@@ -8428,7 +8448,7 @@ Play_Next_Phoneme:
             inc     hl                      ; Advance pointer to the next phoneme in ROM
             ld      (Speech_Phoneme_Pointer),hl
             ld      b,a                     ; B = decoded 8-bit speech command
-            and     $80                     ; Save decoded bit-7 inflection state for the next byte
+            and     $80                     ; Save decoded bit-7 state for the next byte
             ld      (Speech_Inflection_State),a
             ld      c,VOTRAX_DATA_PORT       ; SC-01 command strobe port
             in      a,(c)                   ; B supplies phoneme data on the upper address bus
@@ -8485,8 +8505,9 @@ Speech_Queue_Empty:
 ;*****************************************************************************************
 ; ----> Validate_Speech_Queue_Pointer
 ;
-;       Verifies that DE points to a valid two-byte record location within the
-;       circular speech queue. Sets A nonzero when the pointer is out of range.
+;       Checks DE against the circular speech-queue address range
+;       $D2BE-$D2CC. Alignment is not tested. Sets A nonzero when DE is outside
+;       that range.
 ;*****************************************************************************************
 Validate_Speech_Queue_Pointer:
             ld      hl,Speech_Queue_Buffer - 1
@@ -8540,7 +8561,7 @@ Speech_Queue_State_Return:
 ;*****************************************************************************************
 ; ----> Queue_Speech_Request
 ;
-;       Expands one language-independent speech phrase ID into one to four
+;       Expands one language-independent speech phrase ID into one or more
 ;       language-local speech fragments and appends their addresses to the
 ;       circular speech queue.
 ;
@@ -8564,8 +8585,8 @@ Queue_Speech_Request:
             jr      nz,Speech_Locate_Phrase_Record
             ld      hl,(X11_Speech_Phrase_Table_Ptr)
 
-            ; Phrase records begin with $81-$84. Bytes <= $7F are fragment
-            ; indexes and are skipped while locating the requested marker.
+            ; Phrase markers are bytes > $7F; their low seven bits hold the
+            ; fragment count. Bytes <= $7F are fragment indexes.
 Speech_Locate_Phrase_Record:
             ld      a,SPEECH_FRAGMENT_COUNT_MASK
 Speech_Scan_Phrase_Table:
@@ -8592,11 +8613,10 @@ Speech_Queue_Next_Fragment:
             ld      a,(hl)              ; A = speech fragment index
             jr      z,Speech_Resolve_Fragment_Pointer
 
-            ; Worlord and Pit dungeons address the player as WORLORD rather than
-            ; WORRIOR. These substitutions occur before the language-specific
-            ; fragment-pointer table is selected, so English and X11 ROMs share
-            ; the same four semantic fragment slots. Padded variants preserve
-            ; phrase pause structure.
+            ; Non-basic dungeons substitute the WORLORD fragment IDs before the
+            ; language-specific pointer table is selected:
+            ;   WORRIOR $09 -> WORLORD $40
+            ;   padded  $37 -> padded  $41
             cp      SPEECH_FRAGMENT_WORRIOR
             jr      nz,Speech_Check_Padded_Worrior_Substitution
             ld      a,SPEECH_FRAGMENT_WORLORD
@@ -8699,7 +8719,8 @@ Init_Secondary_Sound_Engine:
 
 ;*****************************************************************************************
 ; ----> Initialize Both Sound Engines
-;       Master sound initialization, exposed through the $8006 high-ROM entry.
+;       Initializes both sound-engine records, then validates speech-queue state.
+;       Exposed through the $8006 high-ROM entry.
 ;*****************************************************************************************
 Init_All_Sound_Engines:
             call    Init_Primary_Sound_Engine
@@ -8711,9 +8732,9 @@ Init_All_Sound_Engines:
 ;
 ; HL points into the current ROM sound stream and IY points at the active engine
 ; record. Commands $10-$17 consume one data byte, write the corresponding
-; Astrocade register immediately, and mirror it in record bytes +$04-$0B. Lower
-; opcodes control stream flow, wait state, install priority, and six resident
-; 7-byte modulator slots. Handler return A=0 continues decoding; A!=0 yields.
+; Astrocade sound register, and mirror it in record bytes +$04-$0B. Opcodes
+; $04-$07 configure the six resident 7-byte modulator slots. Handler return
+; A=0 continues decoding; A!=0 yields.
 ;*****************************************************************************************
 Sound_Stream_Op_Jump:
             ld      e,(hl)
@@ -8837,6 +8858,8 @@ Sound_Stream_Op_Set_Priority_0:         ; opcode $0A
             ret
 
 Sound_Stream_Op_Disable_Modulator:      ; opcode $07
+            ; Operand: signed record-relative slot offset.
+            ; Clears slot +0 and control bit 0.
             ld      e,(hl)
             inc     hl
             ld      d,(hl)
@@ -8854,6 +8877,8 @@ Sound_Stream_Op_Disable_Modulator:      ; opcode $07
             ret
 
 Sound_Stream_Op_Enable_Modulator:       ; opcode $06
+            ; Operands: signed record-relative slot offset, countdown value.
+            ; Stores the countdown at slot +0 and sets control bit 0.
             ld      e,(hl)
             inc     hl
             ld      d,(hl)
@@ -8873,6 +8898,8 @@ Sound_Stream_Op_Enable_Modulator:       ; opcode $06
             ret
 
 Sound_Stream_Op_Load_Modulator:         ; opcode $04
+            ; Operands: signed record-relative slot offset, six data bytes.
+            ; The six bytes are copied in order to slot +5,+4,+3,+2,+1,+0.
             ld      e,(hl)
             inc     hl
             ld      d,(hl)
@@ -8896,7 +8923,10 @@ L83E3:      ex      de,hl
             ex      de,hl
             ret
 
+Sound_Stream_Op_Set_Modulator_Completion_Count:
 Sound_Stream_Op_Set_Modulator_Value:    ; opcode $05
+            ; Operands: signed record-relative slot offset, completion count.
+            ; Stores the count at slot +6.
             ld      e,(hl)
             inc     hl
             ld      d,(hl)
@@ -8914,7 +8944,8 @@ Sound_Stream_Op_Set_Modulator_Value:    ; opcode $05
             xor     a
             ret
 
-Sound_Stream_Op_Set_Record_Flag_0C:     ; opcode $08
+Sound_Stream_Op_Enable_Master_Volume_Coupling:
+Sound_Stream_Op_Set_Record_Flag_0C:     ; opcode $08: enable slot-5-to-slot-4 coupling
             ld      (iy+$0c),$01
             xor     a
             ret
@@ -8932,10 +8963,10 @@ L8407:      DW      Sound_Stream_Op_Yield                  ; $00
             DW      Sound_Stream_Op_Jump                   ; $02
             DW      Sound_Stream_Op_Reset_Engine           ; $03
             DW      Sound_Stream_Op_Load_Modulator         ; $04
-            DW      Sound_Stream_Op_Set_Modulator_Value    ; $05
+            DW      Sound_Stream_Op_Set_Modulator_Value    ; $05 set slot +6 completion count
             DW      Sound_Stream_Op_Enable_Modulator       ; $06
             DW      Sound_Stream_Op_Disable_Modulator      ; $07
-            DW      Sound_Stream_Op_Set_Record_Flag_0C     ; $08
+            DW      Sound_Stream_Op_Set_Record_Flag_0C     ; $08 enable slot-5-to-slot-4 coupling
             DW      Sound_Stream_Op_Set_Priority_1         ; $09
             DW      Sound_Stream_Op_Set_Priority_0         ; $0A
             DW      Sound_Stream_Op_Yield                  ; $0B same yield handler
@@ -8995,6 +9026,7 @@ L8462:      or      a
             ld      (iy+$01),l
             ld      (iy+$02),h
             ld      (iy+$11),$00
+Sound_Stream_Decode_Return:
 L846F:      ret
 ; Count active-low bits in A and return eight times that count in A.
 Scale_Diagnostic_Active_Low_Bits:
@@ -9013,9 +9045,9 @@ L8477:      rl      b
 ;*****************************************************************************************
 ; SERVICE-SWITCH SOUND/INPUT DIAGNOSTIC
 ;
-; Used only in attract mode while the cabinet service switch is active. It drives
-; both Astrocade controllers from system/control/DIP input patterns and continues
-; servicing speech. This is a diagnostic path, separate from ROM sound streams.
+; In attract mode with the cabinet service switch active, this path drives both
+; Astrocade custom I/O IC sound generators from system/control/DIP input patterns
+; and continues servicing speech.
 ;*****************************************************************************************
 Service_Diagnostic_Sound_Test:
 L8481:      ld      bc,L3010
@@ -9096,6 +9128,7 @@ L8501:      ld      a,(Sound_Service_Enabled) ; Runtime gate seeded by attract D
             call    Service_Sound_Engine_Record
             call    Service_Speech_Queue
             pop     iy
+Sound_Service_Return:
 L851C:      ret
 ;*****************************************************************************************
 ; INSTALL SOUND STREAM INTO ONE ENGINE RECORD
@@ -9117,19 +9150,22 @@ L851D:      ld      a,d
             ld      (iy+$03),d
             ld      (iy+$01),l
             ld      (iy+$02),h
+Install_Sound_Stream_Return:
 L8537:      ret
 ;*****************************************************************************************
 ; SOUND REQUEST DECODERS ($D241-$D243)
 ;
-; Each byte is a pending bitfield. Recognized selectors and install priorities:
+; Each decoder clears its complete request byte, then scans from bit 0 upward.
+; The first recognized set bit transfers to Install_Sound_Stream and returns to
+; the caller, so one selector is serviced from each consumed R2/R3/R4 byte.
 ;
 ; R2: B0 S:$8928 p1  B1 S:$887B p0  B2 S:$87EA p1  B3 S:$883B p0
-;     B4 S:$8825 p0  B5 skipped      B6 S:$8988 p0  B7 P:$8741 p1
+;     B4 S:$8825 p0  B5 ignored      B6 S:$8988 p0  B7 P:$8741 p1
 ; R3: B0 P:$8AA1/S:$8ADD p1           B1 S:$890E p0
 ;     B2/B3 S:$8851 p0  B4 S:$8A42 p0  B5 P:$8A81/S:$8A6C p1
-;     B6 skipped                         B7 P:$877B p1
+;     B6 ignored                         B7 P:$877B p1
 ; R4: B0 P:$88E2/S:$8905 p2  B1 P:$8AF6/S:$8B1F p1
-;     B2 S:$8AF3 p1           B3 P:$8B2E/S:$8B5D p1  B4-B7 skipped
+;     B2 S:$8AF3 p1           B3 P:$8B2E/S:$8B5D p1  B4-B7 ignored
 ;*****************************************************************************************
 Dispatch_Sound_Request_2:
 L8538:      ld      hl,Sound_Request_2
@@ -9166,6 +9202,7 @@ L8538:      ld      hl,Sound_Request_2
             ld      d,$01
             ld      hl,Sound_Stream_R1_B2_Primary
             jp      c,Install_Sound_Stream
+Dispatch_Sound_Request_2_Return:
 L8582:      ret
 Dispatch_Sound_Request_3:
 L8583:      ld      hl,Sound_Request_3
@@ -9241,6 +9278,7 @@ L861C:      ld      iy,Secondary_Sound_Engine_Record
             ld      hl,Sound_Stream_R4_B3_Primary
             ld      iy,Primary_Sound_Engine_Record
             jp      Install_Sound_Stream
+Dispatch_Sound_Request_4_Return:
 L863A:      ret
             ld      d,$02
             call    Install_Sound_Stream
@@ -9296,10 +9334,11 @@ L86A8:      call    Init_All_Sound_Engines
 ;*****************************************************************************************
 ; DISPATCH PENDING SOUND REQUESTS AND ADVANCE STREAM DECODERS
 ;
-; Request 1 has pass-level precedence: when $D240 is nonzero, this call clears
-; and processes only R1, then proceeds directly to stream decoding. R1 bits 0-5
-; are audible selectors; bit 6 resets the secondary engine and bit 7 resets the
-; primary engine. Only when R1 is zero are R2, R3, and R4 decoded in this pass.
+; Request 1 has pass-level precedence. When $D240 is nonzero, the dispatcher
+; clears the byte and processes every set R1 bit in ascending order, then proceeds
+; directly to stream decoding. Bits 0-5 are audible selectors; bit 6 resets the
+; secondary engine and bit 7 resets the primary engine. R2-R4 are decoded only
+; when R1 is zero at entry.
 ;
 ; R1 stream selections:
 ;   B0 P:$89BE/S:$89E5 p0   B1 P:$89A0/S:$89AF p0
@@ -9335,6 +9374,7 @@ L86C1:      ld      a,(Sound_Service_Enabled)
             bit     7,e
             call    nz,Init_Primary_Sound_Engine
             jr      Decode_Installed_Sound_Streams
+Dispatch_Sound_Request_Banks_2_4:
 L86FE:      call    Dispatch_Sound_Request_2
             call    Dispatch_Sound_Request_3
             call    Dispatch_Sound_Request_4
@@ -9344,6 +9384,7 @@ L8707:      ld      iy,Primary_Sound_Engine_Record
             ld      iy,Secondary_Sound_Engine_Record
             call    Decode_Sound_Stream_Commands
             pop     iy
+Sound_Request_Dispatch_Return:
 L8717:      ret
 
             ; 40 bytes - ROM Padding
@@ -9358,8 +9399,8 @@ L8717:      ret
 ;
 ; This region is interpreted by Decode_Sound_Stream_Commands and is not native
 ; Z80 executable code. Stream labels mark addresses installed by the request
-; dispatcher. The existing byte-emitting statements are retained verbatim so the
-; assembled ROM image remains unchanged.
+; dispatcher. The assembler statements below are a byte-preserving representation
+; of the resident stream data.
 ;*****************************************************************************************
 Sound_Stream_Invalid_Fallback:
 L8740:      DB      $03                 ; opcode $03: reset current engine record
