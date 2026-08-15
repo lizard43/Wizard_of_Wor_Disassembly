@@ -3,7 +3,7 @@
 ; Wizard of Wor - Master Hardware Equates
 ; ==============================================================================
 
-EXPHOOK     EQU     $8006       ; Expansion ROM jump hook
+EXPHOOK     EQU     $8006       ; High-ROM hook; WoW $8006 jumps to sound-engine reset
 
 ; ------------------------------------------------------------------------------
 ; SYSTEM INPUTS & SWITCHES
@@ -43,17 +43,41 @@ RIGHTPORT   EQU     $5B         ; NVRAM Write-Protect Port
 RIGHTVALUE  EQU     $A5         ; NVRAM Unlock Value
 
 ; ------------------------------------------------------------------------------
-; AUDIO & MUSIC PROCESSOR PORTS
+; ASTROCADE SOUND OUTPUT PORTS
+;
+; These names are output-side aliases. On the arcade hardware the same numeric
+; I/O addresses also have input-side functions, so IN and OUT uses must be read
+; according to direction.
 ; ------------------------------------------------------------------------------
-TONMO       EQU     $10         ; Tone Master Oscillator
-TONEA       EQU     $11         ; Tone A Oscillator
-TONEB       EQU     $12         ; Tone B Oscillator
-TONEC       EQU     $13         ; Tone C Oscillator
-VIBRA       EQU     $14         ; Vibrato Frequency/Range
-VOLC        EQU     $15         ; Tone C Volume
-VOLAB       EQU     $16         ; Tones A & B Volume
-VOLN        EQU     $17         ; Noise Volume
-SNDBX       EQU     $18         ; Sound Block Output Port
+TONMO       EQU     $10         ; Master oscillator divider
+TONEA       EQU     $11         ; Tone A divider
+TONEB       EQU     $12         ; Tone B divider
+TONEC       EQU     $13         ; Tone C divider
+VIBRA       EQU     $14         ; Bits 7-6 vibrato speed; bits 5-0 vibrato depth
+VOLC        EQU     $15         ; Bit 5 noise enable; bit 4 modulation select; bits 3-0 Tone C volume
+VOLAB       EQU     $16         ; Bits 7-4 Tone B volume; bits 3-0 Tone A volume
+VOLN        EQU     $17         ; 8-bit noise-modulation mask; bits 7-4 audible noise level when VOLC bit 5 is set
+SNDBX       EQU     $18         ; Descending 8-register block transfer: $17 through $10
+
+SOUND2_TONMO                    EQU     $50         ; Secondary master oscillator divider
+SOUND2_TONEA                    EQU     $51         ; Secondary Tone A divider
+SOUND2_TONEB                    EQU     $52         ; Secondary Tone B divider
+SOUND2_TONEC                    EQU     $53         ; Secondary Tone C divider
+SOUND2_VIBRA                    EQU     $54         ; Secondary vibrato control
+SOUND2_VOLC                     EQU     $55         ; Secondary Tone C/modulation/noise control
+SOUND2_VOLAB                    EQU     $56         ; Secondary Tone A/B volume
+SOUND2_VOLN                     EQU     $57         ; Secondary noise mask/level
+SOUND2_SNDBX                    EQU     $58         ; Secondary descending 8-register block transfer
+
+SOUND_VIBRATO_DEPTH_MASK        EQU     $3F
+SOUND_VIBRATO_SPEED_MASK        EQU     $C0
+SOUND_VOLC_TONE_C_MASK          EQU     $0F
+SOUND_VOLC_MODULATION_NOISE     EQU     $10         ; 1 = noise modulation, 0 = vibrato modulation
+SOUND_VOLC_NOISE_ENABLE         EQU     $20         ; Mix audible noise with tones
+SOUND_VOLAB_TONE_A_MASK         EQU     $0F
+SOUND_VOLAB_TONE_B_MASK         EQU     $F0
+SOUND_VOLN_AUDIBLE_MASK         EQU     $F0
+
 VOTRAX_DATA_PORT                 EQU     $17         ; SC-01 command strobe via IN; phoneme command supplied in B
 VOTRAX_READY_BIT                 EQU     7           ; P1PORT bit 7, SC-01 A/R: 1 = ready
 VOTRAX_STOP_COMMAND              EQU     $3F17       ; B=$3F STOP phoneme, C=$17 Votrax data port
@@ -117,14 +141,103 @@ P2_Auto_Input_State              EQU     $D1ED
 P1_Auto_Input_State              EQU     $D1EE
 
 ; Sound and speech state
-Sound_Request_1                  EQU     $D240
-Sound_Request_2                  EQU     $D241
-Sound_Request_3                  EQU     $D242
-Sound_Request_4                  EQU     $D243
-Attract_Sound_Enabled            EQU     $D244
+Sound_Request_1                  EQU     $D240       ; Request bitfield 1; bits 6/7 reset secondary/primary engine
+Sound_Request_2                  EQU     $D241       ; Request bitfield 2
+Sound_Request_3                  EQU     $D242       ; Request bitfield 3
+Sound_Request_4                  EQU     $D243       ; Request bitfield 4
+Sound_Service_Enabled            EQU     $D244       ; Nonzero enables normal $84F2 sound/speech service
 Speech_Active                    EQU     $D245
-Sound_Queue_1_Record             EQU     $D270
-Sound_Queue_2_Record             EQU     $D2AC
+
+Primary_Sound_Modulator_Area     EQU     $D246       ; Six 7-byte modulator slots, cleared by primary reset
+Primary_Sound_Engine_Record      EQU     $D270       ; 18-byte primary engine record
+Secondary_Sound_Modulator_Area   EQU     $D282       ; Six 7-byte modulator slots, cleared by secondary reset
+Secondary_Sound_Engine_Record    EQU     $D2AC       ; 18-byte secondary engine record
+
+SOUND_MODULATOR_SLOT_SIZE        EQU     $07
+SOUND_MODULATOR_SLOT_COUNT       EQU     $06
+SOUND_MODULATOR_AREA_SIZE        EQU     $2A
+SOUND_ENGINE_RECORD_SIZE         EQU     $12
+SOUND_ENGINE_BUNDLE_SIZE         EQU     $3C
+
+; Engine-record offsets. Bytes $04-$0B are stored in SNDBX transfer order.
+SNDREC_BLOCK_PORT                EQU     $00         ; $18 primary, $58 secondary
+SNDREC_STREAM_PTR_LO             EQU     $01
+SNDREC_STREAM_PTR_HI             EQU     $02
+SNDREC_PRIORITY                  EQU     $03
+SNDREC_VOLN                      EQU     $04         ; $17 / $57 image
+SNDREC_VOLAB                     EQU     $05         ; $16 / $56 image
+SNDREC_VOLC                      EQU     $06         ; $15 / $55 image
+SNDREC_VIBRA                     EQU     $07         ; $14 / $54 image
+SNDREC_TONEC                     EQU     $08         ; $13 / $53 image
+SNDREC_TONEB                     EQU     $09         ; $12 / $52 image
+SNDREC_TONEA                     EQU     $0A         ; $11 / $51 image
+SNDREC_TONMO                     EQU     $0B         ; $10 / $50 image
+SNDREC_FLAG_0C                   EQU     $0C         ; Set by stream opcode $08; further role not yet established
+SNDREC_WAIT_COUNTER              EQU     $0D         ; Stream wait counter; expiry sets STREAM_READY
+SNDREC_SERVICE_FLAG              EQU     $10         ; Checked, set, then cleared by per-engine periodic service
+SNDREC_STREAM_READY              EQU     $11         ; Nonzero allows stream decoding
+
+; Signed offsets from an engine record to its six 7-byte modulator slots.
+SNDMOD_SLOT_0_OFFSET             EQU     $FFD6       ; -42
+SNDMOD_SLOT_1_OFFSET             EQU     $FFDD       ; -35
+SNDMOD_SLOT_2_OFFSET             EQU     $FFE4       ; -28
+SNDMOD_SLOT_3_OFFSET             EQU     $FFEB       ; -21
+SNDMOD_SLOT_4_OFFSET             EQU     $FFF2       ; -14
+SNDMOD_SLOT_5_OFFSET             EQU     $FFF9       ;  -7
+
+; Sound request masks recognized by the native dispatcher.
+SOUND_R1_B0_MASK                 EQU     $01
+SOUND_R1_B1_MASK                 EQU     $02
+SOUND_R1_B2_MASK                 EQU     $04
+SOUND_R1_B3_MASK                 EQU     $08
+SOUND_R1_B4_MASK                 EQU     $10
+SOUND_R1_B5_MASK                 EQU     $20
+SOUND_R1_RESET_SECONDARY_MASK    EQU     $40
+SOUND_R1_RESET_PRIMARY_MASK      EQU     $80
+SOUND_R2_B0_MASK                 EQU     $01
+SOUND_R2_B1_MASK                 EQU     $02
+SOUND_R2_B2_MASK                 EQU     $04
+SOUND_R2_B3_MASK                 EQU     $08
+SOUND_R2_B4_MASK                 EQU     $10
+SOUND_R2_B6_MASK                 EQU     $40
+SOUND_R2_B7_MASK                 EQU     $80
+SOUND_R3_B0_MASK                 EQU     $01
+SOUND_R3_B1_MASK                 EQU     $02
+SOUND_R3_B2_MASK                 EQU     $04
+SOUND_R3_B3_MASK                 EQU     $08
+SOUND_R3_B4_MASK                 EQU     $10
+SOUND_R3_B5_MASK                 EQU     $20
+SOUND_R3_B7_MASK                 EQU     $80
+SOUND_R4_B0_MASK                 EQU     $01
+SOUND_R4_B1_MASK                 EQU     $02
+SOUND_R4_B2_MASK                 EQU     $04
+SOUND_R4_B3_MASK                 EQU     $08
+
+; WoW resident sound-stream opcodes ($00-$17).
+SOUND_OP_YIELD                   EQU     $00
+SOUND_OP_WAIT                    EQU     $01
+SOUND_OP_JUMP                    EQU     $02
+SOUND_OP_RESET_ENGINE            EQU     $03
+SOUND_OP_LOAD_MODULATOR          EQU     $04
+SOUND_OP_SET_MODULATOR_VALUE     EQU     $05
+SOUND_OP_ENABLE_MODULATOR        EQU     $06
+SOUND_OP_DISABLE_MODULATOR       EQU     $07
+SOUND_OP_SET_RECORD_FLAG_0C      EQU     $08
+SOUND_OP_SET_PRIORITY_1          EQU     $09
+SOUND_OP_SET_PRIORITY_0          EQU     $0A
+SOUND_OP_TONMO                   EQU     $10
+SOUND_OP_TONEA                   EQU     $11
+SOUND_OP_TONEB                   EQU     $12
+SOUND_OP_TONEC                   EQU     $13
+SOUND_OP_VIBRA                   EQU     $14
+SOUND_OP_VOLC                    EQU     $15
+SOUND_OP_VOLAB                   EQU     $16
+SOUND_OP_VOLN                    EQU     $17
+SOUND_STREAM_OPCODE_COUNT        EQU     $18
+SOUND_PRIORITY_0                 EQU     $00
+SOUND_PRIORITY_1                 EQU     $01
+SOUND_PRIORITY_2                 EQU     $02
+
 Speech_Queue_Buffer              EQU     $D2BE
 Speech_Queue_Last_Record         EQU     $D2CC
 Speech_Phoneme_Pointer           EQU     $D2CE

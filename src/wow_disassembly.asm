@@ -1,6 +1,15 @@
             INCLUDE src/wow_equates.include ; EQU for the code
 
 ;*****************************************************************************
+; SOUND STREAM ENTRY ALIASES
+;
+; Dispatcher stream entry addresses that lie inside existing byte-emitting
+; statements in the sound-stream data region.
+;*****************************************************************************
+Sound_Stream_R3_B1_Secondary     EQU     L890E       ; R3.B1 secondary stream
+Sound_Stream_R1_B5_Primary       EQU     L8971       ; R1.B5 primary stream; requested by coin-input handler
+
+;*****************************************************************************
 ; SYSTEM BOOT & HARDWARE INITIALIZATION
 ;*****************************************************************************
             ORG     $0000               ; ROM Start / Magic RAM start
@@ -50,7 +59,7 @@ L0026:      ld      a, $00              ; High byte for Interrupt Vector Table
 ;******************************************************************************************
 ; GAME INITIALIZATION & MEMORY SETUP
 ;
-; Prepares the TERSE script environment, clears buffers, and seeds RNG
+; Prepares the threaded command-stream environment, clears buffers, and seeds RNG
 ;******************************************************************************************
             xor     a
             ld      (Speech_Queue_Write_Pointer + 1),a ; Clear queue write-pointer high byte
@@ -105,34 +114,35 @@ L0068:      ld      bc, L0020           ; Length = $0020 (32 bytes)
             call     Sys_Init               ; Clear screen, init video, clear Work RAM
 
 ;******************************************************************************************
-; ----> TERSE SCRIPT DISPATCHER (THE GAME LOOP)
+; ----> THREADED COMMAND-STREAM DISPATCHER (THE GAME LOOP)
 ;
-;       IY acts as the Instruction Pointer for TERSE script tokens.
+;       IY is the command-stream instruction pointer. Stream entries contain
+;       16-bit native handler addresses followed by handler-specific operands.
 ;******************************************************************************************
             ld      a,(Game_Mode)       ; Check Game Mode variable
             and     a                   ; Is it 0 (Demo Mode)?
-            ld      iy,ATTRACT_COMMAND_STREAM ; Default IY to attract-mode TERSE script
+            ld      iy,ATTRACT_COMMAND_STREAM ; Default IY to attract-mode command stream
 L0078:      jr      z,dispatch          ; If Demo Mode, jump to dispatcher loop
-            ld      iy,GAME_COMMAND_STREAM ; Else, set IY to game-mode TERSE script
+            ld      iy,GAME_COMMAND_STREAM ; Else, select the game-mode command stream
 
 dispatch:   ld      hl,dispatch         ; Load address of this dispatcher loop
             push    hl                  ; Push it to stack (Tasks will 'ret' back here)
 
-            call    Stream_Fetch_Word_HL               ; Fetch next TERSE token address into HL (IY++)
-            push    hl                  ; Push TERSE subroutine address to stack
+            call    Stream_Fetch_Word_HL               ; Fetch next 16-bit handler address from the stream
+            push    hl                  ; Push selected native command handler address
 
 ;******************************************************************************************
 ; ----> DIAGNOSTIC SWITCH ESCAPE HATCH
 ;******************************************************************************************
             in      a, (COINPORT)       ; Read hardware switches (Coin/Service)
 L0088:      bit     3,a                 ; Check Service/Diagnostic Switch
-            ret     nz                  ; If switch is OFF, 'ret' executes the TERSE task!
+            ret     nz                  ; RET dispatches the selected command handler
 
             ld      a,(Game_Mode)       ; If switch is ON, check if game in progress
             and     a                   ;
             ret     nz                  ; If game in progress, ignore switch and execute task
 
-            jp      diags               ; Else, jump out of TERSE to native Z80 diagnostics!
+            jp      diags               ; Else, leave the threaded interpreter for diagnostics
 
 ;******************************************************************************************
 ; ----> INTERRUPT VECTOR & COLOR PALETTE MAPPING
@@ -2490,7 +2500,7 @@ L0EF4:      inc     (hl)
             ld      hl,Sound_Request_1
             set     5,(hl)
             ld      a,$01
-            ld      (Attract_Sound_Enabled),a           ; Turn on sounds in attract mode variable
+            ld      (Sound_Service_Enabled),a ; Enable runtime sound service after coin event
             ret
 L0F00:      ld      a,(hl)
 L0F01:      and     a
@@ -2965,7 +2975,7 @@ Fetch_Sound_Request_From_Stream:
             ld      a,(iy+$00)
             inc     iy
             ld      (Sound_Request_1),a
-            ld      (Attract_Sound_Enabled),a           ; Dip switch - Bit 7 - "Sounds in Attract Mode"
+            ld      (Sound_Service_Enabled),a ; Same byte becomes the runtime service-gate value
             ret
             in      a, (COINPORT)
             bit     7,a                 ; Check to see if <function> is active
@@ -3063,24 +3073,24 @@ Clear_Protected_Init_Counter:
 ; Captures the attract-mode sound DIP state.
 ;*****************************************************************************
 Read_Attract_Sound_DIP:
-            ld      a,($D347)           ; Why load this? The next command wipes it out ???
+            ld      a,($D347)           ; Preserved original read; overwritten by IN
             in      a, (SETTINGS)
             and     DIP_ATTRACT_SOUND
-            ld      (Attract_Sound_Enabled),a           ; Save demo sound status, A=$80 if active, $00 if not
+            ld      (Sound_Service_Enabled),a ; Seed runtime audio-service gate from SW8 state
             ret
 ;
 ;*****************************************************************************
-; ROUTINE: High-Priority Sound Trigger (Override)
-; Found at $18D5 (Immediately following the Maze Wall bitmasks).
-; Purpose: Writes directly to sound request byte Sound_Request_4, requesting sound bit 3.
-;          ($08 = 00001000b). By using LD instead of SET, it intentionally
-;          clears/aborts any other pending sounds in this queue to force
-;          this specific high-priority sound (e.g., Coin Drop, Player Death)
-;          to play immediately.
+; REQUEST SOUND R4.B3 BY REPLACING REQUEST BYTE 4
+;
+; Writes $08 directly to Sound_Request_4 rather than ORing/setting a bit. This
+; clears any other pending bits in request byte 4 before R4.B3 is dispatched.
+; It does not itself abort an active engine: Install_Sound_Stream still applies
+; the engine-record priority test. R4.B3 installs priority-1 streams; R4.B0 is
+; the request-4 priority-2 event. Exact gameplay identity remains unresolved.
 ;*****************************************************************************
-Trigger_High_Priority_Sound:
-            ld      a,$08               ; $08 = Bit 3 (High-priority sound ID)
-            ld      (Sound_Request_4),a           ; Overwrite Sound Queue 4, clearing other bits
+Request_Sound_R4_B3_Override:
+            ld      a,$08               ; R4.B3
+            ld      (Sound_Request_4),a ; Replace pending request-4 bitfield
             ret
 
 ;
@@ -8078,12 +8088,32 @@ THORWOR_3_UP:
 ;
             ORG     $8000
 
-L8000:      jp      L84F2
-L8003:      jp      L86C1
-            jp      $8316               ; Entry point from startup code
+;*****************************************************************************
+; NATIVE SOUND / SPEECH HIGH-ROM API
+;
+; $8000 -> periodic sound/speech service
+; $8003 -> consume $D240-$D243 requests and decode newly installed streams
+; $8006 -> reset both Astrocade sound-engine records
+;
+; Non-speech sound is driven by two 18-byte engine records. Each record has a
+; 42-byte, six-slot modulator area immediately before it:
+;   $D246-$D26F modulator area  -> $D270-$D281 primary engine record
+;   $D282-$D2AB modulator area  -> $D2AC-$D2BD secondary engine record
+; The primary controller uses $10-$17 / block port $18; the secondary uses
+; $50-$57 / block port $58.
+;*****************************************************************************
+Sound_Service_Entry:
+L8000:      jp      Service_Sound_And_Speech ; $8000 periodic service
+Sound_Request_Dispatch_Entry:
+L8003:      jp      Dispatch_Sound_Requests ; $8003 request/stream dispatcher
+Sound_Reset_All_Entry:
+            jp      Init_All_Sound_Engines ; $8006 -> reset both sound-engine records
 L8009:
             jp      Queue_Speech_Request
             jp      Validate_Speech_Queue_State
+
+; If bit 7 is set, negate A and clear bit 7; otherwise return A unchanged.
+Normalize_Signed_Modulator_Value:
 L800F:      bit     7,a
             jp      p,L8018
             neg
@@ -8091,19 +8121,14 @@ L800F:      bit     7,a
 L8018:      ret
 ;
 ;*****************************************************************************************
-; Purpose:    ???
-;        Set up 8 music ports
+; RESET ONE SOUND-ENGINE RECORD AND ITS ASTROCADE CHIP
 ;
-; Input:    DE
-;
-; Output:    (DE+17)=1
-;        (DE+3) to (DE+16) = 0 (14 bytes)
-;        out (DE) <- (DE+3) to (DE+11) (8 bytes)
-;        (DE-1) to (DE-42) = 0 (42 bytes)
-;        Switch main registers
-;
+; DE points at the engine record. Byte 0 contains the block-output port ($18
+; primary or $58 secondary). The routine sets STREAM_READY, clears record bytes
+; +$03 through +$10, outputs eight zero bytes through SNDBX to silence the chip,
+; and clears the 42-byte modulator area immediately preceding the record.
 ;*****************************************************************************************
-;
+Reset_Sound_Engine_Record:
 L8019:      ld      hl,L0011
             add     hl,de
             ld      (hl),$01            ; (DE+17) = 1
@@ -8129,10 +8154,10 @@ L8019:      ld      hl,L0011
             ldir                        ; (DE+3) to (DE+16) = 0 (14 bytes)
 
 
-    ;Output 8 bytes to music ports
+            ; Eight cleared bytes silence all Astrocade sound registers.
             pop     hl
             pop     bc
-            otir                        ; out (DE) <- (DE+3) to (DE+11) (8 bytes)
+            otir                        ; SNDBX transfer of eight zero bytes
 
 
             pop     hl
@@ -8142,19 +8167,24 @@ L8019:      ld      hl,L0011
             dec     de
             ld      bc,L0029
             ld      (hl),$00
-            lddr                        ; (DE-1) to (DE-42) = 0 (42 bytes)
+            lddr                        ; Clear the six 7-byte modulator slots
 
 
-            exx                         ; Switch registers
+            exx                         ; Restore caller register set
 
             ret
 
 ;
 ;*****************************************************************************************
+; UPDATE ONE 7-BYTE SOUND MODULATOR SLOT
 ;
-
-
-
+; IY = engine record, DE = signed record-relative slot offset, B = current value.
+; The routine advances the selected slot when its countdown expires and returns
+; the resulting parameter value in B. Slot control bits select arithmetic, random,
+; state-transition, and completion paths; bit 5 can set SNDREC_STREAM_READY when
+; the slot reaches its programmed completion path.
+;*****************************************************************************************
+Update_Sound_Modulator_Slot:
 L8049:      push    iy
             pop     hl
             add     hl,de
@@ -8255,6 +8285,16 @@ L80E1:      inc     hl
             ld      c,(hl)
 L80E4:      ret
             nop
+;*****************************************************************************************
+; SERVICE ONE SOUND-ENGINE RECORD
+;
+; IY selects the primary or secondary engine record. If a stream wait counter
+; expires, SNDREC_STREAM_READY is set so the foreground dispatcher can continue
+; decoding. Active modulator slots update the resident register image. The final
+; OTIR begins at record +$04 and therefore transfers VOLN, VOLAB, VOLC, VIBRA,
+; TONEC, TONEB, TONEA, TONMO to descending hardware ports $17-$10 or $57-$50.
+;*****************************************************************************************
+Service_Sound_Engine_Record:
 L80E6:      xor     a
             cp      (iy+$11)
             jp      nz,L81C5
@@ -8354,6 +8394,7 @@ L81AF:      cp      (iy-$15)
             xor     a
 L81C1:      xor     a
             ld      (iy+$10),a
+Output_Sound_Register_Image:
 L81C5:      ld      c,(iy+$00)
             ld      a,$17
             cp      c
@@ -8614,235 +8655,188 @@ Speech_Request_Return:
             ret
 
 ;*****************************************************************************************
-; ----> Init_Sound_Block
+; ----> Initialize Sound Engine Header
 ;
-;       Seeds the first three bytes of a sound/music configuration block in RAM,
-;       then jumps to the main setup routine to finish the initialization.
+;       Stores the Astrocade block-output port in record byte 0 and seeds the
+;       stream pointer with $8740, whose $03 command is the invalid-stream/reset
+;       fallback. Reset_Sound_Engine_Record then clears and silences the engine.
 ;*****************************************************************************************
-Init_Sound_Block:
-            ld      hl,$0000            ; Clunky compiler math: HL = 0
-            add     hl,de               ; HL = DE + 0
+Initialize_Sound_Engine_Header:
+            ld      hl,$0000            ; HL = record offset 0
+            add     hl,de               ; HL = engine-record base
 
             ld      (hl),a              ; Byte 0: (DE) = A
-            ld      hl,$0001            ; Clunky compiler math: HL = 1
+            ld      hl,$0001            ; HL = record offset 1
             add     hl,de               ; HL = DE + 1
 
             ld      (hl),$40            ; Byte 1: (DE+1) = $40
-            inc     hl                  ; HL = DE + 2 (Finally uses INC!)
+            inc     hl                  ; HL = record offset 2
             ld      (hl),$87            ; Byte 2: (DE+2) = $87
 
 Init_Sound_Exec:
-            jp      L8019               ; Jump to the main music port initialization
+            jp      Reset_Sound_Engine_Record
 
 ;*****************************************************************************************
-; ----> Init_Sound_Queue_1
-;       Initializes the first sound queue/block in static RAM.
+; ----> Primary Sound Engine
+;       Initializes the $D270 engine record for ports $10-$17 / block port $18.
 ;*****************************************************************************************
-Init_Sound_Queue_1:
+Init_Primary_Sound_Engine:
             ld      a, $18
-Init_Sound_Queue_1_Alt:
+Init_Primary_Sound_Engine_Alt:
             exx                         ; Swap to alternate register set
-            ld      de, Sound_Queue_1_Record           ; DE' = $D270 (Sound Queue 1 RAM)
-            jr      Init_Sound_Block    ; Call initialization routine
+            ld      de, Primary_Sound_Engine_Record ; DE' = $D270
+            jr      Initialize_Sound_Engine_Header
 
 ;*****************************************************************************************
-; ----> Init_Sound_Queue_2
-;       Initializes the second sound queue/block in static RAM.
+; ----> Secondary Sound Engine
+;       Initializes the $D2AC engine record for ports $50-$57 / block port $58.
 ;*****************************************************************************************
-Init_Sound_Queue_2:
+Init_Secondary_Sound_Engine:
             ld      a, $58
             exx                         ; Swap to alternate register set
-            ld      de, Sound_Queue_2_Record           ; DE' = $D2AC (Sound Queue 2 RAM)
-            jr      Init_Sound_Block    ; Call initialization routine
+            ld      de, Secondary_Sound_Engine_Record ; DE' = $D2AC
+            jr      Initialize_Sound_Engine_Header
 
 ;*****************************************************************************************
-; ----> Init_All_Sound_Queues
-;       Master sound initialization, executed during ROM startup (via $8006).
+; ----> Initialize Both Sound Engines
+;       Master sound initialization, exposed through the $8006 high-ROM entry.
 ;*****************************************************************************************
-Init_All_Sound_Queues:
-            call    Init_Sound_Queue_1  ; Initialize Queue 1
-            call    Init_Sound_Queue_2  ; Initialize Queue 2
+Init_All_Sound_Engines:
+            call    Init_Primary_Sound_Engine
+            call    Init_Secondary_Sound_Engine
             jp      Validate_Speech_Queue_State
 
 ;*****************************************************************************************
-; ----> Dereference_HL
-;       Reads the 16-bit address at (HL) and returns it in HL. Clears A.
+; SOUND-STREAM COMMAND HANDLERS ($831F-$8406)
+;
+; HL points into the current ROM sound stream and IY points at the active engine
+; record. Commands $10-$17 consume one data byte, write the corresponding
+; Astrocade register immediately, and mirror it in record bytes +$04-$0B. Lower
+; opcodes control stream flow, wait state, install priority, and six resident
+; 7-byte modulator slots. Handler return A=0 continues decoding; A!=0 yields.
 ;*****************************************************************************************
-Dereference_HL:
-            ld      e, (hl)             ; Load lower byte into E
+Sound_Stream_Op_Jump:
+            ld      e,(hl)
             inc     hl
-            ld      d, (hl)             ; Load upper byte into D
-            ex      de, hl              ; HL = DE (HL now contains the dereferenced pointer)
-            xor     a                   ; Clear A (A = 0)
+            ld      d,(hl)
+            ex      de,hl               ; HL = absolute stream destination
+            xor     a                   ; Continue decoding at the new address
             ret
-;
-;*****************************************************************************************
-; Purpose: ???
-;
-; Input:
-;
-; Output:
-;
-;
-;*****************************************************************************************
-;
+
+; Common register writer used by opcodes $10-$17.
+; A = register value, B = block-port delta, HL = engine-record mirror offset.
+Sound_Write_Register_From_Stream:
 L8325:      push    iy
             pop     de
             push    hl
             ld      c,a
             ld      hl,$0000
             add     hl,de
-            ld      a,(hl)
-            sub     b
+            ld      a,(hl)              ; Engine block port: $18 primary / $58 secondary
+            sub     b                   ; Convert block port to direct register port
             ld      b,c
             ld      c,a
             out     (c),b
             pop     hl
             add     hl,de
-            ld      (hl),b
+            ld      (hl),b              ; Mirror current register value in engine record
             exx
-            xor     a
+            xor     a                   ; Continue decoding this pass
             ret
-;
+
+Sound_Stream_Op_Master_Oscillator:      ; opcode $10 -> $10 / $50
             ld      a,(hl)
             inc     hl
             exx
             ld      b,$08
             ld      hl,L000B
             jr      L8325
-;
+
+Sound_Stream_Op_Noise:                  ; opcode $17 -> $17 / $57
             ld      a,(hl)
             inc     hl
             exx
             ld      b,$01
             ld      hl,$0004
             jr      L8325
-;
+
+Sound_Stream_Op_Volume_AB:              ; opcode $16 -> $16 / $56
             ld      a,(hl)
             inc     hl
             exx
             ld      b,$02
             ld      hl,L0005
             jp      L8325
-;
+
+Sound_Stream_Op_Volume_C_Noise:         ; opcode $15 -> $15 / $55
             ld      a,(hl)
             inc     hl
             exx
             ld      b,$03
             ld      hl,L0006
             jp      L8325
-;
+
+Sound_Stream_Op_Vibrato:                ; opcode $14 -> $14 / $54
             ld      a,(hl)
             inc     hl
             exx
             ld      b,$04
             ld      hl,L0007
             jp      L8325
-;
+
+Sound_Stream_Op_Tone_A:                 ; opcode $11 -> $11 / $51
             ld      a,(hl)
             inc     hl
             exx
             ld      b,$07
             ld      hl,L000A
             jp      L8325
-;
+
+Sound_Stream_Op_Tone_B:                 ; opcode $12 -> $12 / $52
             ld      a,(hl)
             inc     hl
             exx
             ld      b,$06
             ld      hl,L0009
             jp      L8325
-;
-;*****************************************************************************************
-; Purpose: Port Output Routine
-;
-;           Input:    HL
-;           Output:   Triggers a hardware port write
-;*****************************************************************************************
-L8385:      ld      a,(hl)                  ; Read input byte into A
-            inc     hl                      ; Increment pointer
-            exx                             ; Swap to alternate registers
-            ld      b,$05                   ; Load port parameter
-            ld      hl,L0008                ; Load port parameter
-            jp      L8325                   ; Jump to port output routine
 
-;*****************************************************************************************
-; Purpose: Music Port Initialization Wrapper
-;
-;           Input:    IY (implicit)
-;           Output:   Initializes music hardware
-;*****************************************************************************************
-L8390:      exx                             ; Swap registers
-            push    iy                      ; Save IY
-            pop     de                      ; Copy IY into DE
-            jp      L8019                   ; Jump to "Set up 8 music ports"
+Sound_Stream_Op_Tone_C:                 ; opcode $13 -> $13 / $53
+L8385:      ld      a,(hl)
+            inc     hl
+            exx
+            ld      b,$05
+            ld      hl,L0008
+            jp      L8325
 
-;*****************************************************************************************
-; Purpose: Simple Return
-;
-;           Input:    None
-;           Output:   A = $01
-;*****************************************************************************************
-L8397:      ld      a,$01                   ; Set success flag
-            ret                             ; Return
-;
-;*****************************************************************************************
-; Purpose: ???
-;
-; Input:
-;
-; Output:
-;
-;*****************************************************************************************
-;
+Sound_Stream_Op_Reset_Engine:           ; opcode $03
+L8390:      exx
+            push    iy
+            pop     de
+            jp      Reset_Sound_Engine_Record
+
+Sound_Stream_Op_Yield:                  ; opcodes $00 and $0B-$0F
+L8397:      ld      a,$01
+            ret
+
+Sound_Stream_Op_Wait:                   ; opcode $01
+Sound_Stream_Op_Set_Delay_And_Yield:
             ld      a,(hl)
             inc     hl
             ld      (iy+$0d),a
             ld      a,$01
             ret
-;
-;*****************************************************************************************
-; Purpose: ???
-;
-; Input:
-;
-; Output:
-;
-;
-;
-;
-;
-;*****************************************************************************************
-;
+
+Sound_Stream_Op_Set_Priority_1:         ; opcode $09
             ld      (iy+$03),$01
             xor     a
             ret
-;
-;*****************************************************************************************
-; Purpose: ???
-;
-; Input:
-;
-; Output:
-;
-;
-;*****************************************************************************************
-;
+
+Sound_Stream_Op_Set_Priority_0:         ; opcode $0A
             ld      (iy+$03),$00
             xor     a
             ret
-;
-;*****************************************************************************************
-; Purpose: ???
-;
-; Input:
-;
-; Output:
-;
-;
-;*****************************************************************************************
-;
 
+Sound_Stream_Op_Disable_Modulator:      ; opcode $07
             ld      e,(hl)
             inc     hl
             ld      d,(hl)
@@ -8858,17 +8852,8 @@ L8397:      ld      a,$01                   ; Set success flag
             pop     hl
             xor     a
             ret
-;
-;*****************************************************************************************
-; Purpose: ???
-;
-; Input:
-;
-; Output:
-;
-;
-;*****************************************************************************************
-;
+
+Sound_Stream_Op_Enable_Modulator:       ; opcode $06
             ld      e,(hl)
             inc     hl
             ld      d,(hl)
@@ -8886,17 +8871,8 @@ L8397:      ld      a,$01                   ; Set success flag
             xor     a
             pop     hl
             ret
-;
-;*****************************************************************************************
-; Purpose: ???
-;
-; Input:
-;
-; Output:
-;
-;
-;*****************************************************************************************
-;
+
+Sound_Stream_Op_Load_Modulator:         ; opcode $04
             ld      e,(hl)
             inc     hl
             ld      d,(hl)
@@ -8919,6 +8895,8 @@ L83E3:      ex      de,hl
             jr      nz,L83E3
             ex      de,hl
             ret
+
+Sound_Stream_Op_Set_Modulator_Value:    ; opcode $05
             ld      e,(hl)
             inc     hl
             ld      d,(hl)
@@ -8935,56 +8913,60 @@ L83E3:      ex      de,hl
             pop     hl
             xor     a
             ret
+
+Sound_Stream_Op_Set_Record_Flag_0C:     ; opcode $08
             ld      (iy+$0c),$01
             xor     a
             ret
-L8407:      sub     a
-            add     a,e
-            sbc     a,d
-            add     a,e
-            rra
-            add     a,e
-            sub     b
-            add     a,e
-            out     ($83),a
-            xor     $83
-            ret     nz
-            add     a,e
-            xor     (hl)
-            add     a,e
-            ld      bc,LA284
-            add     a,e
-            xor     b
-            add     a,e
-            sub     a
-            add     a,e
-            sub     a
-            add     a,e
-            sub     a
-            add     a,e
-            sub     a
-            add     a,e
-            sub     a
-            add     a,e
-            ld      a,(L6F83)
-            add     a,e
-            ld      a,d
-            add     a,e
-            add     a,l
-            add     a,e
-            ld      h,h
-            add     a,e
-            ld      e,c
-            add     a,e
-            ld      c,(hl)
-            add     a,e
-            ld      b,h
-            add     a,e
+
+;*****************************************************************************************
+; SOUND-STREAM OPCODE DISPATCH TABLE ($8407-$8436)
+;
+; 24 little-endian handler addresses indexed directly by opcode $00-$17.
+; Opcodes $00 and $0B-$0F share the yield handler. Opcodes $10-$17 map one-to-one
+; to the eight Astrocade output registers TONMO through VOLN.
+;*****************************************************************************************
+Sound_Stream_Opcode_Table:
+L8407:      DW      Sound_Stream_Op_Yield                  ; $00
+            DW      Sound_Stream_Op_Set_Delay_And_Yield    ; $01
+            DW      Sound_Stream_Op_Jump                   ; $02
+            DW      Sound_Stream_Op_Reset_Engine           ; $03
+            DW      Sound_Stream_Op_Load_Modulator         ; $04
+            DW      Sound_Stream_Op_Set_Modulator_Value    ; $05
+            DW      Sound_Stream_Op_Enable_Modulator       ; $06
+            DW      Sound_Stream_Op_Disable_Modulator      ; $07
+            DW      Sound_Stream_Op_Set_Record_Flag_0C     ; $08
+            DW      Sound_Stream_Op_Set_Priority_1         ; $09
+            DW      Sound_Stream_Op_Set_Priority_0         ; $0A
+            DW      Sound_Stream_Op_Yield                  ; $0B same yield handler
+            DW      Sound_Stream_Op_Yield                  ; $0C same yield handler
+            DW      Sound_Stream_Op_Yield                  ; $0D same yield handler
+            DW      Sound_Stream_Op_Yield                  ; $0E same yield handler
+            DW      Sound_Stream_Op_Yield                  ; $0F same yield handler
+            DW      Sound_Stream_Op_Master_Oscillator      ; $10 TONMO
+            DW      Sound_Stream_Op_Tone_A                 ; $11 TONEA
+            DW      Sound_Stream_Op_Tone_B                 ; $12 TONEB
+            DW      Sound_Stream_Op_Tone_C                 ; $13 TONEC
+            DW      Sound_Stream_Op_Vibrato                ; $14 VIBRA
+            DW      Sound_Stream_Op_Volume_C_Noise         ; $15 VOLC
+            DW      Sound_Stream_Op_Volume_AB              ; $16 VOLAB
+            DW      Sound_Stream_Op_Noise                  ; $17 VOLN
+
+;*****************************************************************************************
+; DECODE ONE ENGINE'S RESIDENT SOUND STREAM
+;
+; Decoding runs only while SNDREC_STREAM_READY is nonzero. A command handler
+; returning A=0 continues in the same pass. A nonzero return saves HL as the
+; next stream pointer, clears STREAM_READY, and yields. Opcodes >= $18 are
+; redirected to the $8740 fallback stream, whose first byte is reset opcode $03.
+;*****************************************************************************************
+Decode_Sound_Stream_Commands:
 L8437:      ld      a,(iy+$11)
             or      a
             jr      z,L846F
             ld      l,(iy+$01)
             ld      h,(iy+$02)
+Sound_Stream_Next_Command:
 L8443:      ld      a,(hl)
             inc     hl
             cp      $18
@@ -8992,7 +8974,7 @@ L8443:      ld      a,(hl)
             exx
             ld      hl,L8462
             push    hl
-            ld      hl,L8407
+            ld      hl,Sound_Stream_Opcode_Table
             rlca
             ld      e,a
             ld      d,$00
@@ -9004,14 +8986,18 @@ L8443:      ld      a,(hl)
             exx
             ret
             jr      L8462
-L845E:      ld      hl,L8740
+Sound_Stream_Invalid_Opcode:
+L845E:      ld      hl,Sound_Stream_Invalid_Fallback
             xor     a
+Sound_Stream_Handler_Return:
 L8462:      or      a
             jr      z,L8443
             ld      (iy+$01),l
             ld      (iy+$02),h
             ld      (iy+$11),$00
 L846F:      ret
+; Count active-low bits in A and return eight times that count in A.
+Scale_Diagnostic_Active_Low_Bits:
 L8470:      xor     $FF
             ld      b,a
             xor     a
@@ -9024,12 +9010,20 @@ L8477:      rl      b
             rla
             rla
             ret
+;*****************************************************************************************
+; SERVICE-SWITCH SOUND/INPUT DIAGNOSTIC
+;
+; Used only in attract mode while the cabinet service switch is active. It drives
+; both Astrocade controllers from system/control/DIP input patterns and continues
+; servicing speech. This is a diagnostic path, separate from ROM sound streams.
+;*****************************************************************************************
+Service_Diagnostic_Sound_Test:
 L8481:      ld      bc,L3010
             out     (c),b
             ld      c,$50
             out     (c),b
             in      a, (COINPORT)       ;
-            set     3,a                 ; Set service switch bit ???
+            set     3,a                 ; Force service-switch input inactive before scaling
             call    L8470
             ld      bc,L0C15
             or      a
@@ -9051,7 +9045,7 @@ L849F:      out     (c),b
             jr      L84B8
 L84B6:      add     a,$4E
 L84B8:      out     (c),b
-            out     ($51),a
+            out     ($51),a             ; Secondary Tone A
             in      a, (P1PORT)
             and     $3F
             or      $C0
@@ -9075,192 +9069,245 @@ L84D1:      out     (c),b
 L84E7:      xor     $7F
             sub     $0F
 L84EB:      out     (c),b
-            out     ($53),a
+            out     ($53),a             ; Secondary Tone C
             jp      Service_Speech_Queue
+;*****************************************************************************************
+; PERIODIC SOUND / SPEECH SERVICE
+;
+; In attract mode with the physical service switch active, execution uses the
+; diagnostic path above. Otherwise a zero Sound_Service_Enabled gate suppresses
+; normal service; nonzero services primary sound, secondary sound, then speech.
+;*****************************************************************************************
+Service_Sound_And_Speech:
 L84F2:      ld      a,(Game_Mode)
             or      a
             jr      nz,L8501
             in      a, (COINPORT)       ;
             bit     3,a                 ; Is service switch on?
             jr      nz,L8501            ; no, skip down
-            jp      L8481               ; Otherwise, go here ???
-L8501:      ld      a,(Attract_Sound_Enabled)
+            jp      Service_Diagnostic_Sound_Test
+L8501:      ld      a,(Sound_Service_Enabled) ; Runtime gate seeded by attract DIP; gameplay can enable it
             or      a
             jr      z,L851C
             push    iy
-            ld      iy,Sound_Queue_1_Record
-            call    L80E6
-            ld      iy,Sound_Queue_2_Record
-            call    L80E6
+            ld      iy,Primary_Sound_Engine_Record
+            call    Service_Sound_Engine_Record
+            ld      iy,Secondary_Sound_Engine_Record
+            call    Service_Sound_Engine_Record
             call    Service_Speech_Queue
             pop     iy
 L851C:      ret
+;*****************************************************************************************
+; INSTALL SOUND STREAM INTO ONE ENGINE RECORD
+;
+; Input: IY = engine record, HL = ROM stream address, D = requested priority.
+; The install is rejected when D is lower than the record's current priority.
+; Accepted installs reset that engine, mark stream decoding active, store the
+; new priority, and set the stream pointer.
+;*****************************************************************************************
+Install_Sound_Stream:
 L851D:      ld      a,d
             cp      (iy+$03)
             jr      c,L8537
             push    iy
             exx
             pop     de
-            call    L8019
+            call    Reset_Sound_Engine_Record
             ld      (iy+$11),$01
             ld      (iy+$03),d
             ld      (iy+$01),l
             ld      (iy+$02),h
 L8537:      ret
+;*****************************************************************************************
+; SOUND REQUEST DECODERS ($D241-$D243)
+;
+; Each byte is a pending bitfield. Recognized selectors and install priorities:
+;
+; R2: B0 S:$8928 p1  B1 S:$887B p0  B2 S:$87EA p1  B3 S:$883B p0
+;     B4 S:$8825 p0  B5 skipped      B6 S:$8988 p0  B7 P:$8741 p1
+; R3: B0 P:$8AA1/S:$8ADD p1           B1 S:$890E p0
+;     B2/B3 S:$8851 p0  B4 S:$8A42 p0  B5 P:$8A81/S:$8A6C p1
+;     B6 skipped                         B7 P:$877B p1
+; R4: B0 P:$88E2/S:$8905 p2  B1 P:$8AF6/S:$8B1F p1
+;     B2 S:$8AF3 p1           B3 P:$8B2E/S:$8B5D p1  B4-B7 skipped
+;*****************************************************************************************
+Dispatch_Sound_Request_2:
 L8538:      ld      hl,Sound_Request_2
             ld      a,(hl)
             or      a
             jr      z,L8582
             ld      (hl),$00
-            ld      iy,Sound_Queue_2_Record
-            rra
+            ld      iy,Secondary_Sound_Engine_Record
+            rra                         ; R2.B0
             ld      d,$01
-            ld      hl,L8928
-            jr      c,L851D
-            rra
+            ld      hl,Sound_Stream_R2_B0_Secondary
+            jr      c,Install_Sound_Stream
+            rra                         ; R2.B1
             ld      d,$00
-            ld      hl,L887B
-            jr      c,L851D
-            rra
+            ld      hl,Sound_Stream_R2_B1_Secondary
+            jr      c,Install_Sound_Stream
+            rra                         ; R2.B2
             ld      d,$01
-            ld      hl,L87EA
-            jr      c,L851D
-            rra
+            ld      hl,Sound_Stream_R2_B2_Secondary
+            jr      c,Install_Sound_Stream
+            rra                         ; R2.B3
             ld      d,$00
-            ld      hl,L883B
-            jp      c,L851D
-            rra
-            ld      hl,L8825
-            jp      c,L851D
-            rra
-            rra
-            ld      hl,L8988
-            jp      c,L851D
-            ld      iy,Sound_Queue_1_Record
-            rra
+            ld      hl,Sound_Stream_R2_B3_Secondary
+            jp      c,Install_Sound_Stream
+            rra                         ; R2.B4
+            ld      hl,Sound_Stream_R2_B4_Secondary
+            jp      c,Install_Sound_Stream
+            rra                         ; R2.B5 ignored
+            rra                         ; R2.B6
+            ld      hl,Sound_Stream_R2_B6_Secondary
+            jp      c,Install_Sound_Stream
+            ld      iy,Primary_Sound_Engine_Record
+            rra                         ; R2.B7
             ld      d,$01
-            ld      hl,L8741
-            jp      c,L851D
+            ld      hl,Sound_Stream_R1_B2_Primary
+            jp      c,Install_Sound_Stream
 L8582:      ret
+Dispatch_Sound_Request_3:
 L8583:      ld      hl,Sound_Request_3
             ld      a,(hl)
             ld      (hl),$00
-            ld      iy,Sound_Queue_1_Record
-            rra
+            ld      iy,Primary_Sound_Engine_Record
+            rra                         ; R3.B0
             ld      d,$01
-            ld      hl,L8AA1
+            ld      hl,Sound_Stream_R3_B0_Primary
             jr      nc,L85A2
-            call    L851D
-            ld      iy,Sound_Queue_2_Record
-            ld      hl,L8ADD
-            jp      L851D
-L85A2:      ld      iy,Sound_Queue_2_Record
-            rra
+            call    Install_Sound_Stream
+            ld      iy,Secondary_Sound_Engine_Record
+            ld      hl,Sound_Stream_R3_B0_Secondary
+            jp      Install_Sound_Stream
+L85A2:      ld      iy,Secondary_Sound_Engine_Record
+            rra                         ; R3.B1
             ld      d,$00
-            ld      hl,L890E
-            jp      c,L851D
-            rra
-            ld      hl,L8851
-            jp      c,L851D
-            rra
-            ld      hl,L8851
-            jp      c,L851D
-            rra
-            ld      hl,L8A42
-            jp      c,L851D
-            rra
+            ld      hl,Sound_Stream_R3_B1_Secondary
+            jp      c,Install_Sound_Stream
+            rra                         ; R3.B2
+            ld      hl,Sound_Stream_R3_B2_B3_Secondary
+            jp      c,Install_Sound_Stream
+            rra                         ; R3.B3
+            ld      hl,Sound_Stream_R3_B2_B3_Secondary
+            jp      c,Install_Sound_Stream
+            rra                         ; R3.B4
+            ld      hl,Sound_Stream_R3_B4_Secondary
+            jp      c,Install_Sound_Stream
+            rra                         ; R3.B5
             jr      nc,L85D9
             ld      d,$01
-            ld      hl,L8A6C
-            call    L851D
-            ld      iy,Sound_Queue_1_Record
-            ld      hl,L8A81
-            jp      L851D
-L85D9:      rra
-            ld      iy,Sound_Queue_1_Record
+            ld      hl,Sound_Stream_R3_B5_Secondary
+            call    Install_Sound_Stream
+            ld      iy,Primary_Sound_Engine_Record
+            ld      hl,Sound_Stream_R3_B5_Primary
+            jp      Install_Sound_Stream
+L85D9:      rra                         ; R3.B6 ignored
+            ld      iy,Primary_Sound_Engine_Record
             ld      d,$01
-            rra
-            ld      hl,L877B
-            jp      c,L851D
+            rra                         ; R3.B7
+            ld      hl,Sound_Stream_R3_B7_Primary
+            jp      c,Install_Sound_Stream
             ret
+Dispatch_Sound_Request_4:
 L85E8:      ld      hl,Sound_Request_4
             ld      a,(hl)
             ld      (hl),$00
-            ld      iy,Sound_Queue_1_Record
-            rra
+            ld      iy,Primary_Sound_Engine_Record
+            rra                         ; R4.B0
             ld      d,$02
-            ld      hl,L88E2
+            ld      hl,Sound_Stream_R4_B0_Primary
             jr      nc,L8607
-            call    L851D
-            ld      iy,Sound_Queue_2_Record
-            ld      hl,L8905
-            jp      L851D
-L8607:      rra
+            call    Install_Sound_Stream
+            ld      iy,Secondary_Sound_Engine_Record
+            ld      hl,Sound_Stream_R4_B0_Secondary
+            jp      Install_Sound_Stream
+L8607:      rra                         ; R4.B1
             ld      d,$01
-            ld      hl,L8AF6
+            ld      hl,Sound_Stream_R4_B1_Primary
             jr      nc,L861C
-            call    $851D
-            ld      hl,L8B1F
-            ld      iy,Sound_Queue_2_Record
-            jp      L851D
-L861C:      ld      iy,Sound_Queue_2_Record
-            rra
-            ld      hl,L8AF3
-            jp      c,L851D
-            rra
-            ld      hl,L8B5D
+            call    Install_Sound_Stream
+            ld      hl,Sound_Stream_R4_B1_Secondary
+            ld      iy,Secondary_Sound_Engine_Record
+            jp      Install_Sound_Stream
+L861C:      ld      iy,Secondary_Sound_Engine_Record
+            rra                         ; R4.B2
+            ld      hl,Sound_Stream_R4_B2_Secondary
+            jp      c,Install_Sound_Stream
+            rra                         ; R4.B3
+            ld      hl,Sound_Stream_R4_B3_Secondary
             jr      nc,L863A
-            call    L851D
-            ld      hl,L8B2E
-            ld      iy,Sound_Queue_1_Record
-            jp      L851D
+            call    Install_Sound_Stream
+            ld      hl,Sound_Stream_R4_B3_Primary
+            ld      iy,Primary_Sound_Engine_Record
+            jp      Install_Sound_Stream
 L863A:      ret
             ld      d,$02
-            call    L851D
+            call    Install_Sound_Stream
             ld      d,$00
             ret
-L8643:      call    $8316
-            ld      iy,Sound_Queue_1_Record
+Dispatch_Sound_R1_B0:
+L8643:      call    Init_All_Sound_Engines
+            ld      iy,Primary_Sound_Engine_Record
             ld      d,$00
-            ld      hl,L89BE
-            call    L851D
-            ld      iy,Sound_Queue_2_Record
-            ld      hl,L89E5
-            jp      L851D
-L865C:      call    $8316
+            ld      hl,Sound_Stream_R1_B0_Primary
+            call    Install_Sound_Stream
+            ld      iy,Secondary_Sound_Engine_Record
+            ld      hl,Sound_Stream_R1_B0_Secondary
+            jp      Install_Sound_Stream
+Dispatch_Sound_R1_B4:
+L865C:      call    Init_All_Sound_Engines
             ld      d,$00
-            ld      iy,Sound_Queue_1_Record
-            ld      hl,L8A0C
-            call    L851D
-            ld      iy,Sound_Queue_2_Record
-            ld      hl,L8A27
-            jp      L851D
-L8675:      ld      iy,Sound_Queue_1_Record
+            ld      iy,Primary_Sound_Engine_Record
+            ld      hl,Sound_Stream_R1_B4_Primary
+            call    Install_Sound_Stream
+            ld      iy,Secondary_Sound_Engine_Record
+            ld      hl,Sound_Stream_R1_B4_Secondary
+            jp      Install_Sound_Stream
+Dispatch_Sound_R1_B5_Coin_Up:
+L8675:      ld      iy,Primary_Sound_Engine_Record
             ld      d,$00
-            ld      hl,L8971
-            jp      L851D
-L8681:      call    $8316
-            ld      iy,Sound_Queue_1_Record
-            ld      hl,L89A0
-            call    L851D
-            ld      iy,Sound_Queue_2_Record
-            ld      hl,L89AF
-            jp      L851D
-L8698:      call    $8316
-            ld      iy,Sound_Queue_1_Record
+            ld      hl,Sound_Stream_R1_B5_Primary
+            jp      Install_Sound_Stream
+Dispatch_Sound_R1_B1:
+L8681:      call    Init_All_Sound_Engines
+            ld      iy,Primary_Sound_Engine_Record
+            ld      hl,Sound_Stream_R1_B1_Primary
+            call    Install_Sound_Stream
+            ld      iy,Secondary_Sound_Engine_Record
+            ld      hl,Sound_Stream_R1_B1_Secondary
+            jp      Install_Sound_Stream
+Dispatch_Sound_R1_B3:
+L8698:      call    Init_All_Sound_Engines
+            ld      iy,Primary_Sound_Engine_Record
             ld      d,$00
-            ld      hl,L8981
-            call    L851D
+            ld      hl,Sound_Stream_R1_B3_Primary
+            call    Install_Sound_Stream
             ret
-L86A8:      call    $8316
-            ld      iy,Sound_Queue_2_Record
-            ld      hl,L8772
+Dispatch_Sound_R1_B2:
+L86A8:      call    Init_All_Sound_Engines
+            ld      iy,Secondary_Sound_Engine_Record
+            ld      hl,Sound_Stream_R1_B2_Secondary
             ld      d,$00
-            call    L851D
-            ld      iy,Sound_Queue_1_Record
-            ld      hl,L8741
-            jp      L851D
-L86C1:      ld      a,(Attract_Sound_Enabled)
+            call    Install_Sound_Stream
+            ld      iy,Primary_Sound_Engine_Record
+            ld      hl,Sound_Stream_R1_B2_Primary
+            jp      Install_Sound_Stream
+;*****************************************************************************************
+; DISPATCH PENDING SOUND REQUESTS AND ADVANCE STREAM DECODERS
+;
+; Request 1 has pass-level precedence: when $D240 is nonzero, this call clears
+; and processes only R1, then proceeds directly to stream decoding. R1 bits 0-5
+; are audible selectors; bit 6 resets the secondary engine and bit 7 resets the
+; primary engine. Only when R1 is zero are R2, R3, and R4 decoded in this pass.
+;
+; R1 stream selections:
+;   B0 P:$89BE/S:$89E5 p0   B1 P:$89A0/S:$89AF p0
+;   B2 P:$8741/S:$8772 p0   B3 P:$8981 p0
+;   B4 P:$8A0C/S:$8A27 p0   B5 P:$8971 p0 (coin request)
+;*****************************************************************************************
+Dispatch_Sound_Requests:
+L86C1:      ld      a,(Sound_Service_Enabled)
             or      a
             jr      z,L8717
             push    iy
@@ -9272,29 +9319,30 @@ L86C1:      ld      a,(Attract_Sound_Enabled)
             ld      (hl),d
             ld      e,a
             bit     0,e
-            call    nz,L8643
+            call    nz,Dispatch_Sound_R1_B0
             bit     1,e
-            call    nz,L8681
+            call    nz,Dispatch_Sound_R1_B1
             bit     2,e
-            call    nz,L86A8
+            call    nz,Dispatch_Sound_R1_B2
             bit     3,e
-            call    nz,L8698
+            call    nz,Dispatch_Sound_R1_B3
             bit     4,e
-            call    nz,L865C
+            call    nz,Dispatch_Sound_R1_B4
             bit     5,e
-            call    nz,L8675
+            call    nz,Dispatch_Sound_R1_B5_Coin_Up
             bit     6,e
-            call    nz,$830E
+            call    nz,Init_Secondary_Sound_Engine
             bit     7,e
-            call    nz,$8306
-            jr      L8707
-L86FE:      call    L8538
-            call    L8583
-            call    L85E8
-L8707:      ld      iy,Sound_Queue_1_Record
-            call    L8437
-            ld      iy,Sound_Queue_2_Record
-            call    L8437
+            call    nz,Init_Primary_Sound_Engine
+            jr      Decode_Installed_Sound_Streams
+L86FE:      call    Dispatch_Sound_Request_2
+            call    Dispatch_Sound_Request_3
+            call    Dispatch_Sound_Request_4
+Decode_Installed_Sound_Streams:
+L8707:      ld      iy,Primary_Sound_Engine_Record
+            call    Decode_Sound_Stream_Commands
+            ld      iy,Secondary_Sound_Engine_Record
+            call    Decode_Sound_Stream_Commands
             pop     iy
 L8717:      ret
 
@@ -9305,7 +9353,18 @@ L8717:      ret
             DB      $FF, $FF, $FF, $FF, $FF, $FF, $FF, $FF
             DB      $FF, $FF, $FF, $FF, $FF, $FF, $FF, $FF
 
-L8740:      inc     bc
+ ;*****************************************************************************************
+; SOUND-STREAM DATA ($8740-$8B65)
+;
+; This region is interpreted by Decode_Sound_Stream_Commands and is not native
+; Z80 executable code. Stream labels mark addresses installed by the request
+; dispatcher. The existing byte-emitting statements are retained verbatim so the
+; assembled ROM image remains unchanged.
+;*****************************************************************************************
+Sound_Stream_Invalid_Fallback:
+L8740:      DB      $03                 ; opcode $03: reset current engine record
+Sound_Stream_R1_B2_Primary:             ; R1.B2 primary, priority 0
+Sound_Stream_R2_B7_Primary:             ; R2.B7 primary, priority 1; same stream entry
 L8741:      inc     de
             inc     (hl)
             ld      (de),a
@@ -9340,6 +9399,7 @@ L8741:      inc     de
             ld      bc,$0508
             jp      p,L01FF
             nop
+Sound_Stream_R1_B2_Secondary:             ; R1.B2 secondary, priority 0
 L8772:      inc     de
             ld      l,d
             ld      (de),a
@@ -9347,6 +9407,7 @@ L8772:      inc     de
             ld      de,L02B2
             ld      b,a
             add     a,a
+Sound_Stream_R3_B7_Primary:             ; R3.B7 primary, priority 1
 L877B:      djnz    L878D
             inc     b
             ld      sp,hl
@@ -9429,6 +9490,7 @@ L878D:      add     a,c
             ld      (bc),a
             sbc     a,c
             add     a,a
+Sound_Stream_R2_B2_Secondary:             ; R2.B2 secondary, priority 1
 L87EA:      djnz    L878C
             inc     b
             ld      sp,hl
@@ -9472,6 +9534,7 @@ L881F:      dec     de
             ld      de,L0217
             rlca
             adc     a,b
+Sound_Stream_R2_B4_Secondary:             ; R2.B4 secondary, priority 0
 L8825:      inc     b
             ld      sp,hl
             rst     38H
@@ -9488,6 +9551,7 @@ L8825:      inc     b
             ld      de,L020B
             rlca
             adc     a,b
+Sound_Stream_R2_B3_Secondary:             ; R2.B3 secondary, priority 0
 L883B:      inc     b
             ld      sp,hl
             rst     38H
@@ -9504,6 +9568,7 @@ L8842:      ld      bc,$0501
             ld      de,L0206
             rlca
             adc     a,b
+Sound_Stream_R3_B2_B3_Secondary:             ; shared by R3.B2 and R3.B3, priority 0
 L8851:      inc     de
             inc     l
             ld      (de),a
@@ -9531,6 +9596,7 @@ L8872:      DB      $dd,$ff
             dec     d
             jr      L887A
 L887A:      inc     bc
+Sound_Stream_R2_B1_Secondary:             ; R2.B1 secondary, priority 0
 L887B:      djnz    L8895
             inc     b
             ld      sp,hl
@@ -9597,6 +9663,7 @@ L88BB:      ld      hl,L0101
             ld      bc,LF906
             rst     38H
             ld      bc,L0300
+Sound_Stream_R4_B0_Primary:             ; R4.B0 primary, priority 2
 L88E2:      ld      bc,$1302
             ld      hl,(L1812)
             ld      de,$1006
@@ -9615,6 +9682,7 @@ L88FC:      ld      (bc),a
             dec     d
             rra
             nop
+Sound_Stream_R4_B0_Secondary:             ; R4.B0 secondary, priority 2
 L8905:      inc     de
             ld      h,h
             ld      (de),a
@@ -9637,6 +9705,7 @@ L8911:      inc     de
             ret     m
             ld      bc,L0202
             ld      bc,Do_Joy_Jump
+Sound_Stream_R2_B0_Secondary:             ; R2.B0 secondary, priority 1
 L8928:      djnz    L8952
             rla
             add     a,h
@@ -9695,12 +9764,14 @@ L8969:      ld      bc,L0960
             ld      (bc),a
             ld      d,h
             adc     a,c
+Sound_Stream_R1_B3_Primary:             ; R1.B3 primary, priority 0
 L8981:      ld      d,$22
             dec     d
             ld      (de),a
             ld      (bc),a
             ld      d,h
             adc     a,c
+Sound_Stream_R2_B6_Secondary:             ; R2.B6 secondary, priority 0
 L8988:      djnz    L89AA
             inc     b
             ld      sp,hl
@@ -9717,6 +9788,7 @@ L8988:      djnz    L89AA
             ld      l,d
 L899B:      ld      de,L01FD
             jr      z,L89A3
+Sound_Stream_R1_B1_Primary:             ; R1.B1 primary, priority 0
 L89A0:      djnz    L89D2
             inc     d
 L89A3:      add     a,c
@@ -9727,6 +9799,7 @@ L89A3:      add     a,c
 L89AA:      ld      (de),a
             inc     l
             ld      de,L00FD
+Sound_Stream_R1_B1_Secondary:             ; R1.B1 secondary, priority 0
 L89AF:      djnz    L89E1
             inc     d
             add     a,c
@@ -9737,6 +9810,7 @@ L89AF:      djnz    L89E1
             ld      (de),a
             ld      e,c
             ld      de,L006A
+Sound_Stream_R1_B0_Primary:             ; R1.B0 primary, priority 0
 L89BE:      djnz    L89F0
             ld      d,$FE
             dec     d
@@ -9763,6 +9837,7 @@ L89D2:      ld      de,L015E
             ld      a,$12
 L89E1:      xor     b
             ld      de,L006A
+Sound_Stream_R1_B0_Secondary:             ; R1.B0 secondary, priority 0
 L89E5:      djnz    L8A17
             inc     d
             add     a,c
@@ -9790,6 +9865,7 @@ L89F0:      ld      l,d
             ld      (de),a
             ld      a,(hl)
             ld      de,L00FD
+Sound_Stream_R1_B4_Primary:             ; R1.B4 primary, priority 0
 L8A0C:      djnz    L8A3E
             ld      d,$EF
             dec     d
@@ -9810,6 +9886,7 @@ L8A17:      ld      a,$11
             ld      (bc),a
             cp      (hl)
             adc     a,c
+Sound_Stream_R1_B4_Secondary:             ; R1.B4 secondary, priority 0
 L8A27:      djnz    L8A59
             inc     d
             add     a,c
@@ -9831,6 +9908,7 @@ L8A3E:      ld      e,b
             ld      (bc),a
             push    hl
             adc     a,c
+Sound_Stream_R3_B4_Secondary:             ; R3.B4 secondary, priority 0
 L8A42:      djnz    L8A58
             inc     d
             ld      c,b
@@ -9862,6 +9940,7 @@ L8A5D:      ld      sp,hl
             rst     38H
             nop
 L8A69:      ld      bc,L0306
+Sound_Stream_R3_B5_Secondary:             ; R3.B5 secondary, priority 1
 L8A6C:      inc     de
             ret     po
             ld      (de),a
@@ -9877,6 +9956,7 @@ L8A6C:      inc     de
             jr      nz,L8A81
             ld      b,d
             adc     a,d
+Sound_Stream_R3_B5_Primary:             ; R3.B5 primary, priority 1
 L8A81:      djnz    L8A8C
             inc     d
             ld      c,b
@@ -9898,6 +9978,7 @@ L8A92:      ld      sp,hl
             rst     38H
             ld      bc,L6202
             adc     a,d
+Sound_Stream_R3_B0_Primary:             ; R3.B0 primary, priority 1
 L8AA1:      inc     b
             DB      $dd,$ff
             add     a,b
@@ -9940,6 +10021,7 @@ L8AA1:      inc     b
             ld      (bc),a
             nop
             inc     bc
+Sound_Stream_R3_B0_Secondary:             ; R3.B0 secondary, priority 1
 L8ADD:      inc     de
             inc     sp
             ld      (de),a
@@ -9956,9 +10038,11 @@ L8AEE:      rla
             ld      (bc),a
             xor     h
             adc     a,d
+Sound_Stream_R4_B2_Secondary:             ; R4.B2 secondary, priority 1
 L8AF3:      ld      (bc),a
             or      e
             adc     a,b
+Sound_Stream_R4_B1_Primary:             ; R4.B1 primary, priority 1
 L8AF6:      djnz    L8B0C
             inc     d
             adc     a,b
@@ -9966,7 +10050,7 @@ L8AF6:      djnz    L8B0C
             scf
             ld      (de),a
             add     a,l
-            ld      de,Trigger_High_Priority_Sound + 1
+            ld      de,Request_Sound_R4_B3_Override + 1
             nop
             ld      d,$AA
             dec     d
@@ -9988,6 +10072,7 @@ L8B0C:      rst     38H
             ld      bc,L01FF
             jr      nc,L8B4E
             nop
+Sound_Stream_R4_B1_Secondary:             ; R4.B1 secondary, priority 1
 L8B1F:      djnz    L8B31
             inc     d
             add     a,(hl)
@@ -10000,6 +10085,7 @@ L8B1F:      djnz    L8B31
             dec     d
             add     hl,hl
             nop
+Sound_Stream_R4_B3_Primary:             ; R4.B3 primary, priority 1
 L8B2E:      inc     de
             xor     b
             ld      (de),a
@@ -10034,6 +10120,7 @@ L8B4E:      rst     38H
             rlca
             nop
             inc     bc
+Sound_Stream_R4_B3_Secondary:             ; R4.B3 secondary, priority 1
 L8B5D:      inc     de
             ld      d,h
             ld      (de),a
