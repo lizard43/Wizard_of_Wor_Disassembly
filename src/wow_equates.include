@@ -80,6 +80,7 @@ SOUND_VOLN_AUDIBLE_MASK         EQU     $F0
 VOTRAX_DATA_PORT                 EQU     $17         ; SC-01 command strobe via IN; command supplied in B
 VOTRAX_READY_BIT                 EQU     7           ; P1PORT bit 7, SC-01 A/R: 1 = ready
 VOTRAX_PHONEME_MASK              EQU     $3F         ; Command bits 0-5
+VOTRAX_DIRECT_BIT6_MASK           EQU     $40         ; Command bit 6 passes directly from ROM
 VOTRAX_DIFFERENTIAL_BIT7_MASK    EQU     $80         ; Differential bit-7 state used by WoW speech data
 VOTRAX_STOP_COMMAND              EQU     $3F17       ; B=$3F STOP phoneme, C=$17 Votrax data port
 
@@ -169,8 +170,10 @@ SNDMOD_BOUNDARY_A                EQU     $04
 SNDMOD_BOUNDARY_B                EQU     $05
 SNDMOD_COMPLETION_COUNT          EQU     $06
 SNDMOD_FLAG_ENABLED             EQU     $01
+SNDMOD_FLAG_SNAP_TO_BOUNDARY    EQU     $02
 SNDMOD_FLAG_RANDOM_PATH         EQU     $04
 SNDMOD_FLAG_TRANSITION_PATH     EQU     $08
+SNDMOD_FLAG_BOUNDARY_SELECT     EQU     $10
 SNDMOD_FLAG_STREAM_READY_ON_COMPLETE EQU $20
 
 ; Engine-record offsets. Bytes $04-$0B are stored in SNDBX transfer order.
@@ -349,11 +352,10 @@ SPEECH_FRAGMENT_WORLORD          EQU     $40
 SPEECH_FRAGMENT_WORLORD_PADDED   EQU     $41
 
 ; ------------------------------------------------------------------------------
-; UNRESOLVED ADDRESS CONSTANTS STILL REFERENCED
+; RAW ADDRESS CONSTANTS WITHOUT VERIFIED SEMANTIC NAMES
 ; ------------------------------------------------------------------------------
-; These legacy address symbols are still referenced by the current disassembly
-; but do not yet have verified semantic names. Remove entries from this section
-; when their final reference is replaced by a named routine, table, or variable.
+; These symbols preserve exact addresses where the resident role is not yet
+; established well enough to assign a semantic name.
 
 L0003       EQU     $0003
 L0005       EQU     $0005

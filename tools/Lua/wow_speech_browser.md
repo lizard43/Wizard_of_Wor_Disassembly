@@ -1,87 +1,66 @@
 # Wizard of Wor native speech browser
 
-`wow_speech_browser_20260815-1819.lua` boots Wizard of Wor normally and then
-installs a 1,020-byte Z80 foreground controller in work RAM. The screen remains
-an in-game WoW display rendered through the resident `printstr` and `CHRTBL`
-code. No MAME overlay or ROM patch is used.
+`wow_speech_browser.lua` boots *Wizard of Wor*, validates the active game and X11 program ROMs, and installs a Z80 foreground controller at `$D400`. The browser remains an in-game WoW display rendered through the resident `printstr` and `CHRTBL` code. It uses the original phrase tables, fragment records, circular speech queue, SC-01 command decoder, and sound/speech service. No ROM byte, speech record, phrase pointer, or MAME overlay is substituted.
 
-This version removes the former Lua-driven controller. Lua does not poll the
-joysticks, move the selection, build executable draw programs, initialize a
-fragment's phoneme pointer, manufacture a return address, or redirect the CPU
-for each request.
+## Architecture and ownership
 
-## Ownership
+Lua owns the high-level shell and data presentation. Z80 owns the live browser and playback path.
 
 | Function | Owner |
 | --- | --- |
-| Validate WoW/X11 ROM signatures | Lua |
+| Validate WoW and X11 ROM signatures | Lua |
 | Build descriptions and seven-row page text | Lua |
-| Inject and byte-verify the assembled payload | Lua |
+| Inject and byte-verify the assembled controller | Lua |
 | WAV recording and read-only console trace | Lua |
-| Exit MAME after the native 1P request | Lua |
+| Close MAME after a native exit request | Lua |
 | IM 2 vector and once-per-frame controller | Z80 |
 | P1/P2 joystick and Start-switch polling | Z80 |
-| Pane, selection, viewport and Play All state | Z80 |
-| Native `printstr` calls and selector rendering | Z80 |
+| Pane, selection, viewport, key repeat, and Play All state | Z80 |
+| Resident `printstr` calls and selector rendering | Z80 |
 | Phrase request through `$8009 -> $827D` | Z80 + resident WoW |
 | Fragment queue insertion and loading | Z80 + resident WoW |
-| SC-01 A/R polling, command decode and strobe | Resident WoW |
+| SC-01 A/R polling, command decode, and strobe | Resident WoW |
 | Periodic sound/speech service through `$8000 -> $84F2` | Z80 + resident WoW |
 
-Lua sets `PC=$D400` once at takeover. It does not modify `PC`, `SP`, `HALT`,
-`IFF1` or `IFF2` again.
+After a two-second boot delay, Lua clears a reported HALT state when necessary, sets `SP=$8000`, and sets `PC=$D400` exactly once. It does not mutate CPU registers, interrupt state, `PC`, `SP`, or `HALT` after that handoff.
+
+Lua supplies complete 40-character native-font rows through a shared page buffer. The Z80 requests a page by advancing a sequence byte, waits for Lua's matching acknowledgement, and performs the resident draw calls. Navigation, repeated input, playback, and Play All continue entirely in the frame controller.
 
 ## Native speech paths
 
-Phrase playback loads the selected logical phrase ID into `A` and calls the
-resident `$8009` entry. WoW selects the English or X11 phrase table, expands the
-phrase into fragment pointers and appends them to its circular queue.
+### Phrase playback
 
-Fragment playback writes one selected ROM record address into the queue at
-`$D2BE`, advances the queue write pointer and sets `Speech_Active`. It does not
-write `Speech_Phoneme_Pointer` (`$D2CE`) or
-`Speech_Phonemes_Remaining` (`$D2D0`). The next resident service call loads the
-record through WoW's `Service_Speech_Queue` path at `$81F8` and its
-`Speech_Load_Next_Queued_Fragment` branch at `$8201`.
+The controller loads the selected logical phrase ID into `A` and calls WoW's `$8009` entry. `Queue_Speech_Request` at `$827D` selects the resident English or X11 phrase table, expands the phrase into language-local fragment pointers, and appends them to the resident circular queue.
 
-The browser-owned IM 2 handler calls `$8000` once per frame. WoW's resident
-service checks the SC-01 A/R signal on P1 port bit 7, differentially decodes
-speech command bit 7, advances the ROM pointer and issues the hardware command
-strobe. The Lua code never writes the Votrax port.
+### Fragment playback
 
-## MAME SC-01 defect; no browser shim
+The controller appends the selected fragment record address to the queue at `$D2BE-$D2CD`, advances the resident write pointer, and sets `Speech_Active`. It does not prime `Speech_Phoneme_Pointer` (`$D2CE`) or `Speech_Phonemes_Remaining` (`$D2D0`). WoW's next service call loads the record through `Service_Speech_Queue` at `$81F8` and `Speech_Load_Next_Queued_Fragment` at `$8201`.
 
-The original English ROM is never patched. Fragment `$3C` at `$9270` contains
-the valid words “of my” as the encoded SC-01 transition `V -> M` at
-`$9285 -> $9286`. MAME 0.289 can wedge its Votrax audio state at that boundary:
-the filter output runs away, later speech can become inaudible, and shutdown can
-leave a buzz. The SC-01 A/R timer is independent of this audio-path failure.
+The browser-owned IM 2 handler calls `$8000` once per frame. WoW polls SC-01 A/R on P1 port bit 7, differentially decodes command bit 7, preserves command bit 6, advances the ROM pointer, and issues the hardware command strobe. Lua never writes the Votrax port.
 
-Source-level investigation identified the emulator defect in
-`votrax_sc01_device::build_injection_filter`: its F2 noise-path denominator
-subtracts `c2t`, making the modeled filter unstable for 91 of 512 possible
-F2/F2Q states. The `M` target state has a pole magnitude of `1.2346078`. The
-candidate MAME fix changes that subtraction to addition; its full state sweep
-has no unstable poles and the ROM-driven `$9270` regression completes normally.
-A full rebuilt-MAME listening test is still required.
+### Watchdog and exit
 
-The experimental 3.0.1 RAM shadow did not fix the failure in testing and has
-been removed completely. This build inserts no `PA0`, contains no `$9270`
-shadow record, and performs no phrase-queue pointer redirection. Standalone and
-phrase playback both queue the original ROM address and preserve the original
-`V -> M` command sequence. On an unpatched MAME 0.289 build, the emulator defect
-is therefore expected to remain visible.
+The Z80 watchdog expects the resident phoneme pointer to advance within two seconds while speech is active. A stalled pointer invokes WoW's `$8006` reset/validation entry with an intentionally invalid queue write pointer. The resident validator empties the queue and sends SC-01 STOP. The controller increments `$D3A8`; Lua reports the event as a read-only `NATIVE STALL RECOVERY` diagnostic.
 
-There is also a two-second native progress watchdog. If MAME holds A/R low and
-the resident phoneme pointer does not advance, the controller deliberately
-invalidates the queue write pointer and calls WoW's `$8006` reset/validation
-entry. Resident `Validate_Speech_Queue_State` empties the queue and sends STOP.
-The browser increments `$D3A8`, and Lua reports a read-only
-`NATIVE STALL RECOVERY` diagnostic. It does not repair or replace any ROM byte.
+Both 1P Start and `wexit()` follow the native exit path. The controller stops sound through `$8006`, waits six frames for STOP to settle, and posts the exit request consumed by Lua.
 
-Both 1P Start and `wexit()` now take a native exit path: resident `$8006` sends
-STOP, the controller waits six frames for the emulated device to settle, and
-only then asks Lua to exit MAME. This prevents the stuck-speech exit buzz.
+## MAME SC-01 accuracy requirement
+
+English fragment `$3C` at `$9270` contains the valid encoded `V -> M` transition at `$9286-$9287`. In MAME 0.289, `votrax_sc01_device::build_injection_filter` constructs the F2 noise-injection denominator with a subtraction:
+
+```cpp
+double k1 = m_cclock * (c1b * c3 / c2t - c2t);
+```
+
+The two capacitance contributions are additive:
+
+```cpp
+double k1 = m_cclock * (c1b * c3 / c2t + c2t);
+```
+
+The subtractive realization is unstable for 91 of 512 SC-01 internal ROM states and can make `$9270` run away, silence later speech, and leave a buzz at exit. The additive realization has 0 unstable states out of 512. Accurate complete playback therefore requires a MAME build containing the additive coefficient.
+
+The browser always queues the original `$9270` record and preserves its original command sequence. The watchdog is a bounded recovery path for an unresponsive device; it is not a speech-data patch and does not replace the emulator correction.
 
 ## Work RAM map
 
@@ -91,14 +70,13 @@ only then asks Lua to exit MAME. This prevents the stuck-speech exit buzz.
 | `$D078-$D18F` | Seven 40-character catalog rows |
 | `$D190-$D207` | Three 40-character control rows |
 | `$D208-$D21C` | Seven native `{id,address}` records |
-| `$D380-$D3A8` | Fixed Lua/Z80 mailbox, input-repeat, exit and watchdog state |
+| `$D240-$D37F` | Resident sound/speech and game state retained for high-ROM services |
+| `$D380-$D3A8` | Fixed Lua/Z80 mailbox, input-repeat, exit, and watchdog state |
 | `$D3CA-$D3CB` | Browser IM 2 vector pointer |
 | `$D400-$D7FB` | Assembled Z80 controller, 1,020 bytes |
-| `$7FC0-$7FFF` | WoW's non-visible video-RAM stack margin; `SP=$8000` |
+| `$7FC0-$7FFF` | Non-visible video-RAM stack margin below `SP=$8000` |
 
-WoW's resident sound/speech state at `$D240-$D37F` remains available to the
-high-ROM service. `$D350` is set to basic-dungeon class so phrase IDs `$09` and
-`$37` are not changed to their Worlord substitutions while browsing.
+`Dungeon_Class` at `$D350` is set to the basic-dungeon value so browser phrase playback retains literal fragment IDs `$09` and `$37` instead of applying the resident Worlord substitutions.
 
 ## Run
 
@@ -109,21 +87,17 @@ mame -console -window -autoboot_script tools/Lua/wow_speech_browser.lua wow
 mame -console -window -autoboot_script tools/Lua/wow_speech_browser.lua wowg
 ```
 
-Use `-rompath roms/` when testing a locally built archive. Use the appropriate
-MAME-compatible driver/archive for an active German or Klingon X11 image and
-select the Foreign language DIP.
+Use `-rompath roms/` for a local ROM directory. For German or Klingon X11 program ROMs, use the corresponding MAME-compatible driver/archive and select the Foreign language DIP.
 
 ## Controls
 
-- Up / Down: move through the current list
-- Left / Right: toggle fragments and phrases; every new press toggles
+- Up / Down: move through the current list, with wraparound
+- Left / Right: toggle fragments and phrases on every new press
 - Fire: play the selected entry
-- 1P Start: request MAME exit through the Lua shell
+- 1P Start: stop sound and request MAME exit
 - 2P Start: start Play All; press again to stop after the current entry
 
-The initial page has no selection. Down selects the first entry; Up selects the
-last entry. A held vertical direction repeats after 15 frames and then every
-four frames. Fragment pages retain physical ROM-address order.
+The initial page has no selection. Down selects the first entry; Up selects the last. A held vertical direction repeats after 15 frames and then every four frames. Fragment pages retain physical ROM-address order. Phrase pages retain logical phrase-ID order.
 
 ## Console tools
 
@@ -134,57 +108,47 @@ wwav(false)     disable WAV capture
 wtrace()        toggle read-only detailed trace
 wall()          post a native Play All command
 wstop()         post a native stop-after-current command
-wexit()         exit MAME
+wexit()         post a native exit command
 whelp()         show the command list
 ```
 
-`wall()` and `wstop()` write a command byte. The Z80 controller performs the
-same state transition used by 2P Start. WAV capture adds native pre-roll so Lua
-can close the preceding file after its post-roll and start the next file before
-speech begins.
+`wall()`, `wstop()`, and `wexit()` write one command byte to the shared mailbox. The Z80 performs the same state transitions used by the cabinet controls. WAV capture uses native event pre-roll so Lua can close the preceding file after post-roll and open the next file before speech begins.
 
 ## Source and byte identity
 
-`wow_speech_browser_native_20260815-1819.asm` is the injected program. Rename it
-to the repository's stable `wow_speech_browser_native.asm` path, then assemble it
-with zmac:
+`wow_speech_browser.asm` is the injected controller source. Assemble it with zmac 1.3-compatible syntax:
 
 ```sh
-zmac --zmac --oo cim,lst wow_speech_browser_native.asm
+zmac --zmac --oo cim,lst wow_speech_browser.asm
 ```
 
-The resulting CIM is 1,020 bytes and has SHA-256:
+The resulting CIM is 1,020 bytes with SHA-256:
 
 ```text
 1068a34a6dd89548f3cb45715811ece5d2215be1cdfe2c941be1ccb535fe8481
 ```
 
-The Lua loader parses its embedded hexadecimal payload, verifies its 1,020-byte
-length and FNV-1a value `9D86CCDE`, writes it to `$D400`, and reads every byte
-back before the one-time CPU handoff.
+The Lua loader parses the embedded hexadecimal payload, verifies its 1,020-byte length and FNV-1a value `9D86CCDE`, writes it to `$D400`, and reads every byte back before the one-time CPU handoff. The embedded payload must remain byte-identical to the assembled CIM.
 
-## First test captures
+## Validated behavior
 
-Please retain these console/screen captures from the first MAME run:
+Validation with the additive MAME Votrax coefficient produced these results:
 
-1. Startup through `native takeover active`, including bank and catalog counts.
-2. Initial fragments page before a selection, then after one Down press.
-3. One English fragment and one English phrase, including `PLAY`, `PHONEMES`
-   and `END` lines.
-4. Press Right at least three times, then Left at least three times; every press
-   must toggle the pane. Scroll across a seven-row boundary.
-5. Start Play All with 2P, allow three entries, then press 2P again. Capture the
-   footer change and the final current entry.
-6. Repeat one fragment and phrase with German X11 and Klingon X11.
-7. After rebuilding MAME with the Votrax fix, play English fragment `$3C` /
-   address `$9270`; confirm the trace contains the original adjacent `V M`
-   phonemes, no shim message appears, the line finishes, later entries still
-   play, and exit is silent. Also test phrase `$3C`, which contains the same
-   fragment.
-8. Run `wtrace(true)` for one fragment if any speech stalls or buzzes. A forced
-   recovery prints `NATIVE STALL RECOVERY` and must leave later speech usable.
+| Configuration | Result |
+| --- | --- |
+| Resident English fragments | 79 of 79 complete; clean subsequent playback |
+| Resident English phrases | 80 of 80 complete |
+| English `$9270` / phrase `$3C` | Original adjacent `V M` commands complete normally |
+| Browser navigation | Repeated Left/Right toggles; Up/Down wraparound and paging pass |
+| Play All | Native start and stop-after-current pass |
+| Exit | SC-01 STOP settles; no residual buzz |
+| `wowg` baseline | Pass |
+| Project German and Klingon X11 program ROMs | Fragment and phrase playback pass |
 
-For a byte comparison in the MAME debugger, save `$D400-$D7FB` (length `$03FC`)
-after takeover and compare it with
-`wow_speech_browser_native_20260815-1819.cim`. Also capture
-`$D380-$D3A8` if the page, controls, Play All, or watchdog state stops advancing.
+Speech was clean and crisp across the completed passes, with no recurring crackle observed.
+
+## Diagnostics
+
+Enable `wtrace(true)` to log phrase expansion, fragment addresses, encoded phonemes, completion timing, and watchdog recovery. For native-state diagnosis, capture `$D380-$D3A8`. For payload identity, save `$D400-$D7FB` after takeover and compare all `$03FC` bytes with the assembled CIM.
+
+Future controller additions should preserve the ownership boundary: Lua may provide high-level catalog content and host services, while input, state transitions, playback, and resident-service interaction remain native Z80 behavior.

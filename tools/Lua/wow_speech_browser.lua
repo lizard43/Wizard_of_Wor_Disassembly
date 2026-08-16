@@ -12,7 +12,7 @@
 --   1P START      exit MAME through the Lua shell
 --   2P START      play all / stop after the current entry
 
-local VERSION = "3.0.2-20260815-1819"
+local VERSION = "3.0.3-20260816-0809"
 local BUILD_FILE = "wow_speech_browser.lua"
 local DEBUG_TRACE = false
 
@@ -113,7 +113,7 @@ local DESC_EN = {
   [0x09] = "Worrior",
   [0x0A] = "Hey, insert coin",
   [0x0B] = "Find me",
-  [0x0C] = "I'm out of spite",
+  [0x0C] = "I'm out of sight",
   [0x0D] = "Get ready",
   [0x0E] = "You'd better hope you don't find me",
   [0x0F] = "Another coin for my treasure chest",
@@ -718,7 +718,7 @@ local function write_page_buffer()
   local list = S.catalog[pane]
   local pane_name = pane == "fragment" and "FRAGMENTS" or "PHRASES"
   local header = centered_native_row(S.language.name .. "  " .. pane_name)
-  local tag = "V301"
+  local tag = "V303"
   header = header:sub(1, 40 - #tag) .. tag
   write_native_string(N.PAGE_HEADER, header, 40)
 
