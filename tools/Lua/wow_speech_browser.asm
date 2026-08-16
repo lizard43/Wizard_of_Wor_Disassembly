@@ -1,4 +1,4 @@
-; wow_speech_browser_native.asm
+; wow_speech_browser.asm
 ; Wizard of Wor speech-browser foreground controller
 ;
 ; This is the Z80 program injected by wow_speech_browser.lua at $D400.
@@ -51,6 +51,7 @@ PAGE_ENTRY_META                 EQU     $D208       ; 7 * {id, address lo, addre
 SPEECH_ACTIVE                   EQU     $D245
 SOUND_SERVICE_ENABLED           EQU     $D244
 SPEECH_QUEUE_BUFFER             EQU     $D2BE
+SPEECH_PHONEME_POINTER          EQU     $D2CE
 SPEECH_PHONEMES_REMAINING       EQU     $D2D0
 SPEECH_INFLECTION_STATE         EQU     $D2D1
 SPEECH_QUEUE_WRITE              EQU     $D2D2
@@ -93,6 +94,12 @@ HOLD_DIRECTION                  EQU     $D3A0       ; 1 up, 2 down, 0 released
 HOLD_COUNTDOWN                  EQU     $D3A1
 INPUT_CURRENT                   EQU     $D3A2
 INPUT_PRESSED                   EQU     $D3A3
+EXIT_COUNTDOWN                 EQU     $D3A4       ; native STOP settling time before Lua exits
+WATCHDOG_POINTER               EQU     $D3A5       ; last resident phoneme pointer
+WATCHDOG_COUNTDOWN             EQU     $D3A7       ; frames without pointer progress
+STALL_RECOVERIES               EQU     $D3A8       ; read-only diagnostic counter for Lua
+
+SPEECH_WATCHDOG_FRAMES         EQU     $78         ; two seconds at 60 Hz
 
 ; IM 2 vector selected by I=$D3 and hardware feedback byte $CA.
 BROWSER_VECTOR                  EQU     $D3CA
@@ -157,12 +164,18 @@ Browser_Entry:
             ld      (HOLD_COUNTDOWN),a
             ld      (INPUT_CURRENT),a
             ld      (INPUT_PRESSED),a
+            ld      (EXIT_COUNTDOWN),a
+            ld      (WATCHDOG_POINTER),a
+            ld      (WATCHDOG_POINTER+1),a
+            ld      (WATCHDOG_COUNTDOWN),a
+            ld      (STALL_RECOVERIES),a
             dec     a
             ld      (PAGE_DRAWN),a       ; force initial page render
 
 Browser_Main_Loop:
             ei
             halt                        ; one native controller pass per frame
+            call    Service_Exit
             call    Service_Completion
             call    Service_Command
             call    Read_Controls
@@ -238,10 +251,11 @@ Read_Controls:
             ld      a,b
             ld      (START_LAST),a
 
-            bit     5,d                 ; 1P Start: ask the Lua shell to exit MAME
-            jr      z,Input_Check_2P
-            ld      a,$01
-            ld      (EXIT_REQUEST),a
+            bit     5,d                 ; 1P Start: native STOP, then delayed Lua exit
+            call    nz,Begin_Exit
+            ld      a,(EXIT_COUNTDOWN)
+            or      a
+            ret     nz
 
 Input_Check_2P:
             bit     6,d
@@ -251,11 +265,8 @@ Input_Check_2P:
             ret     nz                  ; only 1P/2P are active during Play All
 
             ld      a,(INPUT_PRESSED)
-            bit     2,a
-            call    nz,Select_Fragments
-            ld      a,(INPUT_PRESSED)
-            bit     3,a
-            call    nz,Select_Phrases
+            and     $0C
+            call    nz,Toggle_Pane
             call    Service_Vertical_Input
             ld      a,(INPUT_PRESSED)
             and     $30
@@ -294,18 +305,9 @@ Vertical_Released:
             ld      (HOLD_COUNTDOWN),a
             ret
 
-Select_Fragments:
-            xor     a
-            jr      Select_Pane
-
-Select_Phrases:
-            ld      a,$01
-Select_Pane:
-            ld      b,a
+Toggle_Pane:
             ld      a,(PANE)
-            cp      b
-            ret     z
-            ld      a,b
+            xor     $01
             ld      (PANE),a
             jp      Request_Page
 
@@ -377,6 +379,9 @@ Service_Command:
             ld      b,a
             xor     a
             ld      (COMMAND),a
+            ld      a,b
+            cp      $03
+            jp      z,Begin_Exit
             dec     b
             jr      nz,Command_Stop_All
             ld      a,(PLAY_ALL)
@@ -580,6 +585,10 @@ Play_Fragment:
             ld      (SPEECH_ACTIVE),a
 
 Mark_Event_Playing:
+            ld      hl,(SPEECH_PHONEME_POINTER)
+            ld      (WATCHDOG_POINTER),hl
+            ld      a,SPEECH_WATCHDOG_FRAMES
+            ld      (WATCHDOG_COUNTDOWN),a
             ld      a,$02
             ld      (EVENT_STATE),a
             ret
@@ -589,7 +598,10 @@ Service_Completion:
             cp      $02
             ret     nz
             call    Speech_Idle
+            jr      z,Completion_Finished
+            call    Service_Speech_Watchdog
             ret     nz
+Completion_Finished:
             ld      a,$03
             ld      (EVENT_STATE),a
             ld      a,(PLAY_ALL)
@@ -642,6 +654,69 @@ Stop_Play_All:
             ld      (PLAY_ALL),a
             ld      (AUTO_START),a
             jp      Request_Page
+
+; A normal command advances well inside two seconds. If A/R remains low,
+; recover through WoW's own $8006 queue validator and STOP path so the browser
+; returns to an idle, usable speech state.
+Service_Speech_Watchdog:
+            ld      hl,(SPEECH_PHONEME_POINTER)
+            ld      de,(WATCHDOG_POINTER)
+            or      a
+            sbc     hl,de
+            jr      z,Speech_Watchdog_No_Progress
+            ld      hl,(SPEECH_PHONEME_POINTER)
+            ld      (WATCHDOG_POINTER),hl
+            ld      a,SPEECH_WATCHDOG_FRAMES
+            ld      (WATCHDOG_COUNTDOWN),a
+            or      a                   ; nonzero: speech still running
+            ret
+Speech_Watchdog_No_Progress:
+            ld      hl,WATCHDOG_COUNTDOWN
+            dec     (hl)
+            ld      a,(hl)
+            or      a
+            ret     nz
+            call    Stop_All_Sound
+            ld      hl,STALL_RECOVERIES
+            inc     (hl)
+            xor     a                   ; zero: recovered and now idle
+            ret
+
+; Force queue validation via resident WoW code.  Making the write pointer
+; invalid causes $8006 -> Validate_Speech_Queue_State to empty the queue and
+; issue the SC-01 STOP strobe; the browser never writes the Votrax port here.
+Stop_All_Sound:
+            xor     a
+            ld      (SPEECH_ACTIVE),a
+            ld      (SPEECH_PHONEMES_REMAINING),a
+            ld      h,a
+            ld      l,a
+            ld      (SPEECH_QUEUE_WRITE),hl
+            call    SOUND_RESET_ENTRY
+            ld      a,$01
+            ld      (SOUND_SERVICE_ENABLED),a
+            ret
+
+Begin_Exit:
+            call    Stop_All_Sound
+            xor     a
+            ld      (PLAY_ALL),a
+            ld      (AUTO_START),a
+            ld      (EVENT_STATE),a
+            ld      a,$06               ; let STOP commit before process exit
+            ld      (EXIT_COUNTDOWN),a
+            ret
+
+Service_Exit:
+            ld      hl,EXIT_COUNTDOWN
+            ld      a,(hl)
+            or      a
+            ret     z
+            dec     (hl)
+            ret     nz
+            ld      a,$01
+            ld      (EXIT_REQUEST),a
+            ret
 
 Browser_Code_End:
             IF      Browser_Code_End > $D800

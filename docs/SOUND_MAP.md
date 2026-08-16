@@ -22,7 +22,7 @@ Each IC provides an eight-register sound generator.
 
 The three tone generators share the master oscillator. Vibrato or noise can modulate that master oscillator.
 
-The port numbers are direction-sensitive: writes address the Astrocade sound hardware, while reads return cabinet inputs and status. 
+The port numbers are direction-sensitive: writes address the Astrocade sound hardware, while reads return cabinet inputs and status.
 
 ### Volume and noise
 
