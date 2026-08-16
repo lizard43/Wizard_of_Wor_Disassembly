@@ -1,86 +1,83 @@
 -- wow_speech_browser.lua
--- Wizard of Wor native speech browser for MAME 0.289+
+-- Wizard of Wor native Z80 speech browser for MAME 0.289+
 --
--- Boots WoW normally, then takes over foreground execution while leaving the
--- original interrupt-driven sound and SC-01 service active. The browser uses
--- WoW's native printstr/CHRTBL renderer; no MAME overlay is used.
+-- Lua is the loader, catalog-page provider, WAV owner, and read-only tracer.
+-- After one PC redirect to $D400, injected Z80 owns the frame loop, interrupt
+-- service, inputs, selection, rendering, Play All, and speech requests.
 --
 -- Controls:
 --   LEFT / RIGHT  toggle FRAGMENTS / PHRASES
 --   UP / DOWN     move selection
 --   FIRE          play selected entry
---   1P START      exit MAME
---   2P START      play all / stop
---
--- Speech is played directly from the loaded ROM. See whelp() for console tools.
+--   1P START      exit MAME through the Lua shell
+--   2P START      play all / stop after the current entry
 
-local VERSION = "2.5.5-20260814-0838"
+local VERSION = "3.0.2-20260815-1819"
 local BUILD_FILE = "wow_speech_browser.lua"
-
--- Detailed trace is controlled at runtime with wtrace().
 local DEBUG_TRACE = false
 
-local C = {
+local N = {
   CPU_TAG = ":maincpu",
-
-  -- Hardware I/O ports (WoW Astrocade board)
   COINPORT = 0x10,
   P2PORT = 0x11,
   P1PORT = 0x12,
   SETTINGS = 0x13,
-  LANGUAGE_MASK = 0x08,       -- bit 3: 1 English, 0 X11
-
-  -- Resident speech data/routines
+  LANGUAGE_MASK = 0x08,
+  SOUND_SERVICE_ENTRY = 0x8000,
+  SOUND_RESET_ENTRY = 0x8006,
+  SPEECH_REQUEST_ENTRY = 0x8009,
+  QUEUE_SPEECH_REQUEST = 0x827D,
+  PRINT_STRING_COLOR = 0x03B5,
   EN_FRAGMENT_TABLE = 0x9476,
   EN_PHRASE_TABLE = 0x9514,
-  QUEUE_SPEECH_REQUEST = 0x827D,
   PHRASE_COUNT = 80,
-
-  -- X11 ABI
   X11_FRAGMENT_PTR = 0xC000,
   X11_PHRASE_PTR = 0xC002,
   X11_TEXT0 = 0xC00D,
-
-  -- WoW RAM speech state
   SOUND_REQUEST_1 = 0xD240,
   SOUND_REQUEST_4 = 0xD243,
-  ATTRACT_SOUND_ENABLED = 0xD244,
   SPEECH_ACTIVE = 0xD245,
-  SPEECH_QUEUE_BUFFER = 0xD2BE,
-  SPEECH_QUEUE_LAST = 0xD2CC,
-  SPEECH_PHONEME_POINTER = 0xD2CE,
-  SPEECH_PHONEMES_REMAINING = 0xD2D0,
-  SPEECH_INFLECTION_STATE = 0xD2D1,
   QUEUE_WRITE = 0xD2D2,
   QUEUE_READ = 0xD2D4,
-  GAME_MODE = 0xD303,
-
-  -- Browser work RAM used after takeover.
-  IDLE_LOOP = 0xD400,
-  DRAW_CODE = 0xD420,
-  DRAW_DATA = 0xD600,
-  CALL_STACK = 0xDFE0,
-
-  -- Native WoW text renderer (printstr/CHRTBL through Magic RAM).
-  PRINT_STRING = 0x03B3,
-  PRINT_STRING_COLOR = 0x03B5,
-
-  -- WoW 1bpp-to-2bpp expand colors using the current game palette:
-  --   $04 -> color 1 (blue), $08 -> color 2 (yellow), $0C -> color 3 (red).
-  XPAND_BLUE = 0x04,
-  XPAND_YELLOW = 0x08,
-  XPAND_RED = 0x0C,
-
+  SPEECH_POINTER = 0xD2CE,
+  SPEECH_REMAINING = 0xD2D0,
+  SPEECH_INFLECTION = 0xD2D1,
+  PAGE_HEADER = 0xD050,
+  PAGE_ROWS = 0xD078,
+  PAGE_FOOTER_1 = 0xD190,
+  PAGE_FOOTER_2 = 0xD1B8,
+  PAGE_FOOTER_3 = 0xD1E0,
+  PAGE_ENTRY_META = 0xD208,
+  SIGNATURE = 0xD380,
+  PAGE_SEQUENCE = 0xD384,
+  PAGE_ACK = 0xD385,
+  PAGE_DRAWN = 0xD386,
+  PANE = 0xD387,
+  SELECTED_FRAGMENT = 0xD388,
+  SELECTED_PHRASE = 0xD389,
+  FIRST_FRAGMENT = 0xD38A,
+  FIRST_PHRASE = 0xD38B,
+  COUNT_FRAGMENT = 0xD38C,
+  COUNT_PHRASE = 0xD38D,
+  PLAY_ALL = 0xD390,
+  EVENT_SEQUENCE = 0xD392,
+  EVENT_STATE = 0xD393,
+  EVENT_KIND = 0xD395,
+  EVENT_ID = 0xD396,
+  EVENT_ADDRESS = 0xD397,
+  HEARTBEAT = 0xD399,
+  EXIT_REQUEST = 0xD39A,
+  RENDER_COUNT = 0xD39C,
+  COMMAND = 0xD39E,
+  CAPTURE_FLAGS = 0xD39F,
+  STALL_RECOVERIES = 0xD3A8,
+  PAYLOAD = 0xD400,
+  PAYLOAD_END = 0xD7FC,
+  STACK_TOP = 0x8000,
   TAKEOVER_DELAY_SEC = 2.0,
-  INPUT_INITIAL_REPEAT = 15,
-  INPUT_REPEAT_RATE = 4,
   UI_ROWS = 7,
-  TRACE_STALL_SEC = 1.5,
   WAV_POSTROLL_SEC = 0.15,
 }
-
--- Z80 idle loop: EI / HALT / JP $D401. Interrupts remain active.
-local IDLE_LOOP_BYTES = { 0xFB, 0x76, 0xC3, 0x01, 0xD4 }
 
 -- SC-01 phoneme names. Low six bits select the phoneme; bits 6-7 carry
 -- inflection/control state.
@@ -358,44 +355,107 @@ local DESC_KL = {
 }
 
 
-local S = {
-  enabled = true,
-  takeover = false,
-  frame_subscription = nil,
-  stop_subscription = nil,
-  shortcuts = {},
-  catalog = { phrase = {}, fragment = {} },
-  pane = "fragment",
-  selection = { phrase = 0, fragment = 0 },
-  window_first = { phrase = 1, fragment = 1 },
-  last_language_key = nil,
-  pending = nil,
-  status = "WAITING FOR WOW INITIALIZATION",
-  last_controls = 0,
-  last_2p_start = false,
-  hold_dir = 0,
-  hold_frames = 0,
-  injection_count = 0,
-  direct_fragment_count = 0,
-  trace = nil,
-  wav_enabled = false,
-  wav_active = false,
-  wav_filename = nil,
-  wav_stop_at = nil,
-  wav_batch_item = false,
-  batch = nil,
-  takeover_time = nil,
-  ui_dirty = false,
-  draw_count = 0,
-}
+-- Exact zmac output from wow_speech_browser_native.asm.
+local PAYLOAD_HEX = [[
+f3 31 00 80 af 21 00 40 11 01 40 01 ff 3f 77 ed
+b0 21 9d d4 22 ca d3 3e d3 ed 47 ed 5e 3e ca d3
+0d 3e a8 d3 0f 3e 08 d3 0e af 32 45 d2 32 d0 d2
+32 d1 d2 67 6f 22 d2 d2 21 be d2 22 d4 d2 cd 06
+80 3e 01 32 44 d2 32 03 d3 af 32 8e d3 32 8f d3
+32 90 d3 32 91 d3 32 93 d3 32 9a d3 32 99 d3 32
+9c d3 32 9e d3 32 50 d3 32 a0 d3 32 a1 d3 32 a2
+d3 32 a3 d3 32 a4 d3 32 a5 d3 32 a6 d3 32 a7 d3
+32 a8 d3 3d 32 86 d3 fb 76 cd ee d7 cd 29 d7 cd
+ac d5 cd c2 d4 cd db d6 cd d2 d5 18 ea f5 c5 d5
+e5 dd e5 fd e5 08 f5 d9 c5 d5 e5 cd 00 80 21 99
+d3 34 e1 d1 c1 d9 f1 08 fd e1 dd e1 e1 d1 c1 f1
+fb c9 db 12 2f e6 3f 47 db 11 2f e6 3f b0 47 32
+a2 d3 3a 8e d3 2f a0 4f 32 a3 d3 78 32 8e d3 db
+10 2f e6 60 47 3a 8f d3 2f a0 57 78 32 8f d3 cb
+6a c4 db d7 3a a4 d3 b7 c0 cb 72 c4 77 d7 3a 90
+d3 b7 c0 3a a3 d3 e6 0c c4 4b d5 cd 17 d5 3a a3
+d3 e6 30 c4 89 d6 c9 3a a2 d3 e6 03 28 25 fe 03
+28 21 47 3a a0 d3 b8 20 09 21 a1 d3 35 c0 36 04
+18 09 78 32 a0 d3 3e 0f 32 a1 d3 cb 40 c2 71 d5
+c3 62 d5 af 32 a0 d3 32 a1 d3 c9 3a 87 d3 ee 01
+32 87 d3 c3 a7 d5 dd 21 88 d3 3a 87 d3 b7 c8 dd
+23 c9 cd 56 d5 dd 7e 00 3c dd be 04 38 17 af 18
+14 cd 56 d5 dd 7e 00 b7 28 07 fe ff 28 03 3d 18
+04 dd 7e 04 3d dd 77 00 4f dd 7e 02 47 79 b8 38
+0f 90 fe 07 da f3 d5 79 d6 06 dd 77 02 c3 a7 d5
+79 dd 77 02 c3 a7 d5 21 84 d3 34 c9 3a 9e d3 b7
+c8 47 af 32 9e d3 78 fe 03 ca db d7 05 20 08 3a
+90 d3 b7 c0 c3 77 d7 10 08 3a 90 d3 b7 c8 c3 77
+d7 c9 3a 85 d3 47 3a 84 d3 b8 c0 3a 86 d3 b8 c8
+78 32 86 d3 cd f3 d5 3a 91 d3 b7 c8 af 32 91 d3
+c3 89 d6 3a 85 d3 47 3a 84 d3 b8 c0 f3 21 50 d0
+11 00 00 06 28 3e 04 cd b5 03 21 78 d0 11 00 0a
+3e 07 32 9b d3 06 28 3e 0c cd b5 03 1e 00 7a c6
+05 57 3a 9b d3 3d 32 9b d3 20 ea 21 90 d1 11 00
+32 06 28 3e 08 cd b5 03 21 b8 d1 11 00 37 06 28
+3e 08 cd b5 03 21 e0 d1 11 00 3c 06 28 3e 08 cd
+b5 03 21 9c d3 34 cd 56 d5 dd 7e 00 fe ff c8 dd
+96 02 fe 07 d0 4f 87 87 81 c6 0a 57 1e 00 21 78
+d6 06 01 3e 08 c3 b5 03 61 3a 45 d2 b7 c0 2a d2
+d2 ed 5b d4 d2 b7 ed 52 c9 3a 93 d3 fe 01 c8 fe
+02 c8 cd 79 d6 c0 cd 56 d5 dd 7e 00 fe ff c8 dd
+96 02 fe 07 d0 5f 16 00 6f 26 00 29 19 11 08 d2
+19 7e 32 96 d3 23 5e 23 56 ed 53 97 d3 3a 87 d3
+32 95 d3 21 92 d3 34 3a 9f d3 e6 01 3e 02 28 02
+3e 0c 32 94 d3 3e 01 32 93 d3 c9 3a 93 d3 fe 01
+c0 21 94 d3 7e b7 28 02 35 c9 cd 79 d6 c0 3a 95
+d3 b7 28 08 3a 96 d3 cd 09 80 18 1c 2a 97 d3 11
+be d2 7d 12 13 7c 12 13 ed 53 d2 d2 11 be d2 ed
+53 d4 d2 3e 01 32 45 d2 2a ce d2 22 a5 d3 3e 78
+32 a7 d3 3e 02 32 93 d3 c9 3a 93 d3 fe 02 c0 cd
+79 d6 28 04 cd 9d d7 c0 3e 03 32 93 d3 3a 90 d3
+b7 c8 cd 56 d5 dd 7e 00 3c dd be 04 30 22 dd 77
+00 4f dd 7e 02 47 79 90 fe 07 38 0e 79 d6 06 dd
+77 02 3e 01 32 91 d3 c3 a7 d5 cd f3 d5 c3 89 d6
+af 32 90 d3 c3 a7 d5 3a 90 d3 b7 20 16 3c 32 90
+d3 cd 56 d5 af dd 77 00 dd 77 02 3e 01 32 91 d3
+c3 a7 d5 af 32 90 d3 32 91 d3 c3 a7 d5 2a ce d2
+ed 5b a5 d3 b7 ed 52 28 0d 2a ce d2 22 a5 d3 3e
+78 32 a7 d3 b7 c9 21 a7 d3 35 7e b7 c0 cd c6 d7
+21 a8 d3 34 af c9 af 32 45 d2 32 d0 d2 67 6f 22
+d2 d2 cd 06 80 3e 01 32 44 d2 c9 cd c6 d7 af 32
+90 d3 32 91 d3 32 93 d3 3e 06 32 a4 d3 c9 21 a4
+d3 7e b7 c8 35 c0 3e 01 32 9a d3 c9
+]]
+local PAYLOAD_SIZE = 1020
+local PAYLOAD_FNV1A = 0x9D86CCDE
 
 local machine = manager.machine
-local cpu = machine.devices[C.CPU_TAG]
-if not cpu then error("[WOW SPEECH] main CPU not found at " .. C.CPU_TAG) end
+local cpu = machine.devices[N.CPU_TAG]
+if not cpu then error("[WOW SPEECH] main CPU not found at " .. N.CPU_TAG) end
 local program = cpu.spaces and cpu.spaces["program"] or nil
 local io = cpu.spaces and cpu.spaces["io"] or nil
 if not program then error("[WOW SPEECH] main CPU program space is unavailable") end
 if not io then error("[WOW SPEECH] main CPU I/O space is unavailable") end
+
+local S = {
+  enabled = true,
+  takeover = false,
+  takeover_time = nil,
+  catalog = { fragment = {}, phrase = {} },
+  fragment_by_address = {},
+  language = nil,
+  frame_subscription = nil,
+  stop_subscription = nil,
+  shortcuts = {},
+  last_page_sequence = nil,
+  last_event_sequence = nil,
+  last_event_state = 0,
+  event = nil,
+  wav_enabled = false,
+  wav_active = false,
+  wav_filename = nil,
+  wav_stop_at = nil,
+  pending_wav_event = nil,
+  last_heartbeat = nil,
+  last_stall_recoveries = nil,
+  heartbeat_time = nil,
+}
 
 local function printf(fmt, ...)
   print(string.format(fmt, ...))
@@ -403,126 +463,6 @@ end
 
 local function hex2(v) return string.format("$%02X", v & 0xFF) end
 local function hex4(v) return string.format("$%04X", v & 0xFFFF) end
-
-local start_play_all
-local stop_play_all
-local batch_finish_item
-local foreground_idle
-local read_2p_start
-
-local function print_console_commands()
-  print("")
-  print("[WOW SPEECH] console commands:")
-  print("[WOW SPEECH]   wwav()         toggle WAV capture for Fire plays")
-  print("[WOW SPEECH]   wwav(true)     WAV capture ON")
-  print("[WOW SPEECH]   wwav(false)    WAV capture OFF")
-  print("[WOW SPEECH]   wall()         play all entries in current view")
-  print("[WOW SPEECH]   wstop()        stop play-all after current item")
-  print("[WOW SPEECH]   wtrace()       toggle detailed speech trace")
-  print("[WOW SPEECH]   wtrace(true)   detailed trace ON")
-  print("[WOW SPEECH]   wtrace(false)  detailed trace OFF")
-  print("[WOW SPEECH]   wexit()        exit MAME")
-  print("[WOW SPEECH]   whelp()        show this command list")
-  print("")
-  printf("[WOW SPEECH]   current WAV capture: %s", S.wav_enabled and "ON" or "OFF")
-  printf("[WOW SPEECH]   current trace: %s", DEBUG_TRACE and "ON" or "OFF")
-end
-
-local function set_wav_capture(value)
-  if value == nil then
-    S.wav_enabled = not S.wav_enabled
-  elseif type(value) == "boolean" then
-    S.wav_enabled = value
-  elseif type(value) == "number" then
-    S.wav_enabled = value ~= 0
-  elseif type(value) == "string" then
-    local v = value:lower()
-    if v == "on" or v == "true" or v == "1" then
-      S.wav_enabled = true
-    elseif v == "off" or v == "false" or v == "0" then
-      S.wav_enabled = false
-    else
-      print("[WOW SPEECH] usage: wwav() | wwav(true) | wwav(false)")
-      return S.wav_enabled
-    end
-  else
-    print("[WOW SPEECH] usage: wwav() | wwav(true) | wwav(false)")
-    return S.wav_enabled
-  end
-
-  printf("[WOW SPEECH] WAV capture for Fire plays: %s", S.wav_enabled and "ON" or "OFF")
-  return S.wav_enabled
-end
-
-local function set_debug_trace(value)
-  if value == nil then
-    DEBUG_TRACE = not DEBUG_TRACE
-  elseif type(value) == "boolean" then
-    DEBUG_TRACE = value
-  elseif type(value) == "number" then
-    DEBUG_TRACE = value ~= 0
-  elseif type(value) == "string" then
-    local v = value:lower()
-    if v == "on" or v == "true" or v == "1" then
-      DEBUG_TRACE = true
-    elseif v == "off" or v == "false" or v == "0" then
-      DEBUG_TRACE = false
-    else
-      print("[WOW SPEECH] usage: wtrace() | wtrace(true) | wtrace(false)")
-      return DEBUG_TRACE
-    end
-  else
-    print("[WOW SPEECH] usage: wtrace() | wtrace(true) | wtrace(false)")
-    return DEBUG_TRACE
-  end
-
-  printf("[WOW SPEECH] detailed trace: %s", DEBUG_TRACE and "ON" or "OFF")
-  return DEBUG_TRACE
-end
-
-local function install_console_shortcut(name, handler)
-  local previous = rawget(_G, name)
-  S.shortcuts[name] = {
-    handler = handler,
-    previous = previous,
-    restore = previous ~= nil,
-  }
-  rawset(_G, name, handler)
-end
-
-local function install_console_shortcuts()
-  install_console_shortcut("wwav", function(value)
-    return set_wav_capture(value)
-  end)
-  install_console_shortcut("wall", function()
-    return start_play_all()
-  end)
-  install_console_shortcut("wstop", function()
-    return stop_play_all()
-  end)
-  install_console_shortcut("wtrace", function(value)
-    return set_debug_trace(value)
-  end)
-  install_console_shortcut("wexit", function()
-    machine:exit()
-  end)
-  install_console_shortcut("whelp", function()
-    print_console_commands()
-  end)
-end
-
-local function restore_console_shortcuts()
-  for name, shortcut in pairs(S.shortcuts) do
-    if rawget(_G, name) == shortcut.handler then
-      if shortcut.restore then
-        rawset(_G, name, shortcut.previous)
-      else
-        rawset(_G, name, nil)
-      end
-    end
-  end
-  S.shortcuts = {}
-end
 
 local function read16(addr)
   local lo = program:read_u8(addr)
@@ -532,50 +472,98 @@ end
 
 local function write16(addr, value)
   program:write_u8(addr, value & 0xFF)
-  program:write_u8((addr + 1) & 0xFFFF, (value >> 8) & 0xFF)
+  program:write_u8(addr + 1, (value >> 8) & 0xFF)
 end
 
 local function machine_seconds()
   local ok, value = pcall(function() return machine.time:as_double() end)
-  if ok then return value end
-  return 0
+  return ok and value or 0
+end
+
+local function payload_bytes()
+  local out = {}
+  for pair in PAYLOAD_HEX:gmatch("%x%x") do
+    out[#out + 1] = tonumber(pair, 16)
+  end
+  return out
+end
+
+local function fnv1a(bytes)
+  local value = 0x811C9DC5
+  for _, b in ipairs(bytes) do
+    value = ((value ~ b) * 0x01000193) & 0xFFFFFFFF
+  end
+  return value
+end
+
+local PAYLOAD = payload_bytes()
+if #PAYLOAD ~= PAYLOAD_SIZE then
+  error(string.format("[WOW SPEECH] embedded payload size mismatch: %d != %d", #PAYLOAD, PAYLOAD_SIZE))
+end
+if fnv1a(PAYLOAD) ~= PAYLOAD_FNV1A then
+  error("[WOW SPEECH] embedded payload FNV-1a mismatch")
 end
 
 local function validate_program()
-  local sig = { 0xFE,0x50,0x30,0x73,0x21,0x14,0x95,0x3C }
-  for i = 1, #sig do
-    if program:read_u8(C.QUEUE_SPEECH_REQUEST + i - 1) ~= sig[i] then
-      return false, string.format("Queue_Speech_Request signature differs at %s", hex4(C.QUEUE_SPEECH_REQUEST + i - 1))
+  local checks = {
+    {N.SOUND_SERVICE_ENTRY, 0xC3, "sound service JP"},
+    {N.SOUND_RESET_ENTRY, 0xC3, "sound reset JP"},
+    {N.SPEECH_REQUEST_ENTRY, 0xC3, "speech request JP"},
+  }
+  for _, check in ipairs(checks) do
+    if program:read_u8(check[1]) ~= check[2] then
+      return false, string.format("%s signature differs at %s", check[3], hex4(check[1]))
     end
   end
-  if read16(C.EN_FRAGMENT_TABLE) ~= 0x8B66 then
-    return false, string.format("English fragment table signature differs at %s", hex4(C.EN_FRAGMENT_TABLE))
+  if read16(N.SOUND_SERVICE_ENTRY + 1) ~= 0x84F2 then
+    return false, "sound service entry no longer targets $84F2"
   end
-  local psig = { 0x3E, 0x0C, 0x0E, 0xFF }
-  for i = 1, #psig do
-    if program:read_u8(C.PRINT_STRING + i - 1) ~= psig[i] then
-      return false, string.format("WoW text renderer signature differs at %s", hex4(C.PRINT_STRING + i - 1))
+  if read16(N.SOUND_RESET_ENTRY + 1) ~= 0x8316 then
+    return false, "sound reset entry no longer targets $8316"
+  end
+  if read16(N.SPEECH_REQUEST_ENTRY + 1) ~= N.QUEUE_SPEECH_REQUEST then
+    return false, "speech request entry no longer targets $827D"
+  end
+
+  local qsig = {0xFE, 0x50, 0x30, 0x73, 0x21, 0x14, 0x95, 0x3C}
+  for i, expected in ipairs(qsig) do
+    if program:read_u8(N.QUEUE_SPEECH_REQUEST + i - 1) ~= expected then
+      return false, string.format("Queue_Speech_Request signature differs at %s",
+        hex4(N.QUEUE_SPEECH_REQUEST + i - 1))
     end
   end
-  return true, "stock WoW speech/text signatures match"
+  if read16(N.EN_FRAGMENT_TABLE) ~= 0x8B66 then
+    return false, "English fragment table signature differs at $9476"
+  end
+  local psig = {0x0E, 0xFF, 0xC3}
+  for i, expected in ipairs(psig) do
+    if program:read_u8(N.PRINT_STRING_COLOR + i - 1) ~= expected then
+      return false, string.format("printstr entry signature differs at %s",
+        hex4(N.PRINT_STRING_COLOR + i - 1))
+    end
+  end
+  return true
 end
 
 local function x11_info()
-  local fp = read16(C.X11_FRAGMENT_PTR)
-  local pp = read16(C.X11_PHRASE_PTR)
-  local valid = fp >= 0xC000 and fp <= 0xCFFF and pp >= 0xC000 and pp <= 0xCFFF and pp > fp
+  local fp = read16(N.X11_FRAGMENT_PTR)
+  local pp = read16(N.X11_PHRASE_PTR)
+  local valid = fp >= 0xC000 and fp <= 0xCFFF and
+                pp >= 0xC000 and pp <= 0xCFFF and pp > fp
   if not valid then
-    return { present=false, fragment_table=fp, phrase_table=pp, fragment_count=0, variant="none", desc=DESC_EN }
+    return {present=false, fragment_table=fp, phrase_table=pp, fragment_count=0}
   end
 
   local count = (pp - fp) // 2
-  if count < 1 or count > 128 or (fp + count * 2) ~= pp then
-    return { present=false, fragment_table=fp, phrase_table=pp, fragment_count=0, variant="invalid", desc=DESC_EN }
+  if count < 1 or count > 128 or fp + count * 2 ~= pp then
+    return {present=false, fragment_table=fp, phrase_table=pp, fragment_count=0}
   end
 
-  local n = program:read_u8(C.X11_TEXT0)
+  local n = program:read_u8(N.X11_TEXT0)
   local chars = {}
-  for i = 1, math.min(n, 16) do chars[#chars + 1] = string.char(program:read_u8(C.X11_TEXT0 + i)) end
+  for i = 1, math.min(n, 16) do
+    chars[#chars + 1] = string.char(program:read_u8(N.X11_TEXT0 + i))
+  end
   local first = table.concat(chars)
   local variant, desc = "X11", DESC_EN
   if first:find("@MUENZ", 1, true) then
@@ -583,140 +571,68 @@ local function x11_info()
   elseif first:find("HUCH", 1, true) or first:find("Huch", 1, true) then
     variant, desc = "Klingon", DESC_KL
   end
-
   return {
-    present=true, fragment_table=fp, phrase_table=pp, fragment_count=count,
-    variant=variant, first_text=first, desc=desc
+    present=true, fragment_table=fp, phrase_table=pp,
+    fragment_count=count, variant=variant, desc=desc, first_text=first
   }
-end
-
-local function dip_info()
-  local ok, raw = pcall(function() return io:read_u8(C.SETTINGS) end)
-  if not ok then return {raw=nil, foreign=false, readable=false} end
-  return {raw=raw, foreign=(raw & C.LANGUAGE_MASK) == 0, readable=true}
 end
 
 local function active_language()
-  local dip = dip_info()
+  local raw = io:read_u8(N.SETTINGS)
+  local foreign = (raw & N.LANGUAGE_MASK) == 0
   local x11 = x11_info()
-  if dip.readable and dip.foreign then
+  if foreign then
     if not x11.present then
-      return {
-        key="foreign-invalid", name="Foreign DIP / no valid X11", valid=false,
-        fragment_table=x11.fragment_table, phrase_table=x11.phrase_table,
-        fragment_count=0, desc=DESC_EN, dip=dip, x11=x11
-      }
+      return {valid=false, key="foreign-invalid", name="Foreign DIP / invalid X11"}
     end
     return {
-      key="x11:" .. x11.variant, name=x11.variant .. " X11", valid=true,
+      valid=true, key="x11:" .. x11.variant, name=x11.variant,
       fragment_table=x11.fragment_table, phrase_table=x11.phrase_table,
-      fragment_count=x11.fragment_count, desc=x11.desc, dip=dip, x11=x11
+      fragment_count=x11.fragment_count, desc=x11.desc
     }
   end
-
   return {
-    key="english", name="English resident", valid=true,
-    fragment_table=C.EN_FRAGMENT_TABLE, phrase_table=C.EN_PHRASE_TABLE,
-    fragment_count=(C.EN_PHRASE_TABLE - C.EN_FRAGMENT_TABLE) // 2,
-    desc=DESC_EN, dip=dip, x11=x11
+    valid=true, key="english", name="English",
+    fragment_table=N.EN_FRAGMENT_TABLE, phrase_table=N.EN_PHRASE_TABLE,
+    fragment_count=(N.EN_PHRASE_TABLE - N.EN_FRAGMENT_TABLE) // 2,
+    desc=DESC_EN
   }
 end
 
-
-local function wav_language_slug()
-  local lang = active_language()
-  local s = tostring(lang.key or "unknown"):gsub("^x11:", ""):lower()
-  s = s:gsub("[^a-z0-9]+", "_"):gsub("^_+", ""):gsub("_+$", "")
-  return s ~= "" and s or "unknown"
-end
-
-local function wav_filename(entry, kind)
-  return string.format("wow_%s_%s_%04X.wav",
-    wav_language_slug(), kind, entry.address & 0xFFFF)
-end
-
-local function stop_owned_wav(reason)
-  if not S.wav_active then return end
-  pcall(function() machine.sound:stop_recording() end)
-  printf("[WOW SPEECH] WAV %s: %s", reason or "saved", tostring(S.wav_filename or ""))
-  S.wav_active = false
-  S.wav_filename = nil
-  S.wav_stop_at = nil
-  S.wav_batch_item = false
-end
-
-local function start_entry_wav(entry, kind, batch_item)
-  if S.wav_active then
-    return false, "browser WAV recorder is still active"
-  end
-
-  local already = false
-  pcall(function() already = machine.sound.recording == true end)
-  if already then
-    return false, "MAME sound recorder is already active"
-  end
-
-  local name = wav_filename(entry, kind)
-  local ok, started = pcall(function()
-    return machine.sound:start_recording(name)
-  end)
-  if not ok or not started then
-    return false, "MAME could not start WAV " .. name
-  end
-
-  S.wav_active = true
-  S.wav_filename = name
-  S.wav_stop_at = nil
-  S.wav_batch_item = batch_item == true
-  return true
-end
-
-local function finish_entry_wav()
-  if S.wav_active then
-    S.wav_stop_at = machine_seconds() + C.WAV_POSTROLL_SEC
-  end
-end
-
-
 local function fragment_desc(lang, id)
-  local d = lang.desc[id]
-  if d then return d end
-  local fallback = DESC_EN[id]
-  if fallback then return fallback .. " [semantic]" end
-  return "local fragment " .. hex2(id)
+  return lang.desc[id] or DESC_EN[id] or string.format("Fragment %02X", id)
 end
 
-local function build_catalog(force)
+local function build_catalog()
   local lang = active_language()
-  if not lang.valid then
-    S.catalog.phrase = {}
-    S.catalog.fragment = {}
-    S.last_language_key = lang.key
-    return lang, false
-  end
-  if not force and S.last_language_key == lang.key and #S.catalog.phrase > 0 then
-    return lang, true
-  end
+  if not lang.valid then return false, lang.name end
 
   local fragments = {}
+  local by_address = {}
   for id = 0, lang.fragment_count - 1 do
-    local p = read16(lang.fragment_table + id * 2)
-    if p ~= 0 then
-      fragments[#fragments + 1] = {
-        kind="fragment", id=id, address=p,
-        description=fragment_desc(lang,id), playable=true
+    local address = read16(lang.fragment_table + id * 2)
+    if address ~= 0 then
+      local entry = {
+        kind="fragment", id=id, address=address,
+        description=fragment_desc(lang, id), playable=true
       }
+      fragments[#fragments + 1] = entry
+      by_address[address] = by_address[address] or {}
+      by_address[address][id] = entry
     end
   end
+  table.sort(fragments, function(a, b)
+    if a.address ~= b.address then return a.address < b.address end
+    return a.id < b.id
+  end)
 
   local phrases = {}
   local p = lang.phrase_table
-  for id = 0, C.PHRASE_COUNT - 1 do
+  for id = 0, N.PHRASE_COUNT - 1 do
     local record = p
     local marker = program:read_u8(p)
     if marker < 0x80 then
-      printf("[WOW SPEECH] invalid phrase marker %s at %s (phrase %s)", hex2(marker), hex4(p), hex2(id))
-      break
+      return false, string.format("invalid phrase marker %s at %s", hex2(marker), hex4(p))
     end
     local count = marker & 0x7F
     local ids, parts = {}, {}
@@ -725,743 +641,44 @@ local function build_catalog(force)
       ids[#ids + 1] = fid
       parts[#parts + 1] = fragment_desc(lang, fid)
     end
-    local description = count == 0 and "suppressed" or table.concat(parts, " + ")
     phrases[#phrases + 1] = {
       kind="phrase", id=id, address=record, fragments=ids,
-      description=description, playable=count > 0
+      description=count == 0 and "Suppressed" or table.concat(parts, " + "),
+      playable=count > 0
     }
-    p = p + 1 + count
+    p = p + count + 1
   end
 
-  -- Display fragments in physical ROM-address order; retain logical IDs for playback.
-  table.sort(fragments, function(a, b)
-    if a.address ~= b.address then return a.address < b.address end
-    return a.id < b.id
-  end)
-
+  S.language = lang
   S.catalog.fragment = fragments
   S.catalog.phrase = phrases
-  S.last_language_key = lang.key
-  for _, kind in ipairs({"phrase","fragment"}) do
-    local n = #S.catalog[kind]
-    if n == 0 then
-      S.selection[kind] = 0
-      S.window_first[kind] = 1
-    else
-      if S.selection[kind] < 0 then S.selection[kind] = 0 end
-      if S.selection[kind] > n then S.selection[kind] = n end
-      local max_first = math.max(1, n - C.UI_ROWS + 1)
-      local first = S.window_first[kind] or 1
-      if first < 1 then first = 1 end
-      if first > max_first then first = max_first end
-      S.window_first[kind] = first
-    end
-  end
-  return lang, true
-end
-
-local function speech_idle()
-  return program:read_u8(C.SPEECH_ACTIVE) == 0 and read16(C.QUEUE_WRITE) == read16(C.QUEUE_READ)
-end
-
-local function sound_requests_idle()
-  for addr = C.SOUND_REQUEST_1, C.SOUND_REQUEST_4 do
-    if program:read_u8(addr) ~= 0 then return false end
-  end
+  S.fragment_by_address = by_address
   return true
-end
-
-local function reset_speech_state()
-  for addr = C.SPEECH_QUEUE_BUFFER, C.SPEECH_QUEUE_LAST + 1 do program:write_u8(addr, 0) end
-  program:write_u8(C.SPEECH_ACTIVE, 0)
-  write16(C.SPEECH_PHONEME_POINTER, 0)
-  program:write_u8(C.SPEECH_PHONEMES_REMAINING, 0)
-  program:write_u8(C.SPEECH_INFLECTION_STATE, 0)
-  write16(C.QUEUE_WRITE, C.SPEECH_QUEUE_BUFFER)
-  write16(C.QUEUE_READ, C.SPEECH_QUEUE_BUFFER)
-  for addr = C.SOUND_REQUEST_1, C.SOUND_REQUEST_4 do program:write_u8(addr, 0) end
-  program:write_u8(C.ATTRACT_SOUND_ENABLED, 1)
-  -- Non-zero avoids the service-switch diagnostic branch in the normal sound ISR.
-  program:write_u8(C.GAME_MODE, 1)
-end
-
-local function install_idle_loop()
-  for i = 1, #IDLE_LOOP_BYTES do
-    program:write_u8(C.IDLE_LOOP + i - 1, IDLE_LOOP_BYTES[i])
-  end
-  if cpu.state["HALT"] then cpu.state["HALT"].value = 0 end
-  if cpu.state["IFF1"] then cpu.state["IFF1"].value = 1 end
-  if cpu.state["IFF2"] then cpu.state["IFF2"].value = 1 end
-  if cpu.state["SP"] then cpu.state["SP"].value = C.CALL_STACK end
-  cpu.state["PC"].value = C.IDLE_LOOP
-end
-
-local function clear_video_ram()
-  -- Clear the display once; subsequent text uses WoW's native renderer.
-  for addr = 0x4000, 0x7FFF do program:write_u8(addr, 0) end
-end
-
-local function takeover(reason)
-  if S.takeover then return true end
-  local ok, why = validate_program()
-  if not ok then
-    S.status = "PROGRAM VALIDATION FAILED"
-    printf("[WOW SPEECH] takeover refused: %s", why)
-    return false
-  end
-
-  local lang, cat_ok = build_catalog(true)
-  if not cat_ok then
-    S.status = "FOREIGN DIP SELECTED - X11 INVALID"
-    printf("[WOW SPEECH] takeover refused: %s", lang.name)
-    return false
-  end
-
-  reset_speech_state()
-  clear_video_ram()
-  install_idle_loop()
-  S.takeover = true
-  S.takeover_time = machine_seconds()
-  -- Start with no selection; first UP/DOWN chooses an entry.
-  S.selection.phrase = 0
-  S.selection.fragment = 0
-  S.window_first.phrase = 1
-  S.window_first.fragment = 1
-  S.trace = nil
-  S.batch = nil
-  S.wav_active = false
-  S.wav_filename = nil
-  S.wav_stop_at = nil
-  S.wav_batch_item = false
-  S.last_controls = 0
-  S.last_2p_start = read_2p_start()
-  S.hold_dir = 0
-  S.hold_frames = 0
-  S.pending = nil
-  S.status = "READY"
-  S.ui_dirty = true
-  printf("[WOW SPEECH] browser takeover active (%s); bank=%s", reason or "manual", lang.name)
-  printf("[WOW SPEECH] catalog: %d phrases, %d fragments; native renderer=%s/%s", #S.catalog.phrase, #S.catalog.fragment, hex4(C.PRINT_STRING), hex4(C.PRINT_STRING_COLOR))
-  print("[WOW SPEECH] controls: UP/DOWN select; LEFT/RIGHT type; FIRE play; 1P exit; 2P play all/stop")
-  return true
-end
-
-
-local function start_fragment_address(address)
-  if not S.takeover then return false, "browser has not taken over" end
-  if not speech_idle() then return false, "speech busy" end
-
-  -- Prime the fragment state normally established by Service_Speech_Queue;
-  -- the native ISR performs all SC-01 output.
-  local lang = active_language()
-  local lo, hi
-  if lang.key == "english" then
-    lo, hi = 0x8000, 0xAFFF
-  else
-    lo, hi = 0xC000, 0xCFFF
-  end
-  if address < lo or address > hi then
-    return false, string.format("fragment address %s outside active speech ROM", hex4(address))
-  end
-
-  local count = program:read_u8(address)
-  if count == 0 then
-    return false, string.format("fragment %s has zero payload length", hex4(address))
-  end
-  if address + count > hi then
-    return false, string.format("fragment %s payload overruns active speech ROM", hex4(address))
-  end
-
-  -- Play the selected fragment directly from ROM.
-  local play_record = address
-  local play_count = count
-
-  -- Keep the phrase queue empty so native end-of-fragment handling issues STOP.
-  write16(C.QUEUE_WRITE, C.SPEECH_QUEUE_BUFFER)
-  write16(C.QUEUE_READ, C.SPEECH_QUEUE_BUFFER)
-  program:write_u8(C.SPEECH_PHONEMES_REMAINING, play_count)
-  write16(C.SPEECH_PHONEME_POINTER, play_record + 1)
-  -- Preserve the differential inflection state used by native fragment loading.
-  program:write_u8(C.SPEECH_ACTIVE, 1)
-
-  if S.trace and S.trace.kind == "fragment" then
-    S.trace.expected_end = play_record + play_count + 1
-  end
-
-  S.direct_fragment_count = S.direct_fragment_count + 1
-  return true
-end
-
-local function speech_snapshot()
-  local p1 = io:read_u8(C.P1PORT)
-  local pc = cpu.state["PC"] and (cpu.state["PC"].value & 0xFFFF) or 0
-  return {
-    active = program:read_u8(C.SPEECH_ACTIVE),
-    remain = program:read_u8(C.SPEECH_PHONEMES_REMAINING),
-    pointer = read16(C.SPEECH_PHONEME_POINTER),
-    inflection = program:read_u8(C.SPEECH_INFLECTION_STATE),
-    qwrite = read16(C.QUEUE_WRITE),
-    qread = read16(C.QUEUE_READ),
-    p1 = p1,
-    ready = (p1 & 0x80) ~= 0,
-    pc = pc,
-  }
-end
-
-local function trace_state(label, st)
-  st = st or speech_snapshot()
-  if DEBUG_TRACE then
-    printf("[WOW SPEECH DEBUG] %s active=%d remain=%02X ptr=%04X infl=%02X qW=%04X qR=%04X READY=%d P1=%02X PC=%04X",
-      label, st.active, st.remain, st.pointer, st.inflection,
-      st.qwrite, st.qread, st.ready and 1 or 0, st.p1, st.pc)
-  end
-  return st
-end
-
-local function fragment_stream(address, initial_inflection)
-  local count = program:read_u8(address)
-  local items, names, raws, commands = {}, {}, {}, {}
-  local inf = initial_inflection & 0x80
-  for i = 0, count - 1 do
-    local a = address + 1 + i
-    local raw = program:read_u8(a)
-    local command = raw ~ inf
-    inf = command & 0x80
-    local phone = command & 0x3F
-    local name = SC01_NAMES[phone] or string.format("P%02X", phone)
-    items[#items+1] = {address=a, raw=raw, command=command, phone=phone, name=name}
-    names[#names+1] = name
-    raws[#raws+1] = string.format("%02X", raw)
-    commands[#commands+1] = string.format("%02X", command)
-  end
-  return count, items, table.concat(names, " "), table.concat(raws, " "), table.concat(commands, " "), inf
-end
-
-local function resolve_fragment_address(lang, id)
-  if not lang or not lang.valid then return 0 end
-  if id < 0 or id >= lang.fragment_count then return 0 end
-  return read16(lang.fragment_table + id * 2)
-end
-
-local function trace_request(entry, kind)
-  local pre = trace_state("PRE")
-  print("")
-  printf("[WOW SPEECH] PLAY %s id=%s address=%s text=\"%s\"",
-    kind:upper(), hex2(entry.id), hex4(entry.address), tostring(entry.description or ""))
-
-  if kind == "fragment" then
-    local count, items, phones, raws, commands = fragment_stream(entry.address, pre.inflection)
-    printf("[WOW SPEECH] PHONEMES %s", phones)
-    if DEBUG_TRACE then
-      printf("[WOW SPEECH DEBUG] FRAGMENT length=%s payload=%s-%s",
-        hex2(count), hex4(entry.address + 1), hex4(entry.address + count))
-      printf("[WOW SPEECH DEBUG] RAW      %s", raws)
-      printf("[WOW SPEECH DEBUG] COMMANDS %s", commands)
-    end
-    S.trace = {
-      kind=kind, id=entry.id, address=entry.address, description=entry.description,
-      start_time=machine_seconds(), last_progress_time=machine_seconds(),
-      last_pointer=entry.address + 1, last_remain=count,
-      sim_inflection=pre.inflection & 0x80, seq=0, stall_reported=false,
-      seen_activity=false, last_phone=nil, last_transition=nil,
-      expected_end=entry.address + count + 1,
-    }
-  else
-    local lang = active_language()
-    local fragments = entry.fragments or {}
-    local phrase_inflection = pre.inflection & 0x80
-
-    for n, fid in ipairs(fragments) do
-      local addr = resolve_fragment_address(lang, fid)
-      local desc = fragment_desc(lang, fid)
-
-      printf("[WOW SPEECH]   FRAGMENT %d/%d id=%s address=%s text=\"%s\"",
-        n, #fragments, hex2(fid), hex4(addr), tostring(desc or ""))
-
-      if addr ~= 0 then
-        local count, _, phones, raws, commands, next_inflection =
-          fragment_stream(addr, phrase_inflection)
-        printf("[WOW SPEECH]     PHONEMES %s", phones)
-
-        if DEBUG_TRACE then
-          printf("[WOW SPEECH DEBUG]     length=%s payload=%s-%s",
-            hex2(count), hex4(addr + 1), hex4(addr + count))
-          printf("[WOW SPEECH DEBUG]     RAW      %s", raws)
-          printf("[WOW SPEECH DEBUG]     COMMANDS %s", commands)
-        end
-
-        phrase_inflection = next_inflection
-      else
-        print("[WOW SPEECH]     PHONEMES <fragment address unavailable>")
-      end
-    end
-
-    S.trace = {
-      kind=kind, id=entry.id, address=entry.address, description=entry.description,
-      start_time=machine_seconds(), last_progress_time=machine_seconds(),
-      last_pointer=pre.pointer, last_remain=pre.remain,
-      sim_inflection=pre.inflection & 0x80, seq=0, stall_reported=false,
-      seen_activity=false, last_phone=nil, last_transition=nil,
-    }
-  end
-  return pre
-end
-
-local function trace_started()
-  if not S.trace then return end
-  local st = trace_state("START")
-  S.trace.last_pointer = st.pointer
-  S.trace.last_remain = st.remain
-  S.trace.sim_inflection = st.inflection & 0x80
-  S.trace.last_progress_time = machine_seconds()
-  if st.active ~= 0 or st.remain ~= 0 or st.qwrite ~= st.qread then
-    S.trace.seen_activity = true
-  end
-end
-
-local function trace_progress()
-  local t = S.trace
-  if not t then return end
-  local st = speech_snapshot()
-  local now = machine_seconds()
-  if st.active ~= 0 or st.remain ~= 0 or st.qwrite ~= st.qread then
-    t.seen_activity = true
-  end
-  local progressed = (st.pointer ~= t.last_pointer) or (st.remain ~= t.last_remain)
-
-  if t.kind == "fragment" and st.pointer > t.last_pointer and st.pointer <= (t.expected_end or st.pointer) then
-    for addr = t.last_pointer, st.pointer - 1 do
-      local raw = program:read_u8(addr)
-      local command = raw ~ (t.sim_inflection or 0)
-      t.sim_inflection = command & 0x80
-      t.seq = t.seq + 1
-      local phone = command & 0x3F
-      local name = SC01_NAMES[phone] or string.format("P%02X", phone)
-      local transition = (t.last_phone or "START") .. "->" .. name
-      t.last_phone = name
-      t.last_transition = transition
-      if DEBUG_TRACE then
-        printf("[WOW SPEECH DEBUG] #%02d ROM=%04X raw=%02X cmd=%02X phone=%02X %-4s transition=%s remain=%02X ptr=%04X infl=%02X READY=%d",
-          t.seq, addr & 0xFFFF, raw, command, phone, name, transition,
-          st.remain, st.pointer, st.inflection, st.ready and 1 or 0)
-      end
-    end
-  elseif progressed and t.kind == "phrase" and DEBUG_TRACE then
-    printf("[WOW SPEECH DEBUG] PROGRESS remain=%02X ptr=%04X infl=%02X READY=%d",
-      st.remain, st.pointer, st.inflection, st.ready and 1 or 0)
-  end
-
-  if progressed then
-    t.last_progress_time = now
-    t.stall_reported = false
-    t.last_pointer = st.pointer
-    t.last_remain = st.remain
-  end
-
-  if t.seen_activity and st.active == 0 and st.remain == 0 and st.qwrite == st.qread then
-    trace_state("END", st)
-    if t.kind == "fragment" then
-      printf("[WOW SPEECH] END FRAGMENT id=%s address=%s elapsed=%.3fs phonemes=%d",
-        hex2(t.id), hex4(t.address), now - t.start_time, t.seq or 0)
-    else
-      printf("[WOW SPEECH] END PHRASE id=%s address=%s elapsed=%.3fs",
-        hex2(t.id), hex4(t.address), now - t.start_time)
-    end
-    local batch_item = S.batch and S.batch.current_index ~= nil
-    S.trace = nil
-    if S.wav_active then
-      finish_entry_wav()
-    elseif batch_item then
-      batch_finish_item()
-    end
-    return
-  end
-
-  if st.active ~= 0 and (now - t.last_progress_time) >= C.TRACE_STALL_SEC and not t.stall_reported then
-    t.stall_reported = true
-    trace_state("STALL", st)
-    printf("[WOW SPEECH] STALL %.2fs: %s id=%s address=%s last_seq=%d last_source=%s last_phone=%s transition=%s READY=%d",
-      now - t.last_progress_time, t.kind:upper(), hex2(t.id), hex4(t.address),
-      t.seq or 0, hex4((st.pointer - 1) & 0xFFFF), tostring(t.last_phone or "none"),
-      tostring(t.last_transition or "none"), st.ready and 1 or 0)
-  end
-end
-
-local function call_phrase_id(id)
-  if not S.takeover then return false, "browser has not taken over" end
-  if not speech_idle() then return false, "speech busy" end
-
-  -- Enter Queue_Speech_Request with a synthetic return frame; WoW resolves the
-  -- active language and queues the phrase's fragment addresses.
-  local sp = C.CALL_STACK
-  program:write_u8(sp, (C.IDLE_LOOP + 1) & 0xFF)
-  program:write_u8(sp + 1, ((C.IDLE_LOOP + 1) >> 8) & 0xFF)
-  if cpu.state["SP"] then cpu.state["SP"].value = sp end
-  if cpu.state["AF"] then
-    local af = cpu.state["AF"].value & 0xFFFF
-    cpu.state["AF"].value = ((id & 0xFF) << 8) | (af & 0x00FF)
-  else
-    return false, "Z80 AF register state unavailable"
-  end
-  if cpu.state["HALT"] then cpu.state["HALT"].value = 0 end
-  cpu.state["PC"].value = C.QUEUE_SPEECH_REQUEST
-  S.injection_count = S.injection_count + 1
-  return true
-end
-
-local function current_list(kind)
-  kind = kind or S.pane
-  return S.catalog[kind], kind
-end
-
-local function selected_entry(kind)
-  local list, actual = current_list(kind)
-  local index = S.selection[actual]
-  return index, list[index], actual
-end
-
-local function keep_selection_visible(kind, index)
-  local list = S.catalog[kind]
-  if not list or #list == 0 or not index or index < 1 then return end
-
-  local first = S.window_first[kind] or 1
-  if index < first then
-    first = index
-  elseif index > first + C.UI_ROWS - 1 then
-    first = index - C.UI_ROWS + 1
-  end
-
-  local max_first = math.max(1, #list - C.UI_ROWS + 1)
-  if first < 1 then first = 1 end
-  if first > max_first then first = max_first end
-  S.window_first[kind] = first
-end
-
-local function request_entry(index, kind, source)
-  local list = S.catalog[kind]
-  local e = list and list[index] or nil
-  if not e then return false, "index out of range" end
-  if e.playable == false then return false, "entry is suppressed" end
-  S.selection[kind] = index
-  keep_selection_visible(kind, index)
-  S.pending = {index=index, kind=kind, entry=e, source=source or "manual"}
-  S.status = string.format("QUEUED %s %d %s", kind:upper(), index, hex2(e.id))
-  S.ui_dirty = true
-  return true
-end
-
-
-batch_finish_item = function()
-  local b = S.batch
-  if not b or not b.active or not b.current_index then return end
-  b.completed = b.completed + 1
-  b.current_index = nil
-
-  if b.stop_requested then
-    printf("[WOW SPEECH] play-all stopped: %d/%d completed", b.completed, b.total)
-    S.batch = nil
-    S.ui_dirty = true
-  elseif b.completed >= b.total then
-    printf("[WOW SPEECH] play-all complete: %d %s entries", b.completed, b.kind)
-    S.batch = nil
-    S.ui_dirty = true
-  end
-end
-
-local function service_wav_capture()
-  if not S.wav_active or not S.wav_stop_at then return end
-  if machine_seconds() < S.wav_stop_at then return end
-
-  local was_batch = S.wav_batch_item
-  local name = S.wav_filename
-  pcall(function() machine.sound:stop_recording() end)
-  S.wav_active = false
-  S.wav_filename = nil
-  S.wav_stop_at = nil
-  S.wav_batch_item = false
-  printf("[WOW SPEECH] WAV saved: %s", tostring(name or ""))
-
-  if was_batch then batch_finish_item() end
-end
-
-local function service_batch()
-  local b = S.batch
-  if not b or not b.active then return end
-  if b.stop_requested and not b.current_index then
-    printf("[WOW SPEECH] play-all stopped: %d/%d completed", b.completed, b.total)
-    S.batch = nil
-    S.ui_dirty = true
-    return
-  end
-  if b.current_index or S.pending or S.trace or S.wav_active then return end
-  if not speech_idle() or not foreground_idle() then return end
-
-  while b.next_index <= #S.catalog[b.kind] do
-    local index = b.next_index
-    b.next_index = b.next_index + 1
-    local e = S.catalog[b.kind][index]
-    if e and e.playable ~= false then
-      b.current_index = index
-      local ok, err = request_entry(index, b.kind, "batch")
-      if not ok then
-        printf("[WOW SPEECH] play-all error: %s", tostring(err))
-        S.batch = nil
-        S.ui_dirty = true
-      end
-      return
-    end
-  end
-
-  if not b.current_index then
-    printf("[WOW SPEECH] play-all complete: %d %s entries", b.completed, b.kind)
-    S.batch = nil
-    S.ui_dirty = true
-  end
-end
-
-start_play_all = function()
-  if not S.takeover then
-    print("[WOW SPEECH] wall(): browser has not taken over yet")
-    return false
-  end
-  if S.batch then
-    print("[WOW SPEECH] wall(): play-all is already running")
-    return false
-  end
-  if S.pending or S.trace or S.wav_active or not speech_idle() then
-    print("[WOW SPEECH] wall(): wait for current speech/WAV to finish")
-    return false
-  end
-
-  local kind = S.pane
-  local total = 0
-  for _, e in ipairs(S.catalog[kind]) do
-    if e.playable ~= false then total = total + 1 end
-  end
-  if total == 0 then
-    printf("[WOW SPEECH] wall(): no playable %s entries", kind)
-    return false
-  end
-
-  S.batch = {
-    active=true, kind=kind, next_index=1, current_index=nil,
-    completed=0, total=total, stop_requested=false,
-  }
-  S.ui_dirty = true
-  printf("[WOW SPEECH] play-all: %d %s entries; WAV capture %s", total, kind, S.wav_enabled and "ON" or "OFF")
-  return true
-end
-
-stop_play_all = function()
-  if not S.batch then
-    print("[WOW SPEECH] wstop(): no play-all run is active")
-    return false
-  end
-
-  local b = S.batch
-  b.stop_requested = true
-
-  if S.pending and S.pending.source == "batch" and not S.trace and not S.wav_active then
-    S.pending = nil
-    b.current_index = nil
-    printf("[WOW SPEECH] play-all stopped: %d/%d completed", b.completed, b.total)
-    S.batch = nil
-    S.ui_dirty = true
-  elseif b.current_index then
-    print("[WOW SPEECH] play-all will stop after the current item")
-  else
-    printf("[WOW SPEECH] play-all stopped: %d/%d completed", b.completed, b.total)
-    S.batch = nil
-    S.ui_dirty = true
-  end
-  return true
-end
-
-
-foreground_idle = function()
-  if not S.takeover or not cpu.state["PC"] then return false end
-  local pc = cpu.state["PC"].value & 0xFFFF
-  return pc >= C.IDLE_LOOP and pc <= (C.IDLE_LOOP + #IDLE_LOOP_BYTES - 1)
-end
-
-local function service_pending()
-  if not S.pending or not S.takeover or not speech_idle() or not foreground_idle() then return end
-  if S.wav_active then return end
-
-  local p = S.pending
-  local batch_item = p.source == "batch"
-
-  if batch_item and S.batch and S.batch.stop_requested then
-    S.pending = nil
-    S.batch.current_index = nil
-    printf("[WOW SPEECH] play-all stopped: %d/%d completed", S.batch.completed, S.batch.total)
-    S.batch = nil
-    S.ui_dirty = true
-    return
-  end
-  local want_wav = S.wav_enabled
-
-  if want_wav then
-    local wav_ok, wav_err = start_entry_wav(p.entry, p.kind, batch_item)
-    if not wav_ok then
-      printf("[WOW SPEECH] WAV ERROR: %s", tostring(wav_err))
-      if batch_item then
-        printf("[WOW SPEECH] play-all aborted because WAV capture is ON but recording could not start")
-        S.pending = nil
-        S.batch = nil
-        return
-      end
-    end
-  end
-
-  local ok, err
-  trace_request(p.entry, p.kind)
-  if p.kind == "phrase" then ok, err = call_phrase_id(p.entry.id)
-  else ok, err = start_fragment_address(p.entry.address) end
-  if ok then
-    trace_started()
-    S.status = string.format("PLAYING %s %d %s", p.kind:upper(), p.index, hex2(p.entry.id))
-    S.pending = nil
-  elseif err ~= "speech busy" then
-    S.status = "ERROR: " .. tostring(err)
-    printf("[WOW SPEECH] START ERROR: %s", tostring(err))
-    S.trace = nil
-    S.pending = nil
-    if S.wav_active then stop_owned_wav("discarded") end
-    if batch_item then S.batch = nil end
-  end
-end
-
-local function move_selection(delta)
-  local kind = S.pane
-  local list = S.catalog[kind]
-  if #list == 0 then return end
-  local current = S.selection[kind] or 0
-  local n
-  if current == 0 then
-    -- No selection at takeover. DOWN enters at the start; UP enters at the end.
-    n = (delta < 0) and #list or 1
-  else
-    n = current + delta
-    if n < 1 then n = #list
-    elseif n > #list then n = 1 end
-  end
-
-  S.selection[kind] = n
-  keep_selection_visible(kind, n)
-
-  S.status = "READY"
-  S.ui_dirty = true
-end
-
-local function select_pane(kind)
-  if kind ~= "phrase" and kind ~= "fragment" then return end
-  if S.pane == kind then return end
-  S.pane = kind
-  S.status = "READY"
-  S.ui_dirty = true
-end
-
-local function read_controls()
-  local p1 = io:read_u8(C.P1PORT)
-  local p2 = io:read_u8(C.P2PORT)
-  return ((~p1) | (~p2)) & 0x3F
-end
-
-local function read_1p_start()
-  -- Port $10 bit 5 is the 1-player Start switch (active low).
-  return ((~io:read_u8(C.COINPORT)) & 0x20) ~= 0
-end
-
-read_2p_start = function()
-  -- Port $10 bit 6 is the 2-player Start switch (active low).
-  return ((~io:read_u8(C.COINPORT)) & 0x40) ~= 0
-end
-
-local function process_inputs()
-  if not S.takeover then return end
-  local c = read_controls()
-  local start2 = read_2p_start()
-  local start2_pressed = start2 and not S.last_2p_start
-
-  if S.batch then
-    if start2_pressed then stop_play_all() end
-    if read_1p_start() then machine:exit() end
-    S.last_controls = c
-    S.last_2p_start = start2
-    return
-  end
-
-  if start2_pressed then start_play_all() end
-
-  local pressed = c & (~S.last_controls) & 0x3F
-
-  -- Either horizontal direction toggles between fragments and phrases.
-  if (pressed & 0x0C) ~= 0 then
-    select_pane(S.pane == "fragment" and "phrase" or "fragment")
-  end
-
-  local dir = 0
-  if (c & 0x01) ~= 0 and (c & 0x02) == 0 then dir = -1
-  elseif (c & 0x02) ~= 0 and (c & 0x01) == 0 then dir = 1 end
-
-  if dir ~= 0 then
-    if dir ~= S.hold_dir then
-      S.hold_dir = dir
-      S.hold_frames = 0
-      move_selection(dir)
-    else
-      S.hold_frames = S.hold_frames + 1
-      if S.hold_frames >= C.INPUT_INITIAL_REPEAT and ((S.hold_frames - C.INPUT_INITIAL_REPEAT) % C.INPUT_REPEAT_RATE) == 0 then
-        move_selection(dir)
-      end
-    end
-  else
-    S.hold_dir = 0
-    S.hold_frames = 0
-  end
-
-  if (pressed & 0x30) ~= 0 then
-    local index, e, kind = selected_entry()
-    if e then
-      local ok, err = request_entry(index, kind)
-      if not ok then S.status = "ERROR: " .. tostring(err) end
-    end
-  end
-
-  if read_1p_start() then
-    if S.trace then trace_state("EXIT") end
-    machine:exit()
-  end
-
-  S.last_controls = c
-  S.last_2p_start = start2
 end
 
 local function transliterate_for_wow(text)
   local s = tostring(text or "")
-  -- Normalize display text to glyphs available in the resident font.
   local repl = {
     ["Ä"]="AE", ["Ö"]="OE", ["Ü"]="UE", ["ẞ"]="SS",
     ["ä"]="AE", ["ö"]="OE", ["ü"]="UE", ["ß"]="SS",
   }
-  for from,to in pairs(repl) do s = s:gsub(from,to) end
+  for from, to in pairs(repl) do s = s:gsub(from, to) end
   s = s:upper()
 
   local out = {}
   for i = 1, #s do
-    local ch = s:sub(i,i)
+    local ch = s:sub(i, i)
     local b = ch:byte()
     if (b >= 0x30 and b <= 0x39) or (b >= 0x41 and b <= 0x5A) then
-      out[#out+1] = ch
+      out[#out + 1] = ch
     elseif ch == " " then
-      out[#out+1] = "@"       -- resident CHRTBL space
+      out[#out + 1] = "@"
     elseif ch == "-" then
-      out[#out+1] = "_"       -- resident CHRTBL dash
+      out[#out + 1] = "_"
     elseif ch == "'" then
-      out[#out+1] = "`"       -- resident CHRTBL apostrophe
+      out[#out + 1] = string.char(0x60)
     else
-      out[#out+1] = "@"
+      out[#out + 1] = "@"
     end
   end
   return table.concat(out)
@@ -1474,193 +691,507 @@ local function fixed_native_text(text, width)
   return s
 end
 
-local function native_center(text)
+local function centered_native_row(text)
   local s = transliterate_for_wow(text)
   if #s > 40 then s = s:sub(1, 40) end
-  local col = math.max(0, (40 - #s) // 2)
-  return s, col
+  local left = math.max(0, (40 - #s) // 2)
+  return (string.rep("@", left) .. s .. string.rep("@", 40)):sub(1, 40)
 end
 
-local function native_center_row(text)
-  local s, col = native_center(text)
-  local row = string.rep("@", col) .. s
-  if #row < 40 then row = row .. string.rep("@", 40 - #row) end
-  return row:sub(1, 40)
+local function write_native_string(address, text, width)
+  -- Callers supply CHRTBL-ready text; preserve @, _, and the apostrophe glyph.
+  local s = tostring(text or "")
+  if #s > width then s = s:sub(1, width) end
+  if #s < width then s = s .. string.rep("@", width - #s) end
+  for i = 1, width do program:write_u8(address + i - 1, s:byte(i)) end
 end
 
-local function screen_de(row, col)
-  -- Native text coordinates: rows advance by 5 in D; columns by 2 in E.
-  return (((row * 5) & 0xFF) << 8) | ((col * 2) & 0xFF)
+local function page_state()
+  local pane = program:read_u8(N.PANE) == 0 and "fragment" or "phrase"
+  local first_addr = pane == "fragment" and N.FIRST_FRAGMENT or N.FIRST_PHRASE
+  local selected_addr = pane == "fragment" and N.SELECTED_FRAGMENT or N.SELECTED_PHRASE
+  return pane, program:read_u8(first_addr), program:read_u8(selected_addr)
 end
 
-local function native_menu_lines()
-  local lang = active_language()
-  local list = S.catalog[S.pane]
-  local selected = S.selection[S.pane]
-  local rows = C.UI_ROWS
-  -- Scroll only when the selection leaves the seven-row viewport.
-  local first = S.window_first[S.pane] or 1
-  local max_first = math.max(1, #list - rows + 1)
-  if first < 1 then first = 1 end
-  if first > max_first then first = max_first end
-  S.window_first[S.pane] = first
+local function write_page_buffer()
+  local pane, first = page_state()
+  local list = S.catalog[pane]
+  local pane_name = pane == "fragment" and "FRAGMENTS" or "PHRASES"
+  local header = centered_native_row(S.language.name .. "  " .. pane_name)
+  local tag = "V301"
+  header = header:sub(1, 40 - #tag) .. tag
+  write_native_string(N.PAGE_HEADER, header, 40)
 
-  local lines = {}
-
-  -- Heading: active language and catalog.
-  local display_lang = lang.name:gsub(" resident$", ""):gsub(" X11$", "")
-  local pane_name = S.pane == "phrase" and "PHRASES" or "FRAGMENTS"
-  local bankline, bank_col = native_center(display_lang .. "  " .. pane_name)
-  -- Clear the heading row before repainting it.
-  bankline = string.rep("@", bank_col) .. bankline
-  if #bankline < 40 then bankline = bankline .. string.rep("@", 40 - #bankline) end
-  lines[#lines+1] = { row=0, col=0, text=bankline, color=C.XPAND_BLUE }
-
-  -- Native-safe short version derived from VERSION.
-  local vmaj, vmin, vpatch = VERSION:match("^(%d+)%.(%d+)%.(%d+)")
-  local short_version = vmaj and ("V" .. vmaj .. vmin .. vpatch) or "VER"
-  lines[#lines+1] = {
-    row=0,
-    col=math.max(0, 40 - #short_version),
-    text=short_version,
-    color=C.XPAND_BLUE
-  }
-
-  -- Row 1 is blank; catalog rows show ROM address and description.
-  for row = 0, rows - 1 do
-    local idx = first + row
-    local e = list[idx]
-    if e then
-      local desc = fixed_native_text(e.description, 34)
-      local text = string.format("%04X@%s", e.address & 0xFFFF, desc)
-      if #text < 39 then text = text .. string.rep("@", 39 - #text) end
-      if #text > 39 then text = text:sub(1,39) end
-
-      -- Leave column 0 for the selector arrow; catalog text begins at column 1.
-      local screen_row = 2 + row
-      lines[#lines+1] = { row=screen_row, col=1, text=text, color=C.XPAND_RED }
-      -- Lowercase 'a' maps to WoW's resident right-arrow glyph.
-      local marker = idx == selected and "a" or "@"
-      lines[#lines+1] = { row=screen_row, col=0, text=marker, color=C.XPAND_YELLOW }
+  for row = 0, N.UI_ROWS - 1 do
+    local entry = list[first + row + 1]
+    local row_addr = N.PAGE_ROWS + row * 40
+    local meta_addr = N.PAGE_ENTRY_META + row * 3
+    if entry then
+      local line = "@" .. string.format("%04X@", entry.address & 0xFFFF) ..
+                   fixed_native_text(entry.description, 34)
+      write_native_string(row_addr, line, 40)
+      program:write_u8(meta_addr, entry.id)
+      write16(meta_addr + 1, entry.address)
+    else
+      write_native_string(row_addr, "", 40)
+      program:write_u8(meta_addr, 0xFF)
+      write16(meta_addr + 1, 0)
     end
   end
 
-  -- Bottom control legend.
-  local footer1 = native_center_row("UP DOWN  SELECT - FIRE  PLAY SOUND")
-  local footer2 = native_center_row("LEFT RIGHT  CHANGE SOUND TYPE")
-  local footer3
-  if S.batch then
-    footer3 = native_center_row("1P  EXIT - 2P  STOP")
-  else
-    footer3 = native_center_row("1P  EXIT - 2P  PLAY ALL")
-  end
-  lines[#lines+1] = { row=10, col=0, text=footer1, color=C.XPAND_YELLOW }
-  lines[#lines+1] = { row=11, col=0, text=footer2, color=C.XPAND_YELLOW }
-  lines[#lines+1] = { row=12, col=0, text=footer3, color=C.XPAND_YELLOW }
-  return lines
+  write_native_string(N.PAGE_FOOTER_1,
+    centered_native_row("UP DOWN SELECT - FIRE PLAY SPEECH"), 40)
+  write_native_string(N.PAGE_FOOTER_2,
+    centered_native_row("LEFT RIGHT - CHANGE SPEECH TYPE"), 40)
+  local footer3 = program:read_u8(N.PLAY_ALL) ~= 0 and
+    "1P EXIT - 2P STOP AFTER CURRENT" or "1P EXIT - 2P PLAY ALL"
+  write_native_string(N.PAGE_FOOTER_3, centered_native_row(footer3), 40)
 end
 
-local function write_native_draw_program(lines)
-  local data = C.DRAW_DATA
-  local code = {}
-  local function emit(v) code[#code+1] = v & 0xFF end
-  local function emit16(v) emit(v); emit(v >> 8) end
+local function initialize_abi()
+  local signature = {string.byte("W"), string.byte("S"), string.byte("N"), string.byte("2")}
+  for i, b in ipairs(signature) do program:write_u8(N.SIGNATURE + i - 1, b) end
+  for address = N.PAGE_SEQUENCE, N.CAPTURE_FLAGS do program:write_u8(address, 0) end
+  program:write_u8(N.SELECTED_FRAGMENT, 0xFF)
+  program:write_u8(N.SELECTED_PHRASE, 0xFF)
+  program:write_u8(N.COUNT_FRAGMENT, #S.catalog.fragment)
+  program:write_u8(N.COUNT_PHRASE, #S.catalog.phrase)
+  program:write_u8(N.CAPTURE_FLAGS, S.wav_enabled and 1 or 0)
+  program:write_u8(N.STALL_RECOVERIES, 0)
+  write_page_buffer()
+  program:write_u8(N.PAGE_ACK, 0)
+  program:write_u8(N.PAGE_DRAWN, 0xFF)
+end
 
-  for _,line in ipairs(lines) do
-    local text = line.text
-    local addr = data
-    for i = 1, #text do
-      program:write_u8(data, text:byte(i))
-      data = data + 1
+local function install_payload()
+  if #PAYLOAD ~= N.PAYLOAD_END - N.PAYLOAD then
+    return false, string.format("payload span mismatch: %d bytes", #PAYLOAD)
+  end
+  for i, b in ipairs(PAYLOAD) do program:write_u8(N.PAYLOAD + i - 1, b) end
+  for i, b in ipairs(PAYLOAD) do
+    if program:read_u8(N.PAYLOAD + i - 1) ~= b then
+      return false, string.format("payload verify failed at %s", hex4(N.PAYLOAD + i - 1))
     end
-
-    -- L03B5 supplies C=$FF and enters native printstr.
-    emit(0x21); emit16(addr)
-    emit(0x11); emit16(screen_de(line.row, line.col))
-    emit(0x06); emit(#text)
-    emit(0x3E); emit(line.color or C.XPAND_RED)
-    emit(0xCD); emit16(C.PRINT_STRING_COLOR)
   end
-
-  -- printstr leaves interrupts disabled; re-enable them before returning to HALT.
-  emit(0xFB)                         -- EI
-  emit(0xC3); emit16(C.IDLE_LOOP + 1) -- JP HALT
-
-  if C.DRAW_CODE + #code >= C.DRAW_DATA then
-    return false, "native UI display list exceeds reserved RAM"
-  end
-  if data >= C.CALL_STACK - 0x40 then
-    return false, "native UI strings exceed reserved RAM"
-  end
-  for i,b in ipairs(code) do program:write_u8(C.DRAW_CODE + i - 1, b) end
   return true
 end
 
-local function render_ui_native()
-  if not S.takeover or not S.ui_dirty or not foreground_idle() then return end
-  local ok, err = write_native_draw_program(native_menu_lines())
-  if not ok then
-    S.status = "ERROR: " .. err
-    printf("[WOW SPEECH] %s", err)
-    S.ui_dirty = false
-    return
+local function speech_idle()
+  return program:read_u8(N.SPEECH_ACTIVE) == 0 and
+         read16(N.QUEUE_WRITE) == read16(N.QUEUE_READ)
+end
+
+local function sound_requests_idle()
+  for address = N.SOUND_REQUEST_1, N.SOUND_REQUEST_4 do
+    if program:read_u8(address) ~= 0 then return false end
   end
-  if cpu.state["SP"] then cpu.state["SP"].value = C.CALL_STACK end
+  return true
+end
+
+local function takeover()
+  if S.takeover then return true end
+  local ok, why = validate_program()
+  if not ok then
+    printf("[WOW SPEECH] takeover refused: %s", why)
+    S.enabled = false
+    return false
+  end
+  ok, why = build_catalog()
+  if not ok then
+    printf("[WOW SPEECH] takeover refused: %s", why)
+    S.enabled = false
+    return false
+  end
+  if #S.catalog.fragment > 255 or #S.catalog.phrase > 255 then
+    print("[WOW SPEECH] takeover refused: catalog exceeds native 8-bit ABI")
+    S.enabled = false
+    return false
+  end
+
+  ok, why = install_payload()
+  if not ok then
+    printf("[WOW SPEECH] takeover refused: %s", why)
+    S.enabled = false
+    return false
+  end
+  initialize_abi()
+
+  -- This is the only CPU control-state handoff in the browser.
   if cpu.state["HALT"] then cpu.state["HALT"].value = 0 end
-  cpu.state["PC"].value = C.DRAW_CODE
-  S.ui_dirty = false
-  S.draw_count = S.draw_count + 1
+  if cpu.state["SP"] then cpu.state["SP"].value = N.STACK_TOP end
+  cpu.state["PC"].value = N.PAYLOAD
+
+  S.takeover = true
+  S.takeover_time = machine_seconds()
+  S.last_page_sequence = 0
+  S.last_event_sequence = program:read_u8(N.EVENT_SEQUENCE)
+  S.last_event_state = program:read_u8(N.EVENT_STATE)
+  S.last_heartbeat = program:read_u8(N.HEARTBEAT)
+  S.last_stall_recoveries = 0
+  S.heartbeat_time = machine_seconds()
+
+  printf("[WOW SPEECH] native takeover active; bank=%s", S.language.name)
+  printf("[WOW SPEECH] catalog: %d phrases, %d fragments",
+    #S.catalog.phrase, #S.catalog.fragment)
+  printf("[WOW SPEECH] Z80: %s-%s (%d bytes, FNV-1a %08X)",
+    hex4(N.PAYLOAD), hex4(N.PAYLOAD_END - 1), #PAYLOAD, PAYLOAD_FNV1A)
+  print("[WOW SPEECH] native ownership: IM2/frame/input/UI/playback/play-all/$8000 service")
+  print("[WOW SPEECH] Lua ownership: validation/page text/WAV/read-only trace/exit")
+  return true
+end
+
+local function service_page_mailbox()
+  local sequence = program:read_u8(N.PAGE_SEQUENCE)
+  local ack = program:read_u8(N.PAGE_ACK)
+  if sequence == ack then return end
+  write_page_buffer()
+  program:write_u8(N.PAGE_ACK, sequence) -- commit last
+  S.last_page_sequence = sequence
+end
+
+local function fragment_stream(address, initial_inflection)
+  local count = program:read_u8(address)
+  local names, raws, commands = {}, {}, {}
+  local inflection = initial_inflection & 0x80
+  for i = 0, count - 1 do
+    local raw = program:read_u8(address + 1 + i)
+    local command = raw ~ inflection
+    inflection = command & 0x80
+    local name = SC01_NAMES[command & 0x3F] or string.format("P%02X", command & 0x3F)
+    names[#names + 1] = name
+    raws[#raws + 1] = string.format("%02X", raw)
+    commands[#commands + 1] = string.format("%02X", command)
+  end
+  return count, table.concat(names, " "), table.concat(raws, " "),
+         table.concat(commands, " "), inflection
+end
+
+local function event_entry(kind, id, address)
+  if kind == "fragment" then
+    local aliases = S.fragment_by_address[address]
+    return (aliases and aliases[id]) or {
+      kind=kind, id=id, address=address, description=fragment_desc(S.language, id)
+    }
+  end
+  return S.catalog.phrase[id + 1] or {
+    kind=kind, id=id, address=address, description=string.format("Phrase %02X", id)
+  }
+end
+
+local function log_event_request(event)
+  print("")
+  printf("[WOW SPEECH] PLAY %s id=%s address=%s text=\"%s\"",
+    event.kind:upper(), hex2(event.id), hex4(event.address), event.entry.description)
+
+  local inflection = program:read_u8(N.SPEECH_INFLECTION) & 0x80
+  if event.kind == "fragment" then
+    local count, phones, raws, commands = fragment_stream(event.address, inflection)
+    event.expected_end = event.address + count + 1
+    event.last_pointer = event.address + 1
+    event.sim_inflection = inflection
+    event.seq = 0
+    printf("[WOW SPEECH] PHONEMES %s", phones)
+    if DEBUG_TRACE then
+      printf("[WOW SPEECH DEBUG] RAW      %s", raws)
+      printf("[WOW SPEECH DEBUG] COMMANDS %s", commands)
+    end
+  else
+    local fragments = event.entry.fragments or {}
+    for index, fid in ipairs(fragments) do
+      local address = read16(S.language.fragment_table + fid * 2)
+      printf("[WOW SPEECH]   FRAGMENT %d/%d id=%s address=%s text=\"%s\"",
+        index, #fragments, hex2(fid), hex4(address), fragment_desc(S.language, fid))
+      if address == 0 then
+        print("[WOW SPEECH]     PHONEMES <null fragment pointer>")
+      else
+        local count, phones, raws, commands, next_inflection =
+          fragment_stream(address, inflection)
+        printf("[WOW SPEECH]     PHONEMES %s", phones)
+        if DEBUG_TRACE then
+          printf("[WOW SPEECH DEBUG]     length=%s RAW %s", hex2(count), raws)
+          printf("[WOW SPEECH DEBUG]     COMMANDS %s", commands)
+        end
+        inflection = next_inflection
+      end
+    end
+  end
+end
+
+local function wav_language_slug()
+  return (S.language and S.language.name or "unknown"):lower():gsub("[^a-z0-9]+", "_")
+end
+
+local function start_event_wav(event)
+  if not S.wav_enabled or S.wav_active then return false end
+  local already = false
+  pcall(function() already = machine.sound.recording == true end)
+  if already then
+    print("[WOW SPEECH] WAV not started: MAME recorder is already active")
+    return false
+  end
+  local filename = string.format("wow_%s_%s_%04X.wav",
+    wav_language_slug(), event.kind, event.address & 0xFFFF)
+  local ok, started = pcall(function() return machine.sound:start_recording(filename) end)
+  if not ok or not started then
+    printf("[WOW SPEECH] WAV not started: %s", filename)
+    return false
+  end
+  S.wav_active = true
+  S.wav_filename = filename
+  S.wav_stop_at = nil
+  return true
+end
+
+local function stop_owned_wav(reason)
+  if not S.wav_active then return end
+  pcall(function() machine.sound:stop_recording() end)
+  printf("[WOW SPEECH] WAV %s: %s", reason or "saved", S.wav_filename or "")
+  S.wav_active = false
+  S.wav_filename = nil
+  S.wav_stop_at = nil
+end
+
+local function finish_event(event, reason)
+  if not event or event.finished then return end
+  event.finished = true
+  local elapsed = machine_seconds() - event.announced_at
+  printf("[WOW SPEECH] END %s id=%s address=%s elapsed=%.3fs%s",
+    event.kind:upper(), hex2(event.id), hex4(event.address), elapsed,
+    reason and (" " .. reason) or "")
+  if S.wav_active then S.wav_stop_at = machine_seconds() + N.WAV_POSTROLL_SEC end
+end
+
+local function service_trace_progress(event, state)
+  if not DEBUG_TRACE or not event or event.kind ~= "fragment" or state ~= 2 then return end
+  local pointer = read16(N.SPEECH_POINTER)
+  if not event.last_pointer or pointer <= event.last_pointer then return end
+  if event.expected_end and pointer > event.expected_end then return end
+  local limit = event.expected_end or pointer
+  for address = event.last_pointer, math.min(pointer - 1, limit - 1) do
+    local raw = program:read_u8(address)
+    local command = raw ~ (event.sim_inflection or 0)
+    event.sim_inflection = command & 0x80
+    event.seq = (event.seq or 0) + 1
+    printf("[WOW SPEECH DEBUG] #%02d ROM=%04X raw=%02X cmd=%02X phone=%s remain=%02X READY=%d",
+      event.seq, address, raw, command,
+      SC01_NAMES[command & 0x3F] or string.format("P%02X", command & 0x3F),
+      program:read_u8(N.SPEECH_REMAINING),
+      (io:read_u8(N.P1PORT) & 0x80) ~= 0 and 1 or 0)
+  end
+  event.last_pointer = pointer
+end
+
+local function service_event_mailbox()
+  local sequence = program:read_u8(N.EVENT_SEQUENCE)
+  local state = program:read_u8(N.EVENT_STATE)
+
+  if sequence ~= S.last_event_sequence then
+    if S.event and not S.event.finished then finish_event(S.event, "[next event]") end
+
+    local kind = program:read_u8(N.EVENT_KIND) == 0 and "fragment" or "phrase"
+    local id = program:read_u8(N.EVENT_ID)
+    local address = read16(N.EVENT_ADDRESS)
+    local event = {
+      sequence=sequence, kind=kind, id=id, address=address,
+      entry=event_entry(kind, id, address),
+      announced_at=machine_seconds(), state=state, finished=false,
+    }
+    S.event = event
+    S.last_event_sequence = sequence
+    S.last_event_state = state
+    log_event_request(event)
+
+    if S.wav_enabled then
+      if S.wav_active then
+        S.pending_wav_event = event
+      else
+        start_event_wav(event)
+      end
+    end
+  else
+    service_trace_progress(S.event, state)
+    if S.event and state == 2 and S.last_event_state ~= 2 and DEBUG_TRACE then
+      printf("[WOW SPEECH DEBUG] START active=%02X remain=%02X ptr=%04X",
+        program:read_u8(N.SPEECH_ACTIVE), program:read_u8(N.SPEECH_REMAINING),
+        read16(N.SPEECH_POINTER))
+    elseif S.event and state == 3 and S.last_event_state ~= 3 then
+      finish_event(S.event)
+    end
+    S.last_event_state = state
+  end
+end
+
+local function service_wav()
+  if S.wav_active and S.wav_stop_at and machine_seconds() >= S.wav_stop_at then
+    stop_owned_wav("saved")
+  end
+  if not S.wav_active and S.pending_wav_event then
+    local event = S.pending_wav_event
+    S.pending_wav_event = nil
+    start_event_wav(event)
+  end
+end
+
+local function set_wav_capture(value)
+  if value == nil then
+    S.wav_enabled = not S.wav_enabled
+  elseif type(value) == "boolean" then
+    S.wav_enabled = value
+  elseif type(value) == "number" then
+    S.wav_enabled = value ~= 0
+  else
+    local text = tostring(value):lower()
+    if text == "on" or text == "true" or text == "1" then
+      S.wav_enabled = true
+    elseif text == "off" or text == "false" or text == "0" then
+      S.wav_enabled = false
+    else
+      print("[WOW SPEECH] usage: wwav() | wwav(true) | wwav(false)")
+      return S.wav_enabled
+    end
+  end
+  if S.takeover then program:write_u8(N.CAPTURE_FLAGS, S.wav_enabled and 1 or 0) end
+  printf("[WOW SPEECH] WAV capture: %s", S.wav_enabled and "ON" or "OFF")
+  return S.wav_enabled
+end
+
+local function set_debug_trace(value)
+  if value == nil then
+    DEBUG_TRACE = not DEBUG_TRACE
+  elseif type(value) == "boolean" then
+    DEBUG_TRACE = value
+  elseif type(value) == "number" then
+    DEBUG_TRACE = value ~= 0
+  else
+    local text = tostring(value):lower()
+    if text == "on" or text == "true" or text == "1" then
+      DEBUG_TRACE = true
+    elseif text == "off" or text == "false" or text == "0" then
+      DEBUG_TRACE = false
+    else
+      print("[WOW SPEECH] usage: wtrace() | wtrace(true) | wtrace(false)")
+      return DEBUG_TRACE
+    end
+  end
+  printf("[WOW SPEECH] detailed trace: %s", DEBUG_TRACE and "ON" or "OFF")
+  return DEBUG_TRACE
+end
+
+local function post_native_command(command, name)
+  if not S.takeover then
+    printf("[WOW SPEECH] %s: native takeover is not active", name)
+    return false
+  end
+  if program:read_u8(N.COMMAND) ~= 0 then
+    printf("[WOW SPEECH] %s: native command mailbox is busy", name)
+    return false
+  end
+  program:write_u8(N.COMMAND, command)
+  return true
+end
+
+local function print_console_commands()
+  print("")
+  print("[WOW SPEECH] console commands:")
+  print("[WOW SPEECH]   wwav([bool])    toggle/set WAV capture")
+  print("[WOW SPEECH]   wtrace([bool])  toggle/set read-only trace")
+  print("[WOW SPEECH]   wall()          request native Play All")
+  print("[WOW SPEECH]   wstop()         request native stop-after-current")
+  print("[WOW SPEECH]   wexit()         exit MAME")
+  print("[WOW SPEECH]   whelp()         show this list")
+end
+
+local function install_shortcut(name, handler)
+  local previous = rawget(_G, name)
+  S.shortcuts[name] = {handler=handler, previous=previous, restore=previous ~= nil}
+  rawset(_G, name, handler)
+end
+
+local function install_console_shortcuts()
+  install_shortcut("wwav", set_wav_capture)
+  install_shortcut("wtrace", set_debug_trace)
+  install_shortcut("wall", function() return post_native_command(1, "wall()") end)
+  install_shortcut("wstop", function() return post_native_command(2, "wstop()") end)
+  install_shortcut("wexit", function() return post_native_command(3, "wexit()") end)
+  install_shortcut("whelp", print_console_commands)
+end
+
+local function restore_console_shortcuts()
+  for name, shortcut in pairs(S.shortcuts) do
+    if rawget(_G, name) == shortcut.handler then
+      rawset(_G, name, shortcut.restore and shortcut.previous or nil)
+    end
+  end
+  S.shortcuts = {}
+end
+
+local function service_heartbeat()
+  local value = program:read_u8(N.HEARTBEAT)
+  if value ~= S.last_heartbeat then
+    S.last_heartbeat = value
+    S.heartbeat_time = machine_seconds()
+  elseif machine_seconds() - (S.heartbeat_time or 0) > 1.0 then
+    printf("[WOW SPEECH] ERROR: native heartbeat stalled at %s", hex2(value))
+    S.heartbeat_time = machine_seconds()
+  end
+end
+
+local function service_stall_recovery_log()
+  local value = program:read_u8(N.STALL_RECOVERIES)
+  if value == S.last_stall_recoveries then return end
+  S.last_stall_recoveries = value
+  local event = S.event
+  if event then
+    printf("[WOW SPEECH] NATIVE STALL RECOVERY count=%d kind=%s id=%s address=%s",
+      value, event.kind, hex2(event.id), hex4(event.address))
+  else
+    printf("[WOW SPEECH] NATIVE STALL RECOVERY count=%d", value)
+  end
 end
 
 local function on_frame()
   if not S.enabled then return end
-
-  local lang = active_language()
-  if lang.key ~= S.last_language_key then
-    build_catalog(true)
-    if S.takeover then S.status = "BANK CHANGED: " .. lang.name:upper() end
-    S.pending = nil
-    S.ui_dirty = true
-  end
-
   if not S.takeover then
-    local elapsed = machine_seconds()
-    if elapsed >= C.TAKEOVER_DELAY_SEC and speech_idle() and sound_requests_idle() then
-      takeover("auto")
+    if machine_seconds() >= N.TAKEOVER_DELAY_SEC and speech_idle() and sound_requests_idle() then
+      takeover()
     end
     return
   end
 
-  process_inputs()
-  trace_progress()
-  service_wav_capture()
-  service_batch()
-  service_pending()
-  render_ui_native()
+  -- Lua services only the documented mailbox ABI.  It never polls controls,
+  -- selects entries, writes speech state, renders by redirecting PC, or changes
+  -- CPU registers after Browser_Entry.
+  service_page_mailbox()
+  service_event_mailbox()
+  service_wav()
+  service_heartbeat()
+  service_stall_recovery_log()
+  if program:read_u8(N.EXIT_REQUEST) ~= 0 then machine:exit() end
 end
 
 print("============================================================")
-printf("[WOW SPEECH] WOW SPEECH BROWSER %s", VERSION)
-printf("[WOW SPEECH] takeover RAM: $%04X; native UI code: $%04X; ROM patching: NONE", C.IDLE_LOOP, C.DRAW_CODE)
-print("[WOW SPEECH] display: native WoW L03B5/printstr + resident CHRTBL; blue/yellow/red UI; MAME overlay: NONE")
+printf("[WOW SPEECH] WOW NATIVE SPEECH BROWSER %s", VERSION)
+printf("[WOW SPEECH] payload: %s-%s, %d bytes, FNV-1a %08X",
+  hex4(N.PAYLOAD), hex4(N.PAYLOAD_END - 1), #PAYLOAD, PAYLOAD_FNV1A)
+print("[WOW SPEECH] resident paths: $8009 phrase queue; $81F8 speech queue; $8000 service")
+print("[WOW SPEECH] CPU redirect after takeover: exactly once")
 install_console_shortcuts()
 print_console_commands()
 print("============================================================")
 
-build_catalog(true)
-
 if emu.add_machine_frame_notifier then
   S.frame_subscription = emu.add_machine_frame_notifier(on_frame)
 else
-  emu.register_frame_done(on_frame, "wow_speech_browser")
+  emu.register_frame_done(on_frame, "wow_speech_browser_native")
 end
 
 if emu.add_machine_stop_notifier then
   S.stop_subscription = emu.add_machine_stop_notifier(function()
     S.enabled = false
-    if S.wav_active then stop_owned_wav("closed") end
+    stop_owned_wav("closed")
     restore_console_shortcuts()
   end)
 end
 
-print(string.format("[WOW SPEECH] %s loaded from %s; WoW boots normally, then browser takeover begins after %.1fs when speech/sound requests are idle", VERSION, BUILD_FILE, C.TAKEOVER_DELAY_SEC))
+printf("[WOW SPEECH] %s loaded from %s; waiting %.1fs for idle takeover",
+  VERSION, BUILD_FILE, N.TAKEOVER_DELAY_SEC)
