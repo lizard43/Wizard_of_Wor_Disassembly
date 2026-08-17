@@ -6,7 +6,7 @@
 ; Dispatcher-visible stream entries that fall inside byte-emitting statements
 ; in the stream-data representation.
 ;*****************************************************************************
-Sound_Stream_R3_B1_Secondary     EQU     L890E       ; R3.B1 secondary stream
+Sound_Stream_R3_B1_Secondary     EQU     L890E       ; R3.B1 MONSTER DEATH, secondary stream
 Sound_Stream_R1_B5_Primary       EQU     L8971       ; R1.B5 primary stream; requested by coin-input handler
 
 ;*****************************************************************************
@@ -50,11 +50,15 @@ L0017:      ld      a, $00              ; 0000 000 0 (Function 0: Coin Counter 3
             call     Set_Scanline_Int               ; Set scan line interrupt & enable sparkle colors
 
 ;******************************************************************************************
-; ----> SET INTERRUPT MODE
+; ----> CONFIGURE IM2 VECTOR PAGE
+;
+; I supplies the high byte of the IM2 vector-table address. WoW keeps I=$00;
+; INFBK supplies the selectable low byte ($CA/$CC/$CE).
 ;******************************************************************************************
-L0026:      ld      a, $00              ; High byte for Interrupt Vector Table
-            ld      i, a                ; Interrupts will be triggered from $0000-$00FF
-            im      2                   ; Set Interrupt Mode 2
+Configure_IM2_Vector_Page_00:
+L0026:      ld      a,IM2_VECTOR_PAGE_00
+            ld      i,a                 ; Vector words are read from ROM page $00xx
+            im      2                   ; Z80 Interrupt Mode 2
 
 ;******************************************************************************************
 ; GAME INITIALIZATION & MEMORY SETUP
@@ -65,11 +69,11 @@ L0026:      ld      a, $00              ; High byte for Interrupt Vector Table
             ld      (Speech_Queue_Write_Pointer + 1),a ; Clear queue write-pointer high byte
 
 ;******************************************************************************************
-; ----> EXPANSION ROM CHECK
+; ----> HIGH-ROM INITIALIZATION HOOK
 ;******************************************************************************************
-L0030:      ld      a, (EXPHOOK)          ; Check High ROM extension socket
-            cp      $C3                 ; Is the byte a 'JP' ($C3) instruction?
-            call    z, EXPHOOK            ; If yes, execute external ROM initialization
+L0030:      ld      a,(HIGH_ROM_INIT_HOOK) ; Probe the optional high-ROM initialization entry
+            cp      $C3                 ; Present entries begin with JP
+            call    z,HIGH_ROM_INIT_HOOK ; WoW high ROM: reset both sound engines / validate speech queue
 
 ;******************************************************************************************
 ; ----> HARDWARE VARIABLE SETUP
@@ -148,8 +152,8 @@ L0088:      bit     3,a                 ; Check Service/Diagnostic Switch
 ; ----> INTERRUPT VECTOR & COLOR PALETTE MAPPING
 ;******************************************************************************************
 Initialize_Interrupt_Vector_And_Palette:
-            ld      a,$CA               ; Interrupt vector at $CA
-            out     (INFBK),a           ; Set interrupt vector upper byte
+            ld      a,IM2_VECTOR_CA     ; $00CA -> Interrupt_Vector_CA_Handler ($0956)
+            out     (INFBK),a           ; Select IM2 vector low byte
 
             ld      hl,DEFPALETTE       ; Source: Color mapping table
             ld      bc,$080B            ; B = 8 (count), C = $0B (Color Block Transfer port)
@@ -160,16 +164,16 @@ Initialize_Interrupt_Vector_And_Palette:
 ; ----> SET INTERRUPT VECTOR $CC
 ;******************************************************************************************
 Select_Interrupt_Vector_CC:
-            ld      a,$CC
-            out     (INFBK),a           ; Set interrupt vector upper byte
+            ld      a,IM2_VECTOR_CC     ; $00CC -> Interrupt_Vector_CC_Handler ($099E)
+            out     (INFBK),a           ; Select IM2 vector low byte
 L00A4:      ret
 
 ;******************************************************************************************
 ; ----> SET INTERRUPT VECTOR $CE
 ;******************************************************************************************
 Select_Interrupt_Vector_CE:
-            ld      a,$CE
-            out     (INFBK),a           ; Set interrupt vector upper byte
+            ld      a,IM2_VECTOR_CE     ; $00CE -> Interrupt_Vector_CE_Handler ($09B4)
+            out     (INFBK),a           ; Select IM2 vector low byte
             ret
 
 ;******************************************************************************************
@@ -212,10 +216,22 @@ L00C0:      ld      (hl),c              ; Write byte to protected RAM
 ;******************************************************************************************
 ; ----> DEFAULT COLOR PALETTE MAPPING TABLE
 ;
-;       These bytes are sent to the Color Block Transfer port ($0B) during boot.
+;       Initialize_Interrupt_Vector_And_Palette sends eight bytes beginning at
+;       DEFPALETTE ($00C5-$00CC) to the color block port. The tail of this same
+;       ROM data is deliberately shared with the IM2 vector table.
 ;******************************************************************************************
-DEFPALETTE: DB      $51, $7C, $F3
-L00C8:      DB      $C7, $00, $56, $09, $9E, $09, $B4, $09
+DEFPALETTE: DB      $51,$7C,$F3
+L00C8:      DB      $C7,$00
+
+; With I=$00, IM2 reads little-endian handler pointers at $00CA/$00CC/$00CE.
+; The $00CA word and low byte at $00CC are therefore also part of the eight-byte
+; palette transfer above; the ROM layout intentionally serves both purposes.
+IM2_Vector_CA_Word:
+L00CA:      DW      Interrupt_Vector_CA_Handler     ; $0956
+IM2_Vector_CC_Word:
+L00CC:      DW      Interrupt_Vector_CC_Handler     ; $099E
+IM2_Vector_CE_Word:
+L00CE:      DW      Interrupt_Vector_CE_Handler     ; $09B4
 
 ;******************************************************************************************
 ; ----> VIDEO RAM FAILURE / CRASH HANDLER
@@ -266,13 +282,13 @@ vramtest:   exx                         ; Swap registers (saves return address i
 
 ;******************************************************************************************
 ; ----> HARDWARE DIAGNOSTICS & MEMORY TEST ENTRY
-;            Disables interrupts, checks for an expansion ROM, resets hardware state,
+;            Disables interrupts, initializes the installed high-ROM subsystem, resets hardware state,
 ;            and seeds the Video RAM worm test with the initial pattern ($80).
 ;******************************************************************************************
 diags:      di                          ; Disable interrupts during diagnostics
-            ld      a,(EXPHOOK)           ; Check High ROM extension socket
-L00FF:      cp      $C3                 ; Is the byte a 'JP' ($C3) instruction?
-L0101:      call    z,EXPHOOK             ; If yes, execute external diagnostic ROM
+            ld      a,(HIGH_ROM_INIT_HOOK) ; Probe the optional high-ROM initialization entry
+L00FF:      cp      $C3                 ; Present entries begin with JP
+L0101:      call    z,HIGH_ROM_INIT_HOOK ; Initialize the installed high-ROM subsystem
 
             call    Enable_Sparkle_Colors               ; Reset hardware state / sparkle colors
 
@@ -531,13 +547,13 @@ L0230:      ld      de,LD1D7            ; Point to Player 1 controls buffer
             ld      de,$190B            ; DE = Screen formatting and position attributes for P2
             ld      hl,LD1CE            ; HL = Pointer to P2 joystick state tracking variable ($D1CE)
             ld      a,(LD1D6)           ; A = Load Player 2 controls state (Read from Port $11)
-            call    L0317               ; Call L0317 to evaluate the direction status (lower nybble)
+            call    Update_Diagnostic_Joystick_Display ; Update changed U/D/L/R diagnostic state
 
             ; Player 1 Joystick Check
             ld      de,$1939            ; DE = Screen formatting and position attributes for P1
             ld      hl,LD1CF            ; HL = Pointer to P1 joystick state tracking variable ($D1CF)
             ld      a,(LD1D7)           ; A = Load Player 1 controls state (Read from Port $12)
-            call    L0317               ; Call L0317 to evaluate the direction status (lower nybble)
+            call    Update_Diagnostic_Joystick_Display ; Update changed U/D/L/R diagnostic state
 
 ;*****************************************************************************************
 ; ----> CHECK RIGHT FIRE BUTTONS (Port $11 / $12, Bit 4)
@@ -693,10 +709,13 @@ L0310:      di                  ; Disable interrupts
 L0314:      jp      $AF80       ; Jump to EOF routine to draw alignment grid and halt
 
 ;*****************************************************************************************
-; ----> JOYSTICK DIRECTION EVALUATOR
+; ----> UPDATE DIAGNOSTIC JOYSTICK DISPLAY
 ;
-; Isolates the lower nybble (joystick directions) and checks for state changes.
+; A = raw player input byte, HL = stored previous joystick state. The routine
+; filters to U/D/L/R, returns immediately if unchanged, otherwise updates the
+; saved state and falls through to the diagnostic direction-string renderer.
 ;*****************************************************************************************
+Update_Diagnostic_Joystick_Display:
 L0317:      and     $0F         ; Isolate bits 0-3 (Up, Down, Left, Right)
             cp      (hl)        ; Compare current joystick state against previous state
             ret     z           ; Return immediately if the joystick hasn't moved
@@ -893,7 +912,11 @@ L0449:      DB      "STATIC@RAM@BAD"
 L0457:      DB      "ROM@"
             DB      $00
 
-L045C:      ld      c,$10
+; Print using the cabinet/system orientation bit rather than forcing C=$FF.
+; Inputs otherwise match printstr. Reading port $10 into C supplies C.7, which
+; printstr uses to select forward versus horizontally mirrored rendering.
+Print_String_With_Cabinet_Orientation:
+L045C:      ld      c,COINPORT
             in      c,(c)
 
 ; Render B native-font characters through the Pattern Board. Each glyph is a
@@ -1264,9 +1287,9 @@ L0779:      out     (COL3L),a
 ;
             nop
 L0781:      call    Stream_Fetch_Byte_B
-            call    L07A8
+            call    Stream_Select_Address_By_Orientation
             xor     a
-            jp      L045C
+            jp      Print_String_With_Cabinet_Orientation
 ;
 ;*********************************************************
 ;
@@ -1306,12 +1329,13 @@ L079A:      ld      a,(hl)              ; Length bytes are below $30
             add     a,b
             ret
 ;
-;*********************************************************
-;
+; Select one of two stream-encoded 16-bit addresses using COINPORT bit 7.
+; Consumes two words from IY and returns the selected address in DE.
+Stream_Select_Address_By_Orientation:
 L07A8:      call    Stream_Fetch_Word_HL
             push    hl
             call    Stream_Fetch_Word_HL
-            in      a, (COINPORT)       ; Read system inputs for alternate address selection
+            in      a,(COINPORT)        ; Bit 7 selects first versus second address
             bit     7,a
             jr      nz,L07B6
             ex      (sp),hl
@@ -1333,12 +1357,12 @@ L07B6:      pop     hl
 L07CA:
             call    Stream_Fetch_Word_DE
             call    Stream_Fetch_Byte_B
-            call    L07A8
+            call    Stream_Select_Address_By_Orientation
 L07D3:      call    Stream_Fetch_Byte_A
-            jp      L045C
+            jp      Print_String_With_Cabinet_Orientation
 ;
             call    Stream_Fetch_Byte_B
-            call    L07A8
+            call    Stream_Select_Address_By_Orientation
             call    Select_Localized_Text_Record
             jr      L07D3
 ;
@@ -1358,13 +1382,13 @@ L07D3:      call    Stream_Fetch_Byte_A
             sub     e
             ld      e,a
 L07FF:      push    hl
-L0800:      call    L0947
+L0800:      call    Compute_80_Byte_Row_Offset
             ex      de,hl
             pop     hl
             jr      L07D3
 ;
 ; Write an immediate byte to a stream-selected address.
-            call    L0872
+            call    Stream_Fetch_Byte_A_Then_Word_HL
             ld      (hl),a
             ret
 
@@ -1377,7 +1401,7 @@ L080F:      call    Stream_Fetch_Word_HL
             ld      (hl),d
             ret
 ;
-            call    L0872
+            call    Stream_Fetch_Byte_A_Then_Word_HL
             call    Stream_Fetch_Word_DE
             cp      (hl)
             ret     z
@@ -1394,7 +1418,7 @@ L0823:      call    Stream_Fetch_Word_HL
             and     a
             ret     z
             jr      L086E
-            call    L0872
+            call    Stream_Fetch_Byte_A_Then_Word_HL
             call    Stream_Fetch_Word_DE
             cp      (hl)
             ret     c
@@ -1414,7 +1438,7 @@ L083E:      push    de
             ret
             xor     a
             ld      (LD053),a
-            call    L0872
+            call    Stream_Fetch_Byte_A_Then_Word_HL
             ld      (LD051),hl
             ld      (Timer_Group_1_Start),a
             ret
@@ -1424,19 +1448,13 @@ L086E:      push    hl
             pop     iy
             ret
 ;
-;*********************************************************
-; Sub to A=(IY), IY=IY+1
-;*********************************************************
-;
+; Fetch an immediate byte followed by a 16-bit little-endian word from the
+; command stream. Returns A=byte, HL=word, with IY advanced by three bytes.
+Stream_Fetch_Byte_A_Then_Word_HL:
 L0872:      call    Stream_Fetch_Byte_A
-;
-;*********************************************************
-;
-;  Load H=(IY+1), L=(IY), IY=IY+2
-;  Why are we loading up HL with these values?
-;
-;*********************************************************
-;
+
+; Fetch one 16-bit little-endian word from the command stream.
+; Returns HL=word and advances IY by two bytes.
 Stream_Fetch_Word_HL:
             ld      l,(iy+$00)
             inc     iy
@@ -1511,7 +1529,8 @@ Leave_Nested_Command_Stream:
 ; ---->  Sys_Init
 ;
 ; Sets up Magic RAM and the Pattern Board (DMA) to rapidly clear the screen,
-; zeroes out $0203 bytes of Work RAM, and checks for an expansion ROM.
+; zeroes out $0203 bytes of Work RAM, and invokes the high-ROM initialization
+; hook when that entry is populated by a JP instruction.
 ;*****************************************************************************************
  Sys_Init:
             di                          ; Disable interrupts during the wipe
@@ -1543,11 +1562,11 @@ Leave_Nested_Command_Stream:
             ldir                        ; Rapidly copy the zero through the RAM block
 
 ;*****************************************************************************************
-; ----> EXPANSION ROM HOOK
+; ----> HIGH-ROM INITIALIZATION HOOK
 ;*****************************************************************************************
-            ld      a,(EXPHOOK)         ; Read byte at expansion hook address ($8006)
-            cp      $C3                 ; Is it a Z80 'JP' ($C3) instruction?
-            call    z,EXPHOOK           ; If yes, execute the expansion ROM
+            ld      a,(HIGH_ROM_INIT_HOOK) ; Probe the high-ROM initialization entry ($8006)
+            cp      $C3                 ; Present entries begin with JP
+            call    z,HIGH_ROM_INIT_HOOK ; WoW high ROM performs sound/speech initialization
             ret                         ; Return to caller
 ;
 ;************************************************************************
@@ -1557,7 +1576,7 @@ Leave_Nested_Command_Stream:
             ex      af,af'
             call    Stream_Fetch_Word_HL
             exx
-            call    L07A8
+            call    Stream_Select_Address_By_Orientation
             ex      de,hl
             exx
 L08F0:      ld      a,(hl)
@@ -1612,12 +1631,15 @@ XY_To_Video_Address:
             push    hl
             srl     e
             srl     e
-            call    L0947
+            call    Compute_80_Byte_Row_Offset
             ld      de,L0007
             add     hl,de
             ex      de,hl
             pop     hl
             ret
+; Compute an 80-byte-row linear offset.
+; Input: D = row, E = byte column. Output: HL = D*80 + E. D is destroyed.
+Compute_80_Byte_Row_Offset:
 L0947:      ld      l,d
             ld      h,$00
             ld      d,h
@@ -1632,6 +1654,11 @@ L0947:      ld      l,d
             pop     de
             add     hl,de
             ret
+
+; IM2 vector $CA resolves through $00CA to this entry. This is the full-register
+; frame interrupt path: service coin/credit state, frame work/sound, refresh the
+; protected-RAM integrity words, then restore the interrupted context.
+Interrupt_Vector_CA_Handler:
             push    af
 L0957:      push    bc
 L0958:      push    de
@@ -1643,9 +1670,9 @@ L0958:      push    de
             push    de
             push    hl
 L0960:      push    ix
-            call    L0E2B
-            call    L09D1
-            call    L0979
+            call    Process_Coin_Inputs_And_Credits
+            call    Service_Main_Frame_Work
+            call    Refresh_Protected_RAM_Checkwords
             pop     ix
             pop     hl
             pop     de
@@ -1659,15 +1686,21 @@ L0960:      push    ix
             pop     af
             ei
             ret
+; Refresh the two protected-RAM checkwords validated by memcheck during boot.
+; $D038 increments modulo 16; $D03E is reseeded from R. Each is stored as a
+; repeated low nibble followed by its one's complement. Disabled in diagnostics.
+Refresh_Protected_RAM_Checkwords:
 L0979:      ld      a,(DIAGFLAG)
             and     a
             ret     nz
             ld      hl,LD038
             ld      a,(hl)
             inc     a
-            call    L098B
+            call    Write_Protected_RAM_Checkword_From_A
             ld      hl,LD03E
             ld      a,r
+; HL selects the two-byte protected-RAM checkword; A supplies the low nibble.
+Write_Protected_RAM_Checkword_From_A:
 L098B:      and     $0F
             ld      c,a
             rlca
@@ -1682,6 +1715,10 @@ L098B:      and     $0F
             inc     hl
             ld      c,b
             jp      Protected_RAM_Write
+
+; IM2 vector $CC resolves through $00CC to this scanline phase. It schedules
+; the $CE phase, switches the special-control latch, and updates color 3 left.
+Interrupt_Vector_CC_Handler:
             push    af
             ld      a,(LD1C4)
             add     a,$2C
@@ -1697,7 +1734,11 @@ L098B:      and     $0F
 
 ;
 ;************************************************************************
-;
+; IM2 vector $CE resolves through $00CE to this scanline phase. It restores the
+; base scanline, switches back to vector $CC, updates color 3 left, then enters
+; the full $CA frame-service save path at L0957.
+;************************************************************************
+Interrupt_Vector_CE_Handler:
             push    af
             ld      a,(LD1C4)
             out     (INLIN),a
@@ -1712,6 +1753,10 @@ L09C8:      ld      hl,LD003
             ld      c,$00
             call    Protected_RAM_Write
             rst     00H
+; Main per-frame game-service body called by Interrupt_Vector_CA_Handler. It
+; services actor/display state and timers on alternating phases, then invokes
+; the optional high-ROM periodic sound/speech service at $8000.
+Service_Main_Frame_Work:
 L09D1:      ld      a,(DIAGFLAG)
             and     a
             jp      nz,L0A68
@@ -2205,6 +2250,15 @@ L0D4C:      res     7,(ix+$08)
             set     3,(ix+$00)
             ld      (ix+$1d),$01
             ret
+;*****************************************************************************
+; ACTOR DEATH STATE HANDLER
+;
+; Requests the actor-appropriate death sound before rebuilding the actor state.
+; For actor flag bit 2 clear, this routine follows the player path below and
+; decrements P1_Lives or P2_Lives. That same flag test selects R2.B0 in
+; Request_Actor_Death_Sound, grounding R2.B0 as the player-death request.
+;*****************************************************************************
+Handle_Actor_Death:
 L0D59:      ld      (ix+$1d),$00
             call    L0DD6
             ld      (ix+$03),$01
@@ -2270,27 +2324,42 @@ L0DCF:      and     a
             ret     z
             ld      (ix+$05),$01
             ret
+;*****************************************************************************
+; SELECT DEATH SOUND REQUEST FOR CURRENT ACTOR
+;
+; IX+$07 bit 2 clear is the player path: Handle_Actor_Death later decrements
+; P1_Lives/P2_Lives on that same condition. The clear path therefore posts
+; Sound_Request_2 bit 0 (R2.B0), the player-death sound request.
+;
+; Bit 2 set selects the non-player death request from the active special-actor
+; state:
+;   LD1EB = 0                    -> R3.B1  MONSTER DEATH
+;   LD1EB != 0, LD1C6 = 0        -> R3.B0  WORLUK DEATH
+;   LD1EB != 0, LD1C6 != 0       -> R4.B0  WIZARD DEATH
+;*****************************************************************************
+Request_Actor_Death_Sound:
 L0DD6:      bit     2,(ix+$07)
             ld      hl,Sound_Request_2     ; Request bank 2
             jr      z,L0DFA
             inc     hl                  ; -> Sound_Request_3
             ld      a,(LD1EB)
             and     a
-            ld      a,$02               ; R3.B1 request value
+            ld      a,$02               ; R3.B1 - MONSTER DEATH
             jr      z,L0DF7
-            rra                         ; -> $01, R3.B0 request value
+            rra                         ; -> $01, R3.B0 - WORLUK DEATH
             ld      b,a
             ld      a,(LD1C6)
             and     a
             ld      a,b
             jr      z,L0DF7
             ld      hl,Sound_Request_4     ; Request bank 4
-            set     0,(hl)              ; R4.B0
+            set     0,(hl)              ; R4.B0 - WIZARD DEATH
             ret
 L0DF7:      or      (hl)
             ld      (hl),a
             ret
-L0DFA:      set     0,(hl)              ; R2.B0
+Request_Player_Death_Sound:
+L0DFA:      set     0,(hl)              ; Sound_Request_2 bit 0 (R2.B0) - PLAYER DEATH
             ld      a,(LD1C6)
             and     a
             ret     z
@@ -2312,6 +2381,11 @@ L0E0B:      ld      a,(ix+$15)
             ld      (ix+$1c),$0F
             ret
             nop
+
+; Sample coin/service inputs, debounce their latches, apply the selected coinage
+; table, update protected credit state, and request the coin-up sound when a new
+; credited event is accepted. Called once from the main IM2 frame path.
+Process_Coin_Inputs_And_Credits:
 L0E2B:      ld      hl,LD341
             ld      d,$00
             call    L0F00
@@ -2428,8 +2502,9 @@ L0EE3:      bit     3,b
             jp      po,L0EF4
             ld      hl,LD342
 L0EF4:      inc     (hl)
+Post_Coin_Up_Sound_Request:
             ld      hl,Sound_Request_1
-            set     5,(hl)              ; R1.B5
+            set     5,(hl)              ; R1.B5 - COIN UP
             ld      a,$01
             ld      (Sound_Service_Enabled),a ; Enable runtime sound service after coin event
             ret
@@ -2909,7 +2984,7 @@ Fetch_Sound_Request_From_Stream:
             ld      (Sound_Service_Enabled),a ; Same byte controls the runtime service gate
             ret
             in      a, (COINPORT)
-            bit     7,a                 ; Check to see if <function> is active
+            bit     7,a                 ; Test COINPORT bit 7
             ret     nz
 ;
             ld      a,$02
@@ -2972,7 +3047,7 @@ L1741:      dec     de
             inc     de
             inc     de
 L174D:      ld      a,$0C
-            jp      L045C
+            jp      Print_String_With_Cabinet_Orientation
             ld      b,(iy+$00)
             inc     iy
             call    Random_Byte
@@ -3011,13 +3086,21 @@ Read_Attract_Sound_DIP:
             ret
 ;
 ;*****************************************************************************
-; REQUEST SOUND R4.B3
+; WORLUK ESCAPED RESULT SOUND - R4.B3
 ;
-; Writes $08 to request bank 4, replacing the complete pending byte.
-; The dispatcher installs priority-1 streams $8B2E (primary) and $8B5D
-; (secondary), subject to the per-engine priority check.
+; This threaded command is entry $178C. In GAME_COMMAND_STREAM, the command at
+; $12BC invokes the localized-text display handler $07E4 with record $11
+; (Text_Escaped, "ESCAPED"); after that command's four operand bytes, the next
+; threaded handler at $12C2 is $178C. The request is therefore the scripted
+; Worluk-escaped result cue.
+;
+; This is distinct from R3.B5, which is posted immediately when the active
+; Worluk crosses the maze boundary and is removed from its actor slot.
+;
+; Writes $08 to request bank 4, replacing the complete pending byte. The
+; dispatcher installs priority-1 streams $8B2E (primary) and $8B5D (secondary).
 ;*****************************************************************************
-Request_Sound_R4_B3_Override:
+Post_Worluk_Escaped_Sound:
             ld      a,$08               ; R4.B3
             ld      (Sound_Request_4),a ; Replace pending request-4 bitfield
             ret
@@ -3116,9 +3199,9 @@ L1828:      out     (XPAND),a
             ld      hl,L30DD
             ld      de,L18D0
             ld      c,$2F
-            call    L18A8
+            call    Pattern_Board_Draw_Vertical_Line
             ld      hl,L30F4
-            call    L18A8
+            call    Pattern_Board_Draw_Vertical_Line
             ld      hl,L30DD
             call    L184C
             ld      hl,$3F8D
@@ -3137,7 +3220,7 @@ L185F:      bit     2,a
             jr      nz,L186B
             ex      af,af'
             ld      de,L18D2
-            call    L18A8
+            call    Pattern_Board_Draw_Vertical_Line
             ex      af,af'
 L186B:      bit     3,a
             jr      nz,L187D
@@ -3146,7 +3229,7 @@ L186B:      bit     3,a
             ld      de,L0005
             add     hl,de
             ld      de,L18D3
-            call    L18A8
+            call    Pattern_Board_Draw_Vertical_Line
             pop     hl
             ex      af,af'
 L187D:      bit     0,a
@@ -3187,6 +3270,7 @@ L1896:      ld      (hl),$FF
 ;*****************************************************************************
 ;
 
+Pattern_Board_Draw_Vertical_Line:
 L18A8:      ld      a,$22               ; %00100010 = Set PBEXP (Expand Mode) and PBFLOP (Horizontal Flop)
             out     (PBSTAT),a          ; Output to Pattern Board Status port
             ld      a,e
@@ -3221,7 +3305,7 @@ L18C4:      DW      $717C
 
 ;*****************************************************************************
 ; VERTICAL WALL PIXEL MASKS (Astrocade 2BPP)
-; Found at $18D0. Passed to the Pattern Board DMA (L18A8) via DE register
+; Found at $18D0. Passed to Pattern_Board_Draw_Vertical_Line via DE
 ; to draw vertical lines at specific pixel offsets.
 ;*****************************************************************************
 L18D0:      DB      $80                 ; Binary 10000000 (Color 2, Pixel 0)
@@ -3240,24 +3324,29 @@ Draw_Radar_Grid:
             out     (XPAND),a
             ld      bc,L1107
             ld      hl,L3522
-            call    L191B
+            call    Pattern_Board_Blit_Rectangle
             ld      hl,$3D42
-            call    L191B
+            call    Pattern_Board_Blit_Rectangle
             ld      bc,L0111
             ld      hl,Radar_Line_Pattern_A
-            call    L191B
+            call    Pattern_Board_Blit_Rectangle
             ld      hl,Radar_Line_Pattern_B
-            call    L191B
+            call    Pattern_Board_Blit_Rectangle
             ld      a,$08
             out     (XPAND),a
 L1903:      ld      hl,Radar_Line_Pattern_C
-            call    L191B
+            call    Pattern_Board_Blit_Rectangle
             ld      hl,Radar_Line_Pattern_D
-            call    L191B
+            call    Pattern_Board_Blit_Rectangle
             ld      bc,L1107
             ld      hl,L355C
-            call    L191B
+            call    Pattern_Board_Blit_Rectangle
             ld      hl,$3D7C
+
+; Pattern Board rectangle blit used by the fixed radar/grid builder.
+; Inputs: DE = source, HL = destination, B = width in bytes, C = height.
+; The destination modulo is derived as $50-B for the 80-byte screen stride.
+Pattern_Board_Blit_Rectangle:
 L191B:      ld      a,$22
             out     (PBSTAT),a
             ld      a,e
@@ -3376,7 +3465,7 @@ L19C9:      add     hl,bc
             ex      de,hl
             pop     af
             ld      b,$01
-            jp      L045C
+            jp      Print_String_With_Cabinet_Orientation
             ld      hl,L168D
             ld      de,LD304
             call    L19E3
@@ -3454,7 +3543,7 @@ L1A61:      pop     hl
             ex      af,af'
             ld      b,$06
             pop     de
-            jp      L045C
+            jp      Print_String_With_Cabinet_Orientation
 L1A69:      rrca
             rrca
             rrca
@@ -4034,8 +4123,12 @@ L2070:      bit     0,c
             bit     2,b
             ret     z
             res     2,(ix+$00)
+; Joystick direction bit 0 clears player actor-state bit 2. The exact gameplay
+; name of that actor-state transition is not yet established, so retain a
+; structural PLAYER INPUT STATE name rather than inferring from the sound.
+Post_Player_Input_State_Sound:
             ld      hl,Sound_Request_2
-            set     6,(hl)              ; R2.B6
+            set     6,(hl)              ; R2.B6 - PLAYER INPUT STATE
             ret
 L2080:      nop
 L2081:      ld      hl,LD040
@@ -4490,6 +4583,18 @@ L23C7:      and     $F8
             add     a,$08
             ld      b,a
             ld      c,$00
+;*****************************************************************************
+; FINALIZE PROJECTILE AND POST FIRE SOUND
+;
+; IX is the firing actor. Actor flag IX+$07 bit 2 distinguishes the player
+; actor path from non-player actors here, matching the actor-class test used by
+; the death-sound selector.
+;
+;   player actor                         -> R2.B1  PLAYER FIRE
+;   ordinary non-player actor            -> R3.B2  MONSTER FIRE
+;   Worluk phase + active Wizard state   -> R4.B2  WIZARD FIRE
+;*****************************************************************************
+Finalize_Projectile_And_Post_Fire_Sound:
 L23D2:      ld      (ix+$14),c
             ld      (ix+$16),l
             ld      (ix+$15),b
@@ -4501,8 +4606,10 @@ L23D2:      ld      (ix+$14),c
             bit     2,(ix+$07)
             ld      hl,Sound_Request_2
             jr      nz,L23F3
-            set     1,(hl)              ; R2.B1
+Post_Player_Fire_Sound:
+            set     1,(hl)              ; R2.B1 - PLAYER FIRE
             ret
+Post_NonPlayer_Fire_Sound:
 L23F3:      inc     hl                  ; -> Sound_Request_3
             ld      a,(LD1EB)
             and     a
@@ -4514,10 +4621,12 @@ L23FD:      ld      a,(LD1C6)
             ld      a,b
             jr      z,L240A
             ld      hl,Sound_Request_4
-            set     2,(hl)              ; R4.B2
+Post_Wizard_Fire_Sound:
+            set     2,(hl)              ; R4.B2 - WIZARD FIRE
             ret
+Post_Monster_Fire_Sound:
 L240A:      rrca                        ; $08 -> $04, R3.B2
-            or      (hl)
+            or      (hl)                ; R3.B2 - MONSTER FIRE
             ld      (hl),a
             ret
 L240E:      ld      c,$F8
@@ -5077,7 +5186,7 @@ L282A:      in      a, (COINPORT)
 L2836:      pop     hl
 L2837:      ld      b,$01
             ex      af,af'
-            jp      L045C
+            jp      Print_String_With_Cabinet_Orientation
 L283D:      ld      hl,LD18E
             set     2,(hl)
             ld      hl,LD198
@@ -5158,8 +5267,12 @@ L28CD:      ld      hl,LD1C7
             ld      a,(LD1C8)
             and     a
             ret     nz
+; Wizard appearance/reappearance path. The surrounding code consumes the
+; Wizard-spawn gate, rejects an already-active special actor, selects an active
+; player, and constructs the new special-actor position around that player.
+Post_Wizard_Appear_Sound:
             ld      hl,Sound_Request_4
-            set     1,(hl)              ; R4.B1
+            set     1,(hl)              ; R4.B1 - WIZARD APPEAR
             ld      a,(Dungeon_Number)
             ld      b,a
             ld      a,$B0
@@ -5388,6 +5501,23 @@ L2A73:      ld      (ix+$1c),b
             set     7,(ix+$08)
             ld      (ix+$1f),$E0
             jr      L2AE3
+;*****************************************************************************
+; SELECT SAME-CORRIDOR / VISIBILITY SOUND FOR SPECIAL MONSTERS
+;
+; L2A38 reaches this selector only after L2AF6 has tested the enemy against the
+; player corridor/proximity geometry. The actor class is encoded in IX+$08
+; bits 2-3:
+;   $04 Burwor  -> deliberately posts no sound here
+;   $08 Garwor  -> R2.B4  GARWOR VISIBLE
+;   $0C         -> R2.B3  THORWOR VISIBLE while LD1EB == 0
+;                  R2.B2  WORLUK PROXIMITY while LD1EB != 0
+;
+; The Garwor/Thorwor meanings agree with the game's own instruction text:
+; invisible monsters become visible when they enter the same maze corridor as
+; the player. Worluk is not an invisible-monster case, so its reuse of the
+; $0C-class path is named by the proven proximity/corridor context.
+;*****************************************************************************
+Select_R2_Actor_State_Sound:
 L2A90:      ld      a,(LD1C6)
             and     a
             jr      nz,L2AE3
@@ -5401,9 +5531,10 @@ L2A90:      ld      a,(LD1C6)
             and     $0C
             jp      pe,L2AEB
             bit     2,a
-            ld      a,$10               ; R2.B4 request value
+            ld      a,$10               ; R2.B4 - GARWOR VISIBLE
             jr      nz,L2AB7
-L2AB5:      or      (hl)                ; Post selected R2 request bit
+Post_Selected_R2_Actor_State_Sound:
+L2AB5:      or      (hl)                ; Post R2.B2/R2.B3/R2.B4 selected above
             ld      (hl),a
 L2AB7:      call    L2614
             ld      a,r
@@ -5430,9 +5561,9 @@ L2AE3:      pop     af
             ret
 L2AEB:      ld      a,(LD1EB)
             and     a
-            ld      a,$08               ; R2.B3 request value
+            ld      a,$08               ; R2.B3 - THORWOR VISIBLE
             jr      z,L2AB5
-            rrca                        ; -> $04, R2.B2 request value
+            rrca                        ; -> $04, R2.B2 - WORLUK PROXIMITY
             jr      L2AB5
 L2AF6:      ld      a,(ix+$00)
             and     $88
@@ -5623,8 +5754,9 @@ L2C28:      push    af
             ld      (LD1F2),a
             ld      a,$03
             ld      (LD047),a
+Post_Worluk_Entry_Sound:
             ld      hl,Sound_Request_3
-            set     7,(hl)              ; R3.B7
+            set     7,(hl)              ; R3.B7 - WORLUK ENTRY
             ld      iy,$121D
             ld      a,$20
             ld      (LD04D),a
@@ -5999,8 +6131,11 @@ L2F1B:      jr      z,L2F42
             out     (COL3L),a
             ld      (LD1BA),a
             ld      (LD1D8),a
+; Active Worluk has crossed the maze boundary. The actor slot is cleared above,
+; matching the documented Worluk escape through a magic door.
+Post_Worluk_Escape_Sound:
             ld      hl,Sound_Request_3
-            set     5,(hl)              ; R3.B5
+            set     5,(hl)              ; R3.B5 - WORLUK ESCAPE
             call    Enable_Sparkle_Colors
             jp      L30BA
 L2F42:      ld      a,$0A
@@ -6009,8 +6144,10 @@ L2F42:      ld      a,$0A
             ld      hl,Status_Display_Update_Flags
             set     0,(hl)
             call    L3125
+; Non-escape branch of the same maze-edge/magic-door transition path.
+Post_Magic_Door_Transit_Sound:
             ld      hl,Sound_Request_3
-            set     4,(hl)              ; R3.B4
+            set     4,(hl)              ; R3.B4 - MAGIC DOOR TRANSIT
             exx
             jr      L2F65
 L2F58:      ld      e,(ix+$05)
@@ -8222,12 +8359,32 @@ L80E4:      ret
 ;*****************************************************************************************
 ; SERVICE ONE SOUND-ENGINE RECORD
 ;
-; IY selects the primary or secondary engine record. Wait expiry sets
-; SNDREC_STREAM_READY. Slot 1 updates VOLN, slot 3 updates VIBRA, slot 4 updates
-; the A/B/C tone volumes together, and slot 5 updates TONMO. Slots 0 and 2 drive
-; slot 5's reload and step values. Record byte +$0C enables the slot-5-to-slot-4
-; coupling path. The final OTIR transfers record +$04..+$0B to descending hardware
-; ports $17-$10 or $57-$50.
+; IY is a Z80 WORK-RAM pointer, not an I/O address:
+;
+;   IY = Primary_Sound_Engine_Record   = $D270
+;        six modulator slots precede it at $D246-$D26F
+;        record +$04..+$0B = $D274-$D27B register-image RAM
+;        record +$00 holds Astrocade block-output PORT $18
+;
+;   IY = Secondary_Sound_Engine_Record = $D2AC
+;        six modulator slots precede it at $D282-$D2AB
+;        record +$04..+$0B = $D2B0-$D2B7 register-image RAM
+;        record +$00 holds Astrocade block-output PORT $58
+;
+; The negative IY displacements deliberately make this one routine service the
+; same 42-byte modulator layout in either 60-byte engine bundle:
+;
+;   IY-$2A slot 0   IY-$23 slot 1   IY-$1C slot 2
+;   IY-$15 slot 3   IY-$0E slot 4   IY-$07 slot 5
+;
+; Wait expiry sets SNDREC_STREAM_READY. Slot 1 updates VOLN, slot 3 updates
+; VIBRA, slot 4 updates the A/B/C tone volumes together, and slot 5 updates
+; TONMO. Slots 0 and 2 drive slot 5's reload and step values. Record byte +$0C
+; enables the slot-5-to-slot-4 coupling path.
+;
+; Output_Sound_Register_Image finally copies the eight-byte RAM image through
+; I/O block port $18 or $58. Memory addresses $D246-$D2BD and I/O ports
+; $10-$18/$50-$58 are separate Z80 address spaces.
 ;*****************************************************************************************
 Service_Sound_Engine_Record:
 L80E6:      xor     a
@@ -8242,7 +8399,7 @@ L80E6:      xor     a
             jr      nz,L8104
             ld      (iy+$11),$01
 Service_Master_Reload_Modulator:
-L8104:      cp      (iy-$2a)
+L8104:      cp      (iy-$2a)            ; Slot 0 countdown: $D246 primary / $D282 secondary
             jr      z,L8116
 L8109:      ld      b,(iy-$06)
             ld      de,LFFD6
@@ -8250,7 +8407,7 @@ L8109:      ld      b,(iy-$06)
             ld      (iy-$06),b
             xor     a
 Service_Master_Step_Modulator:
-L8116:      cp      (iy-$1c)
+L8116:      cp      (iy-$1c)            ; Slot 2 countdown: $D254 primary / $D290 secondary
             jr      z,L8136
             ld      a,(iy-$04)
             call    Normalize_Signed_Modulator_Value
@@ -8265,7 +8422,7 @@ L8116:      cp      (iy-$1c)
 L8132:      ld      (iy-$04),a
             xor     a
 Service_Noise_Modulator:
-L8136:      cp      (iy-$23)
+L8136:      cp      (iy-$23)            ; Slot 1 countdown: $D24D primary / $D289 secondary
             jr      z,L8148
             ld      b,(iy+$04)
             ld      de,LFFDD
@@ -8273,7 +8430,7 @@ L8136:      cp      (iy-$23)
             ld      (iy+$04),b
             xor     a
 Service_Master_Oscillator_Modulator:
-L8148:      cp      (iy-$07)
+L8148:      cp      (iy-$07)            ; Slot 5 countdown: $D269 primary / $D2A5 secondary
             jr      z,L818B
             inc     a
             cp      (iy-$07)
@@ -8309,7 +8466,7 @@ L817E:      ld      b,(iy+$0b)
             ld      (iy+$0b),b
             xor     a
 Service_Tone_Volume_Modulator:
-L818B:      cp      (iy-$0e)
+L818B:      cp      (iy-$0e)            ; Slot 4 countdown: $D262 primary / $D29E secondary
             jr      z,L81AF
             ld      a,(iy+$05)
             and     $0F
@@ -8329,7 +8486,7 @@ L818B:      cp      (iy-$0e)
             ld      (iy+$06),a
             xor     a
 Service_Vibrato_Modulator:
-L81AF:      cp      (iy-$15)
+L81AF:      cp      (iy-$15)            ; Slot 3 countdown: $D25B primary / $D297 secondary
             jr      z,L81C1
             ld      b,(iy+$07)
             ld      de,LFFEB
@@ -8339,16 +8496,16 @@ L81AF:      cp      (iy-$15)
 L81C1:      xor     a
             ld      (iy+$10),a
 Output_Sound_Register_Image:
-L81C5:      ld      c,(iy+$00)
+L81C5:      ld      c,(iy+$00)          ; C = block-output I/O port: $18 primary / $58 secondary
             ld      a,$17
             cp      c
             jr      nc,L81D8
             push    iy
             pop     hl
             ld      de,$0004
-            add     hl,de
+            add     hl,de               ; HL = RAM image: $D274 primary / $D2B0 secondary
             ld      b,$08
-            otir
+            otir                        ; 8 RAM bytes -> $17-$10 or $57-$50 via block port
 Sound_Register_Output_Return:
 L81D8:      ret
 ;*****************************************************************************************
@@ -8601,9 +8758,14 @@ Speech_Request_Return:
 ;*****************************************************************************************
 ; ----> Initialize Sound Engine Header
 ;
-;       Stores the Astrocade block-output port in record byte 0 and seeds the
-;       stream pointer with $8740, whose $03 command is the invalid-stream/reset
-;       fallback. Reset_Sound_Engine_Record then clears and silences the engine.
+;       DE' points to an 18-byte engine record in WORK RAM ($D270 or $D2AC).
+;       A is an Astrocade I/O block-port number ($18 or $58); storing A at
+;       record +$00 associates that RAM record with the corresponding sound IC.
+;
+;       Record +$01..+$02 is seeded with ROM stream address $8740, whose first
+;       byte ($03) is the invalid-stream/reset fallback command. This stores a
+;       DATA POINTER; execution does not jump to $8740. Reset_Sound_Engine_Record
+;       then clears the runtime state and silences the selected hardware engine.
 ;*****************************************************************************************
 Initialize_Sound_Engine_Header:
             ld      hl,$0000            ; HL = record offset 0
@@ -8622,7 +8784,9 @@ Init_Sound_Exec:
 
 ;*****************************************************************************************
 ; ----> Primary Sound Engine
-;       Initializes the $D270 engine record for ports $10-$17 / block port $18.
+;       Initializes WORK-RAM record $D270 and associates it with Astrocade
+;       registers $10-$17 / block-output port $18. Its six modulator slots are
+;       the immediately preceding RAM area $D246-$D26F.
 ;*****************************************************************************************
 Init_Primary_Sound_Engine:
             ld      a, $18
@@ -8633,7 +8797,9 @@ Init_Primary_Sound_Engine_Alt:
 
 ;*****************************************************************************************
 ; ----> Secondary Sound Engine
-;       Initializes the $D2AC engine record for ports $50-$57 / block port $58.
+;       Initializes WORK-RAM record $D2AC and associates it with Astrocade
+;       registers $50-$57 / block-output port $58. Its six modulator slots are
+;       the immediately preceding RAM area $D282-$D2AB.
 ;*****************************************************************************************
 Init_Secondary_Sound_Engine:
             ld      a, $58
@@ -8670,6 +8836,12 @@ Sound_Stream_Op_Jump:
 
 ; Common register writer used by opcodes $10-$17.
 ; A = register value, B = block-port delta, HL = engine-record mirror offset.
+;
+; IY is the active engine's WORK-RAM record. Record +$00 contains the hardware
+; block port ($18/$58). Subtracting B derives the direct sound-register I/O port
+; ($10-$17/$50-$57). The OUT updates hardware immediately; the following RAM
+; write mirrors the same value into record +$04..+$0B so periodic modulation and
+; later OTIR block output operate on a coherent software register image.
 Sound_Write_Register_From_Stream:
 L8325:      push    iy
             pop     de
@@ -8910,6 +9082,11 @@ L8407:      DW      Sound_Stream_Op_Yield                  ; $00
 ;*****************************************************************************************
 ; DECODE ONE ENGINE'S RESIDENT SOUND STREAM
 ;
+; IY points to the active WORK-RAM engine record. Record +$01..+$02 holds a ROM
+; DATA POINTER such as $887B or $8928. HL is loaded from that pointer and the
+; bytes at HL are interpreted as WoW sound-stream commands; they are not entered
+; as Z80 executable code.
+;
 ; Decoding runs only while SNDREC_STREAM_READY is nonzero. A command handler
 ; returning A=0 continues in the same pass. A nonzero return saves HL as the
 ; next stream pointer, clears STREAM_READY, and yields. Opcodes >= $18 are
@@ -9033,6 +9210,13 @@ L84EB:      out     (c),b
 ; In attract mode with the physical service switch active, execution uses the
 ; diagnostic path above. Otherwise a zero Sound_Service_Enabled gate suppresses
 ; normal service; nonzero services primary sound, secondary sound, then speech.
+;
+; The same Service_Sound_Engine_Record code is called twice with different IY
+; WORK-RAM bases. That base selects both the preceding modulator area and the
+; block-output port stored in record byte +$00:
+;
+;   IY=$D270 -> modulators $D246-$D26F -> block port $18 -> IC $10-$17
+;   IY=$D2AC -> modulators $D282-$D2AB -> block port $58 -> IC $50-$57
 ;*****************************************************************************************
 Service_Sound_And_Speech:
 L84F2:      ld      a,(Game_Mode)
@@ -9057,7 +9241,15 @@ L851C:      ret
 ;*****************************************************************************************
 ; INSTALL SOUND STREAM INTO ONE ENGINE RECORD
 ;
-; Input: IY = engine record, HL = ROM stream address, D = requested priority.
+; Input:
+;   IY = WORK-RAM engine record ($D270 primary or $D2AC secondary)
+;   HL = ROM sound-bytecode entry address (for example $887B or $8928)
+;   D  = requested priority
+;
+; HL is stored in record +$01..+$02 as the resident stream DATA POINTER; this
+; routine does not call or jump to HL. Decode_Sound_Stream_Commands later reads
+; bytes through that pointer and interprets them.
+;
 ; The install is rejected when D is lower than the record's current priority.
 ; Accepted installs reset that engine, mark stream decoding active, store the
 ; new priority, and set the stream pointer.
@@ -9077,19 +9269,56 @@ L851D:      ld      a,d
 Install_Sound_Stream_Return:
 L8537:      ret
 ;*****************************************************************************************
+; SOUND REQUEST PRODUCER CROSS-REFERENCE
+;
+; Connects gameplay producer -> request bit -> sound dispatcher.
+; "confirmed" means the gameplay event is directly established by this source.
+; "context" means the producer path is located but its exact event is unresolved.
+;
+; R1.B0      Fetch_Sound_Request_From_Stream       WORLORD DUNGEON CUE             context ($112B)
+; R1.B1      Fetch_Sound_Request_From_Stream       command-stream event            unresolved ($1153)
+; R1.B2      command-stream write $D240=$04        RADAR CUE                       context ($1508)
+; R1.B3      Fetch_Sound_Request_From_Stream       attract-stream event            unresolved ($10D4)
+; R1.B4      Fetch_Sound_Request_From_Stream       ROUND START / GET READY CUE     context ($12FF)
+; R1.B5      Post_Coin_Up_Sound_Request            COIN UP                         confirmed
+; R2.B0      Request_Player_Death_Sound            PLAYER DEATH                    confirmed
+; R2.B1      Post_Player_Fire_Sound                PLAYER FIRE                     confirmed
+; R2.B2      Select_R2_Actor_State_Sound           WORLUK PROXIMITY                context
+; R2.B3      Select_R2_Actor_State_Sound           THORWOR VISIBLE                 confirmed path
+; R2.B4      Select_R2_Actor_State_Sound           GARWOR VISIBLE                  confirmed path
+; R2.B6      Post_Player_Input_State_Sound         PLAYER INPUT STATE              context
+; R2.B7      command-stream write $D241=$80        DUNGEON INTRO PRIMARY           context ($11B6)
+; R3.B0      Request_Actor_Death_Sound             WORLUK DEATH                    confirmed
+; R3.B1      Request_Actor_Death_Sound             MONSTER DEATH                   confirmed
+; R3.B2      Post_Monster_Fire_Sound               MONSTER FIRE                    confirmed
+; R3.B3      same stream as R3.B2; static producer unresolved
+; R3.B4      Post_Magic_Door_Transit_Sound         MAGIC DOOR TRANSIT              confirmed path
+; R3.B5      Post_Worluk_Escape_Sound              WORLUK ESCAPE                   confirmed
+; R3.B7      Post_Worluk_Entry_Sound               WORLUK ENTRY                    confirmed
+; R4.B0      Request_Actor_Death_Sound             WIZARD DEATH                    confirmed
+; R4.B1      Post_Wizard_Appear_Sound              WIZARD APPEAR                   confirmed path
+; R4.B2      Post_Wizard_Fire_Sound                WIZARD FIRE                     confirmed
+; R4.B3      Post_Worluk_Escaped_Sound             WORLUK ESCAPED                  confirmed
+;*****************************************************************************************
 ; SOUND REQUEST DECODERS ($D241-$D243)
 ;
 ; Each decoder clears its complete request byte, then scans from bit 0 upward.
 ; The first recognized set bit transfers to Install_Sound_Stream and returns to
 ; the caller, so one selector is serviced from each consumed R2/R3/R4 byte.
 ;
-; R2: B0 S:$8928 p1  B1 S:$887B p0  B2 S:$87EA p1  B3 S:$883B p0
-;     B4 S:$8825 p0  B5 ignored      B6 S:$8988 p0  B7 P:$8741 p1
-; R3: B0 P:$8AA1/S:$8ADD p1           B1 S:$890E p0
-;     B2/B3 S:$8851 p0  B4 S:$8A42 p0  B5 P:$8A81/S:$8A6C p1
-;     B6 ignored                         B7 P:$877B p1
-; R4: B0 P:$88E2/S:$8905 p2  B1 P:$8AF6/S:$8B1F p1
-;     B2 S:$8AF3 p1           B3 P:$8B2E/S:$8B5D p1  B4-B7 ignored
+; R2: B0 S:$8928 p1 PLAYER DEATH   B1 S:$887B p0 PLAYER FIRE
+;     B2 S:$87EA p1 WORLUK PROXIMITY  B3 S:$883B p0 THORWOR VISIBLE
+;     B4 S:$8825 p0 GARWOR VISIBLE    B5 ignored
+;     B6 S:$8988 p0 PLAYER INPUT STATE B7 P:$8741 p1 DUNGEON INTRO PRIMARY
+; R3: B0 P:$8AA1/S:$8ADD p1 WORLUK DEATH
+;     B1 S:$890E p0 MONSTER DEATH   B2/B3 S:$8851 p0 MONSTER FIRE stream
+;     B4 S:$8A42 p0 MAGIC DOOR TRANSIT
+;     B5 P:$8A81/S:$8A6C p1 WORLUK ESCAPE
+;     B6 ignored                      B7 P:$877B p1 WORLUK ENTRY
+; R4: B0 P:$88E2/S:$8905 p2 WIZARD DEATH
+;     B1 P:$8AF6/S:$8B1F p1 WIZARD APPEAR
+;     B2 S:$8AF3 p1 WIZARD FIRE
+;     B3 P:$8B2E/S:$8B5D p1 WORLUK ESCAPED   B4-B7 ignored
 ;*****************************************************************************************
 Dispatch_Sound_Request_2:
 L8538:      ld      hl,Sound_Request_2
@@ -9098,11 +9327,11 @@ L8538:      ld      hl,Sound_Request_2
             jr      z,L8582
             ld      (hl),$00
             ld      iy,Secondary_Sound_Engine_Record
-            rra                         ; R2.B0
+            rra                         ; R2.B0 - player death
             ld      d,$01
             ld      hl,Sound_Stream_R2_B0_Secondary
             jr      c,Install_Sound_Stream
-            rra                         ; R2.B1
+            rra                         ; R2.B1 - PLAYER FIRE
             ld      d,$00
             ld      hl,Sound_Stream_R2_B1_Secondary
             jr      c,Install_Sound_Stream
@@ -9142,14 +9371,14 @@ L8583:      ld      hl,Sound_Request_3
             ld      hl,Sound_Stream_R3_B0_Secondary
             jp      Install_Sound_Stream
 L85A2:      ld      iy,Secondary_Sound_Engine_Record
-            rra                         ; R3.B1
+            rra                         ; R3.B1 - MONSTER DEATH
             ld      d,$00
             ld      hl,Sound_Stream_R3_B1_Secondary
             jp      c,Install_Sound_Stream
-            rra                         ; R3.B2
+            rra                         ; R3.B2 - MONSTER FIRE
             ld      hl,Sound_Stream_R3_B2_B3_Secondary
             jp      c,Install_Sound_Stream
-            rra                         ; R3.B3
+            rra                         ; R3.B3 - same MONSTER FIRE stream; producer unresolved
             ld      hl,Sound_Stream_R3_B2_B3_Secondary
             jp      c,Install_Sound_Stream
             rra                         ; R3.B4
@@ -9166,7 +9395,7 @@ L85A2:      ld      iy,Secondary_Sound_Engine_Record
 L85D9:      rra                         ; R3.B6 ignored
             ld      iy,Primary_Sound_Engine_Record
             ld      d,$01
-            rra                         ; R3.B7
+            rra                         ; R3.B7 - WORLUK ENTRY
             ld      hl,Sound_Stream_R3_B7_Primary
             jp      c,Install_Sound_Stream
             ret
@@ -9183,7 +9412,7 @@ L85E8:      ld      hl,Sound_Request_4
             ld      iy,Secondary_Sound_Engine_Record
             ld      hl,Sound_Stream_R4_B0_Secondary
             jp      Install_Sound_Stream
-L8607:      rra                         ; R4.B1
+L8607:      rra                         ; R4.B1 - WIZARD APPEAR
             ld      d,$01
             ld      hl,Sound_Stream_R4_B1_Primary
             jr      nc,L861C
@@ -9192,10 +9421,10 @@ L8607:      rra                         ; R4.B1
             ld      iy,Secondary_Sound_Engine_Record
             jp      Install_Sound_Stream
 L861C:      ld      iy,Secondary_Sound_Engine_Record
-            rra                         ; R4.B2
+            rra                         ; R4.B2 - WIZARD FIRE
             ld      hl,Sound_Stream_R4_B2_Secondary
             jp      c,Install_Sound_Stream
-            rra                         ; R4.B3
+            rra                         ; R4.B3 - WORLUK ESCAPED
             ld      hl,Sound_Stream_R4_B3_Secondary
             jr      nc,L863A
             call    Install_Sound_Stream
@@ -9318,781 +9547,247 @@ L8717:      ret
             DB      $FF, $FF, $FF, $FF, $FF, $FF, $FF, $FF
             DB      $FF, $FF, $FF, $FF, $FF, $FF, $FF, $FF
 
- ;*****************************************************************************************
-; SOUND-STREAM DATA ($8740-$8B65)
+;*****************************************************************************************
+; SOUND-STREAM BYTECODE DATA ($8740-$8B65)
 ;
-; This region is interpreted by Decode_Sound_Stream_Commands and is not native
-; Z80 executable code. Stream labels mark addresses installed by the request
-; dispatcher. The assembler statements below are a byte-preserving representation
-; of the resident stream data.
+; This ROM region is consumed as bytecode by Decode_Sound_Stream_Commands
+; ($8437). It is data, not native Z80 instruction flow. The sound dispatcher
+; installs Sound_Stream_* addresses into an engine record and the decoder reads
+; command bytes $00-$17 from those addresses.
+;
+; Use DB here deliberately. Bytes in this region must not be read as Z80
+; instructions even when their values happen to form valid Z80 opcodes.
+; Sound_Stream_* labels identify dispatcher-visible bytecode entry points.
+; Lxxxx anchors remain exact ROM-address anchors for cross-reference purposes.
 ;*****************************************************************************************
 Sound_Stream_Invalid_Fallback:
-L8740:      DB      $03                 ; opcode $03: reset current engine record
+L8740:
+            DB      $03                 ; $03 RESET_ENGINE fallback command
 Sound_Stream_R1_B2_Primary:             ; R1.B2 primary, priority 0
 Sound_Stream_R2_B7_Primary:             ; R2.B7 primary, priority 1; same stream entry
-L8741:      inc     de
-            inc     (hl)
-            ld      (de),a
-            xor     b
-            ld      de,L10FD
-            and     a
-            inc     b
-            ld      sp,hl
-            rst     38H
-            or      c
-            and     a
-            dec     b
-            inc     bc
-            ld      d,l
-            ld      d,l
-            inc     b
-            sub     $FF
-            ld      d,l
-            ld      b,$FF
-            ld      bc,L0117
-            dec     b
-            sub     $FF
-            ld      bc,LFF16
-            dec     d
-            rrca
-            inc     b
-            jp      p,L0FFF
-            inc     bc
-            rst     38H
-            inc     bc
-            dec     b
-            ld      bc,$0508
-            jp      p,L01FF
-            nop
+L8741:
+            DB      $13,$34,$12,$A8,$11,$FD,$10,$A7,$04,$F9,$FF,$B1
+            DB      $A7,$05,$03,$55,$55,$04,$D6,$FF,$55,$06,$FF,$01
+            DB      $17,$01,$05,$D6,$FF,$01,$16,$FF,$15,$0F,$04,$F2
+            DB      $FF,$0F,$03,$FF,$03,$05,$01,$08,$05,$F2,$FF,$01
+            DB      $00
 Sound_Stream_R1_B2_Secondary:             ; R1.B2 secondary, priority 0
-L8772:      inc     de
-            ld      l,d
-            ld      (de),a
-            sub     (hl)
-            ld      de,L02B2
-            ld      b,a
-            add     a,a
-Sound_Stream_R3_B7_Primary:             ; R3.B7 primary, priority 1
-L877B:      djnz    L878D
-            inc     b
-            ld      sp,hl
-            rst     38H
-            and     b
-            djnz    L8787
-            ld      hl,L0101
-            inc     de
-L8787:      add     hl,hl
-            ld      (de),a
-            inc     (hl)
-            ld      de,L143E
-L878D:      add     a,c
-            dec     b
-            ld      sp,hl
-            rst     38H
-            dec     b
-            ld      d,$DD
-            dec     d
-            ld      c,$00
-            inc     d
-            nop
-            djnz    L87F5
-            inc     de
-            ld      d,h
-            ld      (de),a
-            ld      l,d
-            ld      de,L017E
-            ex      af,af'
-            inc     de
-            ld      c,a
-            ld      (de),a
-            ld      e,(hl)
-            ld      de,L016A
-            ex      af,af'
-            inc     de
-            ld      b,(hl)
-            ld      (de),a
-            ld      d,h
-            ld      de,L015E
-            ex      af,af'
-            djnz    L880A
-            inc     de
-            ld      d,h
-            ld      (de),a
-            ld      l,d
-            ld      de,L017E
-            ex      af,af'
-            inc     de
-            ld      c,a
-            ld      (de),a
-            ld      e,(hl)
-            ld      de,L016A
-            ex      af,af'
-            inc     de
-            ld      b,(hl)
-            ld      (de),a
-            ld      d,h
-            ld      de,L015E
-            ex      af,af'
-            djnz    L881F
-            inc     de
-            ld      d,h
-            ld      (de),a
-            ld      l,d
-            ld      de,L017E
-            ex      af,af'
-            inc     de
-            ld      c,a
-            ld      (de),a
-            ld      e,(hl)
-            ld      de,L016A
-            ex      af,af'
-            inc     de
-            ld      b,(hl)
-            ld      (de),a
-            ld      d,h
-            ld      de,L015E
-            ex      af,af'
-            ld      (bc),a
-            sbc     a,c
-            add     a,a
-Sound_Stream_R2_B2_Secondary:             ; R2.B2 secondary, priority 1
-L87EA:      djnz    L878C
-            inc     b
-            ld      sp,hl
-L87EE:      rst     38H
-            and     b
-            djnz    L87EE
-            ld      hl,L0101
-L87F5:      inc     de
-            ld      a,(de)
-            ld      (de),a
-            jr      nz,L880B
-            dec     h
-            inc     d
-            add     a,c
-            dec     b
-            ld      sp,hl
-            rst     38H
-            dec     b
-            ld      d,$CC
-            dec     d
-            inc     c
-            nop
-            inc     bc
-            djnz    L8829
-            dec     d
-L880A:      dec     de
-L880B:      ld      d,$AA
-            nop
-            inc     bc
-            inc     b
-            ld      sp,hl
-            rst     38H
-            jr      nz,L881A
-            inc     iy
-L8816:      inc     bc
-            ld      bc,LF905
-L881A:      rst     38H
-            ld      bc,L2713
-            ld      (de),a
-L881F:      dec     de
-            ld      de,L0217
-            rlca
-            adc     a,b
-Sound_Stream_R2_B4_Secondary:             ; R2.B4 secondary, priority 0
-L8825:      inc     b
-            ld      sp,hl
-            rst     38H
-            jr      nz,L882E
-            cp      $23
-            ld      (bc),a
-            ld      bc,LF905
-            rst     38H
-            ld      (bc),a
-            inc     de
-            inc     de
-            ld      (de),a
-            dec     c
-            ld      de,L020B
-            rlca
-            adc     a,b
-Sound_Stream_R2_B3_Secondary:             ; R2.B3 secondary, priority 0
-L883B:      inc     b
-            ld      sp,hl
-            rst     38H
-            jr      nz,L8842
-            cp      $23
-L8842:      ld      bc,$0501
-            ld      sp,hl
-            rst     38H
-            inc     bc
-            inc     de
-            ld      a,(bc)
-            ld      (de),a
-            ex      af,af'
-            ld      de,L0206
-            rlca
-            adc     a,b
-Sound_Stream_R3_B2_B3_Secondary:             ; shared by R3.B2 and R3.B3, priority 0
-L8851:      inc     de
-            inc     l
-            ld      (de),a
-            inc     d
-            ld      de,$100F
-            djnz    L885F
-            ld      sp,hl
-            rst     38H
-            ld      (bc),a
-            inc     b
-            ld      sp,hl
-L885F:      rst     38H
-            and     b
-            djnz    L8867
-            ld      hl,L0101
-            rla
-L8867:      djnz    L886D
-            DB      $dd,$ff
-            ld      (hl),b
-            djnz    L8872
-            inc     bc
-            ld      bc,$0501
-L8872:      DB      $dd,$ff
-            ld      bc,L8816
-            dec     d
-            jr      L887A
-L887A:      inc     bc
-Sound_Stream_R2_B1_Secondary:             ; R2.B1 secondary, priority 0
-L887B:      djnz    L8895
-            inc     b
-            ld      sp,hl
-            rst     38H
-            jr      L8884
-            cp      $21
-L8884:      ld      bc,L1301
-            daa
-            ld      (de),a
-            ld      b,(hl)
-            ld      de,$057E
-            ld      sp,hl
-            rst     38H
-            ld      bc,L7716
-            dec     d
-            rla
-            rla
-L8895:      ld      a,(bc)
-            inc     b
-            DB      $dd,$ff
-            ld      a,(bc)
-            ld      (bc),a
-            cp      $03
-            ld      bc,$0501
-            DB      $dd,$ff
-            ld      bc,L0400
-            ld      sp,hl
-            rst     38H
-            add     a,b
-            ld      (bc),a
-            ld      (bc),a
-L88AA:      inc     hl
-            ld      bc,$0501
-            ld      sp,hl
-            rst     38H
-            ld      bc,L0300
-            djnz    L88BB
-            inc     b
-            ld      sp,hl
-            rst     38H
-            ld      (hl),d
-            ld      b,$05
-L88BB:      ld      hl,L0101
-            rla
-            ld      (LDD04),hl
-            rst     38H
-            ld      h,h
-            dec     b
-            inc     bc
-            ld      hl,L0101
-            dec     b
-            DB      $dd,$ff
-            inc     b
-            inc     de
-            ld      de,L1712
-            ld      de,Clear_Dungeon_Number
-            sbc     a,d
-            dec     d
-            ld      a,(de)
-            nop
-            dec     b
-            ld      sp,hl
-            rst     38H
-            ld      bc,LF906
-            rst     38H
-            ld      bc,L0300
-Sound_Stream_R4_B0_Primary:             ; R4.B0 primary, priority 2
-L88E2:      ld      bc,$1302
-            ld      hl,(L1812)
-            ld      de,$1006
-            jr      nc,L88F1
-            ld      sp,hl
-            rst     38H
-            jr      nc,L8911
-L88F1:      call    m,L0101
-            ld      bc,L0017
-            inc     b
-            DB      $dd,$ff
-            jr      nz,L88FC
-L88FC:      ld      (bc),a
-            ld      bc,$0404
-            ld      d,$FF
-            dec     d
-            rra
-            nop
-Sound_Stream_R4_B0_Secondary:             ; R4.B0 secondary, priority 2
-L8905:      inc     de
-            ld      h,h
-            ld      (de),a
-            ld      d,b
-            ld      de,L023C
-            jp      pe,L1088
-            jr      nz,L8924
-L8911:      inc     de
-            ld      (de),a
-            ld      (de),a
-            ld      de,L1710
-            djnz    L892F
-            ld      h,a
-            dec     d
-            rla
-            inc     b
-            ld      sp,hl
-            rst     38H
-            jr      L8941
-            ret     m
-            ld      bc,L0202
-            ld      bc,Do_Joy_Jump
-Sound_Stream_R2_B0_Secondary:             ; R2.B0 secondary, priority 1
-L8928:      djnz    L8952
-            rla
-            add     a,h
-            inc     b
-            DB      $dd,$ff
-L892F:      add     a,h
-            ld      a,(bc)
-            rst     38H
-            inc     bc
-            ld      bc,L1601
-            call    z,L0C15
-            inc     d
-            add     a,e
-            inc     de
-            ld      (Select_P1_Life_Icon),hl
-            ld      de,L0410
-            ex      de,hl
-            rst     38H
-            adc     a,h
-            add     a,e
-            ld      bc,L0823
-            ex      af,af'
-            dec     b
-            ex      de,hl
-            rst     38H
-            ld      bc,$1500
-            inc     e
-            ld      bc,Clear_Joy_Str
-            inc     de
-            ld      d,h
-            ld      (de),a
-            inc     (hl)
-            ld      de,L10FD
-            jr      nz,L8961
-            ld      sp,hl
-            rst     38H
-            jr      c,L8969
-L8961:      rst     38H
-            ld      bc,L0101
-            dec     b
-            jp      p,L01FF
-L8969:      ld      bc,L0960
-            ld      b,$F9
-            rst     38H
-            ld      bc,$1600
-            rst     38H
-            dec     d
-            rra
-            inc     b
-            jp      p,L0FFF
-            ld      (bc),a
-            rst     38H
-            inc     bc
-            add     hl,de
-            add     hl,de
-            ld      (bc),a
-            ld      d,h
-            adc     a,c
+L8772:
+            DB      $13,$6A,$12,$96,$11,$B2,$02,$47,$87
+Sound_Stream_R3_B7_Primary:             ; R3.B7 WORLUK ENTRY, primary, priority 1
+L877B:
+            DB      $10,$10,$04,$F9,$FF,$A0,$10,$04,$21,$01,$01,$13
+L8787:
+            DB      $29,$12,$34,$11,$3E,$14
+L878D:
+            DB      $81,$05,$F9,$FF,$05,$16,$DD,$15,$0E,$00,$14,$00
+            DB      $10,$5A,$13,$54,$12,$6A,$11,$7E,$01,$08,$13,$4F
+            DB      $12,$5E,$11,$6A,$01,$08,$13,$46,$12,$54,$11,$5E
+            DB      $01,$08,$10,$55,$13,$54,$12,$6A,$11,$7E,$01,$08
+            DB      $13,$4F,$12,$5E,$11,$6A,$01,$08,$13,$46,$12,$54
+            DB      $11,$5E,$01,$08,$10,$50,$13,$54,$12,$6A,$11,$7E
+            DB      $01,$08,$13,$4F,$12,$5E,$11,$6A,$01,$08,$13,$46
+            DB      $12,$54,$11,$5E,$01,$08,$02,$99,$87
+Sound_Stream_R2_B2_Secondary:             ; R2.B2 WORLUK PROXIMITY, secondary, priority 1
+L87EA:
+            DB      $10,$A0,$04,$F9
+L87EE:
+            DB      $FF,$A0,$10,$FC,$21,$01,$01
+L87F5:
+            DB      $13,$1A,$12,$20,$11,$25,$14,$81,$05,$F9,$FF,$05
+            DB      $16,$CC,$15,$0C,$00,$03,$10,$20,$15
+L880A:
+            DB      $1B
+L880B:
+            DB      $16,$AA,$00,$03,$04,$F9,$FF,$20,$06,$FD,$23
+L8816:
+            DB      $03,$01,$05,$F9
+L881A:
+            DB      $FF,$01,$13,$27,$12
+L881F:
+            DB      $1B,$11,$17,$02,$07,$88
+Sound_Stream_R2_B4_Secondary:             ; R2.B4 GARWOR VISIBLE, secondary, priority 0
+L8825:
+            DB      $04,$F9,$FF,$20,$04,$FE,$23,$02,$01,$05,$F9,$FF
+            DB      $02,$13,$13,$12,$0D,$11,$0B,$02,$07,$88
+Sound_Stream_R2_B3_Secondary:             ; R2.B3 THORWOR VISIBLE, secondary, priority 0
+L883B:
+            DB      $04,$F9,$FF,$20,$02,$FE,$23
+L8842:
+            DB      $01,$01,$05,$F9,$FF,$03,$13,$0A,$12,$08,$11,$06
+            DB      $02,$07,$88
+Sound_Stream_R3_B2_B3_Secondary:             ; R3.B2/B3 MONSTER FIRE, secondary, priority 0
+L8851:
+            DB      $13,$2C,$12,$14,$11,$0F,$10,$10,$05,$F9,$FF,$02
+            DB      $04,$F9
+L885F:
+            DB      $FF,$A0,$10,$04,$21,$01,$01,$17
+L8867:
+            DB      $10,$04,$DD,$FF,$70,$10,$04,$03,$01,$01,$05
+L8872:
+            DB      $DD,$FF,$01,$16,$88,$15,$18,$00
+L887A:
+            DB      $03
+; R2.B1 is posted by Post_Player_Fire_Sound in the projectile-launch path.
+; The dispatcher installs this bytecode entry in the secondary engine.
+Sound_Stream_R2_B1_Secondary:             ; R2.B1 PLAYER FIRE, secondary, priority 0
+L887B:
+            DB      $10,$18,$04,$F9,$FF,$18,$02,$FE,$21
+L8884:
+            DB      $01,$01,$13,$27,$12,$46,$11,$7E,$05,$F9,$FF,$01
+            DB      $16,$77,$15,$17,$17
+L8895:
+            DB      $0A,$04,$DD,$FF,$0A,$02,$FE,$03,$01,$01,$05,$DD
+            DB      $FF,$01,$00,$04,$F9,$FF,$80,$02,$02
+L88AA:
+            DB      $23,$01,$01,$05,$F9,$FF,$01,$00,$03,$10,$06,$04
+            DB      $F9,$FF,$72,$06,$05
+L88BB:
+            DB      $21,$01,$01,$17,$22,$04,$DD,$FF,$64,$05,$03,$21
+            DB      $01,$01,$05,$DD,$FF,$04,$13,$11,$12,$17,$11,$1F
+            DB      $16,$9A,$15,$1A,$00,$05,$F9,$FF,$01,$06,$F9,$FF
+            DB      $01,$00,$03
+Sound_Stream_R4_B0_Primary:             ; R4.B0 WIZARD DEATH, primary, priority 2
+L88E2:
+            DB      $01,$02,$13,$2A,$12,$18,$11,$06,$10,$30,$04,$F9
+            DB      $FF,$30,$20
+L88F1:
+            DB      $FC,$01,$01,$01,$17,$00,$04,$DD,$FF,$20,$00
+L88FC:
+            DB      $02,$01,$04,$04,$16,$FF,$15,$1F,$00
+Sound_Stream_R4_B0_Secondary:             ; R4.B0 WIZARD DEATH, secondary, priority 2
+L8905:
+            DB      $13,$64,$12,$50,$11,$3C,$02,$EA,$88,$10,$20,$13
+L8911:
+            DB      $13,$12,$12,$11,$10,$17,$10,$16,$67,$15,$17,$04
+            DB      $F9,$FF,$18,$20,$F8,$01,$02,$02,$01,$28,$03
+; R2.B0 is posted by Request_Player_Death_Sound from the player branch of
+; Handle_Actor_Death. The dispatcher installs this secondary stream at $8928.
+Sound_Stream_R2_B0_Secondary:             ; R2.B0 secondary - PLAYER DEATH, priority 1
+L8928:
+            DB      $10,$28,$17,$84,$04,$DD,$FF
+L892F:
+            DB      $84,$0A,$FF,$03,$01,$01,$16,$CC,$15,$0C,$14,$83
+            DB      $13,$22,$12,$1D,$11,$10,$04,$EB,$FF,$8C,$83,$01
+            DB      $23,$08,$08,$05,$EB,$FF,$01,$00,$15,$1C,$01,$20
+            DB      $03,$13,$54,$12,$34,$11,$FD,$10,$20,$04,$F9,$FF
+            DB      $38,$08
+L8961:
+            DB      $FF,$01,$01,$01,$05,$F2,$FF,$01
+L8969:
+            DB      $01,$60,$09,$06,$F9,$FF,$01,$00,$16,$FF,$15,$1F
+            DB      $04,$F2,$FF,$0F,$02,$FF,$03,$19,$19,$02,$54,$89
 Sound_Stream_R1_B3_Primary:             ; R1.B3 primary, priority 0
-L8981:      ld      d,$22
-            dec     d
-            ld      (de),a
-            ld      (bc),a
-            ld      d,h
-            adc     a,c
-Sound_Stream_R2_B6_Secondary:             ; R2.B6 secondary, priority 0
-L8988:      djnz    L89AA
-            inc     b
-            ld      sp,hl
-            rst     38H
-            jr      nz,L899B
-            rst     38H
-            inc     bc
-            ld      (bc),a
-            ld      bc,L5516
-            dec     d
-            ld      b,$13
-            ld      d,h
-            ld      (de),a
-            ld      l,d
-L899B:      ld      de,L01FD
-            jr      z,L89A3
+L8981:
+            DB      $16,$22,$15,$12,$02,$54,$89
+Sound_Stream_R2_B6_Secondary:             ; R2.B6 PLAYER INPUT STATE, secondary, priority 0
+L8988:
+            DB      $10,$20,$04,$F9,$FF,$20,$0C,$FF,$03,$02,$01,$16
+            DB      $55,$15,$06,$13,$54,$12,$6A
+L899B:
+            DB      $11,$FD,$01,$28,$03
 Sound_Stream_R1_B1_Primary:             ; R1.B1 primary, priority 0
-L89A0:      djnz    L89D2
-            inc     d
-L89A3:      add     a,c
-            ld      d,$FC
-            dec     d
-            ld      c,$13
-            ld      b,(hl)
-L89AA:      ld      (de),a
-            inc     l
-            ld      de,L00FD
+L89A0:
+            DB      $10,$30,$14
+L89A3:
+            DB      $81,$16,$FC,$15,$0E,$13,$46
+L89AA:
+            DB      $12,$2C,$11,$FD,$00
 Sound_Stream_R1_B1_Secondary:             ; R1.B1 secondary, priority 0
-L89AF:      djnz    L89E1
-            inc     d
-            add     a,c
-            ld      d,$FD
-            dec     d
-            ld      c,$13
-            ld      a,(hl)
-            ld      (de),a
-            ld      e,c
-            ld      de,L006A
+L89AF:
+            DB      $10,$30,$14,$81,$16,$FD,$15,$0E,$13,$7E,$12,$59
+            DB      $11,$6A,$00
 Sound_Stream_R1_B0_Primary:             ; R1.B0 primary, priority 0
-L89BE:      djnz    L89F0
-            ld      d,$FE
-            dec     d
-            rrca
-            inc     d
-            add     a,c
-            inc     de
-            ld      a,$12
-            xor     b
-            ld      de,L016A
-            ld      b,d
-            inc     de
-            scf
-            ld      (de),a
-            ld      (hl),b
-L89D2:      ld      de,L015E
-            ld      d,$13
-            dec     (hl)
-            ld      (de),a
-            ld      l,d
-            ld      de,L0154
-            inc     (hl)
-            inc     de
-            ld      a,$12
-L89E1:      xor     b
-            ld      de,L006A
+L89BE:
+            DB      $10,$30,$16,$FE,$15,$0F,$14,$81,$13,$3E,$12,$A8
+            DB      $11,$6A,$01,$42,$13,$37,$12,$70
+L89D2:
+            DB      $11,$5E,$01,$16,$13,$35,$12,$6A,$11,$54,$01,$34
+            DB      $13,$3E,$12
+L89E1:
+            DB      $A8,$11,$6A,$00
 Sound_Stream_R1_B0_Secondary:             ; R1.B0 secondary, priority 0
-L89E5:      djnz    L8A17
-            inc     d
-            add     a,c
-            ld      d,$EE
-            dec     d
-            rrca
-            inc     de
-            ld      d,h
-            ld      (de),a
-L89F0:      ld      l,d
-            ld      de,L01FD
-            ld      b,d
-            inc     de
-            ld      e,(hl)
-            ld      (de),a
-            ld      d,h
-            ld      de,L01E1
-            ld      d,$13
-            ld      b,(hl)
-            ld      (de),a
-            ld      a,$11
-            call    nc,L3401
-            inc     de
-            ld      d,h
-            ld      (de),a
-            ld      a,(hl)
-            ld      de,L00FD
+L89E5:
+            DB      $10,$30,$14,$81,$16,$EE,$15,$0F,$13,$54,$12
+L89F0:
+            DB      $6A,$11,$FD,$01,$42,$13,$5E,$12,$54,$11,$E1,$01
+            DB      $16,$13,$46,$12,$3E,$11,$D4,$01,$34,$13,$54,$12
+            DB      $7E,$11,$FD,$00
 Sound_Stream_R1_B4_Primary:             ; R1.B4 primary, priority 0
-L8A0C:      djnz    L8A3E
-            ld      d,$EF
-            dec     d
-            rrca
-            inc     d
-            add     a,c
-            inc     de
-            ld      (hl),b
-            ld      (de),a
-L8A17:      ld      a,$11
-            xor     b
-            ld      bc,L1360
-            ld      (hl),b
-            ld      (de),a
-            ld      b,d
-            ld      de,L01A8
-            ld      e,b
-            ld      (bc),a
-            cp      (hl)
-            adc     a,c
+L8A0C:
+            DB      $10,$30,$16,$EF,$15,$0F,$14,$81,$13,$70,$12
+L8A17:
+            DB      $3E,$11,$A8,$01,$60,$13,$70,$12,$42,$11,$A8,$01
+            DB      $58,$02,$BE,$89
 Sound_Stream_R1_B4_Secondary:             ; R1.B4 secondary, priority 0
-L8A27:      djnz    L8A59
-            inc     d
-            add     a,c
-            ld      d,$EF
-            dec     d
-            rrca
-            inc     de
-            ld      c,a
-            ld      (de),a
-            inc     (hl)
-            ld      de,L015E
-            ld      h,b
-            inc     de
-            ld      d,h
-            ld      (de),a
-            scf
-            ld      de,L015E
-L8A3E:      ld      e,b
-            ld      (bc),a
-            push    hl
-            adc     a,c
-Sound_Stream_R3_B4_Secondary:             ; R3.B4 secondary, priority 0
-L8A42:      djnz    L8A58
-            inc     d
-            ld      c,b
-            inc     b
-            ld      sp,hl
-            rst     38H
-            inc     d
-            ex      af,af'
-            rst     38H
-            inc     hl
-            ld      (bc),a
-            inc     bc
-            dec     d
-            jr      z,L8A69
-            jr      nz,L8A58
-            DB      $dd,$ff
-            ld      d,h
-            jr      nz,L8A5D
-L8A59:      inc     bc
-            ld      (bc),a
-            inc     bc
-            dec     b
-L8A5D:      ld      sp,hl
-            rst     38H
-            ld      bc,L8816
-            inc     de
-            DB      $fd,$12
-            cp      $11
-            rst     38H
-            nop
-L8A69:      ld      bc,L0306
-Sound_Stream_R3_B5_Secondary:             ; R3.B5 secondary, priority 1
-L8A6C:      inc     de
-            ret     po
-            ld      (de),a
-            ret     z
-            ld      de,$10B6
-            inc     d
-            inc     d
-            ld      c,b
-            ld      d,$88
-            dec     d
-            jr      z,L8A92
-            jr      nz,L8A7E
-            jr      nz,L8A81
-            ld      b,d
-            adc     a,d
-Sound_Stream_R3_B5_Primary:             ; R3.B5 primary, priority 1
-L8A81:      djnz    L8A8C
-            inc     d
-            ld      c,b
-            inc     de
-            ret     po
-            ld      (de),a
-            ret     z
-            ld      de,L16B6
-L8A8C:      cp      e
-            dec     d
-            dec     c
-            ld      bc,L0420
-L8A92:      ld      sp,hl
-            rst     38H
-            ld      hl,L0209
-            ld      hl,L0302
-            dec     b
-            ld      sp,hl
-            rst     38H
-            ld      bc,L6202
-            adc     a,d
-Sound_Stream_R3_B0_Primary:             ; R3.B0 primary, priority 1
-L8AA1:      inc     b
-            DB      $dd,$ff
-            add     a,b
-            nop
-            cp      $21
-            ld      bc,L1701
-            add     a,b
-            djnz    L8AEE
-            inc     de
-            ld      l,b
-            ld      (de),a
-            ld      b,h
-            ld      de,$0521
-            DB      $dd,$ff
-            ld      bc,L1F15
-            ld      d,$EE
-            nop
-            dec     d
-            cpl
-            dec     b
-            ld      sp,hl
-            rst     38H
-            ld      (bc),a
-            ld      b,$DD
-            rst     38H
-            ld      bc,LF904
-            rst     38H
-            add     a,b
-            ld      (bc),a
-            rst     38H
-            ld      hl,L0101
-            inc     d
-            add     a,b
-            inc     b
-            ex      de,hl
-            rst     38H
-            cp      a
-            add     a,b
-            ld      bc,L0201
-            ld      (bc),a
-            nop
-            inc     bc
-Sound_Stream_R3_B0_Secondary:             ; R3.B0 secondary, priority 1
-L8ADD:      inc     de
-            inc     sp
-            ld      (de),a
-            jr      nc,L8AF3
-            ld      (bc),a
-            ld      bc,$0404
-            DB      $dd,$ff
-            add     a,b
-            nop
-            ld      (bc),a
-            ld      hl,L0101
-L8AEE:      rla
-            nop
-            ld      (bc),a
-            xor     h
-            adc     a,d
-Sound_Stream_R4_B2_Secondary:             ; R4.B2 secondary, priority 1
-L8AF3:      ld      (bc),a
-            or      e
-            adc     a,b
-Sound_Stream_R4_B1_Primary:             ; R4.B1 primary, priority 1
-L8AF6:      djnz    L8B0C
-            inc     d
-            adc     a,b
-            inc     de
-            scf
-            ld      (de),a
-            add     a,l
-            ld      de,Request_Sound_R4_B3_Override + 1
-            nop
-            ld      d,$AA
-            dec     d
-            ld      hl,(L2801)
-            inc     d
-            nop
-            inc     b
-            ld      sp,hl
-L8B0C:      rst     38H
-            ld      e,h
-            inc     d
-            ld      b,$01
-            inc     b
-            inc     b
-            rla
-            jr      z,L8B1A
-            sub     $FF
-            inc     b
-            ld      bc,L01FF
-            jr      nc,L8B4E
-            nop
-Sound_Stream_R4_B1_Secondary:             ; R4.B1 secondary, priority 1
-L8B1F:      djnz    L8B31
-            inc     d
-            add     a,(hl)
-            inc     de
-            add     hl,hl
-            ld      (de),a
-            dec     (hl)
-            ld      de,L167E
-            sbc     a,c
-            dec     d
-            add     hl,hl
-            nop
-Sound_Stream_R4_B3_Primary:             ; R4.B3 primary, priority 1
-L8B2E:      inc     de
-            xor     b
-            ld      (de),a
-L8B31:      ld      a,(de)
-            ld      de,L167E
-            DB      $dd,$15
-            dec     l
-            djnz    L8B58
-            rla
-            jr      L8B51
-            ld      bc,LEB05
-            rst     38H
-            dec     b
-            inc     b
-            ex      de,hl
-            rst     38H
-            inc     e
-            ld      bc,L2303
-            ld      (bc),a
-            ld      (bc),a
-            nop
-            dec     b
-            ex      de,hl
-L8B4E:      rst     38H
-            ld      bc,Maze_14_Data_Byte_13
-            inc     b
-            ex      de,hl
-            rst     38H
-            inc     e
-            ld      bc,L23FD
-            rlca
-            rlca
-            nop
-            inc     bc
-Sound_Stream_R4_B3_Secondary:             ; R4.B3 secondary, priority 1
-L8B5D:      inc     de
-            ld      d,h
-            ld      (de),a
-            inc     (hl)
-            ld      de,L02FD
-            inc     (hl)
-            adc     a,e
+L8A27:
+            DB      $10,$30,$14,$81,$16,$EF,$15,$0F,$13,$4F,$12,$34
+            DB      $11,$5E,$01,$60,$13,$54,$12,$37,$11,$5E,$01
+L8A3E:
+            DB      $58,$02,$E5,$89
+Sound_Stream_R3_B4_Secondary:             ; R3.B4 MAGIC DOOR TRANSIT, priority 0
+L8A42:
+            DB      $10,$14,$14,$48,$04,$F9,$FF,$14,$08,$FF,$23,$02
+            DB      $03,$15,$28,$17,$20,$04,$DD,$FF,$54,$20,$04
+L8A59:
+            DB      $03,$02,$03,$05
+L8A5D:
+            DB      $F9,$FF,$01,$16,$88,$13,$FD,$12,$FE,$11,$FF,$00
+L8A69:
+            DB      $01,$06,$03
+Sound_Stream_R3_B5_Secondary:             ; R3.B5 WORLUK ESCAPE, priority 1
+L8A6C:
+            DB      $13,$E0,$12,$C8,$11,$B6,$10,$14,$14,$48,$16,$88
+            DB      $15,$28,$17,$20,$01,$20,$02,$42,$8A
+Sound_Stream_R3_B5_Primary:             ; R3.B5 WORLUK ESCAPE, priority 1
+L8A81:
+            DB      $10,$09,$14,$48,$13,$E0,$12,$C8,$11,$B6,$16
+L8A8C:
+            DB      $BB,$15,$0D,$01,$20,$04
+L8A92:
+            DB      $F9,$FF,$21,$09,$02,$21,$02,$03,$05,$F9,$FF,$01
+            DB      $02,$62,$8A
+Sound_Stream_R3_B0_Primary:             ; R3.B0 WORLUK DEATH, primary, priority 1
+L8AA1:
+            DB      $04,$DD,$FF,$80,$00,$FE,$21,$01,$01,$17,$80,$10
+            DB      $40,$13,$68,$12,$44,$11,$21,$05,$DD,$FF,$01,$15
+            DB      $1F,$16,$EE,$00,$15,$2F,$05,$F9,$FF,$02,$06,$DD
+            DB      $FF,$01,$04,$F9,$FF,$80,$02,$FF,$21,$01,$01,$14
+            DB      $80,$04,$EB,$FF,$BF,$80,$01,$01,$02,$02,$00,$03
+Sound_Stream_R3_B0_Secondary:             ; R3.B0 WORLUK DEATH, secondary, priority 1
+L8ADD:
+            DB      $13,$33,$12,$30,$11,$02,$01,$04,$04,$DD,$FF,$80
+            DB      $00,$02,$21,$01,$01
+L8AEE:
+            DB      $17,$00,$02,$AC,$8A
+Sound_Stream_R4_B2_Secondary:             ; R4.B2 WIZARD FIRE, secondary, priority 1
+L8AF3:
+            DB      $02,$B3,$88
+Sound_Stream_R4_B1_Primary:             ; R4.B1 WIZARD APPEAR, priority 1
+L8AF6:
+            DB      $10,$14,$14,$88,$13,$37,$12,$85,$11,$8D,$17,$00
+            DB      $16,$AA,$15,$2A,$01,$28,$14,$00,$04,$F9
+L8B0C:
+            DB      $FF,$5C,$14,$06,$01,$04,$04,$17,$28,$04,$D6,$FF
+            DB      $04,$01,$FF,$01,$30,$30,$00
+Sound_Stream_R4_B1_Secondary:             ; R4.B1 WIZARD APPEAR, priority 1
+L8B1F:
+            DB      $10,$10,$14,$86,$13,$29,$12,$35,$11,$7E,$16,$99
+            DB      $15,$29,$00
+Sound_Stream_R4_B3_Primary:             ; R4.B3 WORLUK ESCAPED, primary, priority 1
+L8B2E:
+            DB      $13,$A8,$12
+L8B31:
+            DB      $1A,$11,$7E,$16,$DD,$15,$2D,$10,$1E,$17,$18,$14
+            DB      $01,$05,$EB,$FF,$05,$04,$EB,$FF,$1C,$01,$03,$23
+            DB      $02,$02,$00,$05,$EB
+L8B4E:
+            DB      $FF,$01,$14,$1C,$04,$EB,$FF,$1C,$01,$FD,$23,$07
+            DB      $07,$00,$03
+Sound_Stream_R4_B3_Secondary:             ; R4.B3 WORLUK ESCAPED, secondary, priority 1
+L8B5D:
+            DB      $13,$54,$12,$34,$11,$FD,$02,$34,$8B
+
 ;******************************************************************************
 ; ENGLISH SC-01 SPEECH FRAGMENTS - $8B66-$9475
 ;

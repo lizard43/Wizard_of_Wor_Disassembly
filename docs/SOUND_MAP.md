@@ -80,12 +80,80 @@ The secondary IC uses the same register layout at `$50-$57`.
 
 WoW maintains one software sound engine for each Astrocade custom I/O IC.
 
-| Engine | Modulator area | Engine record | IC outputs |
+| Engine | Work-RAM modulator area | Work-RAM engine record | Astrocade I/O registers |
 | --- | ---: | ---: | ---: |
 | Primary | `$D246-$D26F` | `$D270-$D281` | `$10-$17` |
 | Secondary | `$D282-$D2AB` | `$D2AC-$D2BD` | `$50-$57` |
 
-Each modulator area contains six 7-byte slots. Each 18-byte engine record holds the Astrocade block-output port, ROM stream pointer, priority, eight-register sound image, coupling enable, wait counter, per-service guard, and stream-ready flag. Bytes `+$0E-$0F` have no identified resident sound-engine references.
+The addresses in the two middle columns are **Z80 memory addresses in writable work RAM**. They are not sound-chip registers and they are not memory-mapped I/O. The addresses in the right column are **Z80 I/O port numbers** used by `OUT`/`OTIR`. Z80 memory space and I/O space are separate namespaces.
+
+### Work RAM versus Astrocade I/O
+
+Three different address classes appear in the sound path and should not be conflated:
+
+| Example | Address space | Meaning |
+| --- | --- | --- |
+| `$8437`, `$851D` | ROM memory | Executable Z80 sound-engine code |
+| `$887B`, `$8928` | ROM memory | Interpreted sound-stream bytecode/data |
+| `$D246-$D2BD` | Work RAM | Runtime sound-engine and modulator state |
+| `$10-$18`, `$50-$58` | Z80 I/O space | Astrocade sound-register and block-output ports |
+
+The relationship is:
+
+```text
+             Z80 MEMORY SPACE                              Z80 I/O SPACE
+
+ gameplay code / request bits
+          |
+          v
+ ROM sound stream ($887B, $8928, ...)
+          |
+          v
+ $8437 Decode_Sound_Stream_Commands
+          |
+          +------> work-RAM engine record
+          |          $D270 primary
+          |          $D2AC secondary
+          |               |
+          |               +--> stream pointer / priority / wait / ready
+          |               +--> 8-byte sound-register image
+          |
+          +------> work-RAM modulator slots
+                     $D246-$D26F primary
+                     $D282-$D2AB secondary
+                              |
+                              v
+                    $80E6 Service_Sound_Engine_Record
+                              |
+                              v
+                    OTIR through block port $18 / $58  ------------->  Astrocade IC
+                                                                        $17-$10
+                                                                        $57-$50
+```
+
+The engine record is therefore a software control structure. It contains the current ROM stream pointer and a RAM image of the sound registers. The periodic service modifies that image, then transfers the eight bytes to the physical Astrocade sound IC.
+
+This also explains why searching the listing for literal `$D246` or `$D282` finds relatively little code. The shared service routine receives the engine-record base in `IY` and reaches the six modulator slots through **negative indexed displacements**. The same instructions therefore work for either engine.
+
+```text
+IY = $D270 primary engine record        IY = $D2AC secondary engine record
+
+IY-$2A = $D246  slot 0                  IY-$2A = $D282  slot 0
+IY-$23 = $D24D  slot 1                  IY-$23 = $D289  slot 1
+IY-$1C = $D254  slot 2                  IY-$1C = $D290  slot 2
+IY-$15 = $D25B  slot 3                  IY-$15 = $D297  slot 3
+IY-$0E = $D262  slot 4                  IY-$0E = $D29E  slot 4
+IY-$07 = $D269  slot 5                  IY-$07 = $D2A5  slot 5
+```
+
+Each engine occupies one contiguous 60-byte software bundle: 42 bytes of modulator slots followed immediately by an 18-byte engine record.
+
+```text
+Primary bundle                         Secondary bundle
+
+$D246-$D26F  six modulator slots       $D282-$D2AB  six modulator slots
+$D270-$D281  engine record             $D2AC-$D2BD  engine record
+```
 
 ### Engine record
 
@@ -102,6 +170,106 @@ Each modulator area contains six 7-byte slots. Each 18-byte engine record holds 
 | `+$11` | Stream-ready flag |
 
 Resetting an engine clears record bytes `+$03` through `+$10`, clears all six modulator slots, and transfers eight zero bytes through the engine's block-output port. The stream-ready byte at `+$11` is set so the decoder can run.
+
+The two records have the same layout at different RAM bases:
+
+| Field | Primary RAM | Secondary RAM |
+| --- | ---: | ---: |
+| Block-output port | `$D270` = `$18` | `$D2AC` = `$58` |
+| Saved stream pointer | `$D271-$D272` | `$D2AD-$D2AE` |
+| Priority | `$D273` | `$D2AF` |
+| Eight-register image | `$D274-$D27B` | `$D2B0-$D2B7` |
+| Coupling enable | `$D27C` | `$D2B8` |
+| Wait counter | `$D27D` | `$D2B9` |
+| Unidentified bytes | `$D27E-$D27F` | `$D2BA-$D2BB` |
+| Per-service guard | `$D280` | `$D2BC` |
+| Stream-ready flag | `$D281` | `$D2BD` |
+
+The eight-byte register image is stored in the exact order expected by the Astrocade block-output operation:
+
+| Record offset | Primary RAM | Secondary RAM | Hardware register |
+| ---: | ---: | ---: | --- |
+| `+$04` | `$D274` | `$D2B0` | `$17 / $57` noise (`VOLN`) |
+| `+$05` | `$D275` | `$D2B1` | `$16 / $56` Tone A/B volume (`VOLAB`) |
+| `+$06` | `$D276` | `$D2B2` | `$15 / $55` Tone C/modulation/noise (`VOLC`) |
+| `+$07` | `$D277` | `$D2B3` | `$14 / $54` vibrato (`VIBRA`) |
+| `+$08` | `$D278` | `$D2B4` | `$13 / $53` Tone C |
+| `+$09` | `$D279` | `$D2B5` | `$12 / $52` Tone B |
+| `+$0A` | `$D27A` | `$D2B6` | `$11 / $51` Tone A |
+| `+$0B` | `$D27B` | `$D2B7` | `$10 / $50` master oscillator (`TONMO`) |
+
+At `Output_Sound_Register_Image` (`$81C5`), WoW loads record byte `+$00` into `C`, points `HL` at record `+$04`, sets `B=8`, and executes `OTIR`. For the primary engine this means `C=$18`, `HL=$D274`; for the secondary it means `C=$58`, `HL=$D2B0`. The Astrocade block port consumes those eight RAM bytes as registers `$17..$10` or `$57..$50`.
+
+```text
+PRIMARY
+
+$D270       $18       block-output port number
+$D274-$D27B           8-byte RAM register image
+     |                    |
+     +--------------------+
+              |
+              v
+        OTIR to port $18
+              |
+              v
+     Astrocade registers $17-$10
+
+SECONDARY
+
+$D2AC       $58       block-output port number
+$D2B0-$D2B7           8-byte RAM register image
+     |                    |
+     +--------------------+
+              |
+              v
+        OTIR to port $58
+              |
+              v
+     Astrocade registers $57-$50
+```
+
+Direct stream register-write commands `$10-$17` also write the hardware port immediately and mirror the same value into this RAM image. Modulator service then operates on the image so later block transfers remain coherent with the current software state.
+
+### R2.B0 through the secondary engine
+
+`R2.B0` provides a concrete example of all address spaces working together. The R2 request decoder selects the **secondary** engine, passes ROM stream `$8928`, and requests priority 1. `Install_Sound_Stream` does not jump to `$8928`; it stores `$8928` into the secondary engine record as data and marks the record ready for interpretation.
+
+```text
+player-death game path
+        |
+        v
+$D241 bit 0 = R2.B0                 work-RAM request byte
+        |
+        v
+$8538 Dispatch_Sound_Request_2      executable ROM code
+        |
+        |  IY = $D2AC
+        |  HL = $8928
+        |  D  = 1
+        v
+$851D Install_Sound_Stream          executable ROM code
+        |
+        +--> $D2AD-$D2AE = $8928   saved ROM bytecode pointer
+        +--> $D2AF       = 1       priority
+        +--> $D2BD       = 1       stream ready
+        |
+        v
+$8437 decoder reads bytes at $8928 ROM sound bytecode
+        |
+        +--> updates $D282-$D2AB   secondary modulator RAM
+        +--> updates $D2B0-$D2B7   secondary register image
+        |
+        v
+$80E6 service with IY=$D2AC
+        |
+        v
+OTIR: HL=$D2B0, C=$58, B=8
+        |
+        v
+secondary Astrocade registers $57-$50
+```
+
+This is the distinction to keep when reading the disassembly: `$8928` is ROM **sound data**, `$D2AC` is **RAM engine state**, and `$58` is an **I/O port**.
 
 ### Modulator slots
 
@@ -154,6 +322,118 @@ Sound requests are posted through four RAM bytes:
 | `$D244` | Sound-service gate: nonzero enables `$8003` request/stream processing and the normal `$8000` periodic sound/speech service |
 
 `R3.B5`, for example, means bit 5 of request byte `$D242`.
+
+### Three layers of a WoW sound event
+
+A sound effect is easiest to follow when the gameplay producer, request selector, and ROM stream are kept separate. They are related, but they are not the same thing.
+
+1. **Gameplay producer** - ordinary game code decides that a sound is required and posts a request. This is the semantic layer: player fire, player death, coin up, Worluk entry, and so on.
+2. **Request selector** - the producer sets a bit in `$D240-$D243`. Names such as `R2.B0` and `R2.B1` identify this interface between gameplay code and the resident sound dispatcher.
+3. **ROM sound stream** - the dispatcher consumes the request and installs one or two ROM bytecode entry addresses into the primary and/or secondary sound engine. `PSTR` and `SSTR` identify these stream entry addresses. They are not gameplay routines.
+
+After the third layer, the decoder at `$8437` interprets the stream and the periodic service writes the resulting register image to the Astrocade sound ICs.
+
+The complete correlation therefore has this form:
+
+```text
+gameplay event
+    -> gameplay producer
+    -> request selector in $D240-$D243
+    -> request decoder
+    -> primary/secondary ROM sound stream
+    -> sound-stream interpreter
+    -> Astrocade sound registers
+```
+
+#### Player death example
+
+The player-death relationship is established in the game code rather than inferred from the sound itself. `Handle_Actor_Death` at `$0D59` calls `Request_Actor_Death_Sound` at `$0DD6`. The player branch reaches `Request_Player_Death_Sound` at `$0DFA`, which sets bit 0 of `Sound_Request_2` (`$D241`). The R2 decoder at `$8538` consumes `R2.B0` and installs the secondary stream at `$8928`.
+
+```text
+Handle_Actor_Death ($0D59)
+    -> Request_Actor_Death_Sound ($0DD6)
+    -> Request_Player_Death_Sound ($0DFA)
+    -> R2.B0 = $D241 bit 0
+    -> Dispatch_Sound_Request_2 ($8538)
+    -> SSTR $8928
+    -> secondary sound engine
+```
+
+This is why `$8928` is identified as the `R2.B0` player-death sound stream. `$8928` is the start of interpreted sound data, not the address of the actor-death gameplay routine.
+
+#### Player fire example
+
+`Finalize_Projectile_And_Post_Fire_Sound` at `$23D2` separates the player and non-player firing paths. The player path reaches `Post_Player_Fire_Sound`, which sets bit 1 of `Sound_Request_2`. The R2 decoder maps `R2.B1` to the secondary stream at `$887B`.
+
+```text
+Finalize_Projectile_And_Post_Fire_Sound ($23D2)
+    -> Post_Player_Fire_Sound
+    -> R2.B1 = $D241 bit 1
+    -> Dispatch_Sound_Request_2 ($8538)
+    -> SSTR $887B
+    -> secondary sound engine
+```
+
+The non-player branch from the same projectile path posts `R3.B2` for ordinary monster fire. When the Worluk phase is active and the Wizard state is active, the same firing path switches to `R4.B2`; that establishes `R4.B2` as **Wizard fire**.
+
+#### Worluk entry example
+
+`Post_Worluk_Entry_Sound` posts `R3.B7`. The R3 decoder installs primary stream `$877B`.
+
+```text
+Post_Worluk_Entry_Sound
+    -> R3.B7 = $D242 bit 7
+    -> Dispatch_Sound_Request_3 ($8583)
+    -> PSTR $877B
+    -> primary sound engine
+```
+
+### Additional event resolutions from static gameplay paths
+
+The game code resolves several selectors that previously had only generic browser names.
+
+`Select_R2_Actor_State_Sound` is reached from the enemy/player corridor-proximity test. Its actor-class branch deliberately emits no request for Burwor, posts `R2.B4` for Garwor, and posts `R2.B3` for the `$0C` class while the Worluk phase is inactive. This matches WoW's own instruction text that Garwors and Thorwors become visible when they enter the same maze corridor as the player. The same `$0C` path changes to `R2.B2` while the Worluk phase is active; because Worluk is not an invisible-monster case, that selector is conservatively named **Worluk proximity** rather than “Worluk visible.”
+
+The special-actor state also resolves the death, fire, and appearance selectors. `Request_Actor_Death_Sound` selects `R3.B1` for ordinary monster death, `R3.B0` while the Worluk phase is active, and `R4.B0` when the Wizard state is also active. These are therefore **monster death**, **Worluk death**, and **Wizard death** respectively. The special spawn path that chooses an active player and constructs a new special-actor position posts `R4.B1`, establishing **Wizard appear**. The corresponding special projectile path posts `R4.B2`, establishing **Wizard fire**.
+
+The maze-edge path separates two further events. When the active Worluk crosses the boundary, the code clears its actor slot and posts `R3.B5`: **Worluk escape**. The non-escape branch of the same boundary path posts `R3.B4`: **magic door transit**.
+
+`R4.B3` is also statically identifiable. In `GAME_COMMAND_STREAM`, the command at `$12BC` calls the localized-text display handler with record `$11`, `Text_Escaped` (“ESCAPED”). That command consumes four operand bytes; the very next threaded handler at `$12C2` is `$178C`, which writes `$08` to `Sound_Request_4`. Thus `R4.B3` is the scripted **Worluk escaped** result cue. It is distinct from the immediate `R3.B5` escape sound posted at the boundary crossing.
+
+The command stream also improves several R1 labels without relying on the sound itself. The `$112B` `R1.B0` post follows the `Text_Worlord_Dungeon` display, `$1508` writes `R1.B2` in the `Text_Radar` path, and `$12FF` posts `R1.B4` in the round-start path immediately before the optional `GET READY` display. `R2.B7` is no longer producer-less: the game stream writes `$80` directly to `$D241` at `$11B6` before the dungeon-class intro branch. It reuses only the primary `$8741` stream and is therefore identified as **dungeon intro primary**.
+
+A few selectors remain deliberately generic. `R1.B1` and the attract-stream `R1.B3` have static posting locations but not yet a sufficiently specific gameplay meaning. `R2.B6` is known to be a joystick-triggered player actor-state transition, but the exact state-bit meaning is still unresolved. `R3.B3` still has no identified producer and selects the same secondary stream as ordinary monster fire.
+
+### Request producer cross-reference
+
+This table connects the identified game-code producer to the request bit consumed by the resident sound dispatcher. `Confirmed` means the gameplay meaning is directly established by the producer path. `Context` means the source path is established and supports the name, but some higher-level state semantics remain conservative. `Unresolved` is retained only where the code still does not support a more specific event name.
+
+| Request | Producer / source path | Current identification | Evidence |
+| --- | --- | --- | --- |
+| `R1.B0` | `Fetch_Sound_Request_From_Stream` at `$112B`, after `Text_Worlord_Dungeon` | Worlord dungeon cue | Context |
+| `R1.B1` | `Fetch_Sound_Request_From_Stream` at `$1153` | Command-stream event | Unresolved |
+| `R1.B2` | Direct command-stream write `$D240=$04` at `$1508` in the `Text_Radar` path | Radar cue | Context |
+| `R1.B3` | `Fetch_Sound_Request_From_Stream` at attract-stream `$10D4` | Attract event | Unresolved |
+| `R1.B4` | `Fetch_Sound_Request_From_Stream` at `$12FF` in the round-start / `GET READY` path | Round start cue | Context |
+| `R1.B5` | `Post_Coin_Up_Sound_Request` | Coin up | Confirmed |
+| `R2.B0` | `Request_Player_Death_Sound` from `Handle_Actor_Death` | Player death | Confirmed |
+| `R2.B1` | `Post_Player_Fire_Sound` from projectile creation | Player fire | Confirmed |
+| `R2.B2` | `Select_R2_Actor_State_Sound`, `$0C` class with Worluk phase active | Worluk proximity | Context |
+| `R2.B3` | `Select_R2_Actor_State_Sound`, `$0C` class before Worluk phase | Thorwor visible | Confirmed path |
+| `R2.B4` | `Select_R2_Actor_State_Sound`, Garwor class | Garwor visible | Confirmed path |
+| `R2.B6` | `Post_Player_Input_State_Sound`; joystick bit 0 clears player actor-state bit 2 | Player input state | Context |
+| `R2.B7` | Direct command-stream write `$D241=$80` at `$11B6` before dungeon-class intro branch | Dungeon intro primary | Context |
+| `R3.B0` | `Request_Actor_Death_Sound`, Worluk phase active and Wizard inactive | Worluk death | Confirmed |
+| `R3.B1` | `Request_Actor_Death_Sound`, ordinary monster state | Monster death | Confirmed |
+| `R3.B2` | `Post_Monster_Fire_Sound` | Monster fire | Confirmed |
+| `R3.B3` | Static producer not identified; shares the `R3.B2` stream | Monster fire alternate selector | Unresolved |
+| `R3.B4` | `Post_Magic_Door_Transit_Sound`, non-escape maze-edge branch | Magic door transit | Confirmed path |
+| `R3.B5` | `Post_Worluk_Escape_Sound`, actor removed at maze boundary | Worluk escape | Confirmed |
+| `R3.B7` | `Post_Worluk_Entry_Sound` | Worluk entry | Confirmed |
+| `R4.B0` | `Request_Actor_Death_Sound`, Wizard state active | Wizard death | Confirmed |
+| `R4.B1` | `Post_Wizard_Appear_Sound` from special-actor spawn path | Wizard appear | Confirmed path |
+| `R4.B2` | `Post_Wizard_Fire_Sound` from special projectile path | Wizard fire | Confirmed |
+| `R4.B3` | `Post_Worluk_Escaped_Sound` at `$178C`, immediately after `Text_Escaped` command | Worluk escaped | Confirmed |
 
 The resident entry points used by the sound system are:
 
@@ -219,7 +499,9 @@ When R1 is zero, the R2, R3, and R4 decoders are called in order. Each decoder c
 
 ## WoW ROM sound streams
 
-Sound streams are ROM data interpreted by the decoder at `$8437`. Commands `$00-$17` are valid; values `$18` and above are redirected to the fallback stream at `$8740`, whose first command is `$03` reset-engine.
+Sound streams are ROM bytecode/data interpreted by the decoder at `$8437`; they are not ordinary Z80 routines. The sound-data region beginning at `$8740` can produce plausible-looking Z80 mnemonics if decoded linearly as processor instructions, but those mnemonics do not describe how WoW uses the bytes. The Z80 executes the interpreter at `$8437`, which reads these bytes as sound commands. Stream labels such as `Sound_Stream_R2_B0_Secondary` therefore identify bytecode entry points rather than executable Z80 entry points.
+
+Commands `$00-$17` are valid; values `$18` and above are redirected to the fallback stream at `$8740`, whose first command is `$03` reset-engine.
 
 | Command | Function |
 | ---: | --- |
@@ -252,41 +534,44 @@ The periodic service applies waits and modulator updates to the saved image, the
 
 Event names are assigned only where request-posting call sites or runtime behavior provide sufficient evidence. Entries that remain unresolved are identified as such rather than inferred from the audio alone.
 
-`Pri` is the stream-install priority. `PSTR` and `SSTR` are the primary and secondary ROM stream entry addresses.
+`Pri` is the stream-install priority. `PSTR` and `SSTR` are the primary and secondary ROM sound-bytecode entry addresses installed by the request decoder. They identify layer 3 above; they are not the addresses of the gameplay routines that posted the request.
 
 `Ends` records natural idle completion during the observed run. `>4s` records activity beyond four seconds. `Sustained` marks requests confirmed to continue until replacement or reset.
 
 | Request | Write | Pri | PSTR | SSTR | Event | Observed |
 | --- | ---: | ---: | ---: | ---: | --- | --- |
-| `R1.B0` | `$D240=$01` | 0 | `$89BE` | `$89E5` | Global event 0 | `>4s`, latch |
-| `R1.B1` | `$D240=$02` | 0 | `$89A0` | `$89AF` | Global event 1 | `>4s`, latch |
-| `R1.B2` | `$D240=$04` | 0 | `$8741` | `$8772` | Global event 2 | `>4s`, modulation |
-| `R1.B3` | `$D240=$08` | 0 | `$8981` | — | Global event 3 | `>4s`, modulation |
-| `R1.B4` | `$D240=$10` | 0 | `$8A0C` | `$8A27` | Global event 4 | `>4s`, wait |
+| `R1.B0` | `$D240=$01` | 0 | `$89BE` | `$89E5` | Worlord dungeon cue | `>4s`, latch |
+| `R1.B1` | `$D240=$02` | 0 | `$89A0` | `$89AF` | Global event 1; exact meaning unresolved | `>4s`, latch |
+| `R1.B2` | `$D240=$04` | 0 | `$8741` | `$8772` | Radar cue | `>4s`, modulation |
+| `R1.B3` | `$D240=$08` | 0 | `$8981` | — | Attract event 3; exact meaning unresolved | `>4s`, modulation |
+| `R1.B4` | `$D240=$10` | 0 | `$8A0C` | `$8A27` | Round start cue | `>4s`, wait |
 | `R1.B5` | `$D240=$20` | 0 | `$8971` | — | Coin up | `>4s`, modulation |
 | `R2.B0` | `$D241=$01` | 1 | — | `$8928` | Player death | Ends |
 | `R2.B1` | `$D241=$02` | 0 | — | `$887B` | Player fire | Ends |
-| `R2.B2` | `$D241=$04` | 1 | — | `$87EA` | Unresolved event | Ends |
-| `R2.B3` | `$D241=$08` | 0 | — | `$883B` | Unresolved event | Ends |
-| `R2.B4` | `$D241=$10` | 0 | — | `$8825` | Enemy state event | Ends |
-| `R2.B6` | `$D241=$40` | 0 | — | `$8988` | Player status event | Ends |
-| `R2.B7` | `$D241=$80` | 1 | `$8741` | — | Global event 2 primary | `>4s`, modulation |
-| `R3.B0` | `$D242=$01` | 1 | `$8AA1` | `$8ADD` | Special actor death | `>4s`, modulation |
+| `R2.B2` | `$D241=$04` | 1 | — | `$87EA` | Worluk proximity | Ends |
+| `R2.B3` | `$D241=$08` | 0 | — | `$883B` | Thorwor visible | Ends |
+| `R2.B4` | `$D241=$10` | 0 | — | `$8825` | Garwor visible | Ends |
+| `R2.B6` | `$D241=$40` | 0 | — | `$8988` | Player input state | Ends |
+| `R2.B7` | `$D241=$80` | 1 | `$8741` | — | Dungeon intro primary | `>4s`, modulation |
+| `R3.B0` | `$D242=$01` | 1 | `$8AA1` | `$8ADD` | Worluk death | `>4s`, modulation |
 | `R3.B1` | `$D242=$02` | 0 | — | `$890E` | Monster death | Ends |
 | `R3.B2` | `$D242=$04` | 0 | — | `$8851` | Monster fire | Ends |
-| `R3.B3` | `$D242=$08` | 0 | — | `$8851` | Monster fire | Ends |
-| `R3.B4` | `$D242=$10` | 0 | — | `$8A42` | Worluk phase event | Ends |
-| `R3.B5` | `$D242=$20` | 1 | `$8A81` | `$8A6C` | Dual-IC event | Ends |
+| `R3.B3` | `$D242=$08` | 0 | — | `$8851` | Monster fire alternate selector; producer unresolved | Ends |
+| `R3.B4` | `$D242=$10` | 0 | — | `$8A42` | Magic door transit | Ends |
+| `R3.B5` | `$D242=$20` | 1 | `$8A81` | `$8A6C` | Worluk escape | Ends |
 | `R3.B7` | `$D242=$80` | 1 | `$877B` | — | Worluk entry | `>4s`, wait |
-| `R4.B0` | `$D243=$01` | 2 | `$88E2` | `$8905` | Special death event | Sustained, modulation |
-| `R4.B1` | `$D243=$02` | 1 | `$8AF6` | `$8B1F` | Dual-IC event | Sustained, modulation/latch |
-| `R4.B2` | `$D243=$04` | 1 | — | `$8AF3` | Special monster fire | Ends |
-| `R4.B3` | `$D243=$08` | 1 | `$8B2E` | `$8B5D` | Dual-IC event | Ends |
+| `R4.B0` | `$D243=$01` | 2 | `$88E2` | `$8905` | Wizard death | Sustained, modulation |
+| `R4.B1` | `$D243=$02` | 1 | `$8AF6` | `$8B1F` | Wizard appear | Sustained, modulation/latch |
+| `R4.B2` | `$D243=$04` | 1 | — | `$8AF3` | Wizard fire | Ends |
+| `R4.B3` | `$D243=$08` | 1 | `$8B2E` | `$8B5D` | Worluk escaped | Ends |
 
 ## Notes
 
+- For reverse engineering, follow **producer label -> request bit -> stream label/address**. Source/LST line numbers can move as comments and data representation are cleaned up; ROM addresses and symbolic labels are the stable correlation points.
+- The ROM sound streams are interpreted data. Apparent Z80 opcodes produced by linear disassembly inside the stream region are not sound-engine execution paths.
 - `R3.B2` and `R3.B3` select the same secondary stream at `$8851`.
-- `R2.B7` reuses the primary `$8741` stream used by `R1.B2`.
+- `R3.B5` is the immediate Worluk escape cue at boundary crossing; `R4.B3` is the later scripted Worluk-escaped result cue that follows the on-screen `ESCAPED` message.
+- `R2.B7` is posted directly by the game command stream before the dungeon-class intro branch and reuses the primary `$8741` stream used by `R1.B2`.
 - `R4.B0` carries priority 2. All other catalog requests use priority 0 or 1.
 - Stream entry addresses are starting points; the saved engine pointer moves through waits, jumps, and modulation commands during playback.
 - The Astrocade sound registers retain their values until software changes them. A stream can finish decoding while the IC continues sounding from the retained register image.

@@ -3,7 +3,7 @@
 ; Wizard of Wor - Master Hardware Equates
 ; ==============================================================================
 
-EXPHOOK     EQU     $8006       ; High-ROM hook: initializes both sound engines and validates speech queue
+HIGH_ROM_INIT_HOOK              EQU     $8006       ; Low ROM probes for JP; WoW maps this to Sound_Reset_All_Entry
 
 ; ------------------------------------------------------------------------------
 ; SYSTEM INPUTS & SWITCHES
@@ -36,9 +36,15 @@ XPAND       EQU     $19         ; Expand Mode Color Definition
 ; INTERRUPT & SYSTEM CONTROL PORTS
 ; ------------------------------------------------------------------------------
 INTST       EQU     $08         ; Intercept Status (Hardware Collision)
-INFBK       EQU     $0D         ; Interrupt Feedback Vector
-INMOD       EQU     $0E         ; Interrupt Mode Enable
-INLIN       EQU     $0F         ; Interrupt Scan Line
+INFBK       EQU     $0D         ; IM2 vector low byte / interrupt feedback register
+INMOD       EQU     $0E         ; Interrupt source/mode enable register
+INLIN       EQU     $0F         ; Scanline interrupt compare register
+
+; WoW keeps I=$00 and selects among three little-endian vectors stored in ROM.
+IM2_VECTOR_PAGE_00              EQU     $00
+IM2_VECTOR_CA                   EQU     $CA
+IM2_VECTOR_CC                   EQU     $CC
+IM2_VECTOR_CE                   EQU     $CE
 RIGHTPORT   EQU     $5B         ; NVRAM Write-Protect Port
 RIGHTVALUE  EQU     $A5         ; NVRAM Unlock Value
 
@@ -115,8 +121,8 @@ PBFLOP      EQU     5           ; DMA: Horizontal Flop
 ; ------------------------------------------------------------------------------
 ; GAME MEMORY MAP
 ; ------------------------------------------------------------------------------
-BOOT_STACK_TOP                   EQU     $D400
-PERMANENT_STACK_TOP              EQU     $8000
+BOOT_STACK_TOP                   EQU     $D400       ; Temporary work-RAM stack used during boot/diagnostics
+PERMANENT_STACK_TOP              EQU     $8000       ; SP boundary; pushes descend into non-visible VRAM below $8000
 
 ; Protected RAM and timers
 Coin_Input_Latch                 EQU     $D03B
