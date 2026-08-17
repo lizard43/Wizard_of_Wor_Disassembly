@@ -50,11 +50,15 @@ L0017:      ld      a, $00              ; 0000 000 0 (Function 0: Coin Counter 3
             call     Set_Scanline_Int               ; Set scan line interrupt & enable sparkle colors
 
 ;******************************************************************************************
-; ----> SET INTERRUPT MODE
+; ----> CONFIGURE IM2 VECTOR PAGE
+;
+; I supplies the high byte of the IM2 vector-table address. WoW keeps I=$00;
+; INFBK supplies the selectable low byte ($CA/$CC/$CE).
 ;******************************************************************************************
-L0026:      ld      a, $00              ; High byte for Interrupt Vector Table
-            ld      i, a                ; Interrupts will be triggered from $0000-$00FF
-            im      2                   ; Set Interrupt Mode 2
+Configure_IM2_Vector_Page_00:
+L0026:      ld      a,IM2_VECTOR_PAGE_00
+            ld      i,a                 ; Vector words are read from ROM page $00xx
+            im      2                   ; Z80 Interrupt Mode 2
 
 ;******************************************************************************************
 ; GAME INITIALIZATION & MEMORY SETUP
@@ -65,11 +69,11 @@ L0026:      ld      a, $00              ; High byte for Interrupt Vector Table
             ld      (Speech_Queue_Write_Pointer + 1),a ; Clear queue write-pointer high byte
 
 ;******************************************************************************************
-; ----> EXPANSION ROM CHECK
+; ----> HIGH-ROM INITIALIZATION HOOK
 ;******************************************************************************************
-L0030:      ld      a, (EXPHOOK)          ; Check High ROM extension socket
-            cp      $C3                 ; Is the byte a 'JP' ($C3) instruction?
-            call    z, EXPHOOK            ; If yes, execute external ROM initialization
+L0030:      ld      a,(HIGH_ROM_INIT_HOOK) ; Probe the optional high-ROM initialization entry
+            cp      $C3                 ; Present entries begin with JP
+            call    z,HIGH_ROM_INIT_HOOK ; WoW high ROM: reset both sound engines / validate speech queue
 
 ;******************************************************************************************
 ; ----> HARDWARE VARIABLE SETUP
@@ -148,8 +152,8 @@ L0088:      bit     3,a                 ; Check Service/Diagnostic Switch
 ; ----> INTERRUPT VECTOR & COLOR PALETTE MAPPING
 ;******************************************************************************************
 Initialize_Interrupt_Vector_And_Palette:
-            ld      a,$CA               ; Interrupt vector at $CA
-            out     (INFBK),a           ; Set interrupt vector upper byte
+            ld      a,IM2_VECTOR_CA     ; $00CA -> Interrupt_Vector_CA_Handler ($0956)
+            out     (INFBK),a           ; Select IM2 vector low byte
 
             ld      hl,DEFPALETTE       ; Source: Color mapping table
             ld      bc,$080B            ; B = 8 (count), C = $0B (Color Block Transfer port)
@@ -160,16 +164,16 @@ Initialize_Interrupt_Vector_And_Palette:
 ; ----> SET INTERRUPT VECTOR $CC
 ;******************************************************************************************
 Select_Interrupt_Vector_CC:
-            ld      a,$CC
-            out     (INFBK),a           ; Set interrupt vector upper byte
+            ld      a,IM2_VECTOR_CC     ; $00CC -> Interrupt_Vector_CC_Handler ($099E)
+            out     (INFBK),a           ; Select IM2 vector low byte
 L00A4:      ret
 
 ;******************************************************************************************
 ; ----> SET INTERRUPT VECTOR $CE
 ;******************************************************************************************
 Select_Interrupt_Vector_CE:
-            ld      a,$CE
-            out     (INFBK),a           ; Set interrupt vector upper byte
+            ld      a,IM2_VECTOR_CE     ; $00CE -> Interrupt_Vector_CE_Handler ($09B4)
+            out     (INFBK),a           ; Select IM2 vector low byte
             ret
 
 ;******************************************************************************************
@@ -212,10 +216,22 @@ L00C0:      ld      (hl),c              ; Write byte to protected RAM
 ;******************************************************************************************
 ; ----> DEFAULT COLOR PALETTE MAPPING TABLE
 ;
-;       These bytes are sent to the Color Block Transfer port ($0B) during boot.
+;       Initialize_Interrupt_Vector_And_Palette sends eight bytes beginning at
+;       DEFPALETTE ($00C5-$00CC) to the color block port. The tail of this same
+;       ROM data is deliberately shared with the IM2 vector table.
 ;******************************************************************************************
-DEFPALETTE: DB      $51, $7C, $F3
-L00C8:      DB      $C7, $00, $56, $09, $9E, $09, $B4, $09
+DEFPALETTE: DB      $51,$7C,$F3
+L00C8:      DB      $C7,$00
+
+; With I=$00, IM2 reads little-endian handler pointers at $00CA/$00CC/$00CE.
+; The $00CA word and low byte at $00CC are therefore also part of the eight-byte
+; palette transfer above; the ROM layout intentionally serves both purposes.
+IM2_Vector_CA_Word:
+L00CA:      DW      Interrupt_Vector_CA_Handler     ; $0956
+IM2_Vector_CC_Word:
+L00CC:      DW      Interrupt_Vector_CC_Handler     ; $099E
+IM2_Vector_CE_Word:
+L00CE:      DW      Interrupt_Vector_CE_Handler     ; $09B4
 
 ;******************************************************************************************
 ; ----> VIDEO RAM FAILURE / CRASH HANDLER
@@ -266,13 +282,13 @@ vramtest:   exx                         ; Swap registers (saves return address i
 
 ;******************************************************************************************
 ; ----> HARDWARE DIAGNOSTICS & MEMORY TEST ENTRY
-;            Disables interrupts, checks for an expansion ROM, resets hardware state,
+;            Disables interrupts, initializes the installed high-ROM subsystem, resets hardware state,
 ;            and seeds the Video RAM worm test with the initial pattern ($80).
 ;******************************************************************************************
 diags:      di                          ; Disable interrupts during diagnostics
-            ld      a,(EXPHOOK)           ; Check High ROM extension socket
-L00FF:      cp      $C3                 ; Is the byte a 'JP' ($C3) instruction?
-L0101:      call    z,EXPHOOK             ; If yes, execute external diagnostic ROM
+            ld      a,(HIGH_ROM_INIT_HOOK) ; Probe the optional high-ROM initialization entry
+L00FF:      cp      $C3                 ; Present entries begin with JP
+L0101:      call    z,HIGH_ROM_INIT_HOOK ; Initialize the installed high-ROM subsystem
 
             call    Enable_Sparkle_Colors               ; Reset hardware state / sparkle colors
 
@@ -531,13 +547,13 @@ L0230:      ld      de,LD1D7            ; Point to Player 1 controls buffer
             ld      de,$190B            ; DE = Screen formatting and position attributes for P2
             ld      hl,LD1CE            ; HL = Pointer to P2 joystick state tracking variable ($D1CE)
             ld      a,(LD1D6)           ; A = Load Player 2 controls state (Read from Port $11)
-            call    L0317               ; Call L0317 to evaluate the direction status (lower nybble)
+            call    Update_Diagnostic_Joystick_Display ; Update changed U/D/L/R diagnostic state
 
             ; Player 1 Joystick Check
             ld      de,$1939            ; DE = Screen formatting and position attributes for P1
             ld      hl,LD1CF            ; HL = Pointer to P1 joystick state tracking variable ($D1CF)
             ld      a,(LD1D7)           ; A = Load Player 1 controls state (Read from Port $12)
-            call    L0317               ; Call L0317 to evaluate the direction status (lower nybble)
+            call    Update_Diagnostic_Joystick_Display ; Update changed U/D/L/R diagnostic state
 
 ;*****************************************************************************************
 ; ----> CHECK RIGHT FIRE BUTTONS (Port $11 / $12, Bit 4)
@@ -693,10 +709,13 @@ L0310:      di                  ; Disable interrupts
 L0314:      jp      $AF80       ; Jump to EOF routine to draw alignment grid and halt
 
 ;*****************************************************************************************
-; ----> JOYSTICK DIRECTION EVALUATOR
+; ----> UPDATE DIAGNOSTIC JOYSTICK DISPLAY
 ;
-; Isolates the lower nybble (joystick directions) and checks for state changes.
+; A = raw player input byte, HL = stored previous joystick state. The routine
+; filters to U/D/L/R, returns immediately if unchanged, otherwise updates the
+; saved state and falls through to the diagnostic direction-string renderer.
 ;*****************************************************************************************
+Update_Diagnostic_Joystick_Display:
 L0317:      and     $0F         ; Isolate bits 0-3 (Up, Down, Left, Right)
             cp      (hl)        ; Compare current joystick state against previous state
             ret     z           ; Return immediately if the joystick hasn't moved
@@ -893,7 +912,11 @@ L0449:      DB      "STATIC@RAM@BAD"
 L0457:      DB      "ROM@"
             DB      $00
 
-L045C:      ld      c,$10
+; Print using the cabinet/system orientation bit rather than forcing C=$FF.
+; Inputs otherwise match printstr. Reading port $10 into C supplies C.7, which
+; printstr uses to select forward versus horizontally mirrored rendering.
+Print_String_With_Cabinet_Orientation:
+L045C:      ld      c,COINPORT
             in      c,(c)
 
 ; Render B native-font characters through the Pattern Board. Each glyph is a
@@ -1264,9 +1287,9 @@ L0779:      out     (COL3L),a
 ;
             nop
 L0781:      call    Stream_Fetch_Byte_B
-            call    L07A8
+            call    Stream_Select_Address_By_Orientation
             xor     a
-            jp      L045C
+            jp      Print_String_With_Cabinet_Orientation
 ;
 ;*********************************************************
 ;
@@ -1306,12 +1329,13 @@ L079A:      ld      a,(hl)              ; Length bytes are below $30
             add     a,b
             ret
 ;
-;*********************************************************
-;
+; Select one of two stream-encoded 16-bit addresses using COINPORT bit 7.
+; Consumes two words from IY and returns the selected address in DE.
+Stream_Select_Address_By_Orientation:
 L07A8:      call    Stream_Fetch_Word_HL
             push    hl
             call    Stream_Fetch_Word_HL
-            in      a, (COINPORT)       ; Read system inputs for alternate address selection
+            in      a,(COINPORT)        ; Bit 7 selects first versus second address
             bit     7,a
             jr      nz,L07B6
             ex      (sp),hl
@@ -1333,12 +1357,12 @@ L07B6:      pop     hl
 L07CA:
             call    Stream_Fetch_Word_DE
             call    Stream_Fetch_Byte_B
-            call    L07A8
+            call    Stream_Select_Address_By_Orientation
 L07D3:      call    Stream_Fetch_Byte_A
-            jp      L045C
+            jp      Print_String_With_Cabinet_Orientation
 ;
             call    Stream_Fetch_Byte_B
-            call    L07A8
+            call    Stream_Select_Address_By_Orientation
             call    Select_Localized_Text_Record
             jr      L07D3
 ;
@@ -1358,13 +1382,13 @@ L07D3:      call    Stream_Fetch_Byte_A
             sub     e
             ld      e,a
 L07FF:      push    hl
-L0800:      call    L0947
+L0800:      call    Compute_80_Byte_Row_Offset
             ex      de,hl
             pop     hl
             jr      L07D3
 ;
 ; Write an immediate byte to a stream-selected address.
-            call    L0872
+            call    Stream_Fetch_Byte_A_Then_Word_HL
             ld      (hl),a
             ret
 
@@ -1377,7 +1401,7 @@ L080F:      call    Stream_Fetch_Word_HL
             ld      (hl),d
             ret
 ;
-            call    L0872
+            call    Stream_Fetch_Byte_A_Then_Word_HL
             call    Stream_Fetch_Word_DE
             cp      (hl)
             ret     z
@@ -1394,7 +1418,7 @@ L0823:      call    Stream_Fetch_Word_HL
             and     a
             ret     z
             jr      L086E
-            call    L0872
+            call    Stream_Fetch_Byte_A_Then_Word_HL
             call    Stream_Fetch_Word_DE
             cp      (hl)
             ret     c
@@ -1414,7 +1438,7 @@ L083E:      push    de
             ret
             xor     a
             ld      (LD053),a
-            call    L0872
+            call    Stream_Fetch_Byte_A_Then_Word_HL
             ld      (LD051),hl
             ld      (Timer_Group_1_Start),a
             ret
@@ -1424,19 +1448,13 @@ L086E:      push    hl
             pop     iy
             ret
 ;
-;*********************************************************
-; Sub to A=(IY), IY=IY+1
-;*********************************************************
-;
+; Fetch an immediate byte followed by a 16-bit little-endian word from the
+; command stream. Returns A=byte, HL=word, with IY advanced by three bytes.
+Stream_Fetch_Byte_A_Then_Word_HL:
 L0872:      call    Stream_Fetch_Byte_A
-;
-;*********************************************************
-;
-;  Load H=(IY+1), L=(IY), IY=IY+2
-;  Why are we loading up HL with these values?
-;
-;*********************************************************
-;
+
+; Fetch one 16-bit little-endian word from the command stream.
+; Returns HL=word and advances IY by two bytes.
 Stream_Fetch_Word_HL:
             ld      l,(iy+$00)
             inc     iy
@@ -1511,7 +1529,8 @@ Leave_Nested_Command_Stream:
 ; ---->  Sys_Init
 ;
 ; Sets up Magic RAM and the Pattern Board (DMA) to rapidly clear the screen,
-; zeroes out $0203 bytes of Work RAM, and checks for an expansion ROM.
+; zeroes out $0203 bytes of Work RAM, and invokes the high-ROM initialization
+; hook when that entry is populated by a JP instruction.
 ;*****************************************************************************************
  Sys_Init:
             di                          ; Disable interrupts during the wipe
@@ -1543,11 +1562,11 @@ Leave_Nested_Command_Stream:
             ldir                        ; Rapidly copy the zero through the RAM block
 
 ;*****************************************************************************************
-; ----> EXPANSION ROM HOOK
+; ----> HIGH-ROM INITIALIZATION HOOK
 ;*****************************************************************************************
-            ld      a,(EXPHOOK)         ; Read byte at expansion hook address ($8006)
-            cp      $C3                 ; Is it a Z80 'JP' ($C3) instruction?
-            call    z,EXPHOOK           ; If yes, execute the expansion ROM
+            ld      a,(HIGH_ROM_INIT_HOOK) ; Probe the high-ROM initialization entry ($8006)
+            cp      $C3                 ; Present entries begin with JP
+            call    z,HIGH_ROM_INIT_HOOK ; WoW high ROM performs sound/speech initialization
             ret                         ; Return to caller
 ;
 ;************************************************************************
@@ -1557,7 +1576,7 @@ Leave_Nested_Command_Stream:
             ex      af,af'
             call    Stream_Fetch_Word_HL
             exx
-            call    L07A8
+            call    Stream_Select_Address_By_Orientation
             ex      de,hl
             exx
 L08F0:      ld      a,(hl)
@@ -1612,12 +1631,15 @@ XY_To_Video_Address:
             push    hl
             srl     e
             srl     e
-            call    L0947
+            call    Compute_80_Byte_Row_Offset
             ld      de,L0007
             add     hl,de
             ex      de,hl
             pop     hl
             ret
+; Compute an 80-byte-row linear offset.
+; Input: D = row, E = byte column. Output: HL = D*80 + E. D is destroyed.
+Compute_80_Byte_Row_Offset:
 L0947:      ld      l,d
             ld      h,$00
             ld      d,h
@@ -1632,6 +1654,11 @@ L0947:      ld      l,d
             pop     de
             add     hl,de
             ret
+
+; IM2 vector $CA resolves through $00CA to this entry. This is the full-register
+; frame interrupt path: service coin/credit state, frame work/sound, refresh the
+; protected-RAM integrity words, then restore the interrupted context.
+Interrupt_Vector_CA_Handler:
             push    af
 L0957:      push    bc
 L0958:      push    de
@@ -1643,9 +1670,9 @@ L0958:      push    de
             push    de
             push    hl
 L0960:      push    ix
-            call    L0E2B
-            call    L09D1
-            call    L0979
+            call    Process_Coin_Inputs_And_Credits
+            call    Service_Main_Frame_Work
+            call    Refresh_Protected_RAM_Checkwords
             pop     ix
             pop     hl
             pop     de
@@ -1659,15 +1686,21 @@ L0960:      push    ix
             pop     af
             ei
             ret
+; Refresh the two protected-RAM checkwords validated by memcheck during boot.
+; $D038 increments modulo 16; $D03E is reseeded from R. Each is stored as a
+; repeated low nibble followed by its one's complement. Disabled in diagnostics.
+Refresh_Protected_RAM_Checkwords:
 L0979:      ld      a,(DIAGFLAG)
             and     a
             ret     nz
             ld      hl,LD038
             ld      a,(hl)
             inc     a
-            call    L098B
+            call    Write_Protected_RAM_Checkword_From_A
             ld      hl,LD03E
             ld      a,r
+; HL selects the two-byte protected-RAM checkword; A supplies the low nibble.
+Write_Protected_RAM_Checkword_From_A:
 L098B:      and     $0F
             ld      c,a
             rlca
@@ -1682,6 +1715,10 @@ L098B:      and     $0F
             inc     hl
             ld      c,b
             jp      Protected_RAM_Write
+
+; IM2 vector $CC resolves through $00CC to this scanline phase. It schedules
+; the $CE phase, switches the special-control latch, and updates color 3 left.
+Interrupt_Vector_CC_Handler:
             push    af
             ld      a,(LD1C4)
             add     a,$2C
@@ -1697,7 +1734,11 @@ L098B:      and     $0F
 
 ;
 ;************************************************************************
-;
+; IM2 vector $CE resolves through $00CE to this scanline phase. It restores the
+; base scanline, switches back to vector $CC, updates color 3 left, then enters
+; the full $CA frame-service save path at L0957.
+;************************************************************************
+Interrupt_Vector_CE_Handler:
             push    af
             ld      a,(LD1C4)
             out     (INLIN),a
@@ -1712,6 +1753,10 @@ L09C8:      ld      hl,LD003
             ld      c,$00
             call    Protected_RAM_Write
             rst     00H
+; Main per-frame game-service body called by Interrupt_Vector_CA_Handler. It
+; services actor/display state and timers on alternating phases, then invokes
+; the optional high-ROM periodic sound/speech service at $8000.
+Service_Main_Frame_Work:
 L09D1:      ld      a,(DIAGFLAG)
             and     a
             jp      nz,L0A68
@@ -2312,6 +2357,11 @@ L0E0B:      ld      a,(ix+$15)
             ld      (ix+$1c),$0F
             ret
             nop
+
+; Sample coin/service inputs, debounce their latches, apply the selected coinage
+; table, update protected credit state, and request the coin-up sound when a new
+; credited event is accepted. Called once from the main IM2 frame path.
+Process_Coin_Inputs_And_Credits:
 L0E2B:      ld      hl,LD341
             ld      d,$00
             call    L0F00
@@ -2909,7 +2959,7 @@ Fetch_Sound_Request_From_Stream:
             ld      (Sound_Service_Enabled),a ; Same byte controls the runtime service gate
             ret
             in      a, (COINPORT)
-            bit     7,a                 ; Check to see if <function> is active
+            bit     7,a                 ; Test COINPORT bit 7
             ret     nz
 ;
             ld      a,$02
@@ -2972,7 +3022,7 @@ L1741:      dec     de
             inc     de
             inc     de
 L174D:      ld      a,$0C
-            jp      L045C
+            jp      Print_String_With_Cabinet_Orientation
             ld      b,(iy+$00)
             inc     iy
             call    Random_Byte
@@ -3116,9 +3166,9 @@ L1828:      out     (XPAND),a
             ld      hl,L30DD
             ld      de,L18D0
             ld      c,$2F
-            call    L18A8
+            call    Pattern_Board_Draw_Vertical_Line
             ld      hl,L30F4
-            call    L18A8
+            call    Pattern_Board_Draw_Vertical_Line
             ld      hl,L30DD
             call    L184C
             ld      hl,$3F8D
@@ -3137,7 +3187,7 @@ L185F:      bit     2,a
             jr      nz,L186B
             ex      af,af'
             ld      de,L18D2
-            call    L18A8
+            call    Pattern_Board_Draw_Vertical_Line
             ex      af,af'
 L186B:      bit     3,a
             jr      nz,L187D
@@ -3146,7 +3196,7 @@ L186B:      bit     3,a
             ld      de,L0005
             add     hl,de
             ld      de,L18D3
-            call    L18A8
+            call    Pattern_Board_Draw_Vertical_Line
             pop     hl
             ex      af,af'
 L187D:      bit     0,a
@@ -3187,6 +3237,7 @@ L1896:      ld      (hl),$FF
 ;*****************************************************************************
 ;
 
+Pattern_Board_Draw_Vertical_Line:
 L18A8:      ld      a,$22               ; %00100010 = Set PBEXP (Expand Mode) and PBFLOP (Horizontal Flop)
             out     (PBSTAT),a          ; Output to Pattern Board Status port
             ld      a,e
@@ -3221,7 +3272,7 @@ L18C4:      DW      $717C
 
 ;*****************************************************************************
 ; VERTICAL WALL PIXEL MASKS (Astrocade 2BPP)
-; Found at $18D0. Passed to the Pattern Board DMA (L18A8) via DE register
+; Found at $18D0. Passed to Pattern_Board_Draw_Vertical_Line via DE
 ; to draw vertical lines at specific pixel offsets.
 ;*****************************************************************************
 L18D0:      DB      $80                 ; Binary 10000000 (Color 2, Pixel 0)
@@ -3240,24 +3291,29 @@ Draw_Radar_Grid:
             out     (XPAND),a
             ld      bc,L1107
             ld      hl,L3522
-            call    L191B
+            call    Pattern_Board_Blit_Rectangle
             ld      hl,$3D42
-            call    L191B
+            call    Pattern_Board_Blit_Rectangle
             ld      bc,L0111
             ld      hl,Radar_Line_Pattern_A
-            call    L191B
+            call    Pattern_Board_Blit_Rectangle
             ld      hl,Radar_Line_Pattern_B
-            call    L191B
+            call    Pattern_Board_Blit_Rectangle
             ld      a,$08
             out     (XPAND),a
 L1903:      ld      hl,Radar_Line_Pattern_C
-            call    L191B
+            call    Pattern_Board_Blit_Rectangle
             ld      hl,Radar_Line_Pattern_D
-            call    L191B
+            call    Pattern_Board_Blit_Rectangle
             ld      bc,L1107
             ld      hl,L355C
-            call    L191B
+            call    Pattern_Board_Blit_Rectangle
             ld      hl,$3D7C
+
+; Pattern Board rectangle blit used by the fixed radar/grid builder.
+; Inputs: DE = source, HL = destination, B = width in bytes, C = height.
+; The destination modulo is derived as $50-B for the 80-byte screen stride.
+Pattern_Board_Blit_Rectangle:
 L191B:      ld      a,$22
             out     (PBSTAT),a
             ld      a,e
@@ -3376,7 +3432,7 @@ L19C9:      add     hl,bc
             ex      de,hl
             pop     af
             ld      b,$01
-            jp      L045C
+            jp      Print_String_With_Cabinet_Orientation
             ld      hl,L168D
             ld      de,LD304
             call    L19E3
@@ -3454,7 +3510,7 @@ L1A61:      pop     hl
             ex      af,af'
             ld      b,$06
             pop     de
-            jp      L045C
+            jp      Print_String_With_Cabinet_Orientation
 L1A69:      rrca
             rrca
             rrca
@@ -5077,7 +5133,7 @@ L282A:      in      a, (COINPORT)
 L2836:      pop     hl
 L2837:      ld      b,$01
             ex      af,af'
-            jp      L045C
+            jp      Print_String_With_Cabinet_Orientation
 L283D:      ld      hl,LD18E
             set     2,(hl)
             ld      hl,LD198
