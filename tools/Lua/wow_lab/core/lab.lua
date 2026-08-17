@@ -3,12 +3,14 @@
 
 local Lab = {}
 Lab.__index = Lab
-Lab.VERSION = '1.1.1-20260817-0846'
+Lab.VERSION = '1.2.0-20260817-1645'
 
-function Lab.new(root, path_api, memory, Native, ModuleLoader)
+function Lab.new(root, path_api, memory, Native, ModuleLoader, VideoDebug)
   local machine = assert(manager and manager.machine, 'MAME running machine is unavailable')
   local native = Native.new(machine, memory)
   local modules_path = path_api.join(root, 'modules')
+  local video_debug_core = assert(VideoDebug, 'video debug core is unavailable')
+  local video_debug = video_debug_core.new(native.program)
 
   return setmetatable({
     root = root,
@@ -16,6 +18,7 @@ function Lab.new(root, path_api, memory, Native, ModuleLoader)
     memory = memory,
     machine = machine,
     native = native,
+    video_debug = video_debug,
     loader = ModuleLoader.new(modules_path, path_api),
     modules = {},
     active = nil,

@@ -22,6 +22,7 @@ local Path = load_core('path')
 local Memory = load_core('memory')
 local Native = load_core('native')
 local ModuleLoader = load_core('module_loader')
+local VideoDebug = load_core('video_debug')
 local Lab = load_core('lab')
 
 print('============================================================')
@@ -29,12 +30,12 @@ print(string.format('[WOW LAB] WIZARD OF WOR LAB %s', tostring(Lab.VERSION)))
 print('[WOW LAB] entry module: wow_lab.lua')
 print('[WOW LAB] native menu + resident Lua supervisor')
 print('[WOW LAB] ROM patching: NONE')
-print(string.format('[WOW LAB] core versions: lab=%s native=%s memory=%s loader=%s path=%s',
+print(string.format('[WOW LAB] core versions: lab=%s native=%s memory=%s loader=%s video=%s path=%s',
   tostring(Lab.VERSION), tostring(Native.VERSION), tostring(Memory.VERSION),
-  tostring(ModuleLoader.VERSION), tostring(Path.VERSION)))
+  tostring(ModuleLoader.VERSION), tostring(VideoDebug.VERSION), tostring(Path.VERSION)))
 print('============================================================')
 
-local lab = Lab.new(root, Path, Memory, Native, ModuleLoader)
+local lab = Lab.new(root, Path, Memory, Native, ModuleLoader, VideoDebug)
 rawset(_G, 'WowLab', lab)
 lab:start()
 
