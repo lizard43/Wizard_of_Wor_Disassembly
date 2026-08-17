@@ -25,7 +25,7 @@ local ModuleLoader = load_core('module_loader')
 local Lab = load_core('lab')
 
 print('============================================================')
-print('[WOW LAB] WIZARD OF WOR LAB 1.0.6-20260816-1830')
+print(string.format('[WOW LAB] WIZARD OF WOR LAB %s', tostring(Lab.VERSION)))
 print('[WOW LAB] entry module: wow_lab.lua')
 print('[WOW LAB] native menu + resident Lua supervisor')
 print('[WOW LAB] ROM patching: NONE')
@@ -63,16 +63,14 @@ install_console_shortcut('wlmodules', function() return lab:print_modules() end)
 install_console_shortcut('wlnative', function() return lab:print_native() end)
 install_console_shortcut('wlmenu', function() return lab:return_to_menu('CONSOLE') end)
 install_console_shortcut('wlexit', function() return lab:exit_mame() end)
-local function print_console_help()
+install_console_shortcut('wlhelp', function()
   print('[WOW LAB] console commands:')
   print('[WOW LAB]   wlstatus()   supervisor/CPU state')
   print('[WOW LAB]   wlmodules()  discovered module list')
   print('[WOW LAB]   wlnative()   ABI/vector/native state')
   print('[WOW LAB]   wlmenu()     reinstall and redraw lab menu')
   print('[WOW LAB]   wlexit()     exit MAME')
-end
-
-install_console_shortcut('wlhelp', print_console_help)
+end)
 
 -- Retain the notifier subscription for the life of the resident supervisor.
 lab.console_stop_subscription = emu.add_machine_stop_notifier(function()
@@ -80,4 +78,4 @@ lab.console_stop_subscription = emu.add_machine_stop_notifier(function()
   if rawget(_G, 'WowLab') == lab then rawset(_G, 'WowLab', nil) end
 end)
 
-print_console_help()
+print('[WOW LAB] console shortcuts installed globally: wlhelp()')

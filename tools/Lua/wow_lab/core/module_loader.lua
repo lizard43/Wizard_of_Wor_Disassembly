@@ -2,7 +2,8 @@
 -- Dynamic module discovery and lifecycle loading.
 --
 -- Every visible module is a .lua file in the modules directory.  Discovery
--- reads directory entries only; module code is executed only when selected.
+-- reads filenames plus a bounded VERSION metadata scan; module code is executed
+-- only when selected.
 -- Menu labels come from filenames and entries sort alphabetically.  An optional
 -- numeric prefix can be used when an explicit ordering is desired; the prefix is
 -- not shown in the menu.
@@ -13,13 +14,40 @@
 
 local M = {}
 M.__index = M
-M.VERSION = '1.0.5-20260816-1814'
+M.VERSION = '1.1.1-20260817-0848'
 
 local function filesystem()
   local ok, lib = pcall(require, 'lfs')
   if ok and lib then return lib end
   if _G.lfs then return _G.lfs end
   error('LuaFileSystem (lfs) is required for dynamic module discovery')
+end
+
+
+local function compact_version(version)
+  local major, minor, patch = tostring(version or ''):match('^(%d+)%.(%d+)%.(%d+)')
+  if not major then return 'V---' end
+  return 'V' .. major .. minor .. patch
+end
+
+local function version_from_source(path)
+  local file = io.open(path, 'r')
+  if not file then return nil end
+
+  local version
+  local bytes = 0
+  local lines = 0
+  for line in file:lines() do
+    lines = lines + 1
+    bytes = bytes + #line + 1
+    version = line:match("^%s*[%a_][%w_]*%.VERSION%s*=%s*'([^']+)'")
+        or line:match('^%s*[%a_][%w_]*%.VERSION%s*=%s*"([^"]+)"')
+        or line:match("^%s*VERSION%s*=%s*'([^']+)'")
+        or line:match('^%s*VERSION%s*=%s*"([^"]+)"')
+    if version or lines >= 96 or bytes >= 16384 then break end
+  end
+  file:close()
+  return version
 end
 
 local function label_from_filename(filename)
@@ -47,11 +75,15 @@ function M:scan()
         and filename:match('%.lua$')
         and filename:sub(1, 1) ~= '_' then
       local order, label = label_from_filename(filename)
+      local path = self.path_api.join(self.path, filename)
+      local version = version_from_source(path)
       entries[#entries + 1] = {
         filename = filename,
-        path = self.path_api.join(self.path, filename),
+        path = path,
         order = order,
         label = label,
+        version = version,
+        version_tag = compact_version(version),
       }
     end
   end
@@ -95,6 +127,10 @@ function M:load(index)
   module, err = validate(module, entry)
   if not module then return nil, err end
 
+  if module.VERSION ~= nil then
+    entry.version = tostring(module.VERSION)
+    entry.version_tag = compact_version(entry.version)
+  end
   module.__entry = entry
   return module
 end

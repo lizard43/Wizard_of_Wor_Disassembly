@@ -3,7 +3,7 @@
 
 local Lab = {}
 Lab.__index = Lab
-Lab.VERSION = '1.0.8-20260816-1847'
+Lab.VERSION = '1.1.1-20260817-0846'
 
 function Lab.new(root, path_api, memory, Native, ModuleLoader)
   local machine = assert(manager and manager.machine, 'MAME running machine is unavailable')
@@ -59,24 +59,38 @@ local function menu_window(selected, count, visible)
 end
 
 function Lab:_menu_entries()
-  local entries = {}
-  for _, entry in ipairs(self.modules) do entries[#entries + 1] = entry.label end
-  return entries
+  return self.modules
 end
 
-function Lab:_menu_row_line(entries, first, selected, index)
+local function compact_version(version)
+  local major, minor, patch = tostring(version or ''):match('^(%d+)%.(%d+)%.(%d+)')
+  if not major then return 'V---' end
+  return 'V' .. major .. minor .. patch
+end
+
+function Lab:_menu_row_lines(entries, first, selected, index)
   local colors = self.native.colors
   local visible_row = index - first
-  local label = entries[index + 1]
-  if not label or visible_row < 0 or visible_row >= 8 then return nil end
+  local entry = entries[index + 1]
+  if not entry or visible_row < 0 or visible_row >= 8 then return nil end
 
-  label = label:sub(1, 34)
+  local row = visible_row + 2
   local is_selected = index == selected
+  local label = tostring(entry.label or 'MODULE'):sub(1, 29)
+  local version = entry.version_tag or compact_version(entry.version)
   return {
-    row = visible_row + 2,
-    col = 2,
-    text = (is_selected and '> ' or '  ') .. label,
-    color = is_selected and colors.YELLOW or colors.RED,
+    {
+      row = row,
+      col = 2,
+      text = (is_selected and '> ' or '  ') .. label,
+      color = is_selected and colors.YELLOW or colors.RED,
+    },
+    {
+      row = row,
+      col = 40 - #version,
+      text = version,
+      color = is_selected and colors.YELLOW or colors.BLUE,
+    },
   }
 end
 
@@ -85,16 +99,23 @@ function Lab:draw_menu()
   local entries = self:_menu_entries()
   local selected = self.native:selected()
   local first = menu_window(selected, #entries, 8)
+  local major, minor, patch = Lab.VERSION:match('^(%d+)%.(%d+)%.(%d+)')
+  local tag = major and ('V' .. major .. minor .. patch) or 'VER'
+  local tag_col = 40 - #tag
   local lines = {
-    { row = 0, col = 4, text = 'WIZARD OF WOR LAB', color = colors.BLUE },
+    { row = 0, col = 4,       text = 'WIZARD OF WOR LAB', color = colors.BLUE },
+    { row = 0, col = tag_col, text = tag,                 color = colors.YELLOW },
   }
 
   for index = first, math.min(first + 7, #entries - 1) do
-    lines[#lines + 1] = self:_menu_row_line(entries, first, selected, index)
+    local row_lines = self:_menu_row_lines(entries, first, selected, index)
+    if row_lines then
+      for _, line in ipairs(row_lines) do lines[#lines + 1] = line end
+    end
   end
 
   -- CHRTBL codes ']' and '^' are the resident up/down arrow glyphs.
-  lines[#lines + 1] = { row = 11, col = 2, text = '] ^ - FIRE SELECT - 1P EXIT', color = colors.YELLOW }
+  lines[#lines + 1] = { row = 11, col = 6, text = '] ^ - FIRE SELECT - 1P EXIT', color = colors.YELLOW }
   self.native:draw(lines, true)
   self.menu_first = first
 end
@@ -111,10 +132,14 @@ function Lab:redraw_menu_selection(old_selected, new_selected)
   end
 
   local lines = {}
-  local old_line = self:_menu_row_line(entries, new_first, new_selected, old_selected)
-  local new_line = self:_menu_row_line(entries, new_first, new_selected, new_selected)
-  if old_line then lines[#lines + 1] = old_line end
-  if new_line and new_selected ~= old_selected then lines[#lines + 1] = new_line end
+  local old_lines = self:_menu_row_lines(entries, new_first, new_selected, old_selected)
+  local new_lines = self:_menu_row_lines(entries, new_first, new_selected, new_selected)
+  if old_lines then
+    for _, line in ipairs(old_lines) do lines[#lines + 1] = line end
+  end
+  if new_lines and new_selected ~= old_selected then
+    for _, line in ipairs(new_lines) do lines[#lines + 1] = line end
+  end
   if #lines > 0 then self.native:draw(lines, false) end
   self.menu_first = new_first
 end
@@ -174,8 +199,9 @@ function Lab:launch_selected()
     local ok, start_err = pcall(module.start, self)
     if not ok then
       self:log('module start error: %s', tostring(start_err))
-      self:show_module_page('MODULE START ERROR', { module.__entry.label, tostring(start_err):sub(1, 34) })
-      self.state = 'MODULE_ERROR'
+      -- A native module may already have replaced the $D400 application image.
+      -- Reinstall the menu instead of attempting to draw through unknown code.
+      self:return_to_menu('MODULE START ERROR')
     end
   end
 end
@@ -233,8 +259,9 @@ function Lab:update()
       local ok, err = pcall(self.active.update, self)
       if not ok then
         self:log('module update error: %s', tostring(err))
-        self:show_module_page('MODULE RUNTIME ERROR', { self.active.__entry.label, tostring(err):sub(1, 34) })
-        self.state = 'MODULE_ERROR'
+        -- Recover the resident menu immediately.  Application RAM is disposable;
+        -- the ABI/kernel below $D400 remains authoritative.
+        self:return_to_menu('MODULE RUNTIME ERROR')
       end
     end
   end
@@ -255,7 +282,8 @@ end
 function Lab:print_modules()
   self:log('%d module%s discovered', #self.modules, #self.modules == 1 and '' or 's')
   for i, entry in ipairs(self.modules) do
-    print(string.format('[WOW LAB]   %2d  %-28s  %s', i, entry.label, entry.filename))
+    print(string.format('[WOW LAB]   %2d  %-22s %-5s  %-24s %s',
+      i, entry.label, entry.version_tag or 'V---', entry.version or 'UNVERSIONED', entry.filename))
   end
 end
 
@@ -269,13 +297,14 @@ function Lab:print_native()
   local vec_hi = p:read_u8(A.IM2_VECTOR + 1)
   local vector = vec_lo | (vec_hi << 8)
   local entry = self.native.labels.entry or 0
-  local interrupt = self.native.labels.interrupt or 0
+  local interrupt = self.native.kernel_labels.interrupt or 0
   self:log('signature=%q mode=%d selected=%d count=%d request=%d draw=%d heartbeat=%d',
     table.concat(sig), p:read_u8(B.MODE), p:read_u8(B.SELECTED),
     p:read_u8(B.ITEM_COUNT), p:read_u8(B.REQUEST), p:read_u8(B.DRAW_PENDING),
     p:read_u8(B.HEARTBEAT))
-  self:log('entry=$%04X interrupt=$%04X vector=$%04X',
-    entry & 0xFFFF, interrupt & 0xFFFF, vector & 0xFFFF)
+  self:log('menu=$%04X kernel=$%04X vector=$%04X application=$%04X-$%04X',
+    entry & 0xFFFF, interrupt & 0xFFFF, vector & 0xFFFF,
+    A.APPLICATION_START, A.APPLICATION_END)
 end
 
 function Lab:start()

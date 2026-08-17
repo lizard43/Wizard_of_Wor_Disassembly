@@ -1,13 +1,15 @@
 -- core/native.lua
--- Native Z80 supervisor and WoW text renderer for the Wizard of Wor Lab.
+-- Native Z80 kernel, menu controller, and WoW text renderer for Wizard of Wor Lab.
 --
--- The resident Lua supervisor owns lifecycle and module loading.  This native
--- controller owns cabinet input, menu selection, frame cadence, display calls,
--- and the request mailbox while the lab menu is active.
+-- The permanent kernel occupies $D3C0-$D3FD with its IM2 vector at $D3FE.
+-- It services WoW sound/speech once per interrupt, advances the lab heartbeat,
+-- and provides the module-independent 1P return request.  The active native
+-- application begins at $D400; the menu is one application and real modules
+-- may replace the complete $D400-$DFFF workspace.
 
 local Native = {}
 Native.__index = Native
-Native.VERSION = '1.0.8-20260816-1847'
+Native.VERSION = '1.1.0-20260816-1900'
 
 local C = {
   PRINT_STRING_COLOR  = 0x03B5,
@@ -39,8 +41,8 @@ local C = {
   REPEAT_RATE         = 4,
 }
 
--- Small label-aware emitter keeps the injected controller readable and
--- symbolic without requiring an assembler at runtime.
+-- Small label-aware emitter keeps the injected code symbolic without requiring
+-- an external assembler at runtime.
 local function assembler(origin)
   local a = { origin = origin, bytes = {}, labels = {}, fixups = {} }
 
@@ -103,11 +105,52 @@ function Native.new(machine, memory)
     program = program,
     memory = memory,
     labels = {},
+    kernel_labels = {},
     installed = false,
   }, Native)
 end
 
-function Native:_build_controller()
+-- Permanent IM2 service.  The full register set is preserved so the foreground
+-- application can be arbitrary Z80 code.  WoW's $8000 service remains the
+-- interrupt-time sound/speech clock.  While MODE is nonzero, holding 1P Start
+-- posts REQUEST=2; this makes return-to-lab independent of application code.
+function Native:_build_kernel()
+  local A = self.memory.addr
+  local B = self.memory.abi
+  local a = assembler(A.KERNEL_START)
+
+  a:label('interrupt')
+  for _, op in ipairs({0xF5,0xC5,0xD5,0xE5,0xDD,0xE5,0xFD,0xE5}) do a:b(op) end
+  a:b(0x08); a:b(0xF5); a:b(0xD9)
+  a:b(0xC5); a:b(0xD5); a:b(0xE5)
+
+  emit_call(a, C.SOUND_SERVICE)
+  a:b(0x21); a:w(B.HEARTBEAT); a:b(0x34)        -- INC (HEARTBEAT)
+
+  emit_ld_a_mem(a, B.MODE)
+  a:b(0xB7)                                      -- OR A
+  a:jr(0x28, 'restore')                          -- menu owns its 1P Exit behavior
+  a:b(0xDB); a:b(C.COINPORT)                     -- IN A,($10), active low
+  a:b(0xCB); a:b(0x6F)                           -- BIT 5,A : 1P Start
+  a:jr(0x20, 'restore')                          -- high = not pressed
+  a:b(0x3E); a:b(0x02)
+  emit_ld_mem_a(a, B.REQUEST)                    -- return-to-lab request
+
+  a:label('restore')
+  a:b(0xE1); a:b(0xD1); a:b(0xC1); a:b(0xD9)
+  a:b(0xF1); a:b(0x08)
+  for _, op in ipairs({0xFD,0xE1,0xDD,0xE1,0xE1,0xD1,0xC1,0xF1}) do a:b(op) end
+  a:b(0xFB); a:b(0xC9)                           -- EI / RET
+
+  local bytes, labels = a:finish()
+  assert(A.KERNEL_START + #bytes - 1 <= A.KERNEL_END,
+    string.format('resident lab kernel exceeds reserved range: %d bytes', #bytes))
+  return bytes, labels
+end
+
+-- Menu application.  It owns menu input and drawing only; the IM2 service is
+-- not part of this image and therefore survives when a real module replaces it.
+function Native:_build_menu_controller()
   local A = self.memory.addr
   local B = self.memory.abi
   local a = assembler(A.MENU_CODE_START)
@@ -116,27 +159,27 @@ function Native:_build_controller()
   a:b(0xF3)                                      -- DI
   a:b(0x31); a:w(A.STACK_TOP)                    -- LD SP,$8000
 
-  -- Clear the visible bitmap.
-  a:b(0xAF)                                      -- XOR A
-  a:b(0x21); a:w(A.VIDEO_START)                  -- LD HL,$4000
-  a:b(0x11); a:w(A.VIDEO_START + 1)              -- LD DE,$4001
-  a:b(0x01); a:w(A.VISIBLE_VIDEO_END - A.VIDEO_START) -- preserve $7FC0-$7FFF stack margin
-  a:b(0x77)                                      -- LD (HL),A
-  a:b(0xED); a:b(0xB0)                           -- LDIR
+  -- Clear the visible bitmap while preserving the non-visible stack margin.
+  a:b(0xAF)
+  a:b(0x21); a:w(A.VIDEO_START)
+  a:b(0x11); a:w(A.VIDEO_START + 1)
+  a:b(0x01); a:w(A.VISIBLE_VIDEO_END - A.VIDEO_START)
+  a:b(0x77); a:b(0xED); a:b(0xB0)
 
-  -- Install the lab IM 2 vector and board interrupt mode.
-  a:b(0x21); a:word('interrupt')                  -- LD HL,interrupt
+  -- Point IM2 at the permanent kernel and configure the Astrocade interrupt
+  -- feedback byte so the vector address is $D3FE.
+  a:b(0x21); a:w(A.KERNEL_START)
   emit_ld_mem_hl(a, A.IM2_VECTOR)
-  a:b(0x3E); a:b(0xD3)                           -- LD A,$D3
+  a:b(0x3E); a:b(0xD3)
   a:b(0xED); a:b(0x47)                           -- LD I,A
   a:b(0xED); a:b(0x5E)                           -- IM 2
-  a:b(0x3E); a:b(0xCA); a:b(0xD3); a:b(C.INFBK) -- OUT ($0D),A
-  a:b(0x3E); a:b(0xA8); a:b(0xD3); a:b(C.INLIN) -- OUT ($0F),A
-  a:b(0x3E); a:b(0x08); a:b(0xD3); a:b(C.INMOD) -- OUT ($0E),A
+  a:b(0x3E); a:b(0xFE); a:b(0xD3); a:b(C.INFBK)
+  a:b(0x3E); a:b(0xA8); a:b(0xD3); a:b(C.INLIN)
+  a:b(0x3E); a:b(0x08); a:b(0xD3); a:b(C.INMOD)
 
   -- Put resident sound/speech services in a defined idle state.  An invalid
   -- queue write pointer deliberately selects WoW's validation/reset path.
-  a:b(0xAF)                                      -- XOR A
+  a:b(0xAF)
   emit_ld_mem_a(a, C.SPEECH_ACTIVE)
   emit_ld_mem_a(a, C.SPEECH_REMAINING)
   emit_ld_mem_a(a, C.SPEECH_INFLECTION)
@@ -150,7 +193,7 @@ function Native:_build_controller()
   emit_ld_mem_a(a, C.GAME_MODE)
   a:b(0xAF); emit_ld_mem_a(a, C.DUNGEON_CLASS)
 
-  -- Reset supervisor input/request state but preserve Lua-supplied menu count.
+  -- Reset menu-local ABI input/request state but preserve Lua's module count.
   a:b(0xAF)
   for _, address in ipairs({
     B.REQUEST, B.HEARTBEAT, B.INPUT_CURRENT,
@@ -159,8 +202,6 @@ function Native:_build_controller()
     B.MODULE_ARG2, B.MODULE_ARG3,
   }) do emit_ld_mem_a(a, address) end
 
-  -- Prime edge-detection state from the cabinet before accepting input.
-  -- Controls held during takeover are ignored until released and pressed again.
   emit_call(a, 'prime_controls')
 
   a:label('main')
@@ -170,80 +211,64 @@ function Native:_build_controller()
   emit_call(a, 'read_controls')
   emit_jp(a, 'main')
 
-  -- IM 2 frame service.  The ROM sound service remains the clock source for
-  -- speech and music used by lab modules.
-  a:label('interrupt')
-  for _, op in ipairs({0xF5,0xC5,0xD5,0xE5,0xDD,0xE5,0xFD,0xE5}) do a:b(op) end
-  a:b(0x08); a:b(0xF5); a:b(0xD9)
-  a:b(0xC5); a:b(0xD5); a:b(0xE5)
-  emit_call(a, C.SOUND_SERVICE)
-  a:b(0x21); a:w(B.HEARTBEAT); a:b(0x34)        -- INC (HL)
-  a:b(0xE1); a:b(0xD1); a:b(0xC1); a:b(0xD9)
-  a:b(0xF1); a:b(0x08)
-  for _, op in ipairs({0xFD,0xE1,0xDD,0xE1,0xE1,0xD1,0xC1,0xF1}) do a:b(op) end
-  a:b(0xFB); a:b(0xC9)                           -- EI / RET
-
   a:label('service_draw')
   emit_ld_a_mem(a, B.DRAW_PENDING)
-  a:b(0xB7)                                      -- OR A
-  a:b(0xC8)                                      -- RET Z
+  a:b(0xB7); a:b(0xC8)                           -- OR A / RET Z
   a:b(0xAF); emit_ld_mem_a(a, B.DRAW_PENDING)
   emit_call(a, A.DRAW_CODE_START)
   a:b(0xC9)
 
   a:label('prime_controls')
-  a:b(0xDB); a:b(C.P1PORT); a:b(0x2F); a:b(0xE6); a:b(0x3F); a:b(0x47) -- B=P1
-  a:b(0xDB); a:b(C.P2PORT); a:b(0x2F); a:b(0xE6); a:b(0x3F); a:b(0xB0) -- OR B
+  a:b(0xDB); a:b(C.P1PORT); a:b(0x2F); a:b(0xE6); a:b(0x3F); a:b(0x47)
+  a:b(0xDB); a:b(C.P2PORT); a:b(0x2F); a:b(0xE6); a:b(0x3F); a:b(0xB0)
   emit_ld_mem_a(a, B.INPUT_CURRENT)
   emit_ld_mem_a(a, B.INPUT_LAST)
   a:b(0xAF); emit_ld_mem_a(a, B.INPUT_PRESSED)
   a:b(0xDB); a:b(C.COINPORT); a:b(0x2F); a:b(0xE6); a:b(0x60)
   emit_ld_mem_a(a, B.START_LAST)
-  a:b(0xC9)                                      -- RET
+  a:b(0xC9)
 
   a:label('read_controls')
-  a:b(0xDB); a:b(C.P1PORT); a:b(0x2F); a:b(0xE6); a:b(0x3F); a:b(0x47) -- B=P1
-  a:b(0xDB); a:b(C.P2PORT); a:b(0x2F); a:b(0xE6); a:b(0x3F); a:b(0xB0) -- OR B
-  a:b(0x47)                                      -- LD B,A
+  a:b(0xDB); a:b(C.P1PORT); a:b(0x2F); a:b(0xE6); a:b(0x3F); a:b(0x47)
+  a:b(0xDB); a:b(C.P2PORT); a:b(0x2F); a:b(0xE6); a:b(0x3F); a:b(0xB0)
+  a:b(0x47)
   emit_ld_mem_a(a, B.INPUT_CURRENT)
-  emit_ld_a_mem(a, B.INPUT_LAST); a:b(0x2F); a:b(0xA0); a:b(0x4F)     -- C=new presses
+  emit_ld_a_mem(a, B.INPUT_LAST); a:b(0x2F); a:b(0xA0); a:b(0x4F)
   emit_ld_mem_a(a, B.INPUT_PRESSED)
   a:b(0x78); emit_ld_mem_a(a, B.INPUT_LAST)
 
-  -- Start buttons are edge detected separately from joystick/fire.
-  a:b(0xDB); a:b(C.COINPORT); a:b(0x2F); a:b(0xE6); a:b(0x60); a:b(0x47)
-  emit_ld_a_mem(a, B.START_LAST); a:b(0x2F); a:b(0xA0); a:b(0x57)     -- D=new starts
+  -- Start buttons are edge detected independently of joystick/fire.  This
+  -- prevents a button held during takeover from becoming a synthetic press.
+  a:b(0xDB); a:b(C.COINPORT); a:b(0x2F); a:b(0xE6); a:b(0x60); a:b(0x47) -- B=current
+  emit_ld_a_mem(a, B.START_LAST); a:b(0x2F); a:b(0xA0); a:b(0x57)       -- D=new
   a:b(0x78); emit_ld_mem_a(a, B.START_LAST)
 
-  emit_ld_a_mem(a, B.MODE); a:b(0xB7)
-  a:jr(0x20, 'module_controls')                  -- JR NZ,module_controls
+  -- Once a module is active this menu image may either remain resident (simple
+  -- placeholder module) or be replaced completely.  In both cases the kernel
+  -- owns 1P Return, so the menu performs no module-mode input work.
+  emit_ld_a_mem(a, B.MODE); a:b(0xB7); a:b(0xC0) -- RET NZ
 
-  -- Menu mode: 1P exits immediately.  When modules are present, vertical
-  -- movement selects a discovered module and FIRE launches it.
-  a:b(0x7A); a:b(0xE6); a:b(0x20)                 -- A=new starts & 1P
-  a:jr(0x20, 'request_exit')                       -- JR NZ,request_exit
-  emit_ld_a_mem(a, B.ITEM_COUNT); a:b(0xB7); a:b(0xC8) -- no modules: RET Z
+  -- Menu 1P is Exit MAME.
+  a:b(0x7A); a:b(0xE6); a:b(0x20)
+  a:jr(0x20, 'request_exit')
+
+  emit_ld_a_mem(a, B.ITEM_COUNT); a:b(0xB7); a:b(0xC8)
   emit_call(a, 'vertical')
-  emit_ld_a_mem(a, B.INPUT_PRESSED); a:b(0xE6); a:b(0x30); a:b(0xC8) -- RET Z
+  emit_ld_a_mem(a, B.INPUT_PRESSED); a:b(0xE6); a:b(0x30); a:b(0xC8)
   a:b(0x3E); a:b(0x01); emit_ld_mem_a(a, B.REQUEST); a:b(0xC9)
 
   a:label('request_exit')
   a:b(0x3E); a:b(0x03); emit_ld_mem_a(a, B.REQUEST); a:b(0xC9)
 
-  a:label('module_controls')
-  a:b(0x7A); a:b(0xE6); a:b(0x20); a:b(0xC8)    -- 1P Start only; RET Z
-  a:b(0x3E); a:b(0x02); emit_ld_mem_a(a, B.REQUEST); a:b(0xC9)
-
   a:label('vertical')
   emit_ld_a_mem(a, B.INPUT_CURRENT); a:b(0xE6); a:b(0x03)
-  a:jr(0x28, 'vertical_release')                 -- JR Z
+  a:jr(0x28, 'vertical_release')
   a:b(0xFE); a:b(0x03); a:jr(0x28, 'vertical_release')
-  a:b(0x47)                                      -- B=direction
-  emit_ld_a_mem(a, B.HOLD_DIRECTION); a:b(0xB8) -- CP B
+  a:b(0x47)
+  emit_ld_a_mem(a, B.HOLD_DIRECTION); a:b(0xB8)
   a:jr(0x20, 'vertical_new')
-  a:b(0x21); a:w(B.HOLD_COUNTDOWN); a:b(0x35)   -- DEC (HL)
-  a:b(0xC0)                                      -- RET NZ
-  a:b(0x36); a:b(C.REPEAT_RATE)                  -- LD (HL),rate
+  a:b(0x21); a:w(B.HOLD_COUNTDOWN); a:b(0x35); a:b(0xC0)
+  a:b(0x36); a:b(C.REPEAT_RATE)
   a:jr(0x18, 'vertical_move')
 
   a:label('vertical_new')
@@ -251,7 +276,7 @@ function Native:_build_controller()
   a:b(0x3E); a:b(C.REPEAT_INITIAL); emit_ld_mem_a(a, B.HOLD_COUNTDOWN)
 
   a:label('vertical_move')
-  a:b(0xCB); a:b(0x40)                           -- BIT 0,B
+  a:b(0xCB); a:b(0x40)
   a:jr(0x20, 'move_up')
   emit_jp(a, 'move_down')
 
@@ -260,13 +285,12 @@ function Native:_build_controller()
   a:b(0xC9)
 
   a:label('move_down')
-  emit_ld_a_mem(a, B.SELECTED); a:b(0x3C)        -- INC A
-  a:b(0x47)                                      -- B=candidate
-  emit_ld_a_mem(a, B.ITEM_COUNT); a:b(0xB8)      -- CP B
-  a:jr(0x28, 'move_down_wrap')                   -- candidate == count
-  a:jr(0x30, 'store_b')                          -- candidate < count
+  emit_ld_a_mem(a, B.SELECTED); a:b(0x3C); a:b(0x47)
+  emit_ld_a_mem(a, B.ITEM_COUNT); a:b(0xB8)
+  a:jr(0x28, 'move_down_wrap')
+  a:jr(0x30, 'store_b')
   a:label('move_down_wrap')
-  a:b(0x06); a:b(0x00)                           -- LD B,0
+  a:b(0x06); a:b(0x00)
   a:jr(0x18, 'store_b')
 
   a:label('move_up')
@@ -281,11 +305,19 @@ function Native:_build_controller()
   a:b(0x78); emit_ld_mem_a(a, B.SELECTED); a:b(0xC9)
 
   local bytes, labels = a:finish()
-
   assert(A.MENU_CODE_START + #bytes - 1 <= A.MENU_CODE_END,
     string.format('native menu controller exceeds reserved range: %d bytes', #bytes))
-
   return bytes, labels
+end
+
+function Native:_install_kernel()
+  local A = self.memory.addr
+  local bytes, labels = self:_build_kernel()
+  self.memory.fill(self.program, A.KERNEL_START, A.IM2_VECTOR + 1, 0)
+  self.memory.write_bytes(self.program, A.KERNEL_START, bytes)
+  self.program:write_u8(A.IM2_VECTOR, labels.interrupt & 0xFF)
+  self.program:write_u8(A.IM2_VECTOR + 1, (labels.interrupt >> 8) & 0xFF)
+  self.kernel_labels = labels
 end
 
 function Native:install(item_count)
@@ -293,13 +325,18 @@ function Native:install(item_count)
   local B = self.memory.abi
   local p = self.program
 
-  local bytes, labels = self:_build_controller()
+  local bytes, labels = self:_build_menu_controller()
+
   self.memory.fill(p, A.ABI_START, A.ABI_END, 0)
-  self.memory.write_bytes(p, B.SIGNATURE, { string.byte('W'), string.byte('L'), string.byte('A'), string.byte('B') })
+  self.memory.write_bytes(p, B.SIGNATURE, {
+    string.byte('W'), string.byte('L'), string.byte('A'), string.byte('B')
+  })
   p:write_u8(B.MODE, 0)
   p:write_u8(B.SELECTED, 0)
   p:write_u8(B.ITEM_COUNT, item_count & 0xFF)
   p:write_u8(B.REQUEST, 0)
+
+  self:_install_kernel()
   self.memory.write_bytes(p, A.MENU_CODE_START, bytes)
 
   self.labels = labels
@@ -318,7 +355,30 @@ end
 function Native:set_item_count(count)
   self.program:write_u8(self.memory.abi.ITEM_COUNT, count & 0xFF)
   local selected = self:selected()
-  if selected >= count then self.program:write_u8(self.memory.abi.SELECTED, math.max(0, count - 1)) end
+  if count == 0 then
+    self.program:write_u8(self.memory.abi.SELECTED, 0)
+  elseif selected >= count then
+    self.program:write_u8(self.memory.abi.SELECTED, count - 1)
+  end
+end
+
+-- Transfer foreground execution to a native application while preserving the
+-- permanent supervisor ABI/kernel.  Application code is responsible for its
+-- own foreground loop and stack discipline; 1P Return remains kernel-owned.
+function Native:handoff(entry, stack_top)
+  local A = self.memory.addr
+  local B = self.memory.abi
+  assert(self.installed, 'native lab must be installed before application handoff')
+  assert(entry >= A.APPLICATION_START and entry <= A.APPLICATION_END,
+    string.format('application entry $%04X is outside lab workspace', entry & 0xFFFF))
+
+  self.program:write_u8(B.MODE, 1)
+  self.program:write_u8(B.REQUEST, 0)
+  self.program:write_u8(B.DRAW_PENDING, 0)
+
+  if self.cpu.state['SP'] then self.cpu.state['SP'].value = (stack_top or A.STACK_TOP) & 0xFFFF end
+  if self.cpu.state['HALT'] then self.cpu.state['HALT'].value = 0 end
+  self.cpu.state['PC'].value = entry & 0xFFFF
 end
 
 function Native:selected() return self.program:read_u8(self.memory.abi.SELECTED) end
@@ -341,17 +401,17 @@ local function transliterate_for_wow(text)
     if (byte >= 0x30 and byte <= 0x39) or (byte >= 0x41 and byte <= 0x5A) then
       out[#out + 1] = ch
     elseif ch == ' ' then
-      out[#out + 1] = '@'                    -- resident CHRTBL blank glyph
+      out[#out + 1] = '@'
     elseif ch == '-' then
-      out[#out + 1] = '_'                    -- resident CHRTBL dash glyph
+      out[#out + 1] = '_'
     elseif ch == "'" then
-      out[#out + 1] = '`'                    -- resident CHRTBL apostrophe glyph
+      out[#out + 1] = '`'
     elseif ch == '>' then
-      out[#out + 1] = 'a'                    -- resident CHRTBL right-arrow glyph
+      out[#out + 1] = 'a'
     elseif ch == ']' then
-      out[#out + 1] = ']'                    -- resident CHRTBL up-arrow glyph
+      out[#out + 1] = ']'
     elseif ch == '^' then
-      out[#out + 1] = '^'                    -- resident CHRTBL down-arrow glyph
+      out[#out + 1] = '^'
     else
       out[#out + 1] = '@'
     end
@@ -368,8 +428,6 @@ local function native_text(text, width)
 end
 
 local function screen_de(row, col)
-  -- WoW native text coordinates advance by five in D per text row and two
-  -- bytes in E per 8-pixel character column.
   return ((((row or 0) * 5) & 0xFF) << 8) | ((((col or 0) * 2) & 0xFF))
 end
 
@@ -383,29 +441,27 @@ function Native:draw(lines, clear_screen)
 
   b(0xF3)                                         -- DI
   if clear_screen ~= false then
-    b(0xAF)                                       -- XOR A
+    b(0xAF)
     b(0x21); w(A.VIDEO_START)
     b(0x11); w(A.VIDEO_START + 1)
     b(0x01); w(A.VISIBLE_VIDEO_END - A.VIDEO_START)
-    b(0x77); b(0xED); b(0xB0)                    -- clear visible bitmap; preserve stack margin
+    b(0x77); b(0xED); b(0xB0)
   end
 
   for _, line in ipairs(lines) do
     local text = native_text(line.text, line.width)
-    -- printstr uses DJNZ.  B=0 means 256 iterations, not an empty string, so
-    -- blank logical lines must not call the ROM renderer.
+    -- WoW's printer uses DJNZ, so B=0 means 256 iterations rather than zero.
     if #text > 0 then
       assert(#text <= 255, 'native UI line exceeds 255-character renderer limit')
       local address = data
       for i = 1, #text do
         p:write_u8(data, text:byte(i)); data = data + 1
       end
-
       assert(data - 1 <= A.UI_DATA_END, 'native UI text exceeds reserved buffer')
 
-      b(0x21); w(address)                         -- LD HL,text
+      b(0x21); w(address)
       b(0x11); w(screen_de(line.row, line.col))
-      b(0x06); b(#text)                           -- LD B,length (1..255)
+      b(0x06); b(#text)
       b(0x3E); b(line.color or C.XPAND_RED)
       b(0xCD); w(C.PRINT_STRING_COLOR)
     end
