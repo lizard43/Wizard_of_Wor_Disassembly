@@ -1,10 +1,21 @@
 # Wizard of Wor speech map
 
-This document maps the English speech used by Wizard of Wor. It covers the resident Astrocade/SC-01 fragment data, the 80 phrase records, and the runtime rules that join them.
+This document maps the resident English speech used by *Wizard of Wor*. It covers the encoded Astrocade/SC-01 fragment records, the 80 phrase records, the language-selection ABI, and the runtime queue that joins and plays them.
 
-## Speech path
+## Resident English layout
 
-Game code requests a phrase ID from `$00-$4F`. The phrase record supplies one to four fragment IDs. Each fragment pointer selects a length-prefixed record of encoded SC-01 commands, which the interrupt-driven speech service writes through I/O port `$17`.
+| Range | Contents |
+| ---: | --- |
+| `$8B66-$9475` | 79 length-prefixed fragment records |
+| `$9476-$9513` | 79 little-endian fragment pointers, IDs `$00-$4E` |
+| `$9514-$95F9` | 80 phrase records, IDs `$00-$4F` |
+| `$95FA` onward | Phrase-table padding and following ROM data |
+
+The pointer and phrase tables were decoded from the assembled ROM image. Every documented fragment address and payload count matches the resident pointer table and length byte, and every documented phrase composition matches the encoded phrase table.
+
+## Runtime speech path
+
+Game code requests a phrase ID from `$00-$4F` through `$8009`, which jumps to `Queue_Speech_Request` at `$827D`. A resident phrase record supplies one to three fragment IDs. Each fragment ID resolves through the active language's pointer table to a length-prefixed record of encoded SC-01 commands.
 
 The Language DIP switch selects the source of both tables independently:
 
@@ -13,11 +24,25 @@ The Language DIP switch selects the source of both tables independently:
 | Fragment-pointer table | Resident game ROM | Pointer read from X11 `$C000` |
 | Phrase table | Resident game ROM | Pointer read from X11 `$C002` |
 
-Phrase headers are `$81-$84`; the low seven bits give the number of fragment IDs that follow. Fragment records begin with a payload count. Bits 0-5 select the SC-01 phoneme, while bits 6-7 retain the game's stateful inflection/control state. They must remain intact in ROM builds.
+Resident phrase headers are `$81-$83`; the low seven bits give the number of fragment IDs that follow. Fragment records begin with a payload count. Bits 0-5 select the SC-01 phoneme. Bit 6 passes directly to the device, while bit 7 is differentially decoded against the saved bit-7 state. Both upper bits are part of the command stream and must remain intact in ROM builds.
 
 The encoded ROM bytes are the reconstruction authority. A six-bit SC-01 audition/player stream may be derived with `encoded_byte & $3F`, but that derived stream cannot be used to regenerate an X11 or resident speech record because it has discarded the upper-bit state.
 
 When `Dungeon_Class != 0`, the runtime substitutes fragment `$09 -> $40` and `$37 -> $41`, changing “Worrior” to “Worlord” without duplicating phrase records.
+
+### Queue and service state
+
+| Address | Function |
+| ---: | --- |
+| `$D245` | Speech-active flag |
+| `$D2BE-$D2CD` | Eight two-byte fragment-pointer records |
+| `$D2CE-$D2CF` | Active fragment command pointer |
+| `$D2D0` | Commands remaining in the active fragment |
+| `$D2D1` | Saved decoded bit-7 state |
+| `$D2D2-$D2D3` | Circular-queue write pointer |
+| `$D2D4-$D2D5` | Circular-queue read pointer |
+
+`$8000` jumps to the periodic sound/speech service at `$84F2`. Its speech path calls `Service_Speech_Queue` at `$81F8`; an empty active record is loaded by `$8201`, while `Play_Next_Phoneme` at `$81D9` polls SC-01 A/R on port `$12` bit 7 and strobes the decoded command through port `$17`. When the queue and active record are empty, the service clears `$D245` and sends SC-01 STOP (`$3F`). `$8006` includes queue validation and resets invalid queue state through `$8253`.
 
 ## English fragments
 
@@ -37,7 +62,7 @@ The resident English pointer table contains 79 records, IDs `$00-$4E`. Payload c
 | `$09` | Worrior | `$8D4E` | 6 | `SPK_Worrior` | Runtime rank substitution may replace this with the Worlord form |
 | `$0A` | Hey, insert coin | `$8E77` | 19 | `SPK_Hey_Insert_Coin` |  |
 | `$0B` | Find me | `$8E8B` | 10 | `SPK_Find_Me` |  |
-| `$0C` | I'm out of sight | `$8E96` | 18 | `SPK_Im_Out_Of_Spite` | Legacy source label retains `Spite`; documentation uses the spoken line “sight” |
+| `$0C` | I'm out of sight | `$8E96` | 18 | `SPK_Im_Out_Of_Sight` |  |
 | `$0D` | Get ready | `$8EA9` | 8 | `SPK_Get_Ready` |  |
 | `$0E` | You'd better hope you don't find me | `$8EB2` | 32 | `SPK_Youd_Better_Hope_You_Dont_Find_Me` |  |
 | `$0F` | Another coin for my treasure chest | `$8ED3` | 30 | `SPK_Another_Coin_For_My_Treasure_Chest` |  |
@@ -85,7 +110,7 @@ The resident English pointer table contains 79 records, IDs `$00-$4E`. Payload c
 | `$39` | Bite the bolt | `$9217` | 15 | `SPK_Bite_The_Bolt` |  |
 | `$3A` | Wasn't that lightning bolt delicious | `$9227` | 29 | `SPK_Wasnt_That_Lightning_Bolt_Delicious` |  |
 | `$3B` | And my teleporting spell can be even faster | `$9245` | 42 | `SPK_F3B_Teleport_Spell_Faster` |  |
-| `$3C` | Now you know the taste of my magic | `$9270` | 35 | `SPK_Now_You_Know_The_Taste_Of_My_Magic` |  |
+| `$3C` | Now you know the taste of my magic | `$9270` | 35 | `SPK_Now_You_Know_The_Taste_Of_My_Magic` | Contains the valid encoded `V -> M` transition at `$9286-$9287` |
 | `$3D` | Maybe you'll see me again | `$9294` | 22 | `SPK_Maybe_Youll_See_Me_Again` |  |
 | `$3E` | Your explosion was music to my ears | `$92AB` | 35 | `SPK_Your_Explosion_Was_Music_To_My_Ears` |  |
 | `$3F` | I'll say it again | `$92CF` | 16 | `SPK_Ill_Say_It_Again` |  |
@@ -192,9 +217,16 @@ The resident phrase table contains 80 records, IDs `$00-$4F`. Duplicate lines an
 | `$4E` | `$4C` + `$10` | Oops! I must have forgotten the walls. Ha ha ha ha! |  |
 | `$4F` | `$4D` + `$36` | Where are you going to hide now? Ha ha ha ha! |  |
 
+## Emulator accuracy regression
+
+Fragment `$3C` is a useful end-to-end SC-01 regression because its original command stream contains adjacent `V` and `M` phonemes. MAME 0.289's `votrax_sc01_device::build_injection_filter` subtracts the `c2t` contribution while constructing the F2 noise-injection denominator. That realization is unstable for 91 of the SC-01 internal ROM's 512 F2/F2Q states and can make `$9270` run away, silence later speech, and leave a buzz at exit.
+
+Using addition for the two capacitance contributions produces 0 unstable states out of 512. A rebuilt MAME with that correction completed all 79 resident fragments and all 80 resident phrases with the original ROM bytes, preserved later playback, and exited silently. Baseline `wowg` and the project German and Klingon X11 program ROMs also completed cleanly. The speech data and phrase tables require no ROM patch or browser-side command substitution.
+
 ## Implementation notes
 
 - Phrase IDs and fragment IDs are separate namespaces.
-- Foreign X11 images may add helper fragments above `$4E`, but the resident English table ends at `$4E`.
-- The fragment queue stores two-byte record pointers; the playback service sends the stop command only after the queue is empty.
-- Fragment `$0C` is documented by its spoken result, “I'm out of sight.” The legacy symbol `SPK_Im_Out_Of_Spite` is retained as source provenance and should not be silently renamed in code.
+- Foreign X11 images may add helper fragments above `$4E`; the resident English pointer table ends at `$4E`.
+- Phrase records are scanned by marker bytes above `$7F`; their low seven bits carry the fragment count.
+- The circular queue stores two-byte fragment-record pointers and retains one active record outside the queue in `$D2CE-$D2D1`.
+- The playback service sends STOP only after both the active record and queue are empty, or when queue validation rejects an out-of-range pointer.

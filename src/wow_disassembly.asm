@@ -308,7 +308,7 @@ L0117:      call     Sys_Init               ; Clear screen, init video, and clea
             ld      hl,L042E            ; Source string: "SCREEN RAM OK"
             ld      de,$001A            ; String formatting and color attributes
             ld      b,$0D               ; String length (13 characters)
-            call    L03B3               ; Execute string print routine
+            call    Print_String_Default_Color
 ;
 ;******************************************************************************************
 ; ----> STATIC RAM TEST
@@ -377,7 +377,7 @@ L016C:      ld      hl,L0449            ; Source string: "STATIC RAM BAD"
 
 L016F:      ld      de,$051A            ; String formatting and color attributes
             ld      b,$0E               ; String length (14 characters)
-            call    L03B3               ; Execute string print routine
+            call    Print_String_Default_Color
 ;
 ;******************************************************************************************
 ; ----> ROM INTEGRITY TEST
@@ -490,11 +490,11 @@ L01E1:      ld      de,$1E0B
 
 L01FD:      ld      de,$280B
 L0200:      ld      hl,L03DD            ; Source string: "123" (Coin inputs)
-L0203:      call    L03BA               ; Print "123"
+L0203:      call    Print_Coin_Label_And_Number
 L0206:      ld      e,$38
-            call    L03BA               ; Print "123" again
+            call    Print_Coin_Label_And_Number
 L020B:      ld      e,$22
-            call    L03BA               ; Print "123" again
+            call    Print_Coin_Label_And_Number
 
             ld      de,$2D0B
             ld      hl,L0412            ; Source string: "SLAM"
@@ -502,9 +502,9 @@ L020B:      ld      e,$22
 
             ld      hl,L0416            ; Source string: "SW1SW2..." (Dip switches)
             ld      de,$2D22
-            call    L03C4               ; Print dip switch labels
+            call    Print_Four_Diagnostic_Labels
             ld      de,$2D38
-            call    L03C4               ; Print more dip switch labels
+            call    Print_Four_Diagnostic_Labels
 
 ;******************************************************************************************
 ; ----> HARDWARE DIAGNOSTICS INPUT LOOP
@@ -635,12 +635,11 @@ L02D1:      and     $10                 ; Isolate Bit 4 (00010000b) to check SLA
 ;
 ;       Reads the hardware DIP switches (Settings port) and sets up the loop to test all 8.
 ;*****************************************************************************************
-            ld      a,($D347)           ; MACRO ARTIFACT: Useless read of orphaned RAM
-            in      a, (SETTINGS)       ; PATCH: Read DIP Switches (Port $13) over A
+            ld      a,($D347)           ; Value is replaced by the live port read below
+            in      a, (SETTINGS)       ; Read all eight DIP switches from port $13
 L02DB:      cpl                         ; Invert (Active-LOW to Active-HIGH)
             ld      b,a                 ; Store the inverted DIP switch state in B
             ld      de,$2D1A            ; DE = Screen position for SW1 ($2D1A)
-                                        ;      NOTE: Disassembler artifact 'L2D1A'
             ld      hl,LD1D8            ; HL = Pointer to SW1 tracking var ($D1D8)
             ld      c,$01               ; C = Initialize shifting bitmask to Bit 0 ($01)
 L02E5:      push    hl                  ; Save state variable pointer
@@ -658,7 +657,7 @@ L02E5:      push    hl                  ; Save state variable pointer
 ;*****************************************************************************************
             pop     de                  ; Restore DE (Screen formatting/coordinates)
             pop     bc                  ; Restore B (Settings port state) and C (Bitmask)
-            ld      hl,$0500            ; HL = $0500 (Used to add 5 to the Row byte 'D')
+            ld      hl,$0500            ; Advance the destination by five screen rows
             add     hl,de               ; Add $0500 to DE (Drops the cursor down 5 rows)
             ex      de,hl               ; DE now holds the updated screen coordinates
             pop     hl                  ; Restore HL (State tracking variable pointer)
@@ -667,7 +666,6 @@ L02E5:      push    hl                  ; Save state variable pointer
             cp      $08                 ; Have we just finished checking SW4 (Bitmask $08)?
             jr      nz,L02FE            ; If not, skip the column reset
             ld      de,$2D30            ; If yes, move cursor to the next column (Row $2D, Col $30)
-                                        ; NOTE: Disassembler artifact mistakenly labeled this 'L2D30'.
 L02FE:      sla     c                   ; Shift bitmask left (e.g., $01 -> $02 -> $04)
 L0300:      jr      nz,L02E5            ; If mask is not 0 (8 bits not done), loop back to L02E5
 
@@ -718,7 +716,7 @@ Clear_Joy_Str:
             push    de
             ld      b,$05               ; Print 5 spaces to clear old string
             xor     a
-            call    L03B5
+            call    Print_String_With_Color
             pop     de
 Do_Joy_Jump:
             pop     bc
@@ -758,7 +756,7 @@ Write_NO:
             ld      hl,L03EC            ; String "NO"
 Write_2_Chars:
             ld      b,$02
-            jr      L03B3               ; Write String
+            jr      Print_String_Default_Color
 Write_UP:
             ld      hl,L03EE            ; String "UP"
             jr      Write_2_Chars
@@ -768,16 +766,16 @@ Write_DN:
 Write_ERROR:
             ld      hl,L03F7            ; String "ERROR"
             ld      b,$05
-            jp      L03B3               ; Write String
+            jp      Print_String_Default_Color
 
 Write_LF:
             ld      hl,L03F2            ; String "LF"
             jr      Write_2_Chars
 Write_UScore:
-            ld      hl,L03F6            ; String "_" (Used to link diagonals)
+            ld      hl,L03F6            ; Underscore joining diagonal direction names
 Write_1_Char:
             ld      b,$01
-            jr      L03B3               ; Write string
+            jr      Print_String_Default_Color
 
 Write_LF_UP:
             call    Write_LF
@@ -814,7 +812,7 @@ Print_YesNo:
 
 Print_3_Chars:
             ld      b,$03               ; Length of string is 3 characters
-            jr      L03B3               ; Jump to the string printing engine
+            jr      Print_String_Default_Color
 ;
 ;*****************************************************
 ; Write "MOVE"
@@ -822,7 +820,7 @@ Print_3_Chars:
 ;
 L03A7:      ld      hl,L0400            ; String "MOVE"
             ld      b,$08               ; Length
-            jr      L03B3               ; Write string
+            jr      Print_String_Default_Color
 ;
 ;*****************************************************
 ; Write "FIRE"
@@ -831,56 +829,48 @@ L03A7:      ld      hl,L0400            ; String "MOVE"
 L03AE:      ld      hl,L03FC            ; String "FIRE"
 L03B1:      ld      b,$04               ; Length
 ;
-;*****************************************************
-; Entry Point to "write string" command?
-; Parameters:
-;    HL=<start address of string (ASCII)
-;    DE=<color> ???
-;    B=<Length of string (ASCII Character count)
-; Other:
-;    A= Expand mode color ???
-;    C=???
-;*****************************************************
+;*****************************************************************************************
+; ----> Resident string-printer entries
 ;
-L03B3:      ld      a,$0C               ; Expand mode color ???
-L03B5:      ld      c,$FF               ; ???
-            jp      printstr            ; Go write the string...
-;
-;*****************************************************
-; ???
-;
-;*****************************************************
+;       HL = character data, DE = packed screen destination, B = character count.
+;       A selects the Magic RAM expand color. C bit 7 selects forward rendering;
+;       the alternate path mirrors the glyph DMA and advances in reverse.
+;*****************************************************************************************
+Print_String_Default_Color:
+L03B3:      ld      a,$0C               ; Default red expand color
+Print_String_With_Color:
+L03B5:      ld      c,$FF               ; Forward, non-mirrored rendering
+            jp      printstr
+
+; Print "COIN" followed by one caller-selected character.
+Print_Coin_Label_And_Number:
 L03BA:      push    hl
             ld      hl,L040E
             call    L03B1
             pop     hl
             jr      Write_1_Char
-;
-;*****************************************************
-; ??? Write string of some kind... strange stuff going on.
-;
-;*****************************************************
-L03C4:      ld      b,$04               ; ???
-L03C6:      push    bc                  ; Save ???
-            call    Print_3_Chars               ; B=3 and drop to write string
-            push    hl                  ; save ???
-            ld      hl,$04FA            ; HL is in graphic characters area ???
-            add     hl,de               ; ???
-            ex      de,hl               ; DE now has ???
-            pop     hl                  ; Restore ???
-            pop     bc                  ; Restore count
-            djnz    L03C6               ; Loop until ???
-            ret                         ; Go back
 
-;*****************************************************
-; Begin Data area for "Words" in diagnostics
-; Note: "@" is used as a space. ??? Verify
-;    "_" is used as ??? Verify
-;*****************************************************
+; Print four consecutive three-character labels, stepping the packed screen
+; destination by $04FA after each label.
+Print_Four_Diagnostic_Labels:
+L03C4:      ld      b,$04
+L03C6:      push    bc
+            call    Print_3_Chars
+            push    hl
+            ld      hl,$04FA
+            add     hl,de
+            ex      de,hl
+            pop     hl
+            pop     bc
+            djnz    L03C6
+            ret
+
+; Diagnostic text. "@" selects the resident blank glyph; "_" is the
+; underscore used between diagonal direction names.
 
 L03D5:      DB      "ABCDEFGX"
 L03DD:      DB      "123"
-L03E0:      DB      $00, $6d, $f4, $2e, $62, $9d, $d4, '*' ;Could this be ROM checksums???
+L03E0:      DB      $00,$6D,$F4,$2E,$62,$9D,$D4,'*'
 L03E8:      DB      "YES@"
 L03EC:      DB      "NO"
 L03EE:      DB      "UP"
@@ -901,40 +891,32 @@ L0420:      DB      "W4SW5SW6SW7SW8"
 L043A:      DB      "KSTATIC@RAM@OK@"
 L0449:      DB      "STATIC@RAM@BAD"
 L0457:      DB      "ROM@"
-            DB      $00                 ; ???
-;
-;*****************************************************
-; ???
-;*****************************************************
-;
+            DB      $00
+
 L045C:      ld      c,$10
             in      c,(c)
-;
-;*****************************************************
-; Write string to screen.
-; Set up "expand mode color in A
-; and "???" in C
-;*****************************************************
-;
-printstr:   di                          ; No interruptions
-            out     (XPAND),a           ; Expand mode color ???
-            bit     7,c                 ; Check for???
-            ld      a,$08               ; Setup for expand mode only... !!! change this to binary
-            jr      nz,L046B            ;   and skip ahead.
-            set     6,a                 ; Otherwise, set ??? bit
-L046B:      out     (MAGIC),a           ; Out to "Magic RAM control"
-L046D:      ld      a,(hl)              ; Get the character of the string
-            inc     hl                  ; Set up for next character
-            push    hl                  ; Save next character location
-            push    de                  ; Save the color of character
-            call    char2gfx            ; Translate ASCII into graphic location
-            pop     de                  ; Restore color of character
-            bit     7,c                 ; Check for cocktail again??? unless char2gfx changed c... check it. ???
-            ld      a,$26               ; Set normal line offset value
-            jr      nz,L047D            ; ... skip the modification for ???
-            xor     $30                 ; Modification to ???
-L047D:      out     (PBSTAT),a          ; Set up line offset value???
-            ld      a,l                 ;
+
+; Render B native-font characters through the Pattern Board. Each glyph is a
+; 1x10-byte bitmap expanded by Magic RAM into a two-bit-pixel character.
+printstr:   di
+            out     (XPAND),a           ; Select expand color for set glyph bits
+            bit     7,c                 ; C.7 selects forward or mirrored rendering
+            ld      a,$08               ; Expand mode
+            jr      nz,L046B
+            set     6,a                 ; Expand plus horizontal flop
+L046B:      out     (MAGIC),a
+L046D:      ld      a,(hl)              ; Fetch the next native character code
+            inc     hl
+            push    hl
+            push    de                  ; Preserve packed destination
+            call    char2gfx            ; HL = ten-byte glyph bitmap
+            pop     de
+            bit     7,c
+            ld      a,$26               ; Forward Pattern Board mode
+            jr      nz,L047D
+            xor     $30                 ; Mirrored Pattern Board mode
+L047D:      out     (PBSTAT),a
+            ld      a,l
             out     (PBLINADRL),a       ; LSB of source
             ld      a,h
             out     (PBLINADRH),a       ; MSB of source
@@ -942,48 +924,30 @@ L047D:      out     (PBSTAT),a          ; Set up line offset value???
             out     (PBXMOD),a          ; LSB of destination
             ld      a,d
             out     (PBAREADRH),a       ; MSB of destination
-            bit     7,c                 ; Check for cocktail... ???
-            ld      a,$4F               ; Set up for normal ???
-            jr      nz,L0493            ; Skip the mod for ??? if not cocktail
-            ld      a,$B1               ; Otherwise, set up for ???
-L0493:      out     (PBXMOD),a          ; ??? what is this ???
+            bit     7,c
+            ld      a,$4F               ; Forward row modulo
+            jr      nz,L0493
+            ld      a,$B1               ; Mirrored row modulo
+L0493:      out     (PBXMOD),a
             ld      a,$01
-            out     (PBXWIDE),a         ; Set width of pattern
+            out     (PBXWIDE),a         ; One source byte per glyph row
             ld      a,$09
-            out     (PBYHIGH),a         ; Height of pattern and start transfer!
-            pop     hl                  ; Restore the next character to HL
-            inc     de                  ;
-            inc     de                  ; Why did we double DE???
-            bit     7,c                 ; cocktail???
-            jr      nz,L04A8            ; ... yes, skip mod of DE for ???
+            out     (PBYHIGH),a         ; Ten rows and start transfer
+            pop     hl                  ; Restore next character pointer
+            inc     de
+            inc     de                  ; Forward destination step
+            bit     7,c
+            jr      nz,L04A8
             dec     de
             dec     de
             dec     de
-            dec     de                  ; Mod for ???
-L04A8:      djnz    L046D               ; Character finished, go back and do
-                ; next character until all of string is finished.
-            ret                         ; String is done, return to sender...
+            dec     de                  ; Mirrored destination step
+L04A8:      djnz    L046D
+            ret
 ;
-;********************************************************************
-; Name:            char2gfx
-;
-; Title:        ASCII to GRAPHICS Table lookup
-;
-; Function:        Take an ASCII character and translate it into
-;            a graphic entry in a character table. It is not
-;            true ASCII, but a subset with some modifications.
-;            See character table at CHRTBL for details.
-;            It also routes extended character codes to the optional X11 alternate font.
-;
-; Entry:        A  = ASCII character
-;
-; Exit:            HL = Address entry in table which corrosponds
-;                 with the ASCII character.
-;
-; Registers used:    A, DE, HL  ???verify
-;
-;********************************************************************
-;
+; Convert one WoW character code in A to a ten-byte glyph address in HL.
+; Digits, letters and resident punctuation use CHRTBL. Codes at and above the
+; X11 threshold use the alternate-font pointer stored at X11 $C00B.
 char2gfx:   sub     $30                 ; Turn ASCII into table entry
             cp      $0A                 ; Check for number 0-9
             jr      c,L04B3             ; Jump if not a number...
@@ -1008,21 +972,12 @@ L04C2:      ld      h,$00               ;
             add     hl,de               ; Multiply HL * $0A complete. This is table offset.
             pop     de                  ; Restore beginning of table address
             add     hl,de               ; Add start of table address with offset to give table entry.
-            ret                         ; Thou are done with thy translation!
+            ret
 
 ;******************************************************************************
-; Name:        Graphic_Character_Table
-; Games:    Wizard of Wor (horizontal monitor)
-; Purpose:    This is the Wizard of Wor character set in graphical format.
-; Description:    This is the data area for alphabetic and a few special
-;        characters in graphic format. It has the following charastics:
-;
-;           1. Character patterns are stored in a bitmap 1 by 5 bytes
-;           2. Every bit is doubled by theMagic Expand mode.
-;           3. The pixel color it is converted to is based on the ???
-;              register, which tells what to expand each set bit
-;              or reset bit into.
-;           4. Each character is $0A apart.
+; Wizard of Wor resident character table. Each glyph occupies ten bytes. Magic
+; RAM expands every source bit horizontally into a two-bit pixel, with XPAND
+; selecting the output color. Consecutive glyphs are therefore $0A bytes apart.
 ;
 ;Example:    Character "A"
 ;
@@ -1152,7 +1107,7 @@ Update_Color_Fade_2:
 ;       hardware "sparkle" (shimmer) effect on colors 1, 2, and 3 via the CCMISC latch.
 ;*****************************************************************************************
 Set_Scanline_Int:
-            ld      a, $A8              ; A = 168 ($A8). NOTE: Original comment '162' was off!
+            ld      a,$A8               ; Trigger line 168
             out     (INLIN), a          ; Set the scanline interrupt trigger position
 
 Enable_Sparkle_Colors:
@@ -1335,7 +1290,7 @@ L0781:      call    Stream_Fetch_Byte_B
 ;   0 = X11 localized table beginning at $C00D
 ;******************************************************************************
 Select_Localized_Text_Record:
-            ld      a,($D347)           ; Preserved original read; IN below supplies the DIP value
+            ld      a,($D347)           ; Value is replaced by the live port read below
             in      a,(SETTINGS)
             bit     LANGUAGE_DIP_BIT,a
             ld      hl,Text_Insert_Coin
@@ -1356,7 +1311,7 @@ L079A:      ld      a,(hl)              ; Length bytes are below $30
 L07A8:      call    Stream_Fetch_Word_HL
             push    hl
             call    Stream_Fetch_Word_HL
-            in      a, (COINPORT)       ; Unknown what bit 7 does...
+            in      a, (COINPORT)       ; Read system inputs for alternate address selection
             bit     7,a
             jr      nz,L07B6
             ex      (sp),hl
@@ -1373,10 +1328,8 @@ L07B6:      pop     hl
             ld      c,$FF
             jp      printstr
 ;
-;*****************************************************************************
-; Called this routine from dispatch routine
-; ???
-;*****************************************************************************
+; Continue a display-stream command with an explicit destination, length, and
+; alternate address pair.
 L07CA:
             call    Stream_Fetch_Word_DE
             call    Stream_Fetch_Byte_B
@@ -1389,11 +1342,7 @@ L07D3:      call    Stream_Fetch_Byte_A
             call    Select_Localized_Text_Record
             jr      L07D3
 ;
-;*****************************************************************************
-; Called this routine from dispatch routine
-; ???
-;*****************************************************************************
-;
+; Select a localized text record and continue the current display command.
             call    Stream_Fetch_Byte_B
             call    Select_Localized_Text_Record
             sub     $29
@@ -1401,7 +1350,7 @@ L07D3:      call    Stream_Fetch_Byte_A
             ld      e,a
             call    L088B
             in      a, (COINPORT)
-            bit     7,a                 ;Unknown what bit 7 does on port $10
+            bit     7,a                 ; Select the alternate display-positioning path
             call    Stream_Fetch_Byte_A
             jr      nz,L07FF
             ld      d,a
@@ -1414,21 +1363,13 @@ L0800:      call    L0947
             pop     hl
             jr      L07D3
 ;
-;*****************************************************************************
-; Called this routine from dispatch routine
-; ???
-;*****************************************************************************
-;
+; Write an immediate byte to a stream-selected address.
             call    L0872
             ld      (hl),a
             ret
 
 ;
-;*****************************************************************************
-; Called this routine from dispatch routine
-; ???
-;*****************************************************************************
-;
+; Write an immediate word to a stream-selected address.
 L080C:      call    Stream_Fetch_Word_DE
 L080F:      call    Stream_Fetch_Word_HL
             ld      (hl),e
@@ -1550,22 +1491,18 @@ Stream_Fetch_Byte_C:
             inc     iy
             ret
 ;
-;*****************************************************************************
-; Called this routine from dispatch routine
-; ???
-;*****************************************************************************
-;
-L08A0:      pop     hl                  ; Return address in HL
-            call    Stream_Fetch_Word_DE               ; Load E=(IY+1), D=(IY), IY=IY+2
-            push    iy                  ; Save old subroutine pointer ???
+; Enter a nested command stream. The caller's return address remains the
+; continuation point while IY changes to the stream address encoded at old IY.
+Enter_Nested_Command_Stream:
+L08A0:      pop     hl                  ; Continuation address
+            call    Stream_Fetch_Word_DE ; Fetch nested stream address
+            push    iy                  ; Save parent stream pointer
             push    de
-            pop     iy                  ; Setup subroutine pointer to new area ???
-            jp      (hl)                ; Return...
-;
-;*****************************************************************************
-; Called this routine from dispatch routine
-; ???
-;*****************************************************************************
+            pop     iy                  ; Activate nested stream pointer
+            jp      (hl)                ; Resume dispatcher continuation
+
+; Restore the parent command stream and resume the dispatcher continuation.
+Leave_Nested_Command_Stream:
             pop     hl
             pop     iy
             jp      (hl)
@@ -1602,7 +1539,7 @@ L08A0:      pop     hl                  ; Return address in HL
             ld      hl,LD040            ; HL = Start of unprotected Work RAM ($D040)
             ld      (hl),$00            ; Seed the first byte with $00
             ld      de,LD041            ; DE = Dest pointer (one byte ahead)
-            ld      bc,$0203            ; BC = Count (515 bytes). NOTE: Artifact 'L0203'
+            ld      bc,$0203            ; BC = 515 bytes
             ldir                        ; Rapidly copy the zero through the RAM block
 
 ;*****************************************************************************************
@@ -1831,9 +1768,9 @@ L0A5D:      ld      hl,LD1C3
             ld      (hl),a
             call    L0A72
             call    Update_Color_Fade_1
-L0A68:      ld      a,(L8000)
+L0A68:      ld      a,(Sound_Service_Entry)
             cp      $C3
-            call    z,L8000
+            call    z,Sound_Service_Entry
             ret
             nop
 L0A72:      call    L0A82
@@ -2045,13 +1982,7 @@ L0BB0:      bit     4,a
             ld      a,$50
             jr      z,L0BB8
             ld      a,$B0
-;
-;*****************************************************************************
-; First seen drawing the monsters on the demo screen! ???
-;*****************************************************************************
-;
-
-L0BB8:      add     a,e
+L0BB8:      add     a,e                 ; Complete orientation-dependent X modulo
             ld      e,a
             inc     hl
             ld      a,(hl)
@@ -2366,7 +2297,7 @@ L0DFA:      set     0,(hl)              ; R2.B0
             call    Random_Byte
             and     $07
             or      $38
-            jp      L8009
+            jp      Speech_Request_Entry
 L0E0B:      ld      a,(ix+$15)
             sub     (iy+$15)
             add     a,$08
@@ -2920,10 +2851,8 @@ Load_Worriors_Text_Buffer:
             ret
 Adjust_Credit_From_Settings:
             ld      a,($D347)
-            in      a, (SETTINGS)       ; Check for Free Play - Active HIGH ???
-                    ; Bit 6: Free Play
-                    ; Off=No Free Play, On=Free Play
-            bit     6,a
+            in      a, (SETTINGS)       ; Read raw Settings DIP state
+            bit     6,a                 ; Test the free-play switch input
             ret     z
             ld      hl,Credits
             ld      c,(hl)
@@ -3050,7 +2979,7 @@ L174D:      ld      a,$0C
             and     (iy+$00)
             inc     iy
             or      b
-            jp      L8009
+            jp      Speech_Request_Entry
             in      a, (COINPORT)
             bit     7,a
             ld      a,$88
@@ -3075,7 +3004,7 @@ Clear_Protected_Init_Counter:
 ; Captures the attract-mode sound DIP state.
 ;*****************************************************************************
 Read_Attract_Sound_DIP:
-            ld      a,($D347)           ; Preserved original read; overwritten by IN
+            ld      a,($D347)           ; Value is replaced by the live port read below
             in      a, (SETTINGS)
             and     DIP_ATTRACT_SOUND
             ld      (Sound_Service_Enabled),a ; Seed runtime audio-service gate from SW8 state
@@ -3099,8 +3028,8 @@ Request_Sound_R4_B3_Override:
 ; Called from dispatch routine. Evaluates Bit 4 of the settings port.
 ;*****************************************************************************
 Read_Starting_Lives_DIP:
-            ld      a,($D347)           ; MACRO ARTIFACT: Useless read of orphaned RAM cache
-            in      a,(SETTINGS)        ; PATCH: Read hardware directly, overwriting A
+            ld      a,($D347)           ; Value is replaced by the live port read below
+            in      a,(SETTINGS)        ; Read current hardware DIP state
             cpl                         ; Invert bits (Active-LOW hardware to Active-HIGH logic)
             and     DIP_STARTING_LIVES
             ld      (Starting_Lives_Dip),a           ; Save status: $10 = 3/7 lives, $00 = 2/5 lives
@@ -3112,7 +3041,7 @@ Read_Starting_Lives_DIP:
 ;*****************************************************************************
 Clear_Extended_Game_State:
             ld      hl,Dungeon_Class            ; Start of extended game-state block
-            ld      bc,$1E00            ; OPTIMIZATION: B = $1E (Loop count 30), C = $00 (Zero value)
+            ld      bc,$1E00            ; B = 30-byte count, C = clear value
 L17A4:      ld      (hl),c              ; Write $00 to memory
             inc     hl                  ; Advance pointer
             djnz    L17A4               ; Decrement B and loop until 30 bytes are cleared
@@ -3301,12 +3230,8 @@ L18D2:      DB      $C0                 ; Binary 11000000 (Color 3, Pixel 0)
 L18D3:      DB      $30                 ; Binary 00110000 (Color 3, Pixel 1)
             DB      $00                 ; Blank
 
-;
-;*****************************************************************************
-; Called this routine from dispatch routine
-; ???
-;*****************************************************************************
-;
+; Draw the fixed radar/grid line patterns with Pattern Board DMA.
+Draw_Radar_Grid:
             di
             ld      a,$08
             out     (MAGIC),a
@@ -4075,7 +4000,7 @@ L2014:      ld      a,$04
             call    L22FD
             call    L2740
             call    L1E9F
-            call    L8003
+            call    Sound_Request_Dispatch_Entry
             call    L2D6B
             call    L2C15
             call    L1A0B
@@ -4975,7 +4900,7 @@ L26CE:      sub     $07
             and     $07
             or      $28
             ld      (hl),a
-            call    L8009
+            call    Speech_Request_Entry
 L26E8:      ld      d,(ix+$02)
 L26EB:      call    Random_Byte
             and     $07
@@ -5245,7 +5170,7 @@ L28E6:      sub     $0A
             ld      a,$3C
 L28F0:      ld      (LD04E),a
             inc     a
-            ld      (LD045),a           ; ???
+            ld      (LD045),a           ; Store the adjacent threshold one count higher
             ld      hl,P1_Actor_Record
             ld      de,P2_Actor_Record
             call    Random_Byte
@@ -5809,12 +5734,8 @@ L2D35:      ld      (hl),c
 L2D3D:      ld      a,DUNGEON_CLASS_WORLORD
             ld      (Dungeon_Class),a       ; Advanced non-Pit dungeon
 
-;
-;*****************************************************************************
-; Called this routine from dispatch routine
-; ???
-;*****************************************************************************
-;
+; Select an unused maze index from the range appropriate to the dungeon tier.
+Select_Next_Maze_Index:
 L2D42:      ld      a,(Dungeon_Number)
             cp      $07
             ld      de,L000D
@@ -8109,6 +8030,7 @@ L8000:      jp      Service_Sound_And_Speech ; $8000 periodic service
 Sound_Request_Dispatch_Entry:
 L8003:      jp      Dispatch_Sound_Requests ; $8003 request/stream dispatcher
 Sound_Reset_All_Entry:
+L8006:
             jp      Init_All_Sound_Engines ; $8006 sound initialization / speech-queue validation
 Speech_Request_Entry:
 L8009:
@@ -8190,9 +8112,11 @@ L8019:      ld      hl,L0011
 ;   +3 step value      +4 boundary A        +5 boundary B
 ;   +6 completion count
 ;
-; Control bit 0 enables the slot, bit 2 selects the random path, bit 3 selects
-; the completion/transition path, and bit 5 sets SNDREC_STREAM_READY when the
-; completion count expires. The resulting parameter value returns in B.
+; Control bit 0 enables the slot. On a completed boundary transition, bit 1
+; selects snap-to-boundary instead of reversing the signed step. Bit 2 selects
+; the random path, bit 3 marks a pending boundary transition, bit 4 records the
+; selected boundary, and bit 5 sets SNDREC_STREAM_READY when the completion
+; count expires. The resulting parameter value returns in B.
 ;*****************************************************************************************
 Update_Sound_Modulator_Slot:
 L8049:      push    iy
@@ -8322,17 +8246,17 @@ L8104:      cp      (iy-$2a)
             jr      z,L8116
 L8109:      ld      b,(iy-$06)
             ld      de,LFFD6
-            call    L8049
+            call    Update_Sound_Modulator_Slot
             ld      (iy-$06),b
             xor     a
 Service_Master_Step_Modulator:
 L8116:      cp      (iy-$1c)
             jr      z,L8136
             ld      a,(iy-$04)
-            call    L800F
+            call    Normalize_Signed_Modulator_Value
             ld      b,a
             ld      de,LFFE4
-            call    L8049
+            call    Update_Sound_Modulator_Slot
             ld      a,b
             ld      b,(iy-$04)
             bit     7,b
@@ -8345,7 +8269,7 @@ L8136:      cp      (iy-$23)
             jr      z,L8148
             ld      b,(iy+$04)
             ld      de,LFFDD
-            call    L8049
+            call    Update_Sound_Modulator_Slot
             ld      (iy+$04),b
             xor     a
 Service_Master_Oscillator_Modulator:
@@ -8381,7 +8305,7 @@ Service_Master_Volume_Coupling:
             ld      (iy-$0c),$03
 L817E:      ld      b,(iy+$0b)
             ld      de,LFFF9
-            call    L8049
+            call    Update_Sound_Modulator_Slot
             ld      (iy+$0b),b
             xor     a
 Service_Tone_Volume_Modulator:
@@ -8391,7 +8315,7 @@ L818B:      cp      (iy-$0e)
             and     $0F
             ld      b,a
             ld      de,LFFF2
-            call    L8049
+            call    Update_Sound_Modulator_Slot
             ld      a,b
             rrca
             rrca
@@ -8409,7 +8333,7 @@ L81AF:      cp      (iy-$15)
             jr      z,L81C1
             ld      b,(iy+$07)
             ld      de,LFFEB
-            call    L8049
+            call    Update_Sound_Modulator_Slot
             ld      (iy+$07),b
             xor     a
 L81C1:      xor     a
@@ -8430,7 +8354,7 @@ L81D8:      ret
 ;*****************************************************************************************
 ; ----> Play_Next_Phoneme
 ;
-;       Checks the Votrax SC-01A ready signal and decodes the next 8-bit command
+;       Checks the Votrax SC-01 ready signal and decodes the next 8-bit command
 ;       from the active fragment. Bits 0-5 select the phoneme. Bit 6 passes
 ;       directly from ROM. Bit 7 is differential: it is XORed with the saved
 ;       decoded bit-7 state, then the new decoded bit 7 becomes the saved state.
@@ -8566,7 +8490,7 @@ Speech_Queue_State_Return:
 ;       circular speech queue.
 ;
 ;       Input:  A = phrase ID $00-$4F
-;       See:    doc/SPEECH_MAP.md for all English/German phrase compositions.
+;       See:    docs/SPEECH_MAP.md for the resident English speech map.
 ;*****************************************************************************************
 Queue_Speech_Request:
             ; A is the language-independent phrase ID. The game defines 80
@@ -8579,7 +8503,7 @@ Queue_Speech_Request:
             ld      hl,English_Speech_Phrase_Table
             inc     a
             ld      c,a                 ; C = 1-based phrase record to locate
-            ld      a,($D347)           ; Preserved original read; overwritten by IN
+            ld      a,($D347)           ; Value is replaced by the live port read below
             in      a,(SETTINGS)
             bit     LANGUAGE_DIP_BIT,a
             jr      nz,Speech_Locate_Phrase_Record
@@ -8633,7 +8557,7 @@ Speech_Resolve_Fragment_Pointer:
 
             ; Select the fragment-pointer table independently of the phrase
             ; table. Foreign mode obtains this address from X11 $C000.
-            ld      a,($D347)           ; Preserved original read; overwritten by IN
+            ld      a,($D347)           ; Value is replaced by the live port read below
             in      a,(SETTINGS)
             bit     LANGUAGE_DIP_BIT,a
             jr      nz,Speech_Fragment_Table_Selected
@@ -8771,7 +8695,7 @@ Sound_Stream_Op_Master_Oscillator:      ; opcode $10 -> $10 / $50
             exx
             ld      b,$08
             ld      hl,L000B
-            jr      L8325
+            jr      Sound_Write_Register_From_Stream
 
 Sound_Stream_Op_Noise:                  ; opcode $17 -> $17 / $57
             ld      a,(hl)
@@ -8779,7 +8703,7 @@ Sound_Stream_Op_Noise:                  ; opcode $17 -> $17 / $57
             exx
             ld      b,$01
             ld      hl,$0004
-            jr      L8325
+            jr      Sound_Write_Register_From_Stream
 
 Sound_Stream_Op_Volume_AB:              ; opcode $16 -> $16 / $56
             ld      a,(hl)
@@ -8787,7 +8711,7 @@ Sound_Stream_Op_Volume_AB:              ; opcode $16 -> $16 / $56
             exx
             ld      b,$02
             ld      hl,L0005
-            jp      L8325
+            jp      Sound_Write_Register_From_Stream
 
 Sound_Stream_Op_Volume_C_Noise:         ; opcode $15 -> $15 / $55
             ld      a,(hl)
@@ -8795,7 +8719,7 @@ Sound_Stream_Op_Volume_C_Noise:         ; opcode $15 -> $15 / $55
             exx
             ld      b,$03
             ld      hl,L0006
-            jp      L8325
+            jp      Sound_Write_Register_From_Stream
 
 Sound_Stream_Op_Vibrato:                ; opcode $14 -> $14 / $54
             ld      a,(hl)
@@ -8803,7 +8727,7 @@ Sound_Stream_Op_Vibrato:                ; opcode $14 -> $14 / $54
             exx
             ld      b,$04
             ld      hl,L0007
-            jp      L8325
+            jp      Sound_Write_Register_From_Stream
 
 Sound_Stream_Op_Tone_A:                 ; opcode $11 -> $11 / $51
             ld      a,(hl)
@@ -8811,7 +8735,7 @@ Sound_Stream_Op_Tone_A:                 ; opcode $11 -> $11 / $51
             exx
             ld      b,$07
             ld      hl,L000A
-            jp      L8325
+            jp      Sound_Write_Register_From_Stream
 
 Sound_Stream_Op_Tone_B:                 ; opcode $12 -> $12 / $52
             ld      a,(hl)
@@ -8819,7 +8743,7 @@ Sound_Stream_Op_Tone_B:                 ; opcode $12 -> $12 / $52
             exx
             ld      b,$06
             ld      hl,L0009
-            jp      L8325
+            jp      Sound_Write_Register_From_Stream
 
 Sound_Stream_Op_Tone_C:                 ; opcode $13 -> $13 / $53
 L8385:      ld      a,(hl)
@@ -8827,7 +8751,7 @@ L8385:      ld      a,(hl)
             exx
             ld      b,$05
             ld      hl,L0008
-            jp      L8325
+            jp      Sound_Write_Register_From_Stream
 
 Sound_Stream_Op_Reset_Engine:           ; opcode $03
 L8390:      exx
@@ -9056,7 +8980,7 @@ L8481:      ld      bc,L3010
             out     (c),b
             in      a, (COINPORT)       ;
             set     3,a                 ; Force service-switch input inactive before scaling
-            call    L8470
+            call    Scale_Diagnostic_Active_Low_Bits
             ld      bc,L0C15
             or      a
             jr      nz,L849B
@@ -9069,7 +8993,7 @@ L849F:      out     (c),b
             in      a, (P2PORT)
             and     $3F
             or      $C0
-            call    L8470
+            call    Scale_Diagnostic_Active_Low_Bits
             ld      bc,L0C56
             or      a
             jr      nz,L84B6
@@ -9081,7 +9005,7 @@ L84B8:      out     (c),b
             in      a, (P1PORT)
             and     $3F
             or      $C0
-            call    L8470
+            call    Scale_Diagnostic_Active_Low_Bits
             ld      bc,L0C16
             or      a
             jr      nz,L84CF
@@ -9092,7 +9016,7 @@ L84D1:      out     (c),b
             out     (TONEA),a
             ld      a,($D347)
             in      a, (SETTINGS)
-            call    L8470
+            call    Scale_Diagnostic_Active_Low_Bits
             ld      bc,L0C55
             or      a
             jr      nz,L84E7
@@ -10179,10 +10103,10 @@ L8B5D:      inc     de
 ;     DB encoded_byte_count
 ;     DB encoded_sc01_byte[, ...]
 ;
-; The byte count is not part of the SC-01 stream. Bits 0-5 carry the SC-01
-; phoneme code. Bits 6-7 preserve the game's inflection/control information;
-; Play_Next_Phoneme differentially decodes bit 7 against the saved inflection
-; state before presenting the full command byte to the speech interface.
+; The byte count is not part of the SC-01 stream. Bits 0-5 carry the phoneme
+; code, bit 6 passes directly to the device, and bit 7 is differentially
+; decoded against the saved bit-7 state before the full command byte reaches
+; the speech interface.
 ; Fragment labels describe the words encoded by each record; several records
 ; are intentionally sentence fragments that are combined by the phrase table.
 ;******************************************************************************
@@ -10411,8 +10335,8 @@ SPK_Find_Me:
             DB      $1D,$55,$49,$69,$0D,$1E,$0C,$2C
             DB      $3C,$3E
 
-; Fragment $0C @ $8E96: "I'm out of spite"
-SPK_Im_Out_Of_Spite:
+; Fragment $0C @ $8E96: "I'm out of sight"
+SPK_Im_Out_Of_Sight:
             DB      $12                 ; encoded SC-01 byte count
             DB      $15,$49,$69,$0C,$03,$08,$35,$37
             DB      $1E,$15,$03,$1F,$25,$08,$4B,$69
@@ -10685,6 +10609,7 @@ SPK_F3B_Teleport_Spell_Faster:
             DB      $3E,$83
 
 ; Fragment $3C @ $9270: "Now you know the taste of my magic"
+; The decoded SC-01 commands at $9286-$9287 are the valid V -> M transition.
 SPK_Now_You_Know_The_Taste_Of_My_Magic:
             DB      $23                 ; encoded SC-01 byte count
             DB      $83,$0D,$55,$23,$37,$29,$36,$37
@@ -10832,8 +10757,8 @@ SPK_Where_Are_You_Going_To_Hide_Now:
 ;
 ; The foreign-language X11 ROM supplies equivalent phrase and fragment-pointer
 ; tables through the ABI pointers at $C002 and $C000 respectively.
-; Full fragment semantics and all 80 English/German phrase compositions are
-; documented in doc/SPEECH_MAP.md.
+; Full resident fragment semantics and all 80 English phrase compositions are
+; documented in docs/SPEECH_MAP.md.
 ;******************************************************************************
 English_Speech_Fragment_Pointers:
             DW      SPK_Kill_Worluk_For_Double_Score                                 ; fragment $00: "Kill Worluk for double score"
@@ -10848,7 +10773,7 @@ English_Speech_Fragment_Pointers:
             DW      SPK_Worrior                                                      ; fragment $09: "Worrior"
             DW      SPK_Hey_Insert_Coin                                              ; fragment $0A: "Hey, insert coin"
             DW      SPK_Find_Me                                                      ; fragment $0B: "Find me"
-            DW      SPK_Im_Out_Of_Spite                                              ; fragment $0C: "I'm out of spite"
+            DW      SPK_Im_Out_Of_Sight                                              ; fragment $0C: "I'm out of sight"
             DW      SPK_Get_Ready                                                    ; fragment $0D: "Get ready"
             DW      SPK_Youd_Better_Hope_You_Dont_Find_Me                            ; fragment $0E: "You'd better hope you don't find me"
             DW      SPK_Another_Coin_For_My_Treasure_Chest                           ; fragment $0F: "Another coin for my treasure chest"

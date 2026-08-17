@@ -2,7 +2,7 @@
 
 This document describes the Astrocade custom I/O IC sound hardware and the non-speech sound system used by *Wizard of Wor*.
 
-WoW sound effects are generated in real time. The Z80 interprets ROM sound streams that update tone, volume, vibrato, and noise registers on two Astrocade custom I/O ICs. SC-01 speech is a separate subsystem.
+WoW sound effects are generated in real time. The Z80 interprets ROM sound streams that update tone, volume, vibrato, and noise registers on two Astrocade custom I/O ICs. SC-01 speech is a separate subsystem documented in [`SPEECH_MAP.md`](SPEECH_MAP.md).
 
 ## Astrocade custom I/O IC sound registers
 
@@ -22,16 +22,7 @@ Each IC provides an eight-register sound generator.
 
 The three tone generators share the master oscillator. Vibrato or noise can modulate that master oscillator.
 
-The port numbers are direction-sensitive: writes address the Astrocade sound hardware, while reads return cabinet inputs and status. WoW uses the overlapping read ports as follows:
-
-| Read port | WoW use |
-| ---: | --- |
-| `$10` | System inputs: Coin 1/2/3 on bits 0-2, service switch on bit 3, slam/tilt on bit 4, 1P Start on bit 5, 2P Start on bit 6 |
-| `$11` | Player 2 / cocktail controls, active low: Up/Down/Left/Right on bits 0-3, right fire on bit 4, left fire on bit 5 |
-| `$12` | Player 1 controls with the same bits 0-5 mapping; bit 7 is the SC-01 A/R ready input |
-| `$13` | Eight DIP switches |
-
-Thus `OUT ($11),A` writes Tone A on the primary Astrocade custom I/O IC, while `IN A,($11)` reads the Player 2 / cocktail controls.
+The port numbers are direction-sensitive: writes address the Astrocade sound hardware, while reads return cabinet inputs and status.
 
 ### Volume and noise
 
@@ -137,7 +128,18 @@ The periodic engine service assigns the six slots these roles:
 | 4 | Modulates a common tone-volume value, mirrors it into both `VOLAB` nibbles, and writes it into the low nibble of `VOLC` |
 | 5 | Modulates `TONMO` |
 
-Identified slot-control bits are bit 0 = enabled, bit 2 = random-value path, bit 3 = completion/transition path, and bit 5 = set `STREAM_READY` when the completion count expires. Record byte `+$0C` enables the slot-5-to-slot-4 master-oscillator/volume coupling path.
+The slot-control byte has these identified bits:
+
+| Bit | Mask | Function |
+| ---: | ---: | --- |
+| 0 | `$01` | Enable the slot |
+| 1 | `$02` | On a completed boundary transition, snap to the selected boundary instead of reversing the signed step |
+| 2 | `$04` | Select the random-value path |
+| 3 | `$08` | Mark a pending boundary transition |
+| 4 | `$10` | Select and track the active boundary (`+$04` or `+$05`) |
+| 5 | `$20` | Set `STREAM_READY` when the completion count expires |
+
+Record byte `+$0C` enables the slot-5-to-slot-4 master-oscillator/volume coupling path.
 
 ## Sound requests and resident service
 
@@ -247,6 +249,8 @@ A command handler that yields causes WoW to save the address of the next command
 The periodic service applies waits and modulator updates to the saved image, then uses `OTIR` from record `+$04` through `+$0B` with block port `$18` or `$58`. This transfers the image to hardware registers `$17` down through `$10`, or `$57` down through `$50`.
 
 ## WoW sound request map
+
+Event names are assigned only where request-posting call sites or runtime behavior provide sufficient evidence. Entries that remain unresolved are identified as such rather than inferred from the audio alone.
 
 `Pri` is the stream-install priority. `PSTR` and `SSTR` are the primary and secondary ROM stream entry addresses.
 
