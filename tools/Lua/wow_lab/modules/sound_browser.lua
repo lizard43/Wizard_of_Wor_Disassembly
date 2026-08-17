@@ -14,7 +14,7 @@
 -- the complete native application workspace.
 
 local M = {}
-M.VERSION = '1.1.7-20260817-0854'
+M.VERSION = '1.1.8-20260817-1344'
 
 local C = {
   SOUND_REQUEST_1          = 0xD240,
@@ -79,33 +79,33 @@ local C = {
 }
 
 -- The 24 audible request selectors established by WoW's resident request
--- decoders.  Generic names remain generic where the gameplay call site is not
--- yet sufficiently identified.
+-- decoders. Event names follow static gameplay producers where proven; the few
+-- remaining generic entries are left generic rather than named from sound alone.
 local CATALOG = {
-  { group=1, bit=0, priority=0, primary=0x89BE, secondary=0x89E5, name='GLOBAL EVENT 0' },
+  { group=1, bit=0, priority=0, primary=0x89BE, secondary=0x89E5, name='WORLORD DUNGEON CUE' },
   { group=1, bit=1, priority=0, primary=0x89A0, secondary=0x89AF, name='GLOBAL EVENT 1' },
-  { group=1, bit=2, priority=0, primary=0x8741, secondary=0x8772, name='GLOBAL EVENT 2' },
-  { group=1, bit=3, priority=0, primary=0x8981, secondary=nil,    name='GLOBAL EVENT 3' },
-  { group=1, bit=4, priority=0, primary=0x8A0C, secondary=0x8A27, name='GLOBAL EVENT 4' },
+  { group=1, bit=2, priority=0, primary=0x8741, secondary=0x8772, name='RADAR CUE' },
+  { group=1, bit=3, priority=0, primary=0x8981, secondary=nil,    name='ATTRACT EVENT 3' },
+  { group=1, bit=4, priority=0, primary=0x8A0C, secondary=0x8A27, name='ROUND START CUE' },
   { group=1, bit=5, priority=0, primary=0x8971, secondary=nil,    name='COIN UP' },
   { group=2, bit=0, priority=1, primary=nil,    secondary=0x8928, name='PLAYER DEATH' },
   { group=2, bit=1, priority=0, primary=nil,    secondary=0x887B, name='PLAYER FIRE' },
-  { group=2, bit=2, priority=1, primary=nil,    secondary=0x87EA, name='UNRESOLVED EVENT' },
-  { group=2, bit=3, priority=0, primary=nil,    secondary=0x883B, name='UNRESOLVED EVENT' },
-  { group=2, bit=4, priority=0, primary=nil,    secondary=0x8825, name='ENEMY STATE EVENT' },
-  { group=2, bit=6, priority=0, primary=nil,    secondary=0x8988, name='PLAYER STATUS EVENT' },
-  { group=2, bit=7, priority=1, primary=0x8741, secondary=nil,    name='GLOBAL EVENT 2 PRIMARY' },
-  { group=3, bit=0, priority=1, primary=0x8AA1, secondary=0x8ADD, name='SPECIAL ACTOR DEATH' },
+  { group=2, bit=2, priority=1, primary=nil,    secondary=0x87EA, name='WORLUK PROXIMITY' },
+  { group=2, bit=3, priority=0, primary=nil,    secondary=0x883B, name='THORWOR VISIBLE' },
+  { group=2, bit=4, priority=0, primary=nil,    secondary=0x8825, name='GARWOR VISIBLE' },
+  { group=2, bit=6, priority=0, primary=nil,    secondary=0x8988, name='PLAYER INPUT STATE' },
+  { group=2, bit=7, priority=1, primary=0x8741, secondary=nil,    name='DUNGEON INTRO PRIMARY' },
+  { group=3, bit=0, priority=1, primary=0x8AA1, secondary=0x8ADD, name='WORLUK DEATH' },
   { group=3, bit=1, priority=0, primary=nil,    secondary=0x890E, name='MONSTER DEATH' },
   { group=3, bit=2, priority=0, primary=nil,    secondary=0x8851, name='MONSTER FIRE' },
-  { group=3, bit=3, priority=0, primary=nil,    secondary=0x8851, name='MONSTER FIRE' },
-  { group=3, bit=4, priority=0, primary=nil,    secondary=0x8A42, name='WORLUK PHASE EVENT' },
-  { group=3, bit=5, priority=1, primary=0x8A81, secondary=0x8A6C, name='DUAL CHIP EVENT' },
+  { group=3, bit=3, priority=0, primary=nil,    secondary=0x8851, name='MONSTER FIRE ALT' },
+  { group=3, bit=4, priority=0, primary=nil,    secondary=0x8A42, name='MAGIC DOOR TRANSIT' },
+  { group=3, bit=5, priority=1, primary=0x8A81, secondary=0x8A6C, name='WORLUK ESCAPE' },
   { group=3, bit=7, priority=1, primary=0x877B, secondary=nil,    name='WORLUK ENTRY' },
-  { group=4, bit=0, priority=2, primary=0x88E2, secondary=0x8905, name='SPECIAL DEATH EVENT' },
-  { group=4, bit=1, priority=1, primary=0x8AF6, secondary=0x8B1F, name='DUAL CHIP EVENT' },
-  { group=4, bit=2, priority=1, primary=nil,    secondary=0x8AF3, name='SPECIAL MONSTER FIRE' },
-  { group=4, bit=3, priority=1, primary=0x8B2E, secondary=0x8B5D, name='DUAL CHIP EVENT' },
+  { group=4, bit=0, priority=2, primary=0x88E2, secondary=0x8905, name='WIZARD DEATH' },
+  { group=4, bit=1, priority=1, primary=0x8AF6, secondary=0x8B1F, name='WIZARD APPEAR' },
+  { group=4, bit=2, priority=1, primary=nil,    secondary=0x8AF3, name='WIZARD FIRE' },
+  { group=4, bit=3, priority=1, primary=0x8B2E, secondary=0x8B5D, name='WORLUK ESCAPED' },
 }
 
 -- Two bytes per catalog entry: request-byte offset from $D240 and request mask.

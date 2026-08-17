@@ -2331,8 +2331,11 @@ L0DCF:      and     a
 ; P1_Lives/P2_Lives on that same condition. The clear path therefore posts
 ; Sound_Request_2 bit 0 (R2.B0), the player-death sound request.
 ;
-; Bit 2 set selects R3/R4 death-event requests according to the existing game
-; state tests below.
+; Bit 2 set selects the non-player death request from the active special-actor
+; state:
+;   LD1EB = 0                    -> R3.B1  MONSTER DEATH
+;   LD1EB != 0, LD1C6 = 0        -> R3.B0  WORLUK DEATH
+;   LD1EB != 0, LD1C6 != 0       -> R4.B0  WIZARD DEATH
 ;*****************************************************************************
 Request_Actor_Death_Sound:
 L0DD6:      bit     2,(ix+$07)
@@ -2341,16 +2344,16 @@ L0DD6:      bit     2,(ix+$07)
             inc     hl                  ; -> Sound_Request_3
             ld      a,(LD1EB)
             and     a
-            ld      a,$02               ; R3.B1 request value
+            ld      a,$02               ; R3.B1 - MONSTER DEATH
             jr      z,L0DF7
-            rra                         ; -> $01, R3.B0 request value
+            rra                         ; -> $01, R3.B0 - WORLUK DEATH
             ld      b,a
             ld      a,(LD1C6)
             and     a
             ld      a,b
             jr      z,L0DF7
             ld      hl,Sound_Request_4     ; Request bank 4
-            set     0,(hl)              ; R4.B0
+            set     0,(hl)              ; R4.B0 - WIZARD DEATH
             ret
 L0DF7:      or      (hl)
             ld      (hl),a
@@ -3083,13 +3086,21 @@ Read_Attract_Sound_DIP:
             ret
 ;
 ;*****************************************************************************
-; REQUEST SOUND R4.B3
+; WORLUK ESCAPED RESULT SOUND - R4.B3
+;
+; This threaded command is entry $178C. In GAME_COMMAND_STREAM, the command at
+; $12BC invokes the localized-text display handler $07E4 with record $11
+; (Text_Escaped, "ESCAPED"); after that command's four operand bytes, the next
+; threaded handler at $12C2 is $178C. The request is therefore the scripted
+; Worluk-escaped result cue.
+;
+; This is distinct from R3.B5, which is posted immediately when the active
+; Worluk crosses the maze boundary and is removed from its actor slot.
 ;
 ; Writes $08 to request bank 4, replacing the complete pending byte. The
 ; dispatcher installs priority-1 streams $8B2E (primary) and $8B5D (secondary).
-; The producer path is identified; the exact gameplay event remains unresolved.
 ;*****************************************************************************
-Request_Sound_R4_B3_Override:
+Post_Worluk_Escaped_Sound:
             ld      a,$08               ; R4.B3
             ld      (Sound_Request_4),a ; Replace pending request-4 bitfield
             ret
@@ -4112,9 +4123,12 @@ L2070:      bit     0,c
             bit     2,b
             ret     z
             res     2,(ix+$00)
-Post_Sound_R2_B6_Player_Status_Context:
+; Joystick direction bit 0 clears player actor-state bit 2. The exact gameplay
+; name of that actor-state transition is not yet established, so retain a
+; structural PLAYER INPUT STATE name rather than inferring from the sound.
+Post_Player_Input_State_Sound:
             ld      hl,Sound_Request_2
-            set     6,(hl)              ; R2.B6 - player/status context; exact event unresolved
+            set     6,(hl)              ; R2.B6 - PLAYER INPUT STATE
             ret
 L2080:      nop
 L2081:      ld      hl,LD040
@@ -4576,9 +4590,9 @@ L23C7:      and     $F8
 ; actor path from non-player actors here, matching the actor-class test used by
 ; the death-sound selector.
 ;
-;   player actor        -> R2.B1  PLAYER FIRE
-;   non-player actor    -> R3.B2  MONSTER FIRE
-;   special game state -> R4.B2  SPECIAL MONSTER FIRE
+;   player actor                         -> R2.B1  PLAYER FIRE
+;   ordinary non-player actor            -> R3.B2  MONSTER FIRE
+;   Worluk phase + active Wizard state   -> R4.B2  WIZARD FIRE
 ;*****************************************************************************
 Finalize_Projectile_And_Post_Fire_Sound:
 L23D2:      ld      (ix+$14),c
@@ -4607,8 +4621,8 @@ L23FD:      ld      a,(LD1C6)
             ld      a,b
             jr      z,L240A
             ld      hl,Sound_Request_4
-Post_Special_Monster_Fire_Sound:
-            set     2,(hl)              ; R4.B2 - SPECIAL MONSTER FIRE
+Post_Wizard_Fire_Sound:
+            set     2,(hl)              ; R4.B2 - WIZARD FIRE
             ret
 Post_Monster_Fire_Sound:
 L240A:      rrca                        ; $08 -> $04, R3.B2
@@ -5253,9 +5267,12 @@ L28CD:      ld      hl,LD1C7
             ld      a,(LD1C8)
             and     a
             ret     nz
-Post_Sound_R4_B1_Special_State:
+; Wizard appearance/reappearance path. The surrounding code consumes the
+; Wizard-spawn gate, rejects an already-active special actor, selects an active
+; player, and constructs the new special-actor position around that player.
+Post_Wizard_Appear_Sound:
             ld      hl,Sound_Request_4
-            set     1,(hl)              ; R4.B1 - special-state context; exact event unresolved
+            set     1,(hl)              ; R4.B1 - WIZARD APPEAR
             ld      a,(Dungeon_Number)
             ld      b,a
             ld      a,$B0
@@ -5485,11 +5502,20 @@ L2A73:      ld      (ix+$1c),b
             ld      (ix+$1f),$E0
             jr      L2AE3
 ;*****************************************************************************
-; SELECT R2 ACTOR-STATE SOUND
+; SELECT SAME-CORRIDOR / VISIBILITY SOUND FOR SPECIAL MONSTERS
 ;
-; This path posts R2.B2, R2.B3, or R2.B4 according to actor state and the
-; LD1EB/LD1C6 game-state selectors. The producer is structurally identified;
-; the exact gameplay meaning of these request bits remains unresolved.
+; L2A38 reaches this selector only after L2AF6 has tested the enemy against the
+; player corridor/proximity geometry. The actor class is encoded in IX+$08
+; bits 2-3:
+;   $04 Burwor  -> deliberately posts no sound here
+;   $08 Garwor  -> R2.B4  GARWOR VISIBLE
+;   $0C         -> R2.B3  THORWOR VISIBLE while LD1EB == 0
+;                  R2.B2  WORLUK PROXIMITY while LD1EB != 0
+;
+; The Garwor/Thorwor meanings agree with the game's own instruction text:
+; invisible monsters become visible when they enter the same maze corridor as
+; the player. Worluk is not an invisible-monster case, so its reuse of the
+; $0C-class path is named by the proven proximity/corridor context.
 ;*****************************************************************************
 Select_R2_Actor_State_Sound:
 L2A90:      ld      a,(LD1C6)
@@ -5505,7 +5531,7 @@ L2A90:      ld      a,(LD1C6)
             and     $0C
             jp      pe,L2AEB
             bit     2,a
-            ld      a,$10               ; R2.B4 request value
+            ld      a,$10               ; R2.B4 - GARWOR VISIBLE
             jr      nz,L2AB7
 Post_Selected_R2_Actor_State_Sound:
 L2AB5:      or      (hl)                ; Post R2.B2/R2.B3/R2.B4 selected above
@@ -5535,9 +5561,9 @@ L2AE3:      pop     af
             ret
 L2AEB:      ld      a,(LD1EB)
             and     a
-            ld      a,$08               ; R2.B3 request value
+            ld      a,$08               ; R2.B3 - THORWOR VISIBLE
             jr      z,L2AB5
-            rrca                        ; -> $04, R2.B2 request value
+            rrca                        ; -> $04, R2.B2 - WORLUK PROXIMITY
             jr      L2AB5
 L2AF6:      ld      a,(ix+$00)
             and     $88
@@ -6105,9 +6131,11 @@ L2F1B:      jr      z,L2F42
             out     (COL3L),a
             ld      (LD1BA),a
             ld      (LD1D8),a
-Post_Sound_R3_B5_Special_Actor_Context:
+; Active Worluk has crossed the maze boundary. The actor slot is cleared above,
+; matching the documented Worluk escape through a magic door.
+Post_Worluk_Escape_Sound:
             ld      hl,Sound_Request_3
-            set     5,(hl)              ; R3.B5 - special-actor context; exact event unresolved
+            set     5,(hl)              ; R3.B5 - WORLUK ESCAPE
             call    Enable_Sparkle_Colors
             jp      L30BA
 L2F42:      ld      a,$0A
@@ -6116,9 +6144,10 @@ L2F42:      ld      a,$0A
             ld      hl,Status_Display_Update_Flags
             set     0,(hl)
             call    L3125
-Post_Worluk_Phase_Sound:
+; Non-escape branch of the same maze-edge/magic-door transition path.
+Post_Magic_Door_Transit_Sound:
             ld      hl,Sound_Request_3
-            set     4,(hl)              ; R3.B4 - Worluk context; exact event unresolved
+            set     4,(hl)              ; R3.B4 - MAGIC DOOR TRANSIT
             exx
             jr      L2F65
 L2F58:      ld      e,(ix+$05)
@@ -9246,23 +9275,30 @@ L8537:      ret
 ; "confirmed" means the gameplay event is directly established by this source.
 ; "context" means the producer path is located but its exact event is unresolved.
 ;
-; R1.B0-B4   Fetch_Sound_Request_From_Stream       command-stream selected; meanings unresolved
+; R1.B0      Fetch_Sound_Request_From_Stream       WORLORD DUNGEON CUE             context ($112B)
+; R1.B1      Fetch_Sound_Request_From_Stream       command-stream event            unresolved ($1153)
+; R1.B2      command-stream write $D240=$04        RADAR CUE                       context ($1508)
+; R1.B3      Fetch_Sound_Request_From_Stream       attract-stream event            unresolved ($10D4)
+; R1.B4      Fetch_Sound_Request_From_Stream       ROUND START / GET READY CUE     context ($12FF)
 ; R1.B5      Post_Coin_Up_Sound_Request            COIN UP                         confirmed
 ; R2.B0      Request_Player_Death_Sound            PLAYER DEATH                    confirmed
 ; R2.B1      Post_Player_Fire_Sound                PLAYER FIRE                     confirmed
-; R2.B2/B3/B4 Select_R2_Actor_State_Sound          actor-state context              context
-; R2.B6      Post_Sound_R2_B6_Player_Status_Context player/status context           context
-; R2.B7      no static producer identified in this pass
-; R3.B0/B1   Request_Actor_Death_Sound             actor-death paths                confirmed path
+; R2.B2      Select_R2_Actor_State_Sound           WORLUK PROXIMITY                context
+; R2.B3      Select_R2_Actor_State_Sound           THORWOR VISIBLE                 confirmed path
+; R2.B4      Select_R2_Actor_State_Sound           GARWOR VISIBLE                  confirmed path
+; R2.B6      Post_Player_Input_State_Sound         PLAYER INPUT STATE              context
+; R2.B7      command-stream write $D241=$80        DUNGEON INTRO PRIMARY           context ($11B6)
+; R3.B0      Request_Actor_Death_Sound             WORLUK DEATH                    confirmed
+; R3.B1      Request_Actor_Death_Sound             MONSTER DEATH                   confirmed
 ; R3.B2      Post_Monster_Fire_Sound               MONSTER FIRE                    confirmed
 ; R3.B3      same stream as R3.B2; static producer unresolved
-; R3.B4      Post_Worluk_Phase_Sound               Worluk context                  context
-; R3.B5      Post_Sound_R3_B5_Special_Actor_Context special-actor context           context
+; R3.B4      Post_Magic_Door_Transit_Sound         MAGIC DOOR TRANSIT              confirmed path
+; R3.B5      Post_Worluk_Escape_Sound              WORLUK ESCAPE                   confirmed
 ; R3.B7      Post_Worluk_Entry_Sound               WORLUK ENTRY                    confirmed
-; R4.B0      Request_Actor_Death_Sound             special death path              confirmed path
-; R4.B1      Post_Sound_R4_B1_Special_State        special-state context           context
-; R4.B2      Post_Special_Monster_Fire_Sound       SPECIAL MONSTER FIRE            confirmed path
-; R4.B3      Request_Sound_R4_B3_Override          producer known; event unresolved
+; R4.B0      Request_Actor_Death_Sound             WIZARD DEATH                    confirmed
+; R4.B1      Post_Wizard_Appear_Sound              WIZARD APPEAR                   confirmed path
+; R4.B2      Post_Wizard_Fire_Sound                WIZARD FIRE                     confirmed
+; R4.B3      Post_Worluk_Escaped_Sound             WORLUK ESCAPED                  confirmed
 ;*****************************************************************************************
 ; SOUND REQUEST DECODERS ($D241-$D243)
 ;
@@ -9271,17 +9307,18 @@ L8537:      ret
 ; the caller, so one selector is serviced from each consumed R2/R3/R4 byte.
 ;
 ; R2: B0 S:$8928 p1 PLAYER DEATH   B1 S:$887B p0 PLAYER FIRE
-;     B2 S:$87EA p1 unresolved     B3 S:$883B p0 unresolved
-;     B4 S:$8825 p0 actor-state context  B5 ignored
-;     B6 S:$8988 p0 player/status context B7 P:$8741 p1 producer unresolved
-; R3: B0 P:$8AA1/S:$8ADD p1 special actor-death path
+;     B2 S:$87EA p1 WORLUK PROXIMITY  B3 S:$883B p0 THORWOR VISIBLE
+;     B4 S:$8825 p0 GARWOR VISIBLE    B5 ignored
+;     B6 S:$8988 p0 PLAYER INPUT STATE B7 P:$8741 p1 DUNGEON INTRO PRIMARY
+; R3: B0 P:$8AA1/S:$8ADD p1 WORLUK DEATH
 ;     B1 S:$890E p0 MONSTER DEATH   B2/B3 S:$8851 p0 MONSTER FIRE stream
-;     B4 S:$8A42 p0 Worluk context  B5 P:$8A81/S:$8A6C p1 special-actor context
+;     B4 S:$8A42 p0 MAGIC DOOR TRANSIT
+;     B5 P:$8A81/S:$8A6C p1 WORLUK ESCAPE
 ;     B6 ignored                      B7 P:$877B p1 WORLUK ENTRY
-; R4: B0 P:$88E2/S:$8905 p2 special death path
-;     B1 P:$8AF6/S:$8B1F p1 special-state context
-;     B2 S:$8AF3 p1 SPECIAL MONSTER FIRE
-;     B3 P:$8B2E/S:$8B5D p1 event unresolved   B4-B7 ignored
+; R4: B0 P:$88E2/S:$8905 p2 WIZARD DEATH
+;     B1 P:$8AF6/S:$8B1F p1 WIZARD APPEAR
+;     B2 S:$8AF3 p1 WIZARD FIRE
+;     B3 P:$8B2E/S:$8B5D p1 WORLUK ESCAPED   B4-B7 ignored
 ;*****************************************************************************************
 Dispatch_Sound_Request_2:
 L8538:      ld      hl,Sound_Request_2
@@ -9375,7 +9412,7 @@ L85E8:      ld      hl,Sound_Request_4
             ld      iy,Secondary_Sound_Engine_Record
             ld      hl,Sound_Stream_R4_B0_Secondary
             jp      Install_Sound_Stream
-L8607:      rra                         ; R4.B1 - special-state context; exact event unresolved
+L8607:      rra                         ; R4.B1 - WIZARD APPEAR
             ld      d,$01
             ld      hl,Sound_Stream_R4_B1_Primary
             jr      nc,L861C
@@ -9384,10 +9421,10 @@ L8607:      rra                         ; R4.B1 - special-state context; exact e
             ld      iy,Secondary_Sound_Engine_Record
             jp      Install_Sound_Stream
 L861C:      ld      iy,Secondary_Sound_Engine_Record
-            rra                         ; R4.B2 - SPECIAL MONSTER FIRE
+            rra                         ; R4.B2 - WIZARD FIRE
             ld      hl,Sound_Stream_R4_B2_Secondary
             jp      c,Install_Sound_Stream
-            rra                         ; R4.B3 - exact gameplay event unresolved
+            rra                         ; R4.B3 - WORLUK ESCAPED
             ld      hl,Sound_Stream_R4_B3_Secondary
             jr      nc,L863A
             call    Install_Sound_Stream
@@ -9551,7 +9588,7 @@ L878D:
             DB      $11,$5E,$01,$08,$10,$50,$13,$54,$12,$6A,$11,$7E
             DB      $01,$08,$13,$4F,$12,$5E,$11,$6A,$01,$08,$13,$46
             DB      $12,$54,$11,$5E,$01,$08,$02,$99,$87
-Sound_Stream_R2_B2_Secondary:             ; R2.B2 secondary, priority 1
+Sound_Stream_R2_B2_Secondary:             ; R2.B2 WORLUK PROXIMITY, secondary, priority 1
 L87EA:
             DB      $10,$A0,$04,$F9
 L87EE:
@@ -9569,11 +9606,11 @@ L881A:
             DB      $FF,$01,$13,$27,$12
 L881F:
             DB      $1B,$11,$17,$02,$07,$88
-Sound_Stream_R2_B4_Secondary:             ; R2.B4 secondary, priority 0
+Sound_Stream_R2_B4_Secondary:             ; R2.B4 GARWOR VISIBLE, secondary, priority 0
 L8825:
             DB      $04,$F9,$FF,$20,$04,$FE,$23,$02,$01,$05,$F9,$FF
             DB      $02,$13,$13,$12,$0D,$11,$0B,$02,$07,$88
-Sound_Stream_R2_B3_Secondary:             ; R2.B3 secondary, priority 0
+Sound_Stream_R2_B3_Secondary:             ; R2.B3 THORWOR VISIBLE, secondary, priority 0
 L883B:
             DB      $04,$F9,$FF,$20,$02,$FE,$23
 L8842:
@@ -9610,7 +9647,7 @@ L88BB:
             DB      $01,$01,$05,$DD,$FF,$04,$13,$11,$12,$17,$11,$1F
             DB      $16,$9A,$15,$1A,$00,$05,$F9,$FF,$01,$06,$F9,$FF
             DB      $01,$00,$03
-Sound_Stream_R4_B0_Primary:             ; R4.B0 primary, priority 2
+Sound_Stream_R4_B0_Primary:             ; R4.B0 WIZARD DEATH, primary, priority 2
 L88E2:
             DB      $01,$02,$13,$2A,$12,$18,$11,$06,$10,$30,$04,$F9
             DB      $FF,$30,$20
@@ -9618,7 +9655,7 @@ L88F1:
             DB      $FC,$01,$01,$01,$17,$00,$04,$DD,$FF,$20,$00
 L88FC:
             DB      $02,$01,$04,$04,$16,$FF,$15,$1F,$00
-Sound_Stream_R4_B0_Secondary:             ; R4.B0 secondary, priority 2
+Sound_Stream_R4_B0_Secondary:             ; R4.B0 WIZARD DEATH, secondary, priority 2
 L8905:
             DB      $13,$64,$12,$50,$11,$3C,$02,$EA,$88,$10,$20,$13
 L8911:
@@ -9643,7 +9680,7 @@ L8969:
 Sound_Stream_R1_B3_Primary:             ; R1.B3 primary, priority 0
 L8981:
             DB      $16,$22,$15,$12,$02,$54,$89
-Sound_Stream_R2_B6_Secondary:             ; R2.B6 secondary, priority 0
+Sound_Stream_R2_B6_Secondary:             ; R2.B6 PLAYER INPUT STATE, secondary, priority 0
 L8988:
             DB      $10,$20,$04,$F9,$FF,$20,$0C,$FF,$03,$02,$01,$16
             DB      $55,$15,$06,$13,$54,$12,$6A
@@ -9688,7 +9725,7 @@ L8A27:
             DB      $11,$5E,$01,$60,$13,$54,$12,$37,$11,$5E,$01
 L8A3E:
             DB      $58,$02,$E5,$89
-Sound_Stream_R3_B4_Secondary:             ; R3.B4 Worluk context; exact event unresolved, priority 0
+Sound_Stream_R3_B4_Secondary:             ; R3.B4 MAGIC DOOR TRANSIT, priority 0
 L8A42:
             DB      $10,$14,$14,$48,$04,$F9,$FF,$14,$08,$FF,$23,$02
             DB      $03,$15,$28,$17,$20,$04,$DD,$FF,$54,$20,$04
@@ -9698,11 +9735,11 @@ L8A5D:
             DB      $F9,$FF,$01,$16,$88,$13,$FD,$12,$FE,$11,$FF,$00
 L8A69:
             DB      $01,$06,$03
-Sound_Stream_R3_B5_Secondary:             ; R3.B5 special-actor context; exact event unresolved, priority 1
+Sound_Stream_R3_B5_Secondary:             ; R3.B5 WORLUK ESCAPE, priority 1
 L8A6C:
             DB      $13,$E0,$12,$C8,$11,$B6,$10,$14,$14,$48,$16,$88
             DB      $15,$28,$17,$20,$01,$20,$02,$42,$8A
-Sound_Stream_R3_B5_Primary:             ; R3.B5 special-actor context; exact event unresolved, priority 1
+Sound_Stream_R3_B5_Primary:             ; R3.B5 WORLUK ESCAPE, priority 1
 L8A81:
             DB      $10,$09,$14,$48,$13,$E0,$12,$C8,$11,$B6,$16
 L8A8C:
@@ -9710,34 +9747,34 @@ L8A8C:
 L8A92:
             DB      $F9,$FF,$21,$09,$02,$21,$02,$03,$05,$F9,$FF,$01
             DB      $02,$62,$8A
-Sound_Stream_R3_B0_Primary:             ; R3.B0 primary, priority 1
+Sound_Stream_R3_B0_Primary:             ; R3.B0 WORLUK DEATH, primary, priority 1
 L8AA1:
             DB      $04,$DD,$FF,$80,$00,$FE,$21,$01,$01,$17,$80,$10
             DB      $40,$13,$68,$12,$44,$11,$21,$05,$DD,$FF,$01,$15
             DB      $1F,$16,$EE,$00,$15,$2F,$05,$F9,$FF,$02,$06,$DD
             DB      $FF,$01,$04,$F9,$FF,$80,$02,$FF,$21,$01,$01,$14
             DB      $80,$04,$EB,$FF,$BF,$80,$01,$01,$02,$02,$00,$03
-Sound_Stream_R3_B0_Secondary:             ; R3.B0 secondary, priority 1
+Sound_Stream_R3_B0_Secondary:             ; R3.B0 WORLUK DEATH, secondary, priority 1
 L8ADD:
             DB      $13,$33,$12,$30,$11,$02,$01,$04,$04,$DD,$FF,$80
             DB      $00,$02,$21,$01,$01
 L8AEE:
             DB      $17,$00,$02,$AC,$8A
-Sound_Stream_R4_B2_Secondary:             ; R4.B2 SPECIAL MONSTER FIRE, secondary, priority 1
+Sound_Stream_R4_B2_Secondary:             ; R4.B2 WIZARD FIRE, secondary, priority 1
 L8AF3:
             DB      $02,$B3,$88
-Sound_Stream_R4_B1_Primary:             ; R4.B1 special-state context; exact event unresolved, priority 1
+Sound_Stream_R4_B1_Primary:             ; R4.B1 WIZARD APPEAR, priority 1
 L8AF6:
             DB      $10,$14,$14,$88,$13,$37,$12,$85,$11,$8D,$17,$00
             DB      $16,$AA,$15,$2A,$01,$28,$14,$00,$04,$F9
 L8B0C:
             DB      $FF,$5C,$14,$06,$01,$04,$04,$17,$28,$04,$D6,$FF
             DB      $04,$01,$FF,$01,$30,$30,$00
-Sound_Stream_R4_B1_Secondary:             ; R4.B1 special-state context; exact event unresolved, priority 1
+Sound_Stream_R4_B1_Secondary:             ; R4.B1 WIZARD APPEAR, priority 1
 L8B1F:
             DB      $10,$10,$14,$86,$13,$29,$12,$35,$11,$7E,$16,$99
             DB      $15,$29,$00
-Sound_Stream_R4_B3_Primary:             ; R4.B3 exact event unresolved, primary, priority 1
+Sound_Stream_R4_B3_Primary:             ; R4.B3 WORLUK ESCAPED, primary, priority 1
 L8B2E:
             DB      $13,$A8,$12
 L8B31:
@@ -9747,7 +9784,7 @@ L8B31:
 L8B4E:
             DB      $FF,$01,$14,$1C,$04,$EB,$FF,$1C,$01,$FD,$23,$07
             DB      $07,$00,$03
-Sound_Stream_R4_B3_Secondary:             ; R4.B3 exact event unresolved, secondary, priority 1
+Sound_Stream_R4_B3_Secondary:             ; R4.B3 WORLUK ESCAPED, secondary, priority 1
 L8B5D:
             DB      $13,$54,$12,$34,$11,$FD,$02,$34,$8B
 

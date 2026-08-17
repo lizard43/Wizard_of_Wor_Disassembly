@@ -374,7 +374,7 @@ Finalize_Projectile_And_Post_Fire_Sound ($23D2)
     -> secondary sound engine
 ```
 
-The non-player branch from the same projectile path posts `R3.B2` for monster fire, or `R4.B2` in the identified special-game-state path.
+The non-player branch from the same projectile path posts `R3.B2` for ordinary monster fire. When the Worluk phase is active and the Wizard state is active, the same firing path switches to `R4.B2`; that establishes `R4.B2` as **Wizard fire**.
 
 #### Worluk entry example
 
@@ -388,32 +388,52 @@ Post_Worluk_Entry_Sound
     -> primary sound engine
 ```
 
-Not every producer has a proven gameplay name. For example, `Request_Sound_R4_B3_Override` is a known producer of `R4.B3`, and the dispatcher mapping to primary `$8B2E` and secondary `$8B5D` is known, but the precise gameplay event remains unresolved. Keeping these layers separate prevents a stream address or audible impression from being mistaken for a proven game-code identity.
+### Additional event resolutions from static gameplay paths
+
+The game code resolves several selectors that previously had only generic browser names.
+
+`Select_R2_Actor_State_Sound` is reached from the enemy/player corridor-proximity test. Its actor-class branch deliberately emits no request for Burwor, posts `R2.B4` for Garwor, and posts `R2.B3` for the `$0C` class while the Worluk phase is inactive. This matches WoW's own instruction text that Garwors and Thorwors become visible when they enter the same maze corridor as the player. The same `$0C` path changes to `R2.B2` while the Worluk phase is active; because Worluk is not an invisible-monster case, that selector is conservatively named **Worluk proximity** rather than “Worluk visible.”
+
+The special-actor state also resolves the death, fire, and appearance selectors. `Request_Actor_Death_Sound` selects `R3.B1` for ordinary monster death, `R3.B0` while the Worluk phase is active, and `R4.B0` when the Wizard state is also active. These are therefore **monster death**, **Worluk death**, and **Wizard death** respectively. The special spawn path that chooses an active player and constructs a new special-actor position posts `R4.B1`, establishing **Wizard appear**. The corresponding special projectile path posts `R4.B2`, establishing **Wizard fire**.
+
+The maze-edge path separates two further events. When the active Worluk crosses the boundary, the code clears its actor slot and posts `R3.B5`: **Worluk escape**. The non-escape branch of the same boundary path posts `R3.B4`: **magic door transit**.
+
+`R4.B3` is also statically identifiable. In `GAME_COMMAND_STREAM`, the command at `$12BC` calls the localized-text display handler with record `$11`, `Text_Escaped` (“ESCAPED”). That command consumes four operand bytes; the very next threaded handler at `$12C2` is `$178C`, which writes `$08` to `Sound_Request_4`. Thus `R4.B3` is the scripted **Worluk escaped** result cue. It is distinct from the immediate `R3.B5` escape sound posted at the boundary crossing.
+
+The command stream also improves several R1 labels without relying on the sound itself. The `$112B` `R1.B0` post follows the `Text_Worlord_Dungeon` display, `$1508` writes `R1.B2` in the `Text_Radar` path, and `$12FF` posts `R1.B4` in the round-start path immediately before the optional `GET READY` display. `R2.B7` is no longer producer-less: the game stream writes `$80` directly to `$D241` at `$11B6` before the dungeon-class intro branch. It reuses only the primary `$8741` stream and is therefore identified as **dungeon intro primary**.
+
+A few selectors remain deliberately generic. `R1.B1` and the attract-stream `R1.B3` have static posting locations but not yet a sufficiently specific gameplay meaning. `R2.B6` is known to be a joystick-triggered player actor-state transition, but the exact state-bit meaning is still unresolved. `R3.B3` still has no identified producer and selects the same secondary stream as ordinary monster fire.
 
 ### Request producer cross-reference
 
-This table connects the identified game-code producer to the request bit consumed by the resident sound dispatcher. `Confirmed` means the gameplay meaning is directly established by the producer path. `Context` means the producer has been located but its precise gameplay meaning is not yet resolved.
+This table connects the identified game-code producer to the request bit consumed by the resident sound dispatcher. `Confirmed` means the gameplay meaning is directly established by the producer path. `Context` means the source path is established and supports the name, but some higher-level state semantics remain conservative. `Unresolved` is retained only where the code still does not support a more specific event name.
 
 | Request | Producer / source path | Current identification | Evidence |
 | --- | --- | --- | --- |
-| `R1.B0-R1.B4` | `Fetch_Sound_Request_From_Stream` | Command-stream selected; individual meanings unresolved | Context |
+| `R1.B0` | `Fetch_Sound_Request_From_Stream` at `$112B`, after `Text_Worlord_Dungeon` | Worlord dungeon cue | Context |
+| `R1.B1` | `Fetch_Sound_Request_From_Stream` at `$1153` | Command-stream event | Unresolved |
+| `R1.B2` | Direct command-stream write `$D240=$04` at `$1508` in the `Text_Radar` path | Radar cue | Context |
+| `R1.B3` | `Fetch_Sound_Request_From_Stream` at attract-stream `$10D4` | Attract event | Unresolved |
+| `R1.B4` | `Fetch_Sound_Request_From_Stream` at `$12FF` in the round-start / `GET READY` path | Round start cue | Context |
 | `R1.B5` | `Post_Coin_Up_Sound_Request` | Coin up | Confirmed |
 | `R2.B0` | `Request_Player_Death_Sound` from `Handle_Actor_Death` | Player death | Confirmed |
 | `R2.B1` | `Post_Player_Fire_Sound` from projectile creation | Player fire | Confirmed |
-| `R2.B2-R2.B4` | `Select_R2_Actor_State_Sound` | Actor-state requests; precise meanings unresolved | Context |
-| `R2.B6` | `Post_Sound_R2_B6_Player_Status_Context` | Player/status context | Context |
-| `R2.B7` | No static producer identified | Primary reuse of the `$8741` stream | Unresolved |
-| `R3.B0` | `Request_Actor_Death_Sound` | Special actor-death path | Confirmed path |
-| `R3.B1` | `Request_Actor_Death_Sound` | Monster death | Confirmed |
+| `R2.B2` | `Select_R2_Actor_State_Sound`, `$0C` class with Worluk phase active | Worluk proximity | Context |
+| `R2.B3` | `Select_R2_Actor_State_Sound`, `$0C` class before Worluk phase | Thorwor visible | Confirmed path |
+| `R2.B4` | `Select_R2_Actor_State_Sound`, Garwor class | Garwor visible | Confirmed path |
+| `R2.B6` | `Post_Player_Input_State_Sound`; joystick bit 0 clears player actor-state bit 2 | Player input state | Context |
+| `R2.B7` | Direct command-stream write `$D241=$80` at `$11B6` before dungeon-class intro branch | Dungeon intro primary | Context |
+| `R3.B0` | `Request_Actor_Death_Sound`, Worluk phase active and Wizard inactive | Worluk death | Confirmed |
+| `R3.B1` | `Request_Actor_Death_Sound`, ordinary monster state | Monster death | Confirmed |
 | `R3.B2` | `Post_Monster_Fire_Sound` | Monster fire | Confirmed |
-| `R3.B3` | Static producer not identified; shares the R3.B2 stream | Monster-fire stream; precise producer unresolved | Unresolved |
-| `R3.B4` | `Post_Worluk_Phase_Sound` | Worluk context | Context |
-| `R3.B5` | `Post_Sound_R3_B5_Special_Actor_Context` | Special-actor context | Context |
+| `R3.B3` | Static producer not identified; shares the `R3.B2` stream | Monster fire alternate selector | Unresolved |
+| `R3.B4` | `Post_Magic_Door_Transit_Sound`, non-escape maze-edge branch | Magic door transit | Confirmed path |
+| `R3.B5` | `Post_Worluk_Escape_Sound`, actor removed at maze boundary | Worluk escape | Confirmed |
 | `R3.B7` | `Post_Worluk_Entry_Sound` | Worluk entry | Confirmed |
-| `R4.B0` | `Request_Actor_Death_Sound` | Special death path | Confirmed path |
-| `R4.B1` | `Post_Sound_R4_B1_Special_State` | Special-state context | Context |
-| `R4.B2` | `Post_Special_Monster_Fire_Sound` | Special monster fire | Confirmed path |
-| `R4.B3` | `Request_Sound_R4_B3_Override` | Producer known; precise event unresolved | Context |
+| `R4.B0` | `Request_Actor_Death_Sound`, Wizard state active | Wizard death | Confirmed |
+| `R4.B1` | `Post_Wizard_Appear_Sound` from special-actor spawn path | Wizard appear | Confirmed path |
+| `R4.B2` | `Post_Wizard_Fire_Sound` from special projectile path | Wizard fire | Confirmed |
+| `R4.B3` | `Post_Worluk_Escaped_Sound` at `$178C`, immediately after `Text_Escaped` command | Worluk escaped | Confirmed |
 
 The resident entry points used by the sound system are:
 
@@ -520,37 +540,38 @@ Event names are assigned only where request-posting call sites or runtime behavi
 
 | Request | Write | Pri | PSTR | SSTR | Event | Observed |
 | --- | ---: | ---: | ---: | ---: | --- | --- |
-| `R1.B0` | `$D240=$01` | 0 | `$89BE` | `$89E5` | Global event 0 | `>4s`, latch |
-| `R1.B1` | `$D240=$02` | 0 | `$89A0` | `$89AF` | Global event 1 | `>4s`, latch |
-| `R1.B2` | `$D240=$04` | 0 | `$8741` | `$8772` | Global event 2 | `>4s`, modulation |
-| `R1.B3` | `$D240=$08` | 0 | `$8981` | — | Global event 3 | `>4s`, modulation |
-| `R1.B4` | `$D240=$10` | 0 | `$8A0C` | `$8A27` | Global event 4 | `>4s`, wait |
+| `R1.B0` | `$D240=$01` | 0 | `$89BE` | `$89E5` | Worlord dungeon cue | `>4s`, latch |
+| `R1.B1` | `$D240=$02` | 0 | `$89A0` | `$89AF` | Global event 1; exact meaning unresolved | `>4s`, latch |
+| `R1.B2` | `$D240=$04` | 0 | `$8741` | `$8772` | Radar cue | `>4s`, modulation |
+| `R1.B3` | `$D240=$08` | 0 | `$8981` | — | Attract event 3; exact meaning unresolved | `>4s`, modulation |
+| `R1.B4` | `$D240=$10` | 0 | `$8A0C` | `$8A27` | Round start cue | `>4s`, wait |
 | `R1.B5` | `$D240=$20` | 0 | `$8971` | — | Coin up | `>4s`, modulation |
 | `R2.B0` | `$D241=$01` | 1 | — | `$8928` | Player death | Ends |
 | `R2.B1` | `$D241=$02` | 0 | — | `$887B` | Player fire | Ends |
-| `R2.B2` | `$D241=$04` | 1 | — | `$87EA` | Unresolved event | Ends |
-| `R2.B3` | `$D241=$08` | 0 | — | `$883B` | Unresolved event | Ends |
-| `R2.B4` | `$D241=$10` | 0 | — | `$8825` | Actor-state context | Ends |
-| `R2.B6` | `$D241=$40` | 0 | — | `$8988` | Player/status context | Ends |
-| `R2.B7` | `$D241=$80` | 1 | `$8741` | — | Global event 2 primary | `>4s`, modulation |
-| `R3.B0` | `$D242=$01` | 1 | `$8AA1` | `$8ADD` | Special actor-death path | `>4s`, modulation |
+| `R2.B2` | `$D241=$04` | 1 | — | `$87EA` | Worluk proximity | Ends |
+| `R2.B3` | `$D241=$08` | 0 | — | `$883B` | Thorwor visible | Ends |
+| `R2.B4` | `$D241=$10` | 0 | — | `$8825` | Garwor visible | Ends |
+| `R2.B6` | `$D241=$40` | 0 | — | `$8988` | Player input state | Ends |
+| `R2.B7` | `$D241=$80` | 1 | `$8741` | — | Dungeon intro primary | `>4s`, modulation |
+| `R3.B0` | `$D242=$01` | 1 | `$8AA1` | `$8ADD` | Worluk death | `>4s`, modulation |
 | `R3.B1` | `$D242=$02` | 0 | — | `$890E` | Monster death | Ends |
 | `R3.B2` | `$D242=$04` | 0 | — | `$8851` | Monster fire | Ends |
-| `R3.B3` | `$D242=$08` | 0 | — | `$8851` | Monster-fire stream; producer unresolved | Ends |
-| `R3.B4` | `$D242=$10` | 0 | — | `$8A42` | Worluk context | Ends |
-| `R3.B5` | `$D242=$20` | 1 | `$8A81` | `$8A6C` | Special-actor context | Ends |
+| `R3.B3` | `$D242=$08` | 0 | — | `$8851` | Monster fire alternate selector; producer unresolved | Ends |
+| `R3.B4` | `$D242=$10` | 0 | — | `$8A42` | Magic door transit | Ends |
+| `R3.B5` | `$D242=$20` | 1 | `$8A81` | `$8A6C` | Worluk escape | Ends |
 | `R3.B7` | `$D242=$80` | 1 | `$877B` | — | Worluk entry | `>4s`, wait |
-| `R4.B0` | `$D243=$01` | 2 | `$88E2` | `$8905` | Special death path | Sustained, modulation |
-| `R4.B1` | `$D243=$02` | 1 | `$8AF6` | `$8B1F` | Special-state context | Sustained, modulation/latch |
-| `R4.B2` | `$D243=$04` | 1 | — | `$8AF3` | Special monster fire | Ends |
-| `R4.B3` | `$D243=$08` | 1 | `$8B2E` | `$8B5D` | Unresolved event; producer known | Ends |
+| `R4.B0` | `$D243=$01` | 2 | `$88E2` | `$8905` | Wizard death | Sustained, modulation |
+| `R4.B1` | `$D243=$02` | 1 | `$8AF6` | `$8B1F` | Wizard appear | Sustained, modulation/latch |
+| `R4.B2` | `$D243=$04` | 1 | — | `$8AF3` | Wizard fire | Ends |
+| `R4.B3` | `$D243=$08` | 1 | `$8B2E` | `$8B5D` | Worluk escaped | Ends |
 
 ## Notes
 
 - For reverse engineering, follow **producer label -> request bit -> stream label/address**. Source/LST line numbers can move as comments and data representation are cleaned up; ROM addresses and symbolic labels are the stable correlation points.
 - The ROM sound streams are interpreted data. Apparent Z80 opcodes produced by linear disassembly inside the stream region are not sound-engine execution paths.
 - `R3.B2` and `R3.B3` select the same secondary stream at `$8851`.
-- `R2.B7` reuses the primary `$8741` stream used by `R1.B2`.
+- `R3.B5` is the immediate Worluk escape cue at boundary crossing; `R4.B3` is the later scripted Worluk-escaped result cue that follows the on-screen `ESCAPED` message.
+- `R2.B7` is posted directly by the game command stream before the dungeon-class intro branch and reuses the primary `$8741` stream used by `R1.B2`.
 - `R4.B0` carries priority 2. All other catalog requests use priority 0 or 1.
 - Stream entry addresses are starting points; the saved engine pointer moves through waits, jumps, and modulation commands during playback.
 - The Astrocade sound registers retain their values until software changes them. A stream can finish decoding while the IC continues sounding from the retained register image.
