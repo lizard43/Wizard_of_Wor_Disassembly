@@ -1,8 +1,11 @@
 ; wow_equates.include
 ; ==============================================================================
-; Wizard of Wor - Master Hardware Equates
+; Wizard of Wor - Hardware, memory-map, gameplay, and legacy address equates
 ; ==============================================================================
 
+; ------------------------------------------------------------------------------
+; RESIDENT ROM ENTRY POINTS
+; ------------------------------------------------------------------------------
 HIGH_ROM_INIT_HOOK              EQU     $8006       ; Low ROM probes for JP; WoW maps this to Sound_Reset_All_Entry
 
 ; ------------------------------------------------------------------------------
@@ -140,6 +143,26 @@ Enemy_4_Actor_Record             EQU     $D106
 Enemy_5_Actor_Record             EQU     $D12C
 Enemy_6_Actor_Record             EQU     $D152
 
+; Expanded maze topology
+; The selected 18-byte ROM record is reflected into 66 one-byte cell masks.
+; The decoder starts six bytes before the buffer because each row begins by
+; adding the six-byte stored half-row width.
+Maze_Expansion_Prebase           EQU     $D172
+Maze_Expanded_Cells              EQU     $D178
+Maze_Expanded_Cells_End          EQU     $D1B9
+
+; Worluk-death maze palette flash
+; GAME_COMMAND_STREAM writes $20 to the countdown at $1291.  The resident
+; $075B service advances the three-frame divider and restores the base palette
+; when the countdown reaches zero.
+Worluk_Death_Flash_Countdown      EQU     $D1BD
+Worluk_Death_Flash_Divider        EQU     $D1BE
+Foreground_Fade_Out_Countdown     EQU     $D1BF
+Foreground_Fade_Out_Divider       EQU     $D1C0
+Foreground_Fade_In_Countdown      EQU     $D1C1
+Foreground_Fade_In_Divider        EQU     $D1C2
+Special_Actor_Color_State         EQU     $D1D8       ; Wizard color state; $F3 marks Worluk escape in result stream
+
 ; Player input and display state
 P2_Input_State                   EQU     $D1DC
 P1_Input_State                   EQU     $D1DD
@@ -160,6 +183,15 @@ Primary_Sound_Modulator_Area     EQU     $D246       ; Six 7-byte modulator slot
 Primary_Sound_Engine_Record      EQU     $D270       ; 18-byte primary engine record
 Secondary_Sound_Modulator_Area   EQU     $D282       ; Six 7-byte modulator slots, cleared by secondary reset
 Secondary_Sound_Engine_Record    EQU     $D2AC       ; 18-byte secondary engine record
+
+;*****************************************************************************
+; SOUND STREAM ENTRY ALIASES
+;
+; Dispatcher-visible stream entries that fall inside byte-emitting statements
+; in the stream-data representation.
+;*****************************************************************************
+Sound_Stream_R3_B1_Secondary     EQU     L890E       ; R3.B1 MONSTER DEATH, secondary stream
+Sound_Stream_R1_B5_Primary       EQU     L8971       ; R1.B5 primary stream; requested by coin-input handler
 
 SOUND_MODULATOR_SLOT_SIZE        EQU     $07
 SOUND_MODULATOR_SLOT_COUNT       EQU     $06
@@ -319,6 +351,11 @@ DUNGEON_CLASS_PIT                EQU     $02
 
 MAZE_COUNT                       EQU     $18
 PACKED_MAZE_RECORD_SIZE          EQU     $12
+MAZE_STORED_ROW_BYTES            EQU     $03
+MAZE_STORED_CELL_COLUMNS         EQU     $06
+MAZE_EXPANDED_COLUMNS            EQU     $0B
+MAZE_EXPANDED_ROWS               EQU     $06
+MAZE_EXPANDED_CELL_COUNT         EQU     $42
 MAZE_SELECTION_FLAG_COUNT        EQU     $17
 
 DIP_STARTING_LIVES               EQU     $10
@@ -476,33 +513,20 @@ LA284       EQU     $A284
 LB059       EQU     $B059
 LB0AE       EQU     $B0AE
 
-;
-; Begin Static RAM area
-;
+; Raw protected/static/work-RAM addresses.
 
 WPRAMSTART  EQU     $D000
 LD003       EQU     $D003
-
-
-
 LD03A       EQU     $D03A
-
-
-            ;
 LD03D       EQU     $D03D
 LD03E       EQU     $D03E
 LD040       EQU     $D040
 LD041       EQU     $D041
-            ;
-
 LD043       EQU     $D043
 LD044       EQU     $D044
 LD045       EQU     $D045
 LD046       EQU     $D046
 LD047       EQU     $D047
-
-
-
 LD049       EQU     $D049
 LD04A       EQU     $D04A
 LD04B       EQU     $D04B
@@ -535,8 +559,6 @@ LD134       EQU     $D134
 LD13F       EQU     $D13F
 LD15A       EQU     $D15A
 LD165       EQU     $D165
-LD172       EQU     $D172
-LD178       EQU     $D178
 LD18E       EQU     $D18E
 LD198       EQU     $D198
 LD1BA       EQU     $D1BA
@@ -563,9 +585,6 @@ LD1D2       EQU     $D1D2
 LD1D3       EQU     $D1D3
 ROMFAIL     EQU     $D1D4
 LD1D5       EQU     $D1D5
-            ;
-
-            ;
 LD1D8       EQU     $D1D8
 LD1D9       EQU     $D1D9
 LD1DA       EQU     $D1DA
@@ -586,10 +605,6 @@ LD1F0       EQU     $D1F0
 LD1F1       EQU     $D1F1
 LD1F2       EQU     $D1F2
 LD1F3       EQU     $D1F3
-
-            ;
-
-            ;
 LD304       EQU     $D304
 LD30E       EQU     $D30E
 LD319       EQU     $D319
@@ -602,10 +617,6 @@ LD343       EQU     $D343
 LD344       EQU     $D344
 LD345       EQU     $D345
 LD346       EQU     $D346
-
-            ;
-
-            ;
 LD34C       EQU     $D34C
 LD351       EQU     $D351
 LD352       EQU     $D352
