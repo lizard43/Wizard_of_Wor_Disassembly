@@ -8,7 +8,7 @@
 -- complete visible interface and action records; Lua decodes diagnostics only.
 
 local M = {}
-M.VERSION = '1.3.3-20260817-1722'
+M.VERSION = '1.3.4-20260817-1809'
 
 local C = {
   -- Resident Wizard of Wor code and cabinet ports.
@@ -73,6 +73,7 @@ local C = {
   ROTATE_SOURCE_ROW       = 0xDE7D, -- first source row of current 4-row band
   TEXT_BUFFER             = 0xDE80, -- four resident-font address glyphs
   STATE_ROTATE_WRITES     = 0xDE84, -- completed Magic writes; 200 expected
+  STATE_LABEL_COLOR       = 0xDE85, -- XPAND color for address-label repaint
   BLANK_SPRITE            = 0xDE90, -- 90 zero bytes, drawn through $0B92
 
   -- Reserved for the animation/action phase.  Native Z80 will own these.
@@ -121,7 +122,9 @@ local C = {
   FOOTER_LINE2_DEST       = 12 * 16 * 80,
   FOOTER_LINE1_WIDTH      = 36,
   FOOTER_LINE2_WIDTH      = 40,
-  TEXT_EXPAND_COLOR       = 0x0C,
+  TEXT_BLUE               = 0x04,
+  TEXT_YELLOW             = 0x08,
+  TEXT_RED                = 0x0C,
 
   MAGIC_SHIFT_MASK        = 0x03,
   MAGIC_ROTATE_MASK       = 0x04,
@@ -520,9 +523,9 @@ local function build_controller()
   a:label('commit_cell_move')
   emit_call(a, 'old_visible_slot')
   emit_call(a, 'border_off')
+  emit_call(a, 'draw_header')
   emit_call(a, 'current_visible_slot')
   emit_call(a, 'border_on')
-  emit_call(a, 'draw_header')
 
   a:label('commit_event')
   a:b(0x3E); a:b(0x01); emit_ld_mem_a(a, C.STATE_EVENT_TYPE)
@@ -758,9 +761,9 @@ local function build_controller()
   emit_jp(a, 'draw_gallery_loop')
 
   a:label('draw_gallery_done')
+  emit_call(a, 'draw_header')
   emit_call(a, 'current_visible_slot')
   emit_call(a, 'border_on')
-  emit_call(a, 'draw_header')
   emit_call(a, 'draw_footer')
   emit_ld_a_mem(a, C.STATE_SELECTED); emit_ld_mem_a(a, C.STATE_OLD_SELECTED)
   emit_ld_a_mem(a, C.STATE_FIRST_ROW); emit_ld_mem_a(a, C.STATE_OLD_FIRST_ROW)
@@ -811,7 +814,7 @@ local function build_controller()
   a:b(0x5E); a:b(0x23); a:b(0x56)                -- LD E,(HL)/INC/LD D,(HL)
   a:b(0xE1)                                      -- POP HL
   a:b(0x06); a:b(0x04)
-  a:b(0x3E); a:b(C.TEXT_EXPAND_COLOR)
+  emit_ld_a_mem(a, C.STATE_LABEL_COLOR)
   emit_call(a, C.PRINT_STRING_COLOR)
   a:b(0xC9)
 
@@ -852,14 +855,14 @@ local function build_controller()
   a:label('print_footer_line1')
   a:b(0x11); a:w(C.FOOTER_LINE1_DEST)
   a:b(0x06); a:b(C.FOOTER_LINE1_WIDTH)
-  a:b(0x3E); a:b(C.TEXT_EXPAND_COLOR)
+  a:b(0x3E); a:b(C.TEXT_YELLOW)
   emit_call(a, C.PRINT_STRING_COLOR)
   a:b(0xC9)
 
   a:label('print_footer_line2')
   a:b(0x11); a:w(C.FOOTER_LINE2_DEST)
   a:b(0x06); a:b(C.FOOTER_LINE2_WIDTH)
-  a:b(0x3E); a:b(C.TEXT_EXPAND_COLOR)
+  a:b(0x3E); a:b(C.TEXT_YELLOW)
   emit_call(a, C.PRINT_STRING_COLOR)
   a:b(0xC9)
 
@@ -936,7 +939,7 @@ local function build_controller()
   a:b(0x21); a:word('version_text')
   a:b(0x11); a:w(C.HEADER_VERSION_DEST)
   a:b(0x06); a:b(0x04)
-  a:b(0x3E); a:b(C.TEXT_EXPAND_COLOR)
+  a:b(0x3E); a:b(C.TEXT_YELLOW)
   emit_call(a, C.PRINT_STRING_COLOR)
   a:b(0xC9)
 
@@ -1086,20 +1089,27 @@ local function build_controller()
   a:b(0xC9)
 
   -- A = visible cell index.  A color-3, one-pixel border surrounds the padded
-  -- 20x18 sprite.  Clearing only touches the padding bytes, never sprite data.
+  -- 20x18 sprite.  Border changes also repaint that cell's address: selected
+  -- red, unselected blue.  Clearing touches padding bytes, never sprite data.
   a:label('border_on')
+  emit_ld_mem_a(a, C.STATE_DRAW_SLOT)
   a:b(0xF5)
   a:b(0x3E); a:b(0xFF); emit_ld_mem_a(a, C.STATE_BORDER_FILL)
   a:b(0x3E); a:b(0xC0); emit_ld_mem_a(a, C.STATE_BORDER_LEFT)
   a:b(0x3E); a:b(0x03); emit_ld_mem_a(a, C.STATE_BORDER_RIGHT)
-  a:b(0xF1); emit_jp(a, 'draw_border')
+  a:b(0xF1); emit_call(a, 'draw_border')
+  a:b(0x3E); a:b(C.TEXT_RED); emit_ld_mem_a(a, C.STATE_LABEL_COLOR)
+  emit_jp(a, 'draw_address_label')
 
   a:label('border_off')
+  emit_ld_mem_a(a, C.STATE_DRAW_SLOT)
   a:b(0xF5); a:b(0xAF)
   emit_ld_mem_a(a, C.STATE_BORDER_FILL)
   emit_ld_mem_a(a, C.STATE_BORDER_LEFT)
   emit_ld_mem_a(a, C.STATE_BORDER_RIGHT)
-  a:b(0xF1)
+  a:b(0xF1); emit_call(a, 'draw_border')
+  a:b(0x3E); a:b(C.TEXT_BLUE); emit_ld_mem_a(a, C.STATE_LABEL_COLOR)
+  emit_jp(a, 'draw_address_label')
 
   a:label('draw_border')
   a:b(0x87); a:b(0x5F); a:b(0x16); a:b(0x00)
@@ -1146,7 +1156,7 @@ local function build_controller()
     emit_native_text(after .. string.rep(' ', width - left - content_width))
   end
 
-  a:label('version_text'); emit_native_text('V133')
+  a:label('version_text'); emit_native_text('V134')
   a:label('blank_text'); emit_native_text('@@@@')
   a:label('footer_main_line1')
   emit_fixed_line('', C.FOOTER_LINE1_WIDTH)
@@ -1559,6 +1569,7 @@ function M.start(lab)
   print('[WOW SPRITE] rotate geometry: fixed 20x18 ROM source -> 20x20 zero-padded output; writes=200')
   printf('[WOW SPRITE] labels: WoW Print_String_With_Color %s; four-digit ROM address per cell',
     hex4(C.PRINT_STRING_COLOR))
+  print('[WOW SPRITE] text colors: addresses blue; selected address red; version/instructions yellow')
   print('[WOW SPRITE] cursor: four visible rows; gallery scrolls only across top/bottom edge')
   print('[WOW SPRITE] controls: joystick browse; Fire info; 1P Exit; 2P Magic menu')
   print('[WOW SPRITE] Magic menu: edge-triggered Up/Down item; Left/Right change; Fire reset; 2P close')
