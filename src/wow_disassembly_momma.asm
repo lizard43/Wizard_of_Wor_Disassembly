@@ -1,0 +1,12440 @@
+            INCLUDE src/wow_equates.include ; EQU for the code
+
+;*****************************************************************************
+; SOUND STREAM ENTRY ALIASES
+;
+; Dispatcher-visible stream entries that fall inside byte-emitting statements
+; in the stream-data representation.
+;*****************************************************************************
+Sound_Stream_R3_B1_Secondary     EQU     L890E       ; R3.B1 MONSTER DEATH, secondary stream
+Sound_Stream_R1_B5_Primary       EQU     L8971       ; R1.B5 primary stream; requested by coin-input handler
+
+;*****************************************************************************
+; SYSTEM BOOT & HARDWARE INITIALIZATION
+;*****************************************************************************
+            ORG     $0000               ; ROM Start / Magic RAM start
+
+            di                          ; Disable interrupts during boot
+            ld      sp,BOOT_STACK_TOP   ; Initialize temporary boot stack
+                                                ; (Pushes pre-decrement to $D3FF, top of Work RAM)
+
+            ld      a, $01
+L0006:      out     (CONCM), a          ; Video Mode: 1 = High Res (320x204)
+
+L0008:      ld      a, $2C              ; 00101100b
+L000A:      out     (HORCB), a          ; Set palette switch position and background color
+
+L000C:      ld      a, $CC              ; $CC = 204
+            out     (VERBL), a          ; Vertical Blank: Set screen height to 204 scanlines
+
+            call    Initialize_Interrupt_Vector_And_Palette               ; Set interrupt vector to $CA & map color palette
+
+            ld      a, $08              ; 00001000b (Bit 3 = 1)
+            out     (INMOD), a          ; Interrupt Enable: Turn on Line Interrupts
+
+;******************************************************************************************
+; ----> SPECIAL CONTROL REGISTER 1 ($15)
+;
+; Note: Writes to this port are performed using IN instructions!
+; Format: 0000 xxx y (xxx = function 0-7, y = 0 activate / 1 deactivate)
+;******************************************************************************************
+L0017:      ld      a, $00              ; 0000 000 0 (Function 0: Coin Counter 3)
+            in      a, (CCMISC)         ; Activate Coin Counter 3 latch
+
+            ld      a, $02              ; 0000 001 0 (Function 1: Coin Counter 2)
+            in      a, (CCMISC)         ; Activate Coin Counter 2 latch
+
+            ld      a, $0E              ; 0000 111 0 (Function 7: Unused/Light Transistor)
+            in      a, (CCMISC)         ; Activate unused latch
+
+            call     Set_Scanline_Int               ; Set scan line interrupt & enable sparkle colors
+
+;******************************************************************************************
+; ----> CONFIGURE IM2 VECTOR PAGE
+;
+; I supplies the high byte of the IM2 vector-table address. WoW keeps I=$00;
+; INFBK supplies the selectable low byte ($CA/$CC/$CE).
+;******************************************************************************************
+Configure_IM2_Vector_Page_00:
+L0026:      ld      a,IM2_VECTOR_PAGE_00
+            ld      i,a                 ; Vector words are read from ROM page $00xx
+            im      2                   ; Z80 Interrupt Mode 2
+
+;******************************************************************************************
+; GAME INITIALIZATION & MEMORY SETUP
+;
+; Prepares the threaded command-stream environment, clears buffers, and seeds RNG
+;******************************************************************************************
+            xor     a
+            ld      (Speech_Queue_Write_Pointer + 1),a ; Clear queue write-pointer high byte
+
+;******************************************************************************************
+; ----> HIGH-ROM INITIALIZATION HOOK
+;******************************************************************************************
+L0030:      ld      a,(HIGH_ROM_INIT_HOOK) ; Probe the optional high-ROM initialization entry
+            cp      $C3                 ; Present entries begin with JP
+            call    z,HIGH_ROM_INIT_HOOK ; WoW high ROM: reset both sound engines / validate speech queue
+
+;******************************************************************************************
+; ----> HARDWARE VARIABLE SETUP
+;******************************************************************************************
+            ld      hl, LD03A           ; Point to Protected RAM variable ($D03A)
+            ld      c, (hl)             ; Read current value into C
+L003C:      inc     c                   ; Increment the value
+            call    Protected_RAM_Write               ; Safely write C back through hardware latch
+
+L0040:      ld      hl, (LD038)         ; Load word from Protected RAM $D038
+            call    memcheck            ; Execute Nybble parity/complement check
+
+            ld      hl, (LD03E)         ; Load word from Protected RAM $D03E
+            call    memcheck            ; Execute Nybble parity/complement check
+
+;******************************************************************************************
+; ----> CREDIT LIMIT CHECK
+;******************************************************************************************
+            ld      a, (Credits)          ; Load Number of Credits
+L004F:      cp      $1F                 ; Compare with 31 ($1F)
+            call    nc, wiperam         ; If >= 31, zero out bottom of Static RAM
+
+;******************************************************************************************
+; ----> BUFFER CLEARING
+;******************************************************************************************
+L0054:
+            ld      hl,Speech_Active    ; Start of speech and sound work area
+            call    L00BA               ; Zero out 256 bytes (Sound/Speech buffers)
+            call    wpfill              ; Zero out next 64 bytes
+
+;******************************************************************************************
+; ----> RNG SEED & PROTECTED RAM MIRRORING
+;******************************************************************************************
+            ld      a, r                ; Read Z80 Refresh Register for RNG entropy
+            ld      (Random_Seed), a          ; Store as random number seed in Work RAM
+
+            ld      hl, WPRAMSTART      ; Source = $D000 (Protected RAM)
+            ld      de, P1_Lives           ; Dest   = $D300 (Work RAM)
+L0068:      ld      bc, L0020           ; Length = $0020 (32 bytes)
+            ldir                        ; Mirror Protected RAM to fast Work RAM
+
+            call     Sys_Init               ; Clear screen, init video, clear Work RAM
+
+;******************************************************************************************
+; ----> THREADED COMMAND-STREAM DISPATCHER (THE GAME LOOP)
+;
+;       IY is the command-stream instruction pointer. Stream entries contain
+;       16-bit native handler addresses followed by handler-specific operands.
+;******************************************************************************************
+            ld      a,(Game_Mode)       ; Check Game Mode variable
+            and     a                   ; Is it 0 (Demo Mode)?
+            ld      iy,ATTRACT_COMMAND_STREAM ; Default IY to attract-mode command stream
+L0078:      jr      z,dispatch          ; If Demo Mode, jump to dispatcher loop
+            ld      iy,GAME_COMMAND_STREAM ; Else, select the game-mode command stream
+
+dispatch:   ld      hl,dispatch         ; Load address of this dispatcher loop
+            push    hl                  ; Push it to stack (Tasks will 'ret' back here)
+
+            call    Stream_Fetch_Word_HL               ; Fetch next 16-bit handler address from the stream
+            push    hl                  ; Push selected native command handler address
+
+;******************************************************************************************
+; ----> DIAGNOSTIC SWITCH ESCAPE HATCH
+;******************************************************************************************
+            in      a, (COINPORT)       ; Read hardware switches (Coin/Service)
+L0088:      bit     3,a                 ; Check Service/Diagnostic Switch
+            ret     nz                  ; RET dispatches the selected command handler
+
+            ld      a,(Game_Mode)       ; If switch is ON, check if game in progress
+            and     a                   ;
+            ret     nz                  ; If game in progress, ignore switch and execute task
+
+            jp      diags               ; Else, leave the threaded interpreter for diagnostics
+
+;******************************************************************************************
+; ----> INTERRUPT VECTOR & COLOR PALETTE MAPPING
+;******************************************************************************************
+Initialize_Interrupt_Vector_And_Palette:
+            ld      a,IM2_VECTOR_CA     ; $00CA -> Interrupt_Vector_CA_Handler ($0956)
+            out     (INFBK),a           ; Select IM2 vector low byte
+
+            ld      hl,DEFPALETTE       ; Source: Color mapping table
+            ld      bc,$080B            ; B = 8 (count), C = $0B (Color Block Transfer port)
+            otir                        ; Rapidly blast 8 bytes from HL to port $0B
+            ret
+
+;******************************************************************************************
+; ----> SET INTERRUPT VECTOR $CC
+;******************************************************************************************
+Select_Interrupt_Vector_CC:
+            ld      a,IM2_VECTOR_CC     ; $00CC -> Interrupt_Vector_CC_Handler ($099E)
+            out     (INFBK),a           ; Select IM2 vector low byte
+L00A4:      ret
+
+;******************************************************************************************
+; ----> SET INTERRUPT VECTOR $CE
+;******************************************************************************************
+Select_Interrupt_Vector_CE:
+            ld      a,IM2_VECTOR_CE     ; $00CE -> Interrupt_Vector_CE_Handler ($09B4)
+            out     (INFBK),a           ; Select IM2 vector low byte
+            ret
+
+;******************************************************************************************
+; ----> MEMORY INTEGRITY / ANTI-TAMPER CHECK
+;       Checks if L's nybbles are identical, and if H is the exact complement of L.
+;******************************************************************************************
+memcheck:   ld      a,l                 ; Copy L to A
+L00AB:      rlca                        ; \
+            rlca                        ; |
+            rlca                        ; | Swap upper and lower nybbles of A
+            rlca                        ; /
+            cp      l                   ; Compare swapped nybbles to original L
+            jr      nz,wiperam          ; IF different: Fail check! (Jumps to RAM wipe)
+            cpl                         ; Complement A
+            cp      h                   ; Compare to H
+            ret     z                   ; IF match: Check passed! Return safely.
+
+;******************************************************************************************
+; ----> PROTECTED RAM WIPE ROUTINE
+;       Zeros out the 64 bytes of Protected Static RAM ($D000 - $D03F).
+;       Triggered by anti-tamper failure or >31 credits.
+;******************************************************************************************
+wiperam:    ld      hl,WPRAMSTART       ; Point HL to bottom of Static RAM ($D000)
+
+;******************************************************************************************
+; ----> PROTECTED MEMORY FILL ROUTINE
+;       Fills B bytes of Protected RAM with the value in C.
+;******************************************************************************************
+wpfill:     ld      b,$40               ; B = 64 (bytes to write)
+
+L00BA:      ld      c,$00               ; C = 0 (Fill value)
+            ld      a,$A5               ; A = $A5 (Hardware NVRAM unlock byte)
+
+L00BE:      out     (RIGHTPORT),a       ; Output $A5 to port $5B to unlock memory
+L00C0:      ld      (hl),c              ; Write byte to protected RAM
+            inc     hl                  ; Advance memory pointer
+            djnz    L00BE               ; Loop until B = 0
+            ret
+
+;******************************************************************************************
+; ----> DEFAULT COLOR PALETTE MAPPING TABLE
+;
+;       Initialize_Interrupt_Vector_And_Palette sends eight bytes beginning at
+;       DEFPALETTE ($00C5-$00CC) to the color block port. The tail of this same
+;       ROM data is deliberately shared with the IM2 vector table.
+;******************************************************************************************
+DEFPALETTE: DB      $51,$7C,$F3
+L00C8:      DB      $C7,$00
+
+; With I=$00, IM2 reads little-endian handler pointers at $00CA/$00CC/$00CE.
+; The $00CA word and low byte at $00CC are therefore also part of the eight-byte
+; palette transfer above; the ROM layout intentionally serves both purposes.
+IM2_Vector_CA_Word:
+L00CA:      DW      Interrupt_Vector_CA_Handler     ; $0956
+IM2_Vector_CC_Word:
+L00CC:      DW      Interrupt_Vector_CC_Handler     ; $099E
+IM2_Vector_CE_Word:
+L00CE:      DW      Interrupt_Vector_CE_Handler     ; $09B4
+
+;******************************************************************************************
+; ----> VIDEO RAM FAILURE / CRASH HANDLER
+;            Causes the screen to flash wildly by spamming random values to the palette port.
+;******************************************************************************************
+vramerr:    ld      a,r                 ; Get random value from Z80 Refresh Register
+            out     (HORCB),a           ; Output to background color / palette port
+
+;******************************************************************************************
+; ----> VIDEO RAM TEST / FILL ROUTINE
+;            Stackless memory test. Propagates a test byte across VRAM ($4000-$7FFF),
+;            checks it, then propagates the inverted byte backwards.
+;            Expects return address in HL (uses EXX to preserve it without the stack).
+;******************************************************************************************
+vramtest:   exx                         ; Swap registers (saves return address into HL')
+            ld      hl,$4000            ; Point HL to start of Video RAM
+            ld      (hl),a              ; Write the test pattern to $4000
+
+            ld      de,$4001            ; Point DE to the next byte ($4001)
+            ld      bc,$3FFF            ; Count = 16KB minus 1 byte
+            ldir                        ; Rapidly copy (HL) to (DE), filling VRAM upward
+
+            cp      (hl)                ; Does the last written byte still match the pattern?
+            jr      nz, vramerr         ; IF NOT: Memory failed! Jump to crash handler
+
+            ex      af,af'              ; Save Accumulator and Flags
+            in      a, (COINPORT)       ; Read hardware switches (Hardware Watchdog kick)
+            ex      af,af'              ; Restore Accumulator and Flags
+
+            dec     de                  ; \ Adjust DE from $8000 down to $7FFE
+            dec     de                  ; / for the reverse fill operation
+
+            cpl                         ; Invert the test pattern in A (e.g. $80 becomes $7F)
+            ld      (hl),a              ; HL is now $7FFF. Write inverted pattern to top of VRAM
+            ld      bc,$3FFF            ; Count = 16KB minus 1 byte
+            lddr                        ; Rapidly copy (HL) to (DE) backwards, filling VRAM downward
+
+            cp      (hl)                ; Does the last written byte still match inverted pattern?
+            jr      nz, vramerr         ; IF NOT: Memory failed! Jump to crash handler
+
+            ex      af,af'              ; Save Accumulator and Flags
+            in      a, (COINPORT)       ; Read hardware switches (Hardware Watchdog kick)
+            ex      af,af'              ; Restore Accumulator and Flags
+
+            cpl                         ; Invert the pattern back to its original state
+            exx                         ; Swap registers back (restores return address into HL)
+            jp      (hl)                ; Stackless return! Jump to address in HL
+
+;******************************************************************************************
+; ----> HARDWARE DIAGNOSTICS & MEMORY TEST ENTRY
+;            Disables interrupts, initializes the installed high-ROM subsystem, resets hardware state,
+;            and seeds the Video RAM worm test with the initial pattern ($80).
+;******************************************************************************************
+diags:      di                          ; Disable interrupts during diagnostics
+            ld      a,(HIGH_ROM_INIT_HOOK) ; Probe the optional high-ROM initialization entry
+L00FF:      cp      $C3                 ; Present entries begin with JP
+L0101:      call    z,HIGH_ROM_INIT_HOOK ; Initialize the installed high-ROM subsystem
+
+            call    Enable_Sparkle_Colors               ; Reset hardware state / sparkle colors
+
+            ld      a,$80               ; A = $80 (10000000b) initial VRAM test pattern
+                                        ; Falls through into the Video RAM worm test...
+;
+;******************************************************************************************
+; ----> VIDEO RAM WORM TEST LOOP
+;            Sets the stackless return address to L010E and executes the VRAM fill/check.
+;******************************************************************************************
+L0109:      ld      hl,L010E            ; Set return address for stackless memory test
+            jr      vramtest            ; Execute VRAM test (vramtest)
+
+;******************************************************************************************
+; ----> TEST PATTERN SHIFTER
+;            Shifts the walking bit right. If 0, the test is complete.
+;******************************************************************************************
+L010E:      and     a                   ; Check if the walking bit has shifted out (A=0)
+            jr      z,Game_Entry        ; IF 0: VRAM test passed! Jump to game start
+L0111:      rra                         ; Rotate the test bit right (e.g., $80 -> $40)
+            jr      L0109               ; Loop back to test VRAM with the new pattern
+
+;******************************************************************************************
+; ----> MAIN GAME ENTRY & STACK SETUP
+;            Moves the temporary boot stack to its permanent home in the non-viewable
+;            Video RAM margin ($7FC0 - $7FFF) and prints the success message.
+;******************************************************************************************
+Game_Entry:
+            ld      sp,PERMANENT_STACK_TOP ; Set permanent stack (pre-decrements to $7FFF)
+
+L0117:      call     Sys_Init               ; Clear screen, init video, and clear Work RAM
+
+            ld      hl,L042E            ; Source string: "SCREEN RAM OK"
+            ld      de,$001A            ; String formatting and color attributes
+            ld      b,$0D               ; String length (13 characters)
+            call    Print_String_Default_Color
+;
+;******************************************************************************************
+; ----> STATIC RAM TEST
+;
+;            Three-pass memory test for the 1KB NVRAM ($D000 - $D3FF).
+;            Pass 1: Fills upward with $FF. Pass 2: Fills downward with $00.
+;            Pass 3: Scans upward to verify all bytes remain $00.
+;******************************************************************************************
+            ld      hl,WPRAMSTART       ; HL = $D000 (Start of Static RAM)
+            ld      bc,$0004            ; B = 0 (256 loops), C = 4 (1KB total)
+            ld      d,$FF               ; D = $FF (Initial test pattern)
+            ld      a,$A5               ; A = $A5 (Hardware NVRAM unlock byte)
+
+L012F:      out     (RIGHTPORT),a       ; Unlock NVRAM for writing
+            ld      (hl),d              ; Write $FF pattern to memory
+            ld      d,(hl)              ; Read it back into D to test data bus
+            inc     hl                  ; Advance memory pointer upward
+            djnz    L012F               ; Inner loop: write 256 bytes
+            dec     c                   ; Outer loop: 4 blocks (1024 bytes)
+            jr      nz,L012F
+
+            ld      a,d                 ; Check the last byte read
+            cp      $FF                 ; Did the data bus hold the $FF?
+            jr      nz,L016C            ; IF NOT: Memory failed! Jump to error handler
+
+            ld      c,$04               ; Reset outer loop counter for 1KB
+L0140:      inc     d                   ; Bump test pattern: $FF + 1 = $00
+            ld      a,$A5               ; A = $A5 (NVRAM unlock byte)
+
+L0143:      out     (RIGHTPORT),a       ; Unlock NVRAM for writing
+            dec     hl                  ; Advance memory pointer downward (Starts at $D400 -> $D3FF)
+            ld      (hl),d              ; Write $00 pattern to memory
+            ld      d,(hl)              ; Read it back into D
+            djnz    L0143               ; Inner loop: write 256 bytes
+            dec     c                   ; Outer loop: 4 blocks (1024 bytes)
+            jr      nz,L0143
+
+            ld      a,d                 ; Check the last byte read
+            and     a                   ; Did the data bus hold the $00?
+            jr      nz,L016C            ; IF NOT: Memory failed! Jump to error handler
+
+            ld      c,$04               ; Reset outer loop counter for 1KB
+L0153:      or      (hl)                ; Accumulate any non-zero bits into A
+L0154:      inc     hl                  ; Advance memory pointer upward
+L0155:      djnz    L0153               ; Inner loop: scan 256 bytes
+            dec     c                   ; Outer loop: 4 blocks
+            jr      nz,L0153
+
+            and     a                   ; Are there ANY non-zero bits left in the entire 1KB?
+            jr      nz,L016C            ; IF YES: Memory failed! Jump to error handler
+
+;******************************************************************************************
+; ----> STATIC RAM TEST PASS / FAIL HANDLER
+;
+;            Performs one final checkerboard byte check, then prints the RAM status.
+;******************************************************************************************
+            ld      a,$55               ; A = $55 (01010101b checkerboard pattern)
+            ld      (LD045),a           ; Write $55 to $D045 (Static RAM)
+            ld      a,(LD045)           ; Read it back
+            cp      $55                 ; Did it hold the $55 without shorting adjacent bits?
+
+            ld      hl,$043B            ; Source string: "STATIC RAM OK "
+L016A:      jr      z,L016F             ; IF PASSED: Jump to print string
+
+L016C:      ld      hl,L0449            ; Source string: "STATIC RAM BAD"
+
+L016F:      ld      de,$051A            ; String formatting and color attributes
+            ld      b,$0E               ; String length (14 characters)
+            call    Print_String_Default_Color
+;
+;******************************************************************************************
+; ----> ROM INTEGRITY TEST
+;
+;            Sums the bytes of each 4KB ROM chip and compares against a checksum table.
+;            Uses EXX to juggle two sets of pointers (ROM/Checksums vs Name Strings).
+;******************************************************************************************
+            ld      hl,L0457            ; Source string: "ROM "
+            ld      de,$0A28            ; DE = Color and screen formatting
+            call    L03B1               ; Print "ROM "
+
+            ld      hl,L03D5            ; HL = String "ABCDEFGX" (ROM labels)
+            exx                         ; Swap to Alternate Registers (HL' now holds labels)
+
+            ld      de,L03E0            ; DE = Expected ROM Checksums Table
+            ld      hl,$0000            ; HL = $0000 (Start of ROM memory)
+
+;******************************************************************************************
+; ----> SELECT DIAGNOSTIC ROM COUNT FROM LANGUAGE DIP
+;******************************************************************************************
+            ld      a,($D347)           ; (Dummy read)
+            in      a, (SETTINGS)       ; Read Dip Switches (Port $13)
+            bit     LANGUAGE_DIP_BIT,a  ; 1 = English, 0 = X11 foreign-language ROM
+            ld      b,$07               ; English: test the seven resident program ROMs
+            jr      nz,romcheck         ; IF English: Jump to test
+            inc     b                   ; Foreign: also test the X11 ROM as diagnostic ROM X
+
+;******************************************************************************************
+; ----> BEGIN ROM CHECK LOOP
+;******************************************************************************************
+romcheck:   push    bc                  ; Save ROM loop counter
+
+;******************************************************************************************
+; ----> MEMORY GAP SKIPS (VRAM & EMPTY SOCKETS)
+;******************************************************************************************
+            ld      a,h                 ; Check current ROM high byte
+            cp      $40                 ; Is pointer at $4000 (Start of Video RAM)?
+            jr      nz,L019E            ; IF NOT: Skip to next check
+            ld      h,$80               ; IF YES: Jump over VRAM directly to High ROMs ($8000)
+
+L019E:      cp      $B0                 ; Is pointer at $B000 (Empty socket)?
+            jr      nz,L01A7            ; IF NOT: Skip ahead
+            ld      de,X11_ROM_Checksum_Expected ; Expected checksum byte is stored in the X11 header
+            ld      h,$C0               ; Redirect ROM scan to the X11 image at $C000
+;******************************************************************************************
+; ----> 4KB CHECKSUM CALCULATION (modulo-256 checksum)
+;******************************************************************************************
+L01A7:      ld      bc,$0010            ; B = 0 (256 loops), C = 16 (16 * 256 = 4096 bytes)
+            xor     a                   ; A = 0 (Clear accumulator for checksum)
+L01AB:      add     a,(hl)              ; Accumulate byte into A
+            inc     hl                  ; Advance to next ROM byte
+            djnz    L01AB               ; Inner loop: 256 bytes
+            dec     c                   ; Outer loop: 16 blocks (4KB total)
+            jr      nz,L01AB
+
+;******************************************************************************************
+; ----> COMPARE AND PRINT RESULTS
+;******************************************************************************************
+            ex      de,hl               ; Swap ROM pointer and Checksum Table pointer
+            cp      (hl)                ; Compare calculated sum (A) with expected sum (HL)
+            inc     hl                  ; Advance Checksum Table pointer for next pass
+            ex      de,hl               ; Swap pointers back
+
+            exx                         ; Swap to Alternate Registers (HL' = "ABCDEFGX")
+            jr      z,L01C1             ; IF CHECKSUM MATCHES: Jump ahead to next letter
+
+            ld      a,d                 ; IF CHECKSUM FAILS: Save color formatting from D'
+            ld      (ROMFAIL),a         ; Store it in RAM
+            call    Write_1_Char               ; Print the failing ROM's letter (pointed to by HL')
+            dec     hl                  ; Adjust string pointer backwards so it stays aligned
+
+L01C1:      inc     hl                  ; Advance string pointer to next ROM letter ("A" -> "B")
+            exx                         ; Swap back to Main Registers
+            pop     bc                  ; Restore ROM loop counter
+            djnz    romcheck            ; Loop until all 7 (or 8) ROMs are checked
+
+;******************************************************************************************
+; ----> HARDWARE DIAGNOSTICS & SWITCH TEST SCREEN (UI SETUP)
+;
+;            Draws the text labels for the diagnostic screen.
+;******************************************************************************************
+            exx                         ; Restore registers after ROM test
+            ld      hl,$0446            ; Source string: "OK"
+            ld      a,(ROMFAIL)         ; Read ROM failure flag ($D1D4)
+            and     a                   ; Is it zero? (No failures)
+            call    z,Write_2_Chars             ; IF 0: Print "OK"
+
+            ld      a,$01
+            ld      (DIAGFLAG),a        ; Set diagnostic screen active flag
+
+;******************************************************************************************
+; ----> DRAW INPUT LABELS
+;******************************************************************************************
+            ld      de,$1403            ; Screen formatting attributes
+            call    L03A7               ; Print "MOVE" (Player 1 side)
+            ld      e,$30
+            call    L03A7               ; Print "MOVE" (Player 2 side)
+
+L01E1:      ld      de,$1E0B
+            call    L03AE               ; Print "FIRE" (Player 1 side)
+            ld      e,$38
+            call    L03AE               ; Print "FIRE" (Player 2 side)
+
+            ld      hl,L0408            ; Source string: "PL1"
+            ld      de,$230B
+            call    Print_3_Chars               ; Print "PL1"
+            ld      hl,L040B            ; Source string: "PL2"
+            ld      e,$38
+            call    Print_3_Chars               ; Print "PL2"
+
+L01FD:      ld      de,$280B
+L0200:      ld      hl,L03DD            ; Source string: "123" (Coin inputs)
+L0203:      call    Print_Coin_Label_And_Number
+L0206:      ld      e,$38
+            call    Print_Coin_Label_And_Number
+L020B:      ld      e,$22
+            call    Print_Coin_Label_And_Number
+
+            ld      de,$2D0B
+            ld      hl,L0412            ; Source string: "SLAM"
+            call    L03B1               ; Print "SLAM"
+
+            ld      hl,L0416            ; Source string: "SW1SW2..." (Dip switches)
+            ld      de,$2D22
+            call    Print_Four_Diagnostic_Labels
+            ld      de,$2D38
+            call    Print_Four_Diagnostic_Labels
+
+;******************************************************************************************
+; ----> HARDWARE DIAGNOSTICS INPUT LOOP
+;
+;       Reads ports, complements them (active-low to active-high), isolates bits,
+;       and uses Print_YesNo to selectively print "YES" or "NO" if the state changed.
+;******************************************************************************************
+diagloop:   ei                          ; Enable interrupts to allow screen refresh
+
+            ld      de,LD1D6            ; Point to Player 2 / Cocktail controls buffer
+            in      a, (P2PORT)         ; Read Port $11 (Player 2 joystick/buttons)
+            cpl                         ; Invert (Active-low to active-high)
+            ld      (de),a              ; Save Player 2 state to $D1D6
+
+L0230:      ld      de,LD1D7            ; Point to Player 1 controls buffer
+            in      a, (P1PORT)         ; Read Port $12 (Player 1 joystick/buttons)
+            cpl
+            ld      (de),a              ; Save Player 1 state to $D1D7
+
+;******************************************************************************************
+; ----> CHECK JOYSTICK DIRECTIONS (Port $11 / $12)
+;******************************************************************************************
+            ; Player 2 Joystick Check
+            ld      de,$190B            ; DE = Screen formatting and position attributes for P2
+            ld      hl,LD1CE            ; HL = Pointer to P2 joystick state tracking variable ($D1CE)
+            ld      a,(LD1D6)           ; A = Load Player 2 controls state (Read from Port $11)
+            call    Update_Diagnostic_Joystick_Display ; Update changed U/D/L/R diagnostic state
+
+            ; Player 1 Joystick Check
+            ld      de,$1939            ; DE = Screen formatting and position attributes for P1
+            ld      hl,LD1CF            ; HL = Pointer to P1 joystick state tracking variable ($D1CF)
+            ld      a,(LD1D7)           ; A = Load Player 1 controls state (Read from Port $12)
+            call    Update_Diagnostic_Joystick_Display ; Update changed U/D/L/R diagnostic state
+
+;*****************************************************************************************
+; ----> CHECK RIGHT FIRE BUTTONS (Port $11 / $12, Bit 4)
+;
+; Secondary fire buttons located on the right side of the joystick.
+;*****************************************************************************************
+            ld      de,$1903            ; DE = Screen formatting/position for P2 Right Fire
+            ld      hl,LD1D0            ; HL = Pointer to P2 Right Fire tracking var ($D1D0)
+            ld      a,(LD1D6)           ; A = Load Player 2 controls state again
+            and     $10                 ; Isolate Bit 4 (00010000b) to check Button 2 (Right)
+            call    Print_YesNo               ; Call Print_YesNo to test bit and print "YES" or " NO"
+
+            ld      e,$30               ; E = Update column coordinate for P1 (DE = $1930)
+            ld      hl,LD1D1            ; HL = Pointer to P1 Right Fire tracking var ($D1D1)
+            ld      a,(LD1D7)           ; A = Load Player 1 controls state again
+            and     $10                 ; Isolate Bit 4 (00010000b) to check Button 2 (Right)
+            call    Print_YesNo               ; Call Print_YesNo to test bit and print "YES" or " NO"
+
+;*****************************************************************************************
+; ----> CHECK LEFT FIRE BUTTONS (Port $11 / $12, Bit 5)
+;
+; Primary fire buttons located on the left side of the joystick.
+;*****************************************************************************************
+            ld      de,$1E03            ; DE = Screen formatting/position for P2 Left Fire
+            ld      hl,LD1CC            ; HL = Pointer to P2 Left Fire tracking var ($D1CC)
+            ld      a,(LD1D6)           ; A = Load Player 2 controls state (Port $11)
+            and     $20                 ; Isolate Bit 5 (00100000b) to check Button 1 (Left)
+            call    Print_YesNo               ; Test bit and print "YES" or " NO" if state changed
+
+            ld      e,$30               ; E = Update column coordinate for P1 (DE = $1E30)
+            ld      hl,LD1CD            ; HL = Pointer to P1 Left Fire tracking var ($D1CD)
+            ld      a,(LD1D7)           ; A = Load Player 1 controls state (Port $12)
+            and     $20                 ; Isolate Bit 5 (00100000b) to check Button 1 (Left)
+            call    Print_YesNo               ; Test bit and print "YES" or " NO" if state changed
+
+;*****************************************************************************************
+; ----> CHECK START BUTTONS (Port $10, Bits 5 & 6)
+;
+; Evaluates the 1-Player and 2-Player Start buttons.
+;*****************************************************************************************
+            ld      de,$2303            ; DE = Screen formatting/position for PL1 Start
+            ld      hl,LD1D2            ; HL = Pointer to PL1 Start tracking var ($D1D2)
+            in      a, (COINPORT)       ; Read System Inputs (Port $10)
+            cpl                         ; Invert (Active-LOW hardware to Active-HIGH)
+            and     $20                 ; Isolate Bit 5 (00100000b) to check PL1 Start
+            call    Print_YesNo               ; Test bit and print "YES" or " NO" if changed
+
+            ld      e,$30               ; E = Update column coordinate for PL2 (DE = $2330)
+            ld      hl,LD1D3            ; HL = Pointer to PL2 Start tracking var ($D1D3)
+            in      a, (COINPORT)       ; Read System Inputs again
+            cpl                         ; Invert (Active-LOW hardware to Active-HIGH)
+            and     $40                 ; Isolate Bit 6 (01000000b) to check PL2 Start
+            call    Print_YesNo               ; Test bit and print "YES" or " NO" if changed
+
+;*****************************************************************************************
+; ----> CHECK COIN SWITCHES (Port $10, Bits 0, 1, 2)
+;
+;       Polls the three coin slot microswitches.
+;*****************************************************************************************
+L02A0:      ld      de,$2803            ; DE = Screen formatting/position for Coin 1 ($2803)
+            ld      hl,LD1C9            ; HL = Pointer to Coin 1 tracking var ($D1C9)
+            in      a, (COINPORT)       ; Read System Inputs (Port $10)
+L02A8:      cpl                         ; Invert (Active-LOW hardware to Active-HIGH)
+            and     $01                 ; Isolate Bit 0 (00000001b) to check Coin 1
+            call    Print_YesNo               ; Test bit and print "YES" or " NO" if changed
+
+            ld      e,$30               ; E = Update column coordinate for Coin 2 ($2830)
+            ld      hl,LD1CA            ; HL = Pointer to Coin 2 tracking var ($D1CA)
+            in      a, (COINPORT)       ; Read System Inputs (Port $10)
+            cpl                         ; Invert (Active-LOW to Active-HIGH)
+            and     $02                 ; Isolate Bit 1 (00000010b) to check Coin 2
+            call    Print_YesNo               ; Test bit and print "YES" or " NO"
+
+            ld      e,$1A               ; E = Update column coordinate for Coin 3 ($281A)
+            ld      hl,LD1CB            ; HL = Pointer to Coin 3 tracking var ($D1CB)
+            in      a, (COINPORT)       ; Read System Inputs (Port $10)
+            cpl                         ; Invert (Active-LOW to Active-HIGH)
+            and     $04                 ; Isolate Bit 2 (00000100b) to check Coin 3
+            call    Print_YesNo               ; Test bit and print "YES" or " NO"
+
+;*****************************************************************************************
+; ----> CHECK SLAM SWITCH (Port $10, Bit 4)
+;
+;       Polls the anti-cheat slam tilt switch inside the coin door.
+;*****************************************************************************************
+            ld      de,$2D03            ; DE = Screen formatting/position for SLAM ($2D03)
+            ld      hl,LD1D5            ; HL = Pointer to SLAM tracking var ($D1D5)
+            in      a, (COINPORT)       ; Read System Inputs (Port $10)
+            cpl                         ; Invert (Active-LOW to Active-HIGH)
+L02D1:      and     $10                 ; Isolate Bit 4 (00010000b) to check SLAM
+            call    Print_YesNo         ; Test bit and print "YES" or " NO"
+
+;*****************************************************************************************
+; ----> DIP SWITCH TEST LOOP (Initialization)
+;
+;       Reads the hardware DIP switches (Settings port) and sets up the loop to test all 8.
+;*****************************************************************************************
+            ld      a,($D347)           ; Value is replaced by the live port read below
+            in      a, (SETTINGS)       ; Read all eight DIP switches from port $13
+L02DB:      cpl                         ; Invert (Active-LOW to Active-HIGH)
+            ld      b,a                 ; Store the inverted DIP switch state in B
+            ld      de,$2D1A            ; DE = Screen position for SW1 ($2D1A)
+            ld      hl,LD1D8            ; HL = Pointer to SW1 tracking var ($D1D8)
+            ld      c,$01               ; C = Initialize shifting bitmask to Bit 0 ($01)
+L02E5:      push    hl                  ; Save state variable pointer
+            push    bc                  ; Save port state (B) and bitmask (C)
+            ld      a,b                 ; Load DIP switch state into A
+            and     c                   ; Isolate the current bit using the mask in C
+            push    de                  ; Save screen coordinates
+            call    Print_YesNo         ; Test bit and print "YES" or " NO"
+
+;*****************************************************************************************
+; ----> DIP SWITCH TEST LOOP (Continuation)
+;
+;       Iterates through the 8 hardware dip switches, moving the cursor down the screen
+;       for each switch. Once SW4 is reached, it jumps to a new column for SW5-SW8.
+;*****************************************************************************************
+            pop     de                  ; Restore DE (Screen formatting/coordinates)
+            pop     bc                  ; Restore B (Settings port state) and C (Bitmask)
+            ld      hl,$0500            ; Advance the destination by five screen rows
+            add     hl,de               ; Add $0500 to DE (Drops the cursor down 5 rows)
+            ex      de,hl               ; DE now holds the updated screen coordinates
+            pop     hl                  ; Restore HL (State tracking variable pointer)
+            inc     hl                  ; Advance pointer to the next switch's memory state
+            ld      a,c                 ; Load current bitmask into A
+            cp      $08                 ; Have we just finished checking SW4 (Bitmask $08)?
+            jr      nz,L02FE            ; If not, skip the column reset
+            ld      de,$2D30            ; If yes, move cursor to the next column (Row $2D, Col $30)
+L02FE:      sla     c                   ; Shift bitmask left (e.g., $01 -> $02 -> $04)
+L0300:      jr      nz,L02E5            ; If mask is not 0 (8 bits not done), loop back to L02E5
+
+;*****************************************************************************************
+; ----> EVALUATE DIAGNOSTIC SCREEN ADVANCE OR EXIT
+;
+; Checks input port $10 to see if the operator is advancing the test or exiting.
+;*****************************************************************************************
+L0302:      in      a, (COINPORT)       ; Read System Inputs (Port $10)
+            and     $60                 ; Isolate Bits 5 & 6 (likely Coin or Start inputs)
+L0306:      jr      z,L0310             ; If both are pressed (0), advance to next diagnostic phase
+
+            in      a, (COINPORT)       ; Read System Inputs again
+            bit     3,a                 ; Check Bit 3 (Service/Diagnostic Switch inside coin door)
+            jp      z,diagloop          ; Active-LOW: If 0 (Switch ON), loop back and keep diagnosing
+L030F:      rst     00H                 ; Active-HIGH: If 1 (Switch OFF), soft reset back to the game!
+;
+;*****************************************************************************************
+; ----> ADVANCE TO CROSSHATCH / BURN-IN TEST
+;
+; Triggered by pressing both Start buttons. Clears the screen and jumps to the grid draw.
+;*****************************************************************************************
+L0310:      di                  ; Disable interrupts
+            call     Sys_Init       ; Call video initialization and screen clear routine
+L0314:      jp      $AF80       ; Jump to EOF routine to draw alignment grid and halt
+
+;*****************************************************************************************
+; ----> UPDATE DIAGNOSTIC JOYSTICK DISPLAY
+;
+; A = raw player input byte, HL = stored previous joystick state. The routine
+; filters to U/D/L/R, returns immediately if unchanged, otherwise updates the
+; saved state and falls through to the diagnostic direction-string renderer.
+;*****************************************************************************************
+Update_Diagnostic_Joystick_Display:
+L0317:      and     $0F         ; Isolate bits 0-3 (Up, Down, Left, Right)
+            cp      (hl)        ; Compare current joystick state against previous state
+            ret     z           ; Return immediately if the joystick hasn't moved
+
+;*****************************************************************************************
+; ----> Disp_Joy_Str
+;       Called to print the state of the joystick in diagnostics mode.
+;       First clears the string area, then uses a jump table to print
+;       directional combinations ("UP", "LF_DN", "ERROR", etc.).
+;*****************************************************************************************
+            ld      (hl),a
+            ld      c,a
+            ld      b,$00
+Disp_Joy_Str:
+            push    bc
+Clear_Joy_Str:
+            push    de
+            ld      b,$05               ; Print 5 spaces to clear old string
+            xor     a
+            call    Print_String_With_Color
+            pop     de
+Do_Joy_Jump:
+            pop     bc
+            ld      hl,Joy_String_Table
+            add     hl,bc
+            add     hl,bc               ; Calculate table offset (BC * 2)
+            ld      a,(hl)
+            inc     hl
+            ld      h,(hl)
+Exec_Joy_Jump:
+            ld      l,a
+            jp      (hl)                ; Jump to specific string routine
+
+;*****************************************************************************************
+; ----> Joy_String_Table
+;       16-entry jump table for joystick switch combinations.
+;*****************************************************************************************
+Joy_String_Table:
+            DW      Write_NO            ; 00: "NO" (No direction pressed)
+            DW      Write_UP            ; 01: "UP"
+            DW      Write_DN            ; 02: "DN"
+            DW      Write_ERROR         ; 03: UP+DN (Invalid)
+            DW      Write_LF            ; 04: "LF"
+            DW      Write_LF_UP         ; 05: "LF_UP"
+            DW      Write_LF_DN         ; 06: "LF_DN"
+            DW      Write_ERROR         ; 07: UP+DN+LF (Invalid)
+            DW      Write_RT            ; 08: "RT"
+            DW      Write_RT_UP         ; 09: "RT_UP"
+            DW      Write_RT_DN         ; 10: "RT_DN"
+            DW      Write_ERROR         ; 11: UP+DN+RT (Invalid)
+            DW      Write_ERROR         ; 12: LF+RT (Invalid)
+            DW      Write_ERROR         ; 13: LF+RT+UP (Invalid)
+            DW      Write_ERROR         ; 14: LF+RT+DN (Invalid)
+            DW      Write_ERROR         ; 15: LF+RT+UP+DN (Invalid)
+
+Write_NO:
+            ld      hl,L03EC            ; String "NO"
+Write_2_Chars:
+            ld      b,$02
+            jr      Print_String_Default_Color
+Write_UP:
+            ld      hl,L03EE            ; String "UP"
+            jr      Write_2_Chars
+Write_DN:
+            ld      hl,L03F0            ; String "DN"
+            jr      Write_2_Chars
+Write_ERROR:
+            ld      hl,L03F7            ; String "ERROR"
+            ld      b,$05
+            jp      Print_String_Default_Color
+
+Write_LF:
+            ld      hl,L03F2            ; String "LF"
+            jr      Write_2_Chars
+Write_UScore:
+            ld      hl,L03F6            ; Underscore joining diagonal direction names
+Write_1_Char:
+            ld      b,$01
+            jr      Print_String_Default_Color
+
+Write_LF_UP:
+            call    Write_LF
+Write__UP:
+            call    Write_UScore
+            jr      Write_UP
+Write_LF_DN:
+            call    Write_LF
+Write__DN:
+            call    Write_UScore
+            jr      Write_DN
+Write_RT:
+            ld      hl,L03F4            ; String "RT"
+            jr      Write_2_Chars
+Write_RT_UP:
+            call    Write_RT
+            jr      Write__UP
+Write_RT_DN:
+            call    Write_RT
+            jr      Write__DN
+;*****************************************************************************************
+; ----> Print_YesNo (Evaluate Switch State & Update Screen)
+; Compares the current bit (A) against the previous state (HL). If the state has
+; changed, it updates the state and prints "YES" or " NO" on the diagnostic screen.
+;*****************************************************************************************
+Print_YesNo:
+            cp      (hl)                ; Compare current bit (A) against previous state
+            ret     z                   ; Return immediately if the state hasn't changed
+            ld      (hl),a              ; State changed! Overwrite old state with new
+            and     a                   ; Is the new state 0 (Unpressed) or >0 (Pressed)?
+            ld      hl,$03EB            ; Pre-load HL with pointer to string " NO"
+            jr      z,Print_3_Chars     ; If state is 0, jump ahead to print
+            ld      hl,L03E8            ; If state > 0, overwrite HL with pointer to "YES"
+
+Print_3_Chars:
+            ld      b,$03               ; Length of string is 3 characters
+            jr      Print_String_Default_Color
+;
+;*****************************************************
+; Write "MOVE"
+;*****************************************************
+;
+L03A7:      ld      hl,L0400            ; String "MOVE"
+            ld      b,$08               ; Length
+            jr      Print_String_Default_Color
+;
+;*****************************************************
+; Write "FIRE"
+;*****************************************************
+;
+L03AE:      ld      hl,L03FC            ; String "FIRE"
+L03B1:      ld      b,$04               ; Length
+;
+;*****************************************************************************************
+; ----> Resident string-printer entries
+;
+;       HL = character data, DE = packed screen destination, B = character count.
+;       A selects the Magic RAM expand color. C bit 7 selects forward rendering;
+;       the alternate path mirrors the glyph DMA and advances in reverse.
+;*****************************************************************************************
+Print_String_Default_Color:
+L03B3:      ld      a,$0C               ; Default red expand color
+Print_String_With_Color:
+L03B5:      ld      c,$FF               ; Forward, non-mirrored rendering
+            jp      printstr
+
+; Print "COIN" followed by one caller-selected character.
+Print_Coin_Label_And_Number:
+L03BA:      push    hl
+            ld      hl,L040E
+            call    L03B1
+            pop     hl
+            jr      Write_1_Char
+
+; Print four consecutive three-character labels, stepping the packed screen
+; destination by $04FA after each label.
+Print_Four_Diagnostic_Labels:
+L03C4:      ld      b,$04
+L03C6:      push    bc
+            call    Print_3_Chars
+            push    hl
+            ld      hl,$04FA
+            add     hl,de
+            ex      de,hl
+            pop     hl
+            pop     bc
+            djnz    L03C6
+            ret
+
+; Diagnostic text. "@" selects the resident blank glyph; "_" is the
+; underscore used between diagonal direction names.
+
+L03D5:      DB      "ABCDEFGX"
+L03DD:      DB      "123"
+L03E0:      DB      $00,$6D,$F4,$2E,$62,$9D,$D4,'*'
+L03E8:      DB      "YES@"
+L03EC:      DB      "NO"
+L03EE:      DB      "UP"
+L03F0:      DB      "DN"
+L03F2:      DB      "LF"
+L03F4:      DB      "RT"
+L03F6:      DB      "_"
+L03F7:      DB      "ERROR"
+L03FC:      DB      "FIRE"
+L0400:      DB      "MOVE@DI"
+            DB      'R'
+L0408:      DB      "PL1PL2CO"
+L0410:      DB      "IN"
+L0412:      DB      "SLAM"
+L0416:      DB      "SW1SW2SW3S"
+L0420:      DB      "W4SW5SW6SW7SW8"
+            DB      "SCREEN@RAM@O"
+L043A:      DB      "KSTATIC@RAM@OK@"
+L0449:      DB      "STATIC@RAM@BAD"
+L0457:      DB      "ROM@"
+            DB      $00
+
+; Print using the cabinet/system orientation bit rather than forcing C=$FF.
+; Inputs otherwise match printstr. Reading port $10 into C supplies C.7, which
+; printstr uses to select forward versus horizontally mirrored rendering.
+Print_String_With_Cabinet_Orientation:
+L045C:      ld      c,COINPORT
+            in      c,(c)
+
+; Render B native-font characters through the Pattern Board. Each glyph is a
+; 1x10-byte bitmap expanded by Magic RAM into a two-bit-pixel character.
+printstr:   di
+            out     (XPAND),a           ; Select expand color for set glyph bits
+            bit     7,c                 ; C.7 selects forward or mirrored rendering
+            ld      a,$08               ; Expand mode
+            jr      nz,L046B
+            set     6,a                 ; Expand plus horizontal flop
+L046B:      out     (MAGIC),a
+L046D:      ld      a,(hl)              ; Fetch the next native character code
+            inc     hl
+            push    hl
+            push    de                  ; Preserve packed destination
+            call    char2gfx            ; HL = ten-byte glyph bitmap
+            pop     de
+            bit     7,c
+            ld      a,$26               ; Forward Pattern Board mode
+            jr      nz,L047D
+            xor     $30                 ; Mirrored Pattern Board mode
+L047D:      out     (PBSTAT),a
+            ld      a,l
+            out     (PBLINADRL),a       ; LSB of source
+            ld      a,h
+            out     (PBLINADRH),a       ; MSB of source
+            ld      a,e
+            out     (PBXMOD),a          ; LSB of destination
+            ld      a,d
+            out     (PBAREADRH),a       ; MSB of destination
+            bit     7,c
+            ld      a,$4F               ; Forward row modulo
+            jr      nz,L0493
+            ld      a,$B1               ; Mirrored row modulo
+L0493:      out     (PBXMOD),a
+            ld      a,$01
+            out     (PBXWIDE),a         ; One source byte per glyph row
+            ld      a,$09
+            out     (PBYHIGH),a         ; Ten rows and start transfer
+            pop     hl                  ; Restore next character pointer
+            inc     de
+            inc     de                  ; Forward destination step
+            bit     7,c
+            jr      nz,L04A8
+            dec     de
+            dec     de
+            dec     de
+            dec     de                  ; Mirrored destination step
+L04A8:      djnz    L046D
+            ret
+;
+; Convert one WoW character code in A to a ten-byte glyph address in HL.
+; Digits, letters and resident punctuation use CHRTBL. Codes at and above the
+; X11 threshold use the alternate-font pointer stored at X11 $C00B.
+char2gfx:   sub     $30                 ; Turn ASCII into table entry
+            cp      $0A                 ; Check for number 0-9
+            jr      c,L04B3             ; Jump if not a number...
+            sub     $06                 ; Adjust to take out unsupported characters
+                ; ... between "9" and "A" (":;<=>?")
+L04B3:      ld      l,a                 ; L = table entry
+            sub     $2C                 ; Test for the X11 alternate-glyph range
+            ld      de,CHRTBL           ; Resident character-table base
+            jr      c,L04C2             ; Normal range uses the resident character table
+            ld      hl,X11_Alternate_Font_Ptr ; Address of X11 alternate-font pointer
+            ld      e,(hl)              ; Read alternate-font pointer low byte
+            inc     hl
+            ld      d,(hl)              ; DE = alternate glyph table base from X11
+            ld      l,a                 ; L = alternate glyph index
+L04C2:      ld      h,$00               ;
+            add     hl,hl               ; Begin multiplying HL * $0A
+            push    de                  ; Push beginning of table address
+            ld      d,h                 ;
+            ld      e,l                 ;
+            add     hl,hl               ;
+            add     hl,hl               ;
+            add     hl,de               ; Multiply HL * $0A complete. This is table offset.
+            pop     de                  ; Restore beginning of table address
+            add     hl,de               ; Add start of table address with offset to give table entry.
+            ret
+
+;******************************************************************************
+; Wizard of Wor resident character table. Each glyph occupies ten bytes. Magic
+; RAM expands every source bit horizontally into a two-bit pixel, with XPAND
+; selecting the output color. Consecutive glyphs are therefore $0A bytes apart.
+;
+;Example:    Character "A"
+;
+;        Data    Expanded    Expanded two
+;            one bit        bits per byte
+;            per byte
+;
+;        $18    ---XX---    ------XXXX------
+;        $3C    --XXXX--    ----XXXXXXXX----
+;        $7E    -XXXXXX-    --XXXXXXXXXXXX--
+;        $66    -XX--XX-    --XXXX----XXXX--
+;        $66    -XX--XX-    --XXXX----XXXX--
+;        $66    -XX--XX-    --XXXX----XXXX--
+;        $7E    -XXXXXX-    --XXXXXXXXXXXX--
+;        $7E    -XXXXXX-    --XXXXXXXXXXXX--
+;        $66    -XX--XX-    --XXXX----XXXX--
+;        $66    -XX--XX-    --XXXX----XXXX--
+;
+;
+;
+;******************************************************************************
+;
+CHRTBL:
+
+            DB      $3C,$7E,$66,$66,$66,$66,$66,$66,$7E,$3C ; "0"
+            DB      $18,$38,$18,$18,$18,$18,$18,$18,$3C,$3C ; "1"
+            DB      $3C,$7E,$66,$06,$3E,$7C,$60,$60,$7E,$7E ; "2"
+            DB      $3C,$7E,$66,$06,$1C,$1E,$06,$66,$7E,$3C ; "3"
+            DB      $66,$66,$66,$66,$7E,$7E,$06,$06,$06,$06 ; "4"
+            DB      $7C,$7C,$60,$60,$7C,$7E,$06,$66,$7E,$3C ; "5"
+            DB      $3C,$7C,$60,$60,$7C,$7E,$66,$66,$7E,$3C ; "6"
+            DB      $7E,$7E,$06,$0E,$0C,$1C,$18,$38,$30,$30 ; "7"
+            DB      $3C,$7E,$66,$66,$3C,$7E,$66,$66,$7E,$3C ; "8"
+            DB      $3C,$7E,$66,$66,$7E,$3E,$06,$06,$3E,$3C ; "9"
+            DB      $00,$00,$00,$00,$00,$00,$00,$00,$00,$00 ; "space"
+            DB      $18,$3C,$7E,$66,$66,$66,$7E,$7E,$66,$66 ; "A"
+            DB      $7C,$7E,$66,$66,$7C,$7E,$66,$66,$7E,$7C ; "B"
+            DB      $3C,$7E,$66,$60,$60,$60,$60,$66,$7E,$3C ; "C"
+            DB      $7C,$7E,$66,$66,$66,$66,$66,$66,$7E,$7C ; "D"
+            DB      $7E,$7E,$60,$60,$7C,$7C,$60,$60,$7E,$7E ; "E"
+            DB      $7E,$7E,$60,$60,$7C,$7C,$60,$60,$60,$60 ; "F"
+            DB      $3C,$7E,$60,$60,$60,$6E,$6E,$66,$7E,$3C ; "G"
+            DB      $66,$66,$66,$66,$7E,$7E,$66,$66,$66,$66 ; "H"
+            DB      $3C,$3C,$18,$18,$18,$18,$18,$18,$3C,$3C ; "I"
+            DB      $06,$06,$06,$06,$06,$06,$66,$66,$7E,$3C ; "J"
+            DB      $66,$66,$6E,$7C,$78,$78,$6C,$6E,$66,$66 ; "K"
+            DB      $60,$60,$60,$60,$60,$60,$60,$60,$7E,$7E ; "L"
+            DB      $C3,$E7,$E7,$DB,$DB,$C3,$C3,$C3,$C3,$C3 ; "M"
+            DB      $66,$66,$76,$7E,$7E,$6E,$66,$66,$66,$66 ; "N"
+            DB      $3C,$7E,$66,$66,$66,$66,$66,$66,$7E,$3C ; "O"
+            DB      $7C,$7E,$66,$66,$7E,$7C,$60,$60,$60,$60 ; "P"
+            DB      $3C,$7E,$66,$66,$66,$66,$66,$6E,$64,$3A ; "Q"
+            DB      $7C,$7E,$66,$66,$7E,$7C,$6E,$66,$66,$66 ; "R"
+            DB      $3C,$7E,$66,$60,$7C,$3E,$06,$66,$7E,$3C ; "S"
+            DB      $7E,$7E,$18,$18,$18,$18,$18,$18,$18,$18 ; "T"
+            DB      $66,$66,$66,$66,$66,$66,$66,$66,$7E,$3C ; "U"
+            DB      $66,$66,$66,$66,$66,$7E,$3C,$3C,$18,$18 ; "V"
+            DB      $C3,$C3,$C3,$DB,$DB,$DB,$FF,$E7,$C3,$C3 ; "W"
+            DB      $66,$66,$7E,$3C,$18,$18,$3C,$7E,$66,$66 ; "X"
+            DB      $66,$66,$7E,$3C,$18,$18,$18,$18,$18,$18 ; "Y"
+            DB      $7E,$7E,$06,$0E,$1C,$38,$70,$60,$7E,$7E ; "Z"
+            DB      $3C,$42,$99,$A5,$A1,$A1,$A5,$99,$42,$3C ; "Copyright Symbol"
+            DB      $38,$20,$60,$40,$FF,$FF,$40,$60,$20,$38 ; "Left arrow"
+            DB      $18,$18,$3C,$3C,$7E,$5A,$DB,$99,$18,$18 ; "Up arrow"
+            DB      $18,$18,$99,$DB,$5A,$7E,$3C,$3C,$18,$18 ; "Down arrow"
+            DB      $00,$00,$00,$00,$7E,$7E,$00,$00,$00,$00 ; "Dash"
+            DB      $1C,$1C,$1C,$08,$08,$00,$00,$00,$00,$00 ; "Apostrophe"
+            DB      $1C,$04,$06,$02,$FF,$FF,$02,$06,$04,$1C ; "Right arrow"
+
+            nop                         ; Not sure why there is a NOP here... left in just in case.
+;*****************************************************************************************
+; ----> Update_Color_Fade_1
+;       Processes fading/cycling timers and triggers new palette loads.
+;*****************************************************************************************
+Update_Color_Fade_1:
+            call    Update_Color_Fade_2
+            ld      hl, LD1BF
+            ld      a, (hl)
+            and     a
+            ret     z
+            inc     hl
+            dec     (hl)
+            ret     nz
+            ld      (hl), $02               ; Reset sub-timer
+            dec     hl
+            dec     (hl)                    ; Decrement main fade index
+            ld      a, (hl)
+            sub     $09
+            cpl
+            ld      e, a                    ; E = Complemented index offset
+            call    Load_Palette_Colors
+            ld      a, e
+            cp      $08
+            ret     c
+            ld      a, (L00C8)              ; Load default background color
+            out     (COL0L), a
+            xor     a
+            ld      (LD1BA), a
+            ld      (LD050), a
+            inc     a
+            ld      (Timer_Group_2_Start),a
+            jr      Set_Scanline_Int
+
+;*****************************************************************************************
+; ----> Update_Color_Fade_2
+;*****************************************************************************************
+Update_Color_Fade_2:
+            ld      hl, LD1C1
+            ld      a, (hl)
+            and     a
+            ret     z
+            inc     hl
+            dec     (hl)
+            ret     nz
+            ld      (hl), $04
+            dec     hl
+            dec     (hl)
+            ld      e, (hl)
+            call    Load_Palette_Colors
+            dec     e
+            ret     p
+
+;*****************************************************************************************
+; ----> Set_Scanline_Int & Enable_Sparkle_Colors
+;
+;       Sets the vertical scanline interrupt trigger position and enables the
+;       hardware "sparkle" (shimmer) effect on colors 1, 2, and 3 via the CCMISC latch.
+;*****************************************************************************************
+Set_Scanline_Int:
+            ld      a,$A8               ; Trigger line 168
+            out     (INLIN), a          ; Set the scanline interrupt trigger position
+
+Enable_Sparkle_Colors:
+            ld      a, 00000111b        ; 0000 011 1 (Function 3, State 1)
+            in      a, (CCMISC)         ; Trigger latch to enable Sparkle Color 1
+
+            ld      a, 00001001b        ; 0000 100 1 (Function 4, State 1)
+            in      a, (CCMISC)         ; Trigger latch to enable Sparkle Color 2
+
+            ld      a, 00001011b        ; 0000 101 1 (Function 5, State 1)
+            in      a, (CCMISC)         ; Trigger latch to enable Sparkle Color 3
+            ret                         ; Return to caller
+
+;*****************************************************************************************
+; ----> Load_Palette_Colors
+;       Calculates the offset into the Fade_Palette_Data table (E * 3) and sends
+;       the 3 bytes to the Astrocade's Left Color registers.
+;*****************************************************************************************
+Load_Palette_Colors:
+            ld      d, $00
+            ld      hl, Fade_Palette_Data
+            add     hl, de
+            add     hl, de
+Load_Palette_Colors_Loop:
+            add     hl, de
+            ld      a, (LD1BA)
+            and     a
+            jr      nz, Write_Color_3
+Load_Color_3:
+            ld      a, (hl)
+Write_Color_3:
+            out     (COL3L), a
+            inc     hl
+            ld      a, (hl)
+            out     (COL2L), a
+            inc     hl
+            ld      a, (hl)
+            out     (COL1L), a
+            ret
+
+;*****************************************************************************************
+; ----> Fade_Palette_Data
+;       9 sets of 3-byte color palettes for screen fading effects.
+;*****************************************************************************************
+Fade_Palette_Data:
+            DB      $51, $7C, $F3
+            DB      $51, $7B, $F3
+            DB      $51, $7B, $F3
+            DB      $51, $7A, $F2
+            DB      $51, $7A, $F2
+            DB      $50, $79, $F1
+            DB      $50, $79, $F1
+            DB      $50, $78, $F0
+            DB      $50, $78, $F0
+
+;*****************************************************************************************
+; ----> Trigger_CCMISC_4
+;*****************************************************************************************
+Trigger_CCMISC_4:
+            ld      a, $04
+            in      a, (CCMISC)
+            jr      Set_Scanline_Int
+
+;*****************************************************************************************
+; ----> Process_Scanline_Timer
+;*****************************************************************************************
+Process_Scanline_Timer:
+            ld      hl, LD1BB
+            ld      a, (hl)
+            and     a
+            ret     z
+            ld      a, $CC
+            out     (INLIN), a
+            inc     hl
+            ld      a, (hl)
+            and     a
+            jr      z, Proc_BG_Fade
+            dec     (hl)
+            ret
+;*****************************************************************************************
+; ----> Proc_BG_Fade
+;       Decrements a timer, triggers hardware latch, and updates the background color.
+;*****************************************************************************************
+Proc_BG_Fade:
+            ld      (hl), $01
+            dec     hl
+            ld      a, $05
+            in      a, (CCMISC)             ; Trigger hardware latch
+            dec     (hl)
+            call    z, Trigger_CCMISC_4
+            ld      a, (hl)
+Calc_Color_Idx:
+            sub     $10                     ; Modulo 16 loop
+            jr      nc, Calc_Color_Idx
+            add     a, $10
+            ld      c, a
+            ld      b, $00
+            ld      hl, BG_Color_Data
+            add     hl, bc                  ; Calculate offset into the color table
+Write_BG_Color:
+            ld      a, (hl)
+            out     (COL0L), a              ; Output to Background Color Register
+            ret
+
+;*****************************************************************************************
+; ----> BG_Color_Data
+;       16 bytes of background colors.
+;*****************************************************************************************
+BG_Color_Data:
+            DB      $C7, $78, $4B, $18, $BB, $68, $DB, $58
+            DB      $2B, $08, $AB, $88, $3B, $98, $CB, $FB
+
+;*****************************************************************************************
+; ----> Load_Fade_Col_3
+;*****************************************************************************************
+Load_Fade_Col_3:
+            ld      hl, Fade_Palette_Data
+            call    Load_Color_3
+            jp      Set_Scanline_Int        ; Jump to scanline interrupt routine
+
+;*****************************************************************************************
+; ----> Proc_Scan_Tmr_2
+;*****************************************************************************************
+Proc_Scan_Tmr_2:
+            ld      hl, LD1BD
+            ld      a, (hl)
+            and     a
+            ret     z
+            ld      a, $CC
+            out     (INLIN), a
+            inc     hl
+            ld      a, (hl)
+            and     a
+            jr      z, L076C
+            dec     (hl)
+            ret
+;
+;*********************************************************
+;
+L076C:      ld      (hl),$03
+            dec     hl
+            dec     (hl)
+            jr      z, Load_Fade_Col_3
+            bit     0,(hl)
+            ld      a,$07
+            jr      z,L0779
+            xor     a
+L0779:      out     (COL3L),a
+            out     (COL2L),a
+            out     (COL1L),a
+            ret
+;
+;*********************************************************
+;
+            nop
+L0781:      call    Stream_Fetch_Byte_B
+            call    Stream_Select_Address_By_Orientation
+            xor     a
+            jp      Print_String_With_Cabinet_Orientation
+;
+;*********************************************************
+;
+;******************************************************************************
+; SELECT LOCALIZED TEXT RECORD
+;
+; Input:
+;   B  = 1-based localized text record number.
+;
+; Output:
+;   HL = first character of the selected record.
+;   B  = record length.
+;   A  = record length plus LD1E2, preserving the original caller contract.
+;
+; Text records are length-prefixed. Character bytes are $30 and above, while
+; the next record begins with a length byte below $30. Consequently, the table
+; format supports record lengths $00-$2F (47 characters maximum).
+;
+; Language DIP bit 3:
+;   1 = built-in English table beginning at Text_Insert_Coin
+;   0 = X11 localized table beginning at $C00D
+;******************************************************************************
+Select_Localized_Text_Record:
+            ld      a,($D347)           ; Value is replaced by the live port read below
+            in      a,(SETTINGS)
+            bit     LANGUAGE_DIP_BIT,a
+            ld      hl,Text_Insert_Coin
+            jr      nz,L079A            ; English selected
+            ld      hl,X11_Localized_Text_Table
+L079A:      ld      a,(hl)              ; Length bytes are below $30
+            inc     hl
+            cp      $30
+            jr      nc,L079A            ; Skip character data until the next length byte
+            djnz    L079A               ; Continue until the requested record is reached
+            ld      b,a                 ; Return selected record length
+            ld      a,(LD1E2)
+            add     a,b
+            ret
+;
+; Select one of two stream-encoded 16-bit addresses using COINPORT bit 7.
+; Consumes two words from IY and returns the selected address in DE.
+Stream_Select_Address_By_Orientation:
+L07A8:      call    Stream_Fetch_Word_HL
+            push    hl
+            call    Stream_Fetch_Word_HL
+            in      a,(COINPORT)        ; Bit 7 selects first versus second address
+            bit     7,a
+            jr      nz,L07B6
+            ex      (sp),hl
+L07B6:      pop     hl
+            ex      de,hl
+            ret
+;
+;*********************************************************
+;
+            call    Stream_Fetch_Word_HL
+            call    Stream_Fetch_Byte_B
+            call    Stream_Fetch_Word_DE
+            call    Stream_Fetch_Byte_A
+            ld      c,$FF
+            jp      printstr
+;
+; Continue a display-stream command with an explicit destination, length, and
+; alternate address pair.
+L07CA:
+            call    Stream_Fetch_Word_DE
+            call    Stream_Fetch_Byte_B
+            call    Stream_Select_Address_By_Orientation
+L07D3:      call    Stream_Fetch_Byte_A
+            jp      Print_String_With_Cabinet_Orientation
+;
+            call    Stream_Fetch_Byte_B
+            call    Stream_Select_Address_By_Orientation
+            call    Select_Localized_Text_Record
+            jr      L07D3
+;
+; Select a localized text record and continue the current display command.
+            call    Stream_Fetch_Byte_B
+            call    Select_Localized_Text_Record
+            sub     $29
+            cpl
+            ld      e,a
+            call    L088B
+            in      a, (COINPORT)
+            bit     7,a                 ; Select the alternate display-positioning path
+            call    Stream_Fetch_Byte_A
+            jr      nz,L07FF
+            ld      d,a
+            ld      a,$4F
+            sub     e
+            ld      e,a
+L07FF:      push    hl
+L0800:      call    Compute_80_Byte_Row_Offset
+            ex      de,hl
+            pop     hl
+            jr      L07D3
+;
+; Write an immediate byte to a stream-selected address.
+            call    Stream_Fetch_Byte_A_Then_Word_HL
+            ld      (hl),a
+            ret
+
+;
+; Write an immediate word to a stream-selected address.
+L080C:      call    Stream_Fetch_Word_DE
+L080F:      call    Stream_Fetch_Word_HL
+            ld      (hl),e
+            inc     hl
+            ld      (hl),d
+            ret
+;
+            call    Stream_Fetch_Byte_A_Then_Word_HL
+            call    Stream_Fetch_Word_DE
+            cp      (hl)
+            ret     z
+            jr      L083E
+            call    Stream_Fetch_Word_DE
+L0823:      call    Stream_Fetch_Word_HL
+            ld      a,(de)
+            and     a
+            ret     nz
+            jr      L086E
+            call    Stream_Fetch_Word_DE
+            call    Stream_Fetch_Word_HL
+            ld      a,(de)
+            and     a
+            ret     z
+            jr      L086E
+            call    Stream_Fetch_Byte_A_Then_Word_HL
+            call    Stream_Fetch_Word_DE
+            cp      (hl)
+            ret     c
+L083E:      push    de
+            pop     iy
+            ret
+            in      a, (COINPORT)
+            and     (iy+$00)
+            inc     iy
+            call    Stream_Fetch_Word_HL
+            ret     z
+            jr      L086E
+            xor     a
+            ld      (LD050),a
+            call    Stream_Fetch_Byte_A
+            ld      (Timer_Group_2_Start),a
+            ret
+            xor     a
+            ld      (LD053),a
+            call    Stream_Fetch_Byte_A_Then_Word_HL
+            ld      (LD051),hl
+            ld      (Timer_Group_1_Start),a
+            ret
+            ld      l,(iy+$00)
+            ld      h,(iy+$01)
+L086E:      push    hl
+            pop     iy
+            ret
+;
+; Fetch an immediate byte followed by a 16-bit little-endian word from the
+; command stream. Returns A=byte, HL=word, with IY advanced by three bytes.
+Stream_Fetch_Byte_A_Then_Word_HL:
+L0872:      call    Stream_Fetch_Byte_A
+
+; Fetch one 16-bit little-endian word from the command stream.
+; Returns HL=word and advances IY by two bytes.
+Stream_Fetch_Word_HL:
+            ld      l,(iy+$00)
+            inc     iy
+            ld      h,(iy+$00)
+            inc     iy
+            ret
+;
+;*********************************************************
+;
+; Load A=(IY), IY=IY+1
+;
+;*********************************************************
+;
+Stream_Fetch_Byte_A:
+            ld      a,(iy+$00)
+            inc     iy
+            ret
+;
+;*********************************************************
+;
+; Load E=(IY+1), D=(IY), IY=IY+2
+;
+;*********************************************************
+;
+Stream_Fetch_Word_DE:
+            ld      e,(iy+$00)
+            inc     iy
+L088B:      ld      d,(iy+$00)
+            inc     iy
+            ret
+;
+;*********************************************************
+;
+; Load C=(IY), B=(IY+1)
+;
+;*********************************************************
+;
+            call    Stream_Fetch_Byte_C
+Stream_Fetch_Byte_B:
+            ld      b,(iy+$00)
+            inc     iy
+            ret
+;
+;*********************************************************
+;
+; Load C=(IY)
+;
+;*********************************************************
+;
+Stream_Fetch_Byte_C:
+            ld      c,(iy+$00)
+            inc     iy
+            ret
+;
+; Enter a nested command stream. The caller's return address remains the
+; continuation point while IY changes to the stream address encoded at old IY.
+Enter_Nested_Command_Stream:
+L08A0:      pop     hl                  ; Continuation address
+            call    Stream_Fetch_Word_DE ; Fetch nested stream address
+            push    iy                  ; Save parent stream pointer
+            push    de
+            pop     iy                  ; Activate nested stream pointer
+            jp      (hl)                ; Resume dispatcher continuation
+
+; Restore the parent command stream and resume the dispatcher continuation.
+Leave_Nested_Command_Stream:
+            pop     hl
+            pop     iy
+            jp      (hl)
+
+;*****************************************************************************************
+; ---->  Sys_Init
+;
+; Sets up Magic RAM and the Pattern Board (DMA) to rapidly clear the screen,
+; zeroes out $0203 bytes of Work RAM, and invokes the high-ROM initialization
+; hook when that entry is populated by a JP instruction.
+;*****************************************************************************************
+ Sys_Init:
+            di                          ; Disable interrupts during the wipe
+            xor     a                   ; A = 0
+            out     (XPAND),a           ; Set Expand Color to 0 (Black Paintbrush)
+            ld      a,$08               ; 00001000b (MRXPND = bit 3)
+            out     (MAGIC),a           ; Enable Magic RAM Expand Mode
+            ld      a,$22               ; 00100010b (PBFLOP = bit 5, PBEXP = bit 1)
+            out     (PBSTAT),a          ; Set DMA to Expand Mode & Horizontal Flop
+            xor     a                   ; A = 0
+            out     (PBXMOD),a          ; Destination Address LSB = $00
+            out     (PBAREADRH),a       ; Destination Address MSB = $00
+            inc     a                   ; A = 1
+            out     (PBXMOD),a          ; Dest Skip/Modulo = 1 (Advances to next line)
+            ld      a,$4F               ; Width = $4F (79 bytes wide)
+            out     (PBXWIDE),a         ; Set Pattern Width
+            ld      a,$CB               ; Height = $CB (203 scanlines)
+            out     (PBYHIGH),a         ; Set Pattern Height and START DMA TRANSFER!
+
+;*****************************************************************************************
+; ----> CLEAR WORK RAM ($D040 - $D243)
+; Clears 515 bytes of game state memory. Skips the first 64 bytes ($D000 - $D03F)
+; which are battery-backed protected RAM.
+;*****************************************************************************************
+            ld      hl,LD040            ; HL = Start of unprotected Work RAM ($D040)
+            ld      (hl),$00            ; Seed the first byte with $00
+            ld      de,LD041            ; DE = Dest pointer (one byte ahead)
+            ld      bc,$0203            ; BC = 515 bytes
+            ldir                        ; Rapidly copy the zero through the RAM block
+
+;*****************************************************************************************
+; ----> HIGH-ROM INITIALIZATION HOOK
+;*****************************************************************************************
+            ld      a,(HIGH_ROM_INIT_HOOK) ; Probe the high-ROM initialization entry ($8006)
+            cp      $C3                 ; Present entries begin with JP
+            call    z,HIGH_ROM_INIT_HOOK ; WoW high ROM performs sound/speech initialization
+            ret                         ; Return to caller
+;
+;************************************************************************
+;
+            call    Stream_Fetch_Byte_C
+            call    Stream_Fetch_Byte_A
+            ex      af,af'
+            call    Stream_Fetch_Word_HL
+            exx
+            call    Stream_Select_Address_By_Orientation
+            ex      de,hl
+            exx
+L08F0:      ld      a,(hl)
+            inc     hl
+            exx
+            push    hl
+            call    char2gfx
+            ex      de,hl
+            pop     hl
+            exx
+            ld      b,$0A
+L08FC:      exx
+            ld      b,$08
+            ex      af,af'
+            ld      c,a
+            ex      af,af'
+            ld      a,(de)
+            inc     de
+L0904:      rla
+            jr      nc,L0908
+            ld      (hl),c
+L0908:      inc     hl
+            push    af
+            in      a, (COINPORT)
+            bit     7,a
+            jr      nz,L0912
+            dec     hl
+            dec     hl
+L0912:      pop     af
+            djnz    L0904
+            in      a, (COINPORT)
+            bit     7,a
+            ld      c,$E8
+            jr      nz,L0920
+            ld      bc,LFF18
+L0920:      add     hl,bc
+            exx
+            djnz    L08FC
+            exx
+            ld      bc,LF6A8
+            in      a, (COINPORT)
+            bit     7,a
+            jr      nz,L0931
+            ld      bc,L0958
+L0931:      add     hl,bc
+            exx
+            dec     c
+            jr      nz,L08F0
+            ret
+            nop
+XY_To_Video_Address:
+            push    hl
+            srl     e
+            srl     e
+            call    Compute_80_Byte_Row_Offset
+            ld      de,L0007
+            add     hl,de
+            ex      de,hl
+            pop     hl
+            ret
+; Compute an 80-byte-row linear offset.
+; Input: D = row, E = byte column. Output: HL = D*80 + E. D is destroyed.
+Compute_80_Byte_Row_Offset:
+L0947:      ld      l,d
+            ld      h,$00
+            ld      d,h
+            add     hl,hl
+            add     hl,hl
+            add     hl,hl
+            add     hl,hl
+            push    hl
+            add     hl,hl
+            add     hl,hl
+            add     hl,de
+            pop     de
+            add     hl,de
+            ret
+
+; IM2 vector $CA resolves through $00CA to this entry. This is the full-register
+; frame interrupt path: service coin/credit state, frame work/sound, refresh the
+; protected-RAM integrity words, then restore the interrupted context.
+Interrupt_Vector_CA_Handler:
+            push    af
+L0957:      push    bc
+L0958:      push    de
+            push    hl
+            ex      af,af'
+            push    af
+            exx
+            push    bc
+            push    de
+            push    hl
+L0960:      push    ix
+            call    Process_Coin_Inputs_And_Credits
+            call    Service_Main_Frame_Work
+            call    Refresh_Protected_RAM_Checkwords
+            pop     ix
+            pop     hl
+            pop     de
+            pop     bc
+            exx
+            pop     af
+            ex      af,af'
+            pop     hl
+            pop     de
+            pop     bc
+            pop     af
+            ei
+            ret
+; Refresh the two protected-RAM checkwords validated by memcheck during boot.
+; $D038 increments modulo 16; $D03E is reseeded from R. Each is stored as a
+; repeated low nibble followed by its one's complement. Disabled in diagnostics.
+Refresh_Protected_RAM_Checkwords:
+L0979:      ld      a,(DIAGFLAG)
+            and     a
+            ret     nz
+            ld      hl,LD038
+            ld      a,(hl)
+            inc     a
+            call    Write_Protected_RAM_Checkword_From_A
+            ld      hl,LD03E
+            ld      a,r
+; HL selects the two-byte protected-RAM checkword; A supplies the low nibble.
+Write_Protected_RAM_Checkword_From_A:
+L098B:      and     $0F
+            ld      c,a
+            rlca
+            rlca
+            rlca
+            rlca
+            or      c
+            ld      c,a
+            cpl
+            ld      b,a
+            call    Protected_RAM_Write
+            inc     hl
+            ld      c,b
+            jp      Protected_RAM_Write
+
+; IM2 vector $CC resolves through $00CC to this scanline phase. It schedules
+; the $CE phase, switches the special-control latch, and updates color 3 left.
+Interrupt_Vector_CC_Handler:
+            push    af
+            ld      a,(LD1C4)
+            add     a,$2C
+            out     (INLIN),a
+            call    Select_Interrupt_Vector_CE
+            ld      a,$0A
+            in      a, (CCMISC)
+            ld      a,$52
+            out     (COL3L),a
+            pop     af
+            ei
+            ret
+
+;
+;************************************************************************
+; IM2 vector $CE resolves through $00CE to this scanline phase. It restores the
+; base scanline, switches back to vector $CC, updates color 3 left, then enters
+; the full $CA frame-service save path at L0957.
+;************************************************************************
+Interrupt_Vector_CE_Handler:
+            push    af
+            ld      a,(LD1C4)
+            out     (INLIN),a
+            call    Select_Interrupt_Vector_CC
+            ld      a,$0B
+            in      a, (CCMISC)
+            ld      a,$51
+            out     (COL3L),a
+            jr      L0957
+            nop
+L09C8:      ld      hl,LD003
+            ld      c,$00
+            call    Protected_RAM_Write
+            rst     00H
+; Main per-frame game-service body called by Interrupt_Vector_CA_Handler. It
+; services actor/display state and timers on alternating phases, then invokes
+; the optional high-ROM periodic sound/speech service at $8000.
+Service_Main_Frame_Work:
+L09D1:      ld      a,(DIAGFLAG)
+            and     a
+            jp      nz,L0A68
+            in      a, (COINPORT)       ; Check for TILT
+            and     $10                 ; Bit 4, active LOW
+            jr      z,L09C8             ; Jump to TILT routine
+            ld      a,(LD03A)
+            cp      $05
+            jr      nc,L09C8
+            ld      a,(One_Second_Frame_Countdown)
+            rra
+            jr      c,L0A25
+            ld      hl,LD05C
+            call    L0B62
+            ld      hl,LD09C
+            call    L0B62
+            ld      hl,LD0E8
+            call    L0B62
+            ld      hl,LD134
+L0A00:      call    L0B62
+            ld      hl,LD067
+L0A06:      call    L0AA6
+            ld      hl,LD0A7
+            call    L0AA6
+            ld      hl,LD0F3
+            call    L0AA6
+L0A15:      ld      hl,LD13F
+            call    L0AA6
+            call    L0BD7
+            call    Proc_Scan_Tmr_2
+            ld      a,$05
+            jr      L0A5D
+L0A25:      ld      hl,LD07C
+            call    L0B62
+            ld      hl,LD0C2
+            call    L0B62
+            ld      hl,LD10E
+            call    L0B62
+            ld      hl,LD15A
+            call    L0B62
+            ld      hl,LD087
+            call    L0AA6
+            ld      hl,LD0CD
+            call    L0AA6
+            ld      hl,LD119
+            call    L0AA6
+            ld      hl,LD165
+            call    L0AA6
+            call    L0BE7
+            call    Process_Scanline_Timer
+            ld      a,$0A
+L0A5D:      ld      hl,LD1C3
+            or      (hl)
+            ld      (hl),a
+            call    L0A72
+            call    Update_Color_Fade_1
+L0A68:      ld      a,(Sound_Service_Entry)
+            cp      $C3
+            call    z,Sound_Service_Entry
+            ret
+            nop
+L0A72:      call    L0A82
+            ld      hl,Timer_Group_2_Start
+            inc     de
+            ld      a,(de)
+            and     a
+            ret     nz
+            ld      b,$08
+            call    L0A95
+            ret
+L0A82:      ld      de,LD040
+            ld      a,(de)
+            and     a
+            ret     nz
+            ld      hl,One_Second_Frame_Countdown
+            dec     (hl)
+            ret     nz
+            ld      (hl),$3C
+            ld      bc,$0601            ; B = six timers; C = expiration-bit accumulator
+            ld      hl,Timer_Group_1_Start
+L0A95:      ld      a,(hl)
+            and     a
+            jr      z,L0A9D
+            dec     (hl)
+            jr      nz,L0A9D
+            scf
+L0A9D:      rl      c
+            inc     hl
+L0AA0:      djnz    L0A95
+            ld      a,c
+            ld      (de),a
+            ret
+            nop
+L0AA6:      bit     7,(hl)
+L0AA8:      ret     z
+            ld      a,$0C
+            out     (XPAND),a
+            ld      a,$28
+            out     (MAGIC),a
+            bit     3,(hl)
+            jr      z,L0AB9
+            res     7,(hl)
+            jr      L0AE8
+L0AB9:      push    hl
+            call    L0AE8
+            pop     hl
+            bit     5,(hl)
+            ret     nz
+            push    hl
+            inc     hl
+            ld      a,(hl)
+            inc     hl
+            add     a,(hl)
+            jr      z,L0AC9
+            ld      (hl),a
+L0AC9:      ld      e,a
+            inc     hl
+            ld      a,(hl)
+            inc     hl
+            add     a,(hl)
+            ld      (hl),a
+            ld      d,a
+            call    XY_To_Video_Address
+            inc     hl
+            ld      (hl),e
+            inc     hl
+            ld      (hl),d
+            in      a, (INTST)
+            pop     hl
+            ld      a,(hl)
+            push    hl
+            call    L0AF5
+            pop     hl
+            set     6,(hl)
+            in      a, (INTST)
+            and     a
+            ret     z
+            set     5,(hl)
+L0AE8:      bit     6,(hl)
+            ret     z
+            res     6,(hl)
+            ld      a,(hl)
+            ld      de,L0005
+            add     hl,de
+            ld      e,(hl)
+            inc     hl
+            ld      d,(hl)
+L0AF5:      ex      de,hl
+            ld      de,L004F
+            bit     1,a
+            jr      nz,L0B2E
+            bit     2,a
+            jr      nz,L0B17
+            ld      a,$18
+            call    L0B06
+L0B06:      ld      (hl),a
+            inc     hl
+            ld      (hl),a
+            add     hl,de
+            ld      (hl),a
+            inc     hl
+            ld      (hl),a
+            add     hl,de
+            ld      (hl),a
+            inc     hl
+            ld      (hl),a
+            add     hl,de
+            ld      (hl),a
+            inc     hl
+            ld      (hl),a
+            add     hl,de
+            ret
+L0B17:      inc     de
+            ld      bc,L2244
+            ld      a,(LD1C6)
+            and     a
+            call    z,L0B25
+            call    L0B25
+L0B25:      ld      (hl),b
+            add     hl,de
+            ld      (hl),b
+            add     hl,de
+            ld      (hl),c
+            add     hl,de
+            ld      (hl),c
+            add     hl,de
+            ret
+L0B2E:      bit     2,a
+            jr      nz,L0B3C
+            ld      a,$FF
+            ld      (hl),a
+            inc     hl
+            ld      (hl),a
+            add     hl,de
+            ld      (hl),a
+            inc     hl
+            ld      (hl),a
+            ret
+L0B3C:      ld      a,(LD1C6)
+            and     a
+            jr      nz,L0B55
+            dec     de
+            ld      (hl),$99
+            inc     hl
+            ld      (hl),$99
+            inc     hl
+            ld      (hl),$9E
+            add     hl,de
+            ld      (hl),$9E
+            inc     hl
+            ld      (hl),$67
+            inc     hl
+            ld      (hl),$67
+            ret
+L0B55:      ld      (hl),$99
+            inc     hl
+            ld      (hl),$99
+            add     hl,de
+            ld      (hl),$E7
+            inc     hl
+            ld      (hl),$E7
+            ret
+            nop
+L0B62:      bit     7,(hl)
+            ret     z
+            res     7,(hl)
+            push    hl
+            bit     6,(hl)
+            res     6,(hl)
+            call    nz,L0B89
+            pop     hl
+            bit     5,(hl)
+            ret     z
+            push    hl
+            pop     ix
+            ld      a,(ix-$04)
+            ld      (ix+$16),a
+            ld      a,(ix-$02)
+            ld      (ix+$17),a
+            push    ix
+            pop     hl
+            ld      a,(hl)
+            xor     $70
+            ld      (hl),a
+L0B89:      bit     4,(hl)
+            ld      de,L0005
+            jr      z,L0B91
+            add     hl,de
+L0B91:      inc     hl
+Draw_Actor_Record:
+            di
+            ld      a,(hl)
+            out     (MAGIC),a
+            ld      de,L0005
+            bit     7,a
+            jr      z,L0B9F
+            set     4,d
+L0B9F:      bit     6,a
+            jr      nz,L0BA5
+            set     5,d
+L0BA5:      ld      a,d
+            or      $0C
+            out     (PBSTAT),a
+L0BAA:      bit     5,a
+            jr      z,L0BB0
+            ld      e,$FB
+L0BB0:      bit     4,a
+            ld      a,$50
+            jr      z,L0BB8
+            ld      a,$B0
+L0BB8:      add     a,e                 ; Complete orientation-dependent X modulo
+            ld      e,a
+            inc     hl
+            ld      a,(hl)
+            out     (PBLINADRL),a
+            inc     hl
+            ld      a,(hl)
+            out     (PBLINADRH),a
+            inc     hl
+            ld      a,(hl)
+            out     (PBXMOD),a
+            inc     hl
+            ld      a,(hl)
+            out     (PBAREADRH),a
+            ld      a,e
+            out     (PBXMOD),a
+            ld      a,$05
+            out     (PBXWIDE),a
+            ld      a,$11
+            out     (PBYHIGH),a
+            ret
+            nop
+L0BD7:      push    iy
+            ld      iy,P1_Actor_Record
+            ld      ix,P2_Actor_Record
+            call    L0C2B
+            pop     iy
+            ret
+L0BE7:      push    iy
+            ld      iy,P2_Actor_Record
+            ld      ix,P1_Actor_Record
+            call    L0C2B
+            pop     iy
+            ret
+L0BF7:      push    iy
+            ld      a,$06
+L0BFB:      push    af
+            call    Select_Enemy_Record_IY
+            call    L0C09
+            pop     af
+L0C03:      dec     a
+            jr      nz,L0BFB
+            pop     iy
+            ret
+L0C09:      ld      a,(iy+$13)
+L0C0C:      bit     5,a
+            ret     z
+            ld      ix,P2_Actor_Record
+            call    L0C49
+L0C16:      ld      ix,P1_Actor_Record
+            call    L0C49
+            ld      (iy+$13),$00
+            ld      a,(LD1C6)
+            and     a
+            ret     nz
+            ld      (iy+$1c),$0F
+            ret
+L0C2B:      ld      a,(iy+$13)
+            bit     5,a
+            ret     z
+            call    L0C49
+            call    L0E0B
+            ld      a,$06
+L0C39:      push    af
+            call    Select_Enemy_Record_IX
+            call    L0C49
+            pop     af
+            dec     a
+            jr      nz,L0C39
+            ld      (iy+$13),$00
+            ret
+L0C49:      ld      a,(ix+$00)
+            and     $9A
+            cp      $80
+            ret     nz
+            bit     1,(iy+$13)
+L0C55:      jr      z,L0C6F
+            ld      hl,L0D2C
+            call    L0D18
+            bit     2,(iy+$13)
+            jr      z,L0C85
+            ld      a,(LD1C6)
+            and     a
+            jr      nz,L0C85
+            inc     b
+            inc     b
+            inc     b
+            inc     b
+            jr      L0C85
+L0C6F:      ld      hl,L0D3C
+            call    L0D18
+            bit     2,(iy+$13)
+            jr      z,L0C85
+            ld      a,(LD1C6)
+            and     a
+            jr      nz,L0C85
+            inc     d
+            inc     d
+L0C83:      inc     d
+            inc     d
+L0C85:      push    bc
+            xor     a
+            ld      h,a
+            ld      b,a
+            ld      l,(ix+$1e)
+            ld      c,(iy+$15)
+            sbc     hl,bc
+            pop     bc
+            ld      a,l
+            jr      c,L0C98
+            cp      $EA
+            ret     nc
+L0C98:      add     a,c
+            cp      b
+            ret     nc
+            ld      a,(ix+$1f)
+            sub     (iy+$17)
+            add     a,e
+            cp      d
+            ret     nc
+            call    L0D4C
+            bit     2,(iy+$07)
+            ret     nz
+            ld      a,(LD1C6)
+            and     a
+            jr      nz,L0CB6
+            set     3,(ix+$13)
+L0CB6:      bit     2,(iy+$08)
+            ld      hl,LD1E1
+            ld      a,$04
+            jr      nz,L0CC2
+            rlca
+L0CC2:      or      (hl)
+            ld      (hl),a
+            bit     3,(iy+$08)
+            ld      hl,LD31B
+            jr      z,L0CCF
+            inc     hl
+            inc     hl
+L0CCF:      ld      d,$00
+            ld      a,$10
+            bit     2,(ix+$07)
+            jr      z,L0CF3
+            ld      e,$05
+            ld      a,(ix+$08)
+            and     $0C
+            jp      pe,L0CFC
+            ld      e,$01
+            bit     2,a
+            jr      nz,L0CEA
+            inc     e
+L0CEA:      ld      a,(LD351)
+            and     a
+            ld      a,e
+            jr      z,L0CF3
+            add     a,a
+            daa
+L0CF3:      add     a,(hl)
+            daa
+            ld      (hl),a
+            inc     hl
+            ld      a,d
+            adc     a,(hl)
+            daa
+            ld      (hl),a
+            ret
+L0CFC:      ld      a,(LD1EB)
+            and     a
+            jr      z,L0CEA
+L0D02:      ld      (LD352),a
+            ld      a,(LD1C6)
+            and     a
+            ld      e,$10
+            jr      z,L0CEA
+            ld      (LD1C8),a
+            xor     a
+            ld      (LD1D8),a
+            ld      e,$25
+            jr      L0CEA
+L0D18:      ld      a,(ix+$07)
+            and     $03
+            ld      c,a
+            ld      b,$00
+            add     hl,bc
+            add     hl,bc
+            add     hl,bc
+            add     hl,bc
+            ld      c,(hl)
+            inc     hl
+            ld      b,(hl)
+            inc     hl
+            ld      e,(hl)
+            inc     hl
+            ld      d,(hl)
+            ret
+L0D2C:      inc     d
+            add     hl,de
+            ld      d,$15
+            inc     d
+            add     hl,de
+            inc     d
+            dec     d
+            ld      d,$1B
+            inc     d
+            inc     de
+            inc     d
+            dec     de
+            inc     d
+L0D3B:      inc     de
+L0D3C:      ld      de,$1613
+            dec     de
+            ld      de,L1413
+            dec     de
+            inc     de
+            dec     d
+            inc     d
+            add     hl,de
+            ld      de,$1415
+            add     hl,de
+L0D4C:      res     7,(ix+$08)
+            set     3,(ix+$00)
+            ld      (ix+$1d),$01
+            ret
+;*****************************************************************************
+; ACTOR DEATH STATE HANDLER
+;
+; Requests the actor-appropriate death sound before rebuilding the actor state.
+; For actor flag bit 2 clear, this routine follows the player path below and
+; decrements P1_Lives or P2_Lives. That same flag test selects R2.B0 in
+; Request_Actor_Death_Sound, grounding R2.B0 as the player-death request.
+;*****************************************************************************
+Handle_Actor_Death:
+L0D59:      ld      (ix+$1d),$00
+            call    L0DD6
+            ld      (ix+$03),$01
+            ld      (ix+$05),$06
+            ld      b,(ix+$07)
+            ld      a,b
+            rrca
+            rrca
+            rrca
+            and     $80
+            ld      (ix+$07),a
+            ld      c,$00
+            ld      a,b
+            and     $03
+            cp      $02
+            jr      c,L0D87
+            ex      af,af'
+            in      a, (COINPORT)
+            bit     7,a
+            jr      nz,L0D86
+            set     7,c
+L0D86:      ex      af,af'
+L0D87:      cp      $01
+            jr      nz,L0D8D
+            set     7,c
+L0D8D:      cp      $02
+            jr      z,L0D9D
+            cp      $03
+            jr      z,L0D9B
+            ld      a,(LD1DA)
+            and     a
+            jr      z,L0D9D
+L0D9B:      set     6,c
+L0D9D:      ld      (ix+$01),c
+            ld      c,(ix+$08)
+            bit     2,b
+            ld      a,(LD1C6)
+            jr      nz,L0DCF
+            and     a
+            jr      z,L0DB0
+            ld      (LD1C8),a
+L0DB0:      ld      a,c
+            rlca
+            rlca
+            rlca
+            and     $20
+            ld      h,a
+            ld      a,b
+            rlca
+            rlca
+            rlca
+            and     $10
+            or      h
+            ld      (ix+$07),a
+            ld      (ix+$05),$0F
+            bit     3,c
+            ld      hl,P2_Lives
+            jr      nz,L0DCD
+            dec     hl
+L0DCD:      dec     (hl)
+            ret
+L0DCF:      and     a
+            ret     z
+            ld      (ix+$05),$01
+            ret
+;*****************************************************************************
+; SELECT DEATH SOUND REQUEST FOR CURRENT ACTOR
+;
+; IX+$07 bit 2 clear is the player path: Handle_Actor_Death later decrements
+; P1_Lives/P2_Lives on that same condition. The clear path therefore posts
+; Sound_Request_2 bit 0 (R2.B0), the player-death sound request.
+;
+; Bit 2 set selects the non-player death request from the active special-actor
+; state:
+;   LD1EB = 0                    -> R3.B1  MONSTER DEATH
+;   LD1EB != 0, LD1C6 = 0        -> R3.B0  WORLUK DEATH
+;   LD1EB != 0, LD1C6 != 0       -> R4.B0  WIZARD DEATH
+;*****************************************************************************
+Request_Actor_Death_Sound:
+L0DD6:      bit     2,(ix+$07)
+            ld      hl,Sound_Request_2     ; Request bank 2
+            jr      z,L0DFA
+            inc     hl                  ; -> Sound_Request_3
+            ld      a,(LD1EB)
+            and     a
+            ld      a,$02               ; R3.B1 - MONSTER DEATH
+            jr      z,L0DF7
+            rra                         ; -> $01, R3.B0 - WORLUK DEATH
+            ld      b,a
+            ld      a,(LD1C6)
+            and     a
+            ld      a,b
+            jr      z,L0DF7
+            ld      hl,Sound_Request_4     ; Request bank 4
+            set     0,(hl)              ; R4.B0 - WIZARD DEATH
+            ret
+L0DF7:      or      (hl)
+            ld      (hl),a
+            ret
+Request_Player_Death_Sound:
+L0DFA:      set     0,(hl)              ; Sound_Request_2 bit 0 (R2.B0) - PLAYER DEATH
+            ld      a,(LD1C6)
+            and     a
+            ret     z
+            call    Random_Byte
+            and     $07
+            or      $38
+            jp      Speech_Request_Entry
+L0E0B:      ld      a,(ix+$15)
+            sub     (iy+$15)
+            add     a,$08
+            cp      $11
+            ret     nc
+            ld      a,(ix+$17)
+            sub     (iy+$17)
+            add     a,$08
+            cp      $11
+            ret     nc
+            set     3,(ix+$13)
+            ld      (ix+$1c),$0F
+            ret
+            nop
+
+; Sample coin/service inputs, debounce their latches, apply the selected coinage
+; table, update protected credit state, and request the coin-up sound when a new
+; credited event is accepted. Called once from the main IM2 frame path.
+Process_Coin_Inputs_And_Credits:
+L0E2B:      ld      hl,LD341
+            ld      d,$00
+            call    L0F00
+            ld      hl,LD343
+            ld      d,$02
+            call    L0F00
+            ld      hl,LD345
+L0E3E:      ld      d,$0E
+            call    L0F00
+            ld      a,($D347)
+            in      a, (SETTINGS)
+            ld      b,a
+            exx
+            ld      de,Coinage_Value_Table ; Built-in English coinage conversion values
+            bit     LANGUAGE_DIP_BIT,a
+            jr      nz,L0E54
+            ld      de,X11_Coinage_Value_Table ; Foreign-mode coinage values supplied by X11
+L0E54:      exx
+            xor     a
+            ex      af,af'
+            ld      c,$01
+            ld      e,$00
+            call    L0EBB
+            call    L0EC0
+            ld      hl,LD342
+            call    c,L0EF4
+            ld      c,$02
+            ld      e,c
+            call    L0EBB
+            bit     3,b
+            jr      z,L0E77
+            ld      a,b
+            cpl
+            and     $06
+            rra
+            ld      e,a
+L0E77:      call    L0EC0
+            ld      hl,LD344
+            call    c,L0EE3
+            ld      a,(DIAGFLAG)
+L0E83:      and     a
+            jr      nz,L0E8A
+            bit     3,b
+            jr      nz,L0E99
+L0E8A:      ld      c,$04
+            ld      e,c
+            call    L0EBB
+            call    L0EC0
+            ld      hl,LD346
+            call    c,L0EF4
+L0E99:      ex      af,af'
+            ld      hl,LD03D
+            add     a,(hl)
+            push    af
+            and     $0F
+            ld      c,a
+L0EA2:      call    Protected_RAM_Write
+            pop     af
+            rrca
+            rrca
+            rrca
+            rrca
+            and     $0F
+            ret     z
+            dec     hl
+            add     a,(hl)
+            cp      $1F
+            ret     nc
+            ld      c,a
+            call    Protected_RAM_Write
+            ld      hl,Coin_Events_Pending
+            inc     (hl)
+            ret
+L0EBB:      ld      a,b
+            and     c
+            ret     nz
+            inc     e
+            ret
+L0EC0:
+            ld      hl,Coin_Input_Latch
+            in      a, (COINPORT)
+            and     c
+            ld      d,(hl)
+            ld      a,$A5
+            out     (RIGHTPORT),a
+            jr      nz,L0ED1
+            ld      a,d
+            or      c
+            ld      (hl),a
+            ret
+L0ED1:      ld      a,d
+            and     c
+            ret     z
+            ld      a,d
+            xor     c
+            ld      (hl),a
+            ld      a,e
+            exx
+            ld      l,a
+            ld      h,$00
+            add     hl,de
+            ex      af,af'
+            add     a,(hl)
+            ex      af,af'
+            exx
+            scf
+            ret
+L0EE3:      bit     3,b
+            jr      z,L0EF4
+            bit     2,b
+            jr      z,L0EF4
+            ld      a,b
+            and     $03
+            jp      po,L0EF4
+            ld      hl,LD342
+L0EF4:      inc     (hl)
+Post_Coin_Up_Sound_Request:
+            ld      hl,Sound_Request_1
+            set     5,(hl)              ; R1.B5 - COIN UP
+            ld      a,$01
+            ld      (Sound_Service_Enabled),a ; Enable runtime sound service after coin event
+            ret
+L0F00:      ld      a,(hl)
+L0F01:      and     a
+            jr      z,L0F0C
+            dec     (hl)
+            cp      $0F
+L0F07:      ret     nz
+            ld      a,d
+            in      a, (CCMISC)
+L0F0B:      ret
+L0F0C:      inc     hl
+            ld      a,(hl)
+            and     a
+            ret     z
+            dec     (hl)
+            dec     hl
+            ld      (hl),$1E
+            ld      a,d
+            set     0,a
+            in      a, (CCMISC)
+            ret
+Coinage_Value_Table:
+            ; Lookup bytes continue into the following routine by design.
+            DB      $10,$08,$30,$50,$00
+Select_Enemy_Record_IX:
+            ld      ix,LD06E
+            ld      bc,L0026
+L0F26:      add     ix,bc
+            dec     a
+            jr      nz,L0F26
+            ret
+Select_Enemy_Record_IY:
+            ld      iy,LD06E
+            ld      bc,L0026
+L0F33:      add     iy,bc
+            dec     a
+            jr      nz,L0F33
+            ret
+Random_Byte:
+            exx
+            ld      bc,(Random_Seed)
+            ld      hl,$1321
+            add     hl,bc
+            push    hl
+L0F43:      ld      hl,L2776
+            adc     hl,bc
+            ld      de,(LD34C)
+            add     hl,de
+            ex      (sp),hl
+            add     hl,bc
+            ex      (sp),hl
+L0F50:      adc     hl,de
+            ex      (sp),hl
+            add     hl,bc
+            ex      (sp),hl
+            adc     hl,de
+L0F57:      ex      (sp),hl
+            ld      d,e
+            ld      e,b
+            ld      b,c
+            ld      c,$00
+            add     hl,bc
+            ld      (Random_Seed),hl
+            pop     hl
+            adc     hl,de
+            ld      (LD34C),hl
+            ld      a,h
+            exx
+            ret
+;
+;************************************************************
+;
+; Write protected memory byte
+; HL=<location to be written>
+; C =<byte to be written>
+;
+;
+;************************************************************
+;
+Protected_RAM_Write:
+            ld      a,$A5
+            out     (RIGHTPORT),a       ; Protected memory port
+L0F6E:      ld      (hl),c
+            ret
+;
+;************************************************************
+;
+;
+;
+;
+;************************************************************
+;
+;
+
+; Command stream data begins at $0F70. The game stream begins at $10FD.
+ATTRACT_COMMAND_STREAM:
+            DB      $07,$08,$00,$49,$D3,$81,$17,$92
+            DB      $17,$84,$16,$A0,$08,$FE,$15,$0C
+            DB      $08,$00,$00,$00,$D3,$D5,$18,$07
+            DB      $08,$0C,$E1,$D1,$CA,$07,$DA,$32
+            DB      $14,$14,$00,$0B,$08,$04,$CA,$07
+            DB      $23,$33,$13,$15,$05,$0A,$03,$04
+            DB      $E4,$07,$02,$28,$A1,$0C,$97,$16
+            DB      $07,$08,$32,$CB,$D1,$20,$08,$4F
+            DB      $D3,$B8,$0F,$07,$08,$33,$CB,$D1
+            DB      $CA,$07,$CB,$D1,$0A,$89,$11,$6E
+            DB      $2D,$0C,$07,$08,$35,$CB,$D1,$20
+            DB      $08,$4F,$D3,$D2,$0F,$07,$08,$37
+            DB      $CB,$D1,$CA,$07,$CB,$D1,$0A,$B1
+            DB      $11,$96,$2D,$0C,$D4,$19,$5A,$08
+            DB      $08,$3E,$10,$20,$08,$3C,$D0,$F3
+            DB      $0F,$07,$08,$01,$44,$D2,$5A,$08
+            DB      $03,$3E,$10,$84,$16,$2B,$08,$3C
+            DB      $D0,$34,$10,$2B,$08,$48,$D3,$34
+            DB      $10,$E4,$07,$01,$B0,$B9,$0C,$8F
+            DB      $19,$A0,$08,$23,$15,$2B,$08,$03
+            DB      $D3,$E6,$10,$4F,$08,$1E,$61,$1F
+            DB      $81,$07,$0F,$19,$37,$06,$3A,$94
+            DB      $19,$A0,$08,$23,$15,$2B,$08,$03
+            DB      $D3,$E6,$10,$4F,$08,$1E,$61,$1F
+            DB      $68,$08,$F3,$0F,$E4,$07,$0F,$B0
+            DB      $B9,$0C,$68,$08,$07,$10,$2B,$08
+            DB      $3C,$D0,$52,$10,$A0,$08,$7B,$13
+            DB      $2B,$08,$03,$D3,$E6,$10,$68,$08
+            DB      $70,$0F,$73,$17,$93,$00,$84,$16
+            DB      $BC,$16,$61,$1F,$AE,$08,$0C,$08
+            DB      $00,$00,$1B,$D3,$0C,$08,$00,$00
+            DB      $1D,$D3,$07,$08,$00,$02,$D3,$52
+            DB      $17,$08,$07,$E4,$07,$0A,$20,$A2
+            DB      $0C,$E4,$07,$05,$38,$8A,$0C,$5A
+            DB      $08,$0F,$68,$13,$03,$17,$CA,$07
+            DB      $CB,$D1,$02,$22,$00,$CD,$3C,$08
+            DB      $D9,$07,$12,$28,$00,$C7,$3C,$0C
+            DB      $E4,$07,$03,$50,$72,$08,$E4,$07
+            DB      $05,$78,$4A,$0C,$36,$08,$01,$3C
+            DB      $D0,$B5,$10,$E4,$07,$04,$90,$32
+            DB      $04,$68,$08,$C7,$10,$E4,$07,$06
+            DB      $90,$32,$04,$E4,$07,$07,$A0,$22
+            DB      $04,$E4,$07,$17,$B0,$12,$04,$C7
+            DB      $16,$2F,$1E,$EC,$16,$20,$20,$08
+            DB      $53,$D3,$D7,$10,$EC,$16,$08,$A0
+            DB      $08,$23,$15,$4F,$08,$02,$61,$1F
+            DB      $20,$08,$03,$D3,$D7,$10,$07,$08
+            DB      $01,$44,$D2,$93,$00,$A0,$08,$FE
+            DB      $15,$0C,$08,$00,$00,$1B,$D3,$0C
+            DB      $08,$00,$00,$1D,$D3
+GAME_COMMAND_STREAM:
+            DB      $2B,$08,$D9
+            DB      $D1,$CD,$12,$75,$16,$84,$16,$A3
+            DB      $16,$E0,$08,$09,$AA,$61,$32,$C4
+            DB      $52,$FB,$6C,$07,$08,$01,$49,$D3
+            DB      $20,$08,$50,$D3,$2B,$11,$81,$07
+            DB      $14,$64,$2D,$5B,$30,$E4,$07,$14
+            DB      $91,$9A,$08,$EC,$16,$01,$4F,$08
+            DB      $78,$61,$1F,$E0,$08,$02,$AA,$C3
+            DB      $32,$80,$62,$3F,$5D,$4F,$08,$3C
+            DB      $61,$1F,$BC,$16,$61,$1F,$AE,$08
+            DB      $20,$08,$51,$D3,$74,$11,$07,$08
+            DB      $01,$EC,$D1,$EC,$16,$02,$E0,$08
+            DB      $06,$55,$C5,$32,$10,$40,$AF,$7F
+            DB      $E0,$08,$05,$AA,$43,$31,$14,$4F
+            DB      $AB,$70,$E0,$08,$07,$FF,$F1,$32
+            DB      $0C,$5E,$B3,$61,$42,$16,$20,$08
+            DB      $CA,$D1,$87,$11,$E4,$07,$09,$90
+            DB      $32,$0C,$07,$08,$01,$EC,$D1,$20
+            DB      $08,$EC,$D1,$AE,$11,$C7,$16,$2B
+            DB      $08,$18,$D3,$A3,$11,$4F,$08,$3C
+            DB      $61,$1F,$52,$17,$20,$07,$4F,$08
+            DB      $B4,$61,$1F,$4F,$08,$78,$61,$1F
+            DB      $BC,$16,$61,$1F,$AE,$08,$79,$1A
+            DB      $2F,$18,$A0,$08,$3D,$13,$07,$08
+            DB      $80,$41,$D2,$07,$08,$07,$45,$D0
+            DB      $36,$08,$00,$50,$D3,$E4,$11,$36
+            DB      $08,$01,$50,$D3,$DC,$11,$52,$17
+            DB      $48,$07,$E4,$07,$16,$91,$9A,$0C
+            DB      $68,$08,$12,$12,$52,$17,$40,$07
+            DB      $68,$08,$F8,$11,$52,$17,$10,$0F
+            DB      $2B,$08,$18,$D3,$F8,$11,$E4,$07
+            DB      $15,$91,$9A,$0C,$68,$08,$12,$12
+            DB      $A0,$08,$0F,$16,$1F,$17,$16,$08
+            DB      $01,$02,$D3,$12,$12,$81,$07,$14
+            DB      $64,$2D,$5B,$30,$E4,$07,$10,$91
+            DB      $9A,$0C,$61,$1F,$4F,$08,$1E,$61
+            DB      $1F,$68,$08,$FD,$10,$2B,$08,$F1
+            DB      $D1,$25,$12,$50,$1F,$2B,$08,$F2
+            DB      $D1,$2D,$12,$24,$1F,$C5,$17,$2B
+            DB      $08,$F1,$D1,$37,$12,$50,$1F,$2B
+            DB      $08,$F2,$D1,$3F,$12,$24,$1F,$81
+            DB      $07,$14,$64,$2D,$5B,$30,$CA,$07
+            DB      $0B,$33,$06,$72,$2D,$4D,$30,$08
+            DB      $61,$1F,$20,$08,$D8,$D1,$9D,$12
+            DB      $81,$07,$14,$64,$2D,$5B,$30,$E4
+            DB      $07,$11,$91,$9A,$08,$4F,$08,$0A
+            DB      $61,$1F,$2B,$08,$C6,$D1,$79,$12
+            DB      $4F,$08,$78,$61,$1F,$68,$08,$FD
+            DB      $10,$CA,$07,$11,$33,$0D,$6C,$2D
+            DB      $53,$30,$0C,$20,$08,$03,$D3,$FD
+            DB      $10,$61,$1F,$2B,$08,$D8,$D1,$B0
+            DB      $12,$07,$08,$20,$BD,$D1,$5A,$08
+            DB      $05,$FD,$10,$61,$1F,$CA,$07,$C5
+            DB      $32,$0C,$6D,$2D,$53,$30,$08,$07
+            DB      $08,$20,$BB,$D1,$68,$08,$65,$12
+            DB      $07,$08,$20,$BB,$D1,$81,$07,$14
+            DB      $64,$2D,$5B,$30,$E4,$07,$11,$91
+            DB      $9A,$08,$8C,$17,$4F,$08,$B4,$61
+            DB      $1F,$68,$08,$FD,$10,$84,$16,$07
+            DB      $08,$0C,$E1,$D1,$E0,$08,$09,$FA
+            DB      $D1,$32,$A4,$59,$1B,$66,$81,$07
+            DB      $14,$64,$2D,$5B,$30,$A0,$08,$0F
+            DB      $16,$1F,$17,$52,$17,$30,$07,$4F
+            DB      $08,$01,$61,$1F,$2B,$08,$45,$D2
+            DB      $EF,$12,$5A,$08,$07,$70,$0F,$EC
+            DB      $16,$10,$20,$08,$3C,$D0,$0E,$13
+            DB      $E4,$07,$0F,$B0,$B9,$0C,$A0,$08
+            DB      $23,$15,$2B,$08,$03,$D3,$E6,$10
+            DB      $4F,$08,$1E,$61,$1F,$20,$08,$3C
+            DB      $D0,$02,$13,$81,$07,$0F,$19,$37
+            DB      $06,$3A,$A0,$08,$23,$15,$2B,$08
+            DB      $03,$D3,$E6,$10,$4F,$08,$1E,$61
+            DB      $1F,$68,$08,$02,$13,$AA,$17,$CE
+            DB      $1C,$D5,$18,$07,$08,$0C,$E1,$D1
+            DB      $07,$08,$01,$47,$D0,$C7,$16,$4F
+            DB      $08,$03,$61,$1F,$2B,$08,$C1,$D1
+            DB      $4F,$13,$B3,$29,$07,$08,$01,$DB
+            DB      $D1,$07,$08,$01,$D7,$D1,$AA,$08
+            DB      $A0,$08,$7B,$13,$BC,$16,$61,$1F
+            DB      $AE,$08,$07,$08,$01,$53,$D3,$68
+            DB      $08,$84,$10,$93,$00,$42,$2D,$AE
+            DB      $08,$C7,$16,$ED,$1C,$CA,$07,$F8
+            DB      $32,$06,$56,$01,$69,$3E,$04,$CA
+            DB      $07,$36,$33,$03,$6E,$01,$51,$3E
+            DB      $04,$D9,$07,$08,$78,$01,$47,$3E
+            DB      $04,$CA,$07,$FE,$32,$06,$16,$0A
+            DB      $A9,$35,$08,$CA,$07,$39,$33,$03
+            DB      $2E,$0A,$91,$35,$08,$D9,$07,$08
+            DB      $38,$0A,$87,$35,$08,$CA,$07,$04
+            DB      $33,$07,$D4,$12,$EB,$2C,$0C,$CA
+            DB      $07,$3C,$33,$03,$EE,$12,$D1,$2C
+            DB      $0C,$D9,$07,$08,$F8,$12,$C7,$2C
+            DB      $0C,$CA,$07,$1B,$33,$07,$94,$1B
+            DB      $2B,$24,$04,$CA,$07,$3F,$33,$04
+            DB      $AC,$1B,$13,$24,$04,$D9,$07,$08
+            DB      $B8,$1B,$07,$24,$04,$CA,$07,$1B
+            DB      $33,$07,$54,$24,$6B,$1B,$08,$CA
+            DB      $07,$3F,$33,$04,$6C,$24,$53,$1B
+            DB      $08,$D9,$07,$08,$78,$24,$47,$1B
+            DB      $08,$CA,$07,$0B,$33,$06,$16,$2D
+            DB      $A9,$12,$0C,$CA,$07,$3F,$33,$04
+            DB      $2C,$2D,$93,$12,$0C,$D9,$07,$08
+            DB      $38,$2D,$87,$12,$0C,$CA,$07,$C5
+            DB      $32,$0C,$2C,$32,$93,$0D,$0C,$CA
+            DB      $07,$11,$33,$0D,$C8,$3A,$F7,$04
+            DB      $08,$CA,$07,$43,$33,$04,$EC,$3A
+            DB      $D3,$04,$08,$D9,$07,$08,$F8,$3A
+            DB      $C7,$04,$08,$63,$17,$5A,$08,$0A
+            DB      $5E,$14,$68,$08,$08,$15,$93,$00
+            DB      $AE,$08,$E4,$07,$0B,$40,$59,$0C
+            DB      $E4,$07,$0C,$50,$49,$0C,$B9,$07
+            DB      $F0,$32,$01,$27,$1E,$0C,$2F,$18
+            DB      $C7,$16,$5A,$08,$07,$83,$14,$68
+            DB      $08,$08,$15,$BC,$16,$61,$1F,$AE
+            DB      $08,$79,$1A,$B9,$07,$EF,$32,$01
+            DB      $27,$32,$0C,$E4,$07,$0D,$B0,$C9
+            DB      $0C,$E4,$07,$0E,$C0,$B9,$0C,$AA
+            DB      $17,$07,$08,$01,$47,$D0,$C7,$16
+            DB      $4F,$08,$03,$61,$1F,$2B,$08,$C1
+            DB      $D1,$A8,$14,$0C,$08,$04,$04,$00
+            DB      $D3,$20,$08,$4F,$D3,$C5,$14,$0C
+            DB      $08,$06,$06,$00,$D3,$CE,$1C,$1E
+            DB      $16,$B3,$29,$07,$08,$01,$DB,$D1
+            DB      $07,$08,$01,$D7,$D1,$07,$08,$01
+            DB      $C9,$D1,$07,$08,$01,$46,$D0,$5A
+            DB      $08,$0A,$E8,$14,$68,$08,$08,$15
+            DB      $BC,$16,$61,$1F,$AE,$08,$79,$1A
+            DB      $1E,$16,$2F,$18,$A0,$08,$3D,$13
+            DB      $E4,$07,$10,$91,$9A,$0C,$07,$08
+            DB      $01,$46,$D0,$5A,$08,$0A,$21,$15
+            DB      $07,$08,$04,$40,$D2,$A0,$08,$23
+            DB      $15,$4F,$08,$02,$61,$1F,$20,$08
+            DB      $03,$D3,$0D,$15,$07,$08,$01,$53
+            DB      $D0,$AA,$08,$42,$08,$40,$81,$15
+            DB      $2B,$08,$48,$D3,$35,$15,$36,$08
+            DB      $01,$3C,$D0,$DA,$15,$07,$08,$02
+            DB      $03,$D3,$0C,$08,$10,$10,$19,$D3
+            DB      $0C,$08,$02,$02,$00,$D3,$20,$08
+            DB      $4F,$D3,$52,$15,$0C,$08,$03,$03
+            DB      $00,$D3,$2B,$08,$48,$D3,$5F,$15
+            DB      $36,$08,$03,$3C,$D0,$7B,$15,$0C
+            DB      $08,$20,$20,$19,$D3,$0C,$08,$05
+            DB      $05,$00,$D3,$20,$08,$4F,$D3,$77
+            DB      $15,$0C,$08,$07,$07,$00,$D3,$AC
+            DB      $16,$AC,$16,$AC,$16,$AC,$16,$AA
+            DB      $08,$42,$08,$20,$DA,$15,$2B,$08
+            DB      $48,$D3,$93,$15,$36,$08,$00,$3C
+            DB      $D0,$DA,$15,$07,$08,$01,$03,$D3
+            DB      $0C,$08,$02,$02,$00,$D3,$20,$08
+            DB      $4F,$D3,$AA,$15,$0C,$08,$03,$03
+            DB      $00,$D3,$0C,$08,$00,$10,$19,$D3
+            DB      $2B,$08,$48,$D3,$BD,$15,$36,$08
+            DB      $01,$3C,$D0,$D6,$15,$07,$08,$20
+            DB      $1A,$D3,$0C,$08,$05,$05,$00,$D3
+            DB      $20,$08,$4F,$D3,$D4,$15,$0C,$08
+            DB      $07,$07,$00,$D3,$AC,$16,$AC,$16
+            DB      $AA,$08,$2B,$08,$3C,$D0,$FC,$15
+            DB      $DE,$16,$20,$08,$DE,$D1,$FC,$15
+            DB      $2B,$08,$E4,$D1,$FC,$15,$07,$08
+            DB      $01,$44,$D2,$07,$08,$01,$E4,$D1
+            DB      $52,$17,$00,$07,$AA,$08,$9E,$17
+            DB      $D2,$16,$AE,$08,$79,$17,$07,$08
+            DB      $00,$02,$D3,$42,$2D,$AA,$08,$F8
+            DB      $16,$E4,$07,$13,$91,$9A,$0C,$07
+            DB      $08,$00,$E2,$D1,$AA,$08
+;
+; End of command-stream data; native Z80 routines resume here.
+;
+Initialize_Dungeon_Actors:
+            xor     a
+Clear_Dungeon_Number:
+            ld      (Dungeon_Number),a
+            ld      a,$06
+            ld      de,L0C0C
+            call    L162E
+            ld      a,$04
+            ld      e,$08
+L162E:      push    af
+            call    Select_Enemy_Record_IX
+            call    L26EB
+            pop     af
+            dec     a
+            jr      nz,L162E
+            ret
+;
+Check_Final_Dungeon_Bonus:
+            ld      a,(Dungeon_Number)
+            cp      $0C
+            jr      z,Award_Bonus_Lives
+            ret
+
+Check_Bonus_Life_Threshold:
+            ld      a,($D347)
+            in      a, (SETTINGS)
+            ld      b,$03
+            bit     5,a                 ; Dipswitch: Bonus Lives active HIGH
+                    ; Off = 4th Level,  On  = 3rd Level
+            jr      nz,Check_Bonus_Life_Interval
+            inc     b
+;
+Check_Bonus_Life_Interval:
+            ld      a,(Dungeon_Number)
+            sub     b
+            jr      nz,Check_Final_Dungeon_Bonus
+            ld      (Maze_Index),a
+;
+Award_Bonus_Lives:
+            ld      hl,P1_Lives
+            ld      a,(Game_Mode)
+            ld      (LD1CA),a
+            dec     a
+            jr      z,Award_P2_Bonus_Life
+            ld      a,(hl)
+            and     a
+            jr      z,Award_P2_Bonus_Life
+            inc     (hl)
+            exx
+            call    Draw_P1_Extra_Life_Marker
+            exx
+;
+Award_P2_Bonus_Life:
+            inc     hl
+            ld      a,(hl)
+            and     a
+            ret     z
+            inc     (hl)
+            jp      Draw_P2_Extra_Life_Marker
+            ld      hl,Maze_Selection_Flags
+            ld      a,$FF
+            ld      b,$0C
+L167C:      and     (hl)
+            inc     hl
+L167E:      djnz    L167C
+            jp      nz,Clear_Extended_Game_State
+            ret
+;
+;*****************************************************************************
+; Copies the 36-byte persistent game-state mirror from Work RAM back to
+; protected RAM.
+;*****************************************************************************
+Save_Persistent_Game_State:
+            di
+            ld      hl,WPRAMSTART
+            ld      de,P1_Lives
+            ld      b,$24               ; 36 decimal
+L168D:      ld      a,(de)
+            inc     de
+            ld      c,a
+            call    Protected_RAM_Write               ; Write protected memory byte (HL)=C
+            inc     hl
+            djnz    L168D
+            ret
+
+;
+;*****************************************************************************
+; Loads the nine-character "@WORRIORS" text fragment into the display buffer.
+;*****************************************************************************
+Load_Worriors_Text_Buffer:
+            ld      hl,Text_Worriors_Suffix
+            ld      de,LD1CC
+            ld      bc,L0009
+            ldir
+            ret
+;
+            ld      hl,LD352
+            ld      a,(hl)
+            ld      (hl),$00
+            dec     hl
+            ld      (hl),a
+            ret
+Adjust_Credit_From_Settings:
+            ld      a,($D347)
+            in      a, (SETTINGS)       ; Read raw Settings DIP state
+            bit     6,a                 ; Test the free-play switch input
+            ret     z
+            ld      hl,Credits
+            ld      c,(hl)
+            dec     c
+            jp      Protected_RAM_Write ; Write protected credit byte
+            ld      a,$CC
+            out     (INLIN),a
+            ld      hl,L0109
+            ld      (LD1BF),hl
+            ret
+            ld      a,$CC
+L16C9:      out     (INLIN),a
+            ld      hl,L0109
+            ld      (LD1C1),hl
+            ret
+
+;
+;*****************************************************************************
+; Captures the free-play DIP state for the game-state dispatcher.
+;*****************************************************************************
+Read_Free_Play_DIP:
+            ld      a,($D347)
+            in      a, (SETTINGS)
+            cpl
+            and     DIP_FREE_PLAY
+            ld      (Free_Play_Enabled),a
+            ret
+;
+;*****************************************************************************
+; Combines active-low P1 and P2 controls into one active-high activity byte.
+;
+;*****************************************************************************
+Poll_Combined_Player_Inputs:
+            in      a, (P2PORT)         ; Check P2 controls - all active LOW
+            cpl                         ; Convert to active HIGH
+            ld      b,a                 ;
+            in      a, (P1PORT)         ; Now check P1 Controls - all active LOW
+            cpl                         ; Make active HIGH
+            or      b                   ; Combine with P2 controls
+            and     00111111b           ; Mask unused input bits (see port description)
+            ld      (Combined_Player_Inputs),a           ; Save it ..
+            ret
+;
+;*****************************************************************************
+; POST REQUEST BANK 1 FROM THE FOREGROUND COMMAND STREAM
+;
+; Fetches one command-stream byte, posts it to $D240, and copies the same value
+; to the sound/speech service gate at $D244.
+;*****************************************************************************
+Fetch_Sound_Request_From_Stream:
+            ld      a,(iy+$00)
+            inc     iy
+            ld      (Sound_Request_1),a
+            ld      (Sound_Service_Enabled),a ; Same byte controls the runtime service gate
+            ret
+            in      a, (COINPORT)
+            bit     7,a                 ; Test COINPORT bit 7
+            ret     nz
+;
+            ld      a,$02
+            ld      (LD1E2),a
+            ret
+;
+;*****************************************************************************
+;
+;
+;*****************************************************************************
+;
+Format_Credits_For_Display:
+            ld      a,(Credits)
+            ld      e,$FF
+L1708:      inc     e
+            sub     $0A
+            jr      nc,L1708
+            add     a,$3A
+            ld      hl,LD1CC
+L1712:      ld      (hl),a
+            ld      a,e
+            or      $30
+            cp      $30
+            jr      nz,L171C
+            add     a,$10
+L171C:      dec     hl
+            ld      (hl),a
+            ret
+Format_Dungeon_For_Display:
+            ld      a,(Dungeon_Number)
+            ld      b,a
+            xor     a
+L1724:      inc     a
+            daa
+            djnz    L1724
+            push    af
+            and     $0F
+            or      $30
+            ld      hl,LD1CC
+            ld      (hl),a
+            pop     af
+            rrca
+            rrca
+            rrca
+            rrca
+            and     $0F
+            ld      b,$01
+            jr      z,L1741
+            dec     hl
+            inc     b
+            or      $30
+            ld      (hl),a
+L1741:      dec     de
+            dec     de
+            in      a, (COINPORT)
+            bit     7,a
+            jr      nz,L174D
+            inc     de
+            inc     de
+            inc     de
+            inc     de
+L174D:      ld      a,$0C
+            jp      Print_String_With_Cabinet_Orientation
+            ld      b,(iy+$00)
+            inc     iy
+            call    Random_Byte
+            and     (iy+$00)
+            inc     iy
+            or      b
+            jp      Speech_Request_Entry
+            in      a, (COINPORT)
+            bit     7,a
+            ld      a,$88
+            jr      nz,L176D
+            ld      a,$18
+L176D:      ld      (LD1C4),a
+            jp      Select_Interrupt_Vector_CC
+Restart_Dispatcher:
+            ld      sp,BOOT_STACK_TOP
+            jp      dispatch
+
+;
+;*****************************************************************************
+; Clears the protected initialization counter through the write latch.
+;*****************************************************************************
+Clear_Protected_Init_Counter:
+            ld      hl,LD03A
+            ld      c,$00
+            jp      Protected_RAM_Write               ;Write protected memory byte
+;
+;*****************************************************************************
+; Captures the attract-mode sound DIP state.
+;*****************************************************************************
+Read_Attract_Sound_DIP:
+            ld      a,($D347)           ; Value is replaced by the live port read below
+            in      a, (SETTINGS)
+            and     DIP_ATTRACT_SOUND
+            ld      (Sound_Service_Enabled),a ; Seed runtime audio-service gate from SW8 state
+            ret
+;
+;*****************************************************************************
+; WORLUK ESCAPED RESULT SOUND - R4.B3
+;
+; This threaded command is entry $178C. In GAME_COMMAND_STREAM, the command at
+; $12BC invokes the localized-text display handler $07E4 with record $11
+; (Text_Escaped, "ESCAPED"); after that command's four operand bytes, the next
+; threaded handler at $12C2 is $178C. The request is therefore the scripted
+; Worluk-escaped result cue.
+;
+; This is distinct from R3.B5, which is posted immediately when the active
+; Worluk crosses the maze boundary and is removed from its actor slot.
+;
+; Writes $08 to request bank 4, replacing the complete pending byte. The
+; dispatcher installs priority-1 streams $8B2E (primary) and $8B5D (secondary).
+;*****************************************************************************
+Post_Worluk_Escaped_Sound:
+            ld      a,$08               ; R4.B3
+            ld      (Sound_Request_4),a ; Replace pending request-4 bitfield
+            ret
+
+;
+;*****************************************************************************
+; ROUTINE: Check Starting Lives (Dip Switch)
+; Called from dispatch routine. Evaluates Bit 4 of the settings port.
+;*****************************************************************************
+Read_Starting_Lives_DIP:
+            ld      a,($D347)           ; Value is replaced by the live port read below
+            in      a,(SETTINGS)        ; Read current hardware DIP state
+            cpl                         ; Invert bits (Active-LOW hardware to Active-HIGH logic)
+            and     DIP_STARTING_LIVES
+            ld      (Starting_Lives_Dip),a           ; Save status: $10 = 3/7 lives, $00 = 2/5 lives
+            ret
+;
+;*****************************************************************************
+; ROUTINE: Clear Extended Game State ($D350-$D36D)
+; Called from dispatch routine. Clears 30 ($1E) bytes beginning with Dungeon_Class.
+;*****************************************************************************
+Clear_Extended_Game_State:
+            ld      hl,Dungeon_Class            ; Start of extended game-state block
+            ld      bc,$1E00            ; B = 30-byte count, C = clear value
+L17A4:      ld      (hl),c              ; Write $00 to memory
+            inc     hl                  ; Advance pointer
+            djnz    L17A4               ; Decrement B and loop until 30 bytes are cleared
+            ret
+;
+
+            nop
+            call    L17C5
+            ld      a,$0C
+            out     (XPAND),a
+            ld      a,$18
+            out     (MAGIC),a
+            ld      hl,L0F07
+            ld      a,$0B
+            call    L185F
+            ld      hl,L0F43
+            ld      a,$07
+            jp      L185F
+L17C5:      call    L181D
+            ld      hl,L0781
+            call    L1855
+            ld      hl,L07C9
+            call    L1855
+            ld      hl,L0F01
+            call    L1859
+            ld      hl,L0F49
+            call    L1859
+            ld      hl,L1681
+            call    L185D
+            ld      hl,L16C9
+            call    L185D
+            ld      c,$17
+            ld      hl,L0007
+            exx
+            ld      hl,LD178
+            ld      c,$06
+L17F7:      ld      b,$0B
+L17F9:      ld      a,(hl)
+            inc     hl
+            exx
+            call    L1813
+            exx
+            djnz    L17F9
+            exx
+            ld      de,Write_BG_Color
+            add     hl,de
+            exx
+            dec     c
+            jr      nz,L17F7
+            exx
+            call    L1812
+            ld      hl,L2D43
+L1812:      xor     a
+L1813:      push    hl
+            call    L185F
+            pop     hl
+            ld      de,L0006
+            add     hl,de
+            ret
+;
+L181D:      di
+            ld      a,(LD1EB)
+            and     a
+            ld      a,$0C
+            jr      nz,L1828
+            ld      a,$04
+L1828:      out     (XPAND),a
+            ld      a,$18
+            out     (MAGIC),a
+            ret
+            call    L181D
+            ld      hl,L30DD
+            ld      de,L18D0
+            ld      c,$2F
+            call    Pattern_Board_Draw_Vertical_Line
+            ld      hl,L30F4
+            call    Pattern_Board_Draw_Vertical_Line
+            ld      hl,L30DD
+            call    L184C
+            ld      hl,$3F8D
+L184C:      ld      a,$FF
+            ld      b,$17
+L1850:      ld      (hl),a
+            inc     hl
+            djnz    L1850
+            ret
+L1855:      ld      a,$0D
+            jr      L185F
+L1859:      ld      a,$0C
+            jr      L185F
+L185D:      ld      a,$0E
+L185F:      bit     2,a
+            jr      nz,L186B
+            ex      af,af'
+            ld      de,L18D2
+            call    Pattern_Board_Draw_Vertical_Line
+            ex      af,af'
+L186B:      bit     3,a
+            jr      nz,L187D
+            ex      af,af'
+            push    hl
+            ld      de,L0005
+            add     hl,de
+            ld      de,L18D3
+            call    Pattern_Board_Draw_Vertical_Line
+            pop     hl
+            ex      af,af'
+L187D:      bit     0,a
+            call    z,L1889
+            bit     1,a
+            ret     nz
+            ld      de,Load_Palette_Colors_Loop
+            add     hl,de
+L1889:      push    hl
+            call    L1896
+            ld      de,L004B
+            add     hl,de
+            call    L1896
+            pop     hl
+            ret
+L1896:      ld      (hl),$FF
+            inc     hl
+            ld      (hl),$FF
+            inc     hl
+            ld      (hl),$FF
+            inc     hl
+            ld      (hl),$FF
+            inc     hl
+            ld      (hl),$FF
+            inc     hl
+            ld      (hl),$FF
+            ret
+;
+;*****************************************************************************
+; ROUTINE: Draw Vertical Line via Pattern Board (DMA)
+; Purpose: Uses the Astrocade Pattern Board to rapidly blit a 1-byte wide
+;          (4 pixel) vertical line or box edge to the screen. First used
+;          in drawing the radar box in the demo screens.
+; Inputs:
+;    DE = Source Address (Pattern data to expand)
+;    HL = Destination Address (Screen/Magic RAM)
+;    C  = Height of the line (in scanlines)
+;*****************************************************************************
+;
+
+Pattern_Board_Draw_Vertical_Line:
+L18A8:      ld      a,$22               ; %00100010 = Set PBEXP (Expand Mode) and PBFLOP (Horizontal Flop)
+            out     (PBSTAT),a          ; Output to Pattern Board Status port
+            ld      a,e
+            out     (PBLINADRL),a       ; Set Source Address LSB
+            ld      a,d
+            out     (PBLINADRH),a       ; Set Source Address MSB
+            ld      a,l
+            out     (PBXMOD),a          ; Set Destination Address LSB
+            ld      a,h
+            out     (PBAREADRH),a       ; Set Destination Address MSB
+            ld      a,$4F               ; Screen Width ($50) minus Pattern Width ($01) = $4F Skip Value
+            out     (PBXMOD),a          ; Set Dest Skip/Modulo (Advances Y coordinate cleanly to the next row)
+            ld      a,$01               ; Width = 1 byte (4 pixels wide)
+            out     (PBXWIDE),a         ; Set Pattern Width
+            ld      a,c
+            out     (PBYHIGH),a         ; Set Pattern Height (Writing this port triggers the DMA transfer!)
+            ret
+
+;
+;*****************************************************************************
+; SCREEN Y-COORDINATE LOOKUP TABLE (16 Scanline Spacing)
+; Found at $18C4. Accessed by L2776.
+; Note: Each word jumps exactly $0280 (640 bytes), which equals 16 scanlines
+; on the Astrocade 40-byte wide screen.
+;*****************************************************************************
+L18C4:      DW      $717C
+            DW      $73FC
+            DW      $767C
+            DW      $78FC
+            DW      $7B7C
+            DW      $7DFC
+
+;*****************************************************************************
+; VERTICAL WALL PIXEL MASKS (Astrocade 2BPP)
+; Found at $18D0. Passed to Pattern_Board_Draw_Vertical_Line via DE
+; to draw vertical lines at specific pixel offsets.
+;*****************************************************************************
+L18D0:      DB      $80                 ; Binary 10000000 (Color 2, Pixel 0)
+            DB      $10                 ; Binary 00010000 (Color 1, Pixel 2)
+L18D2:      DB      $C0                 ; Binary 11000000 (Color 3, Pixel 0)
+L18D3:      DB      $30                 ; Binary 00110000 (Color 3, Pixel 1)
+            DB      $00                 ; Blank
+
+; Draw the fixed radar/grid line patterns with Pattern Board DMA.
+Draw_Radar_Grid:
+            di
+            ld      a,$08
+            out     (MAGIC),a
+            ld      de,Vertical_Line_Source_Pattern
+            ld      a,$04
+            out     (XPAND),a
+            ld      bc,L1107
+            ld      hl,L3522
+            call    Pattern_Board_Blit_Rectangle
+            ld      hl,$3D42
+            call    Pattern_Board_Blit_Rectangle
+            ld      bc,L0111
+            ld      hl,Radar_Line_Pattern_A
+            call    Pattern_Board_Blit_Rectangle
+            ld      hl,Radar_Line_Pattern_B
+            call    Pattern_Board_Blit_Rectangle
+            ld      a,$08
+            out     (XPAND),a
+L1903:      ld      hl,Radar_Line_Pattern_C
+            call    Pattern_Board_Blit_Rectangle
+            ld      hl,Radar_Line_Pattern_D
+            call    Pattern_Board_Blit_Rectangle
+            ld      bc,L1107
+            ld      hl,L355C
+            call    Pattern_Board_Blit_Rectangle
+            ld      hl,$3D7C
+
+; Pattern Board rectangle blit used by the fixed radar/grid builder.
+; Inputs: DE = source, HL = destination, B = width in bytes, C = height.
+; The destination modulo is derived as $50-B for the 80-byte screen stride.
+Pattern_Board_Blit_Rectangle:
+L191B:      ld      a,$22
+            out     (PBSTAT),a
+            ld      a,e
+            out     (PBLINADRL),a
+            ld      a,d
+            out     (PBLINADRH),a
+            ld      a,l
+            out     (PBXMOD),a
+            ld      a,h
+            out     (PBAREADRH),a
+            ld      a,$50
+            sub     b
+            out     (PBXMOD),a
+            ld      a,b
+            out     (PBXWIDE),a
+            ld      a,c
+            out     (PBYHIGH),a
+            ret
+;******************************************************************************************
+Vertical_Line_Source_Pattern:
+            DB      $FF,$00        ; Solid source byte followed by blank padding
+L1939:      ld      hl,(LD31B)
+            push    hl
+            ld      de,LD319
+            push    de
+            ld      de,(LD31D)
+            xor     a
+            sbc     hl,de
+            ld      hl,LD31A
+            ex      de,hl
+            jr      c,L1953
+            pop     bc
+            ex      (sp),hl
+            push    de
+            ld      d,b
+            ld      e,c
+L1953:      ld      b,h
+            ld      c,l
+            call    L195A
+            pop     de
+            pop     bc
+L195A:      ld      a,(de)
+            and     a
+            ret     z
+            sub     $10
+            ld      hl,LD304
+            jr      z,L1967
+            ld      hl,LD30E
+L1967:      push    de
+            exx
+            ld      bc,$0500
+L196C:      exx
+            ld      e,(hl)
+            inc     hl
+            ld      d,(hl)
+            ex      de,hl
+            xor     a
+            sbc     hl,bc
+            ex      de,hl
+            jr      nc,L1986
+            ld      a,(hl)
+            ld      (hl),b
+            ld      b,a
+            dec     hl
+            ld      a,(hl)
+            ld      (hl),c
+            ld      c,a
+            inc     hl
+            exx
+            ld      a,c
+            and     a
+            jr      nz,L1985
+            ld      c,b
+L1985:      exx
+L1986:      inc     hl
+            exx
+            djnz    L196C
+            pop     hl
+            ld      a,c
+            or      (hl)
+            ld      (hl),a
+            ret
+            ld      de,Text_Copyright_Glyphs
+            jr      L1997
+            ld      de,Text_Coin_Prompt_Suffix
+L1997:      ld      a,(LD319)
+            ld      b,$04
+            push    de
+            call    L19A6
+            pop     de
+            ld      a,(LD31A)
+            ld      b,$08
+L19A6:      and     a
+            ret     z
+            bit     4,a
+            ld      hl,L2F9C
+            jr      nz,L19B1
+            ld      l,$C4
+L19B1:      and     $07
+            ret     z
+            push    bc
+            ld      bc,LFB00
+            ex      af,af'
+            in      a, (COINPORT)
+            bit     7,a
+            jr      nz,L19C8
+            ld      h,$0A
+            ld      a,l
+            sub     $92
+            ld      l,a
+            ld      bc,$0500
+L19C8:      ex      af,af'
+L19C9:      add     hl,bc
+            dec     a
+            jr      nz,L19C9
+            ex      de,hl
+            pop     af
+            ld      b,$01
+            jp      Print_String_With_Cabinet_Orientation
+            ld      hl,L168D
+            ld      de,LD304
+            call    L19E3
+            ld      hl,L16B5
+            ld      de,LD30E
+L19E3:      in      a, (COINPORT)
+            bit     7,a
+            jr      nz,L19EB
+            ld      h,$20
+L19EB:      ld      b,$05
+L19ED:      push    bc
+            push    de
+            push    hl
+            ld      a,$0C
+            call    L1A2D
+            pop     hl
+            pop     de
+            inc     de
+            inc     de
+            in      a, (COINPORT)
+            bit     7,a
+            ld      bc,$0500
+            jr      nz,L1A05
+            ld      bc,LFB00
+L1A05:      add     hl,bc
+            pop     bc
+            djnz    L19ED
+            ret
+            nop
+L1A0B:      ld      hl,LD1E1
+            bit     2,(hl)
+            res     2,(hl)
+            ld      hl,WORRIOR_BLUE_1 + $49
+            ld      de,LD31B
+            ld      a,$04
+            call    L1A2C
+            ld      hl,LD1E1
+            bit     3,(hl)
+            res     3,(hl)
+            ld      hl,WORRIOR_YELLOW_1 + $29
+            ld      de,LD31D
+            ld      a,$08
+L1A2C:      ret     z
+L1A2D:      ex      af,af'
+            in      a, (COINPORT)
+            bit     7,a
+            jr      nz,L1A38
+            ld      bc,L02DB
+            add     hl,bc
+L1A38:      push    hl
+            ld      hl,LD1D0
+            ld      (hl),$30
+            dec     hl
+            ld      (hl),$30
+            dec     hl
+            ld      a,(de)
+            call    L1A6D
+            ld      a,(de)
+            call    L1A69
+            inc     de
+            ld      a,(de)
+            call    L1A6D
+            ld      a,(de)
+            call    L1A69
+            inc     hl
+            push    hl
+            ld      b,$05
+L1A57:      ld      a,(hl)
+            cp      $30
+            jr      nz,L1A61
+            ld      (hl),$40
+            inc     hl
+            djnz    L1A57
+L1A61:      pop     hl
+            ex      af,af'
+            ld      b,$06
+            pop     de
+            jp      Print_String_With_Cabinet_Orientation
+L1A69:      rrca
+            rrca
+            rrca
+            rrca
+L1A6D:      and     $0F
+            add     a,$90
+            daa
+            adc     a,$40
+            daa
+            ld      (hl),a
+            dec     hl
+            ret
+            nop
+            ld      hl,Dungeon_Number
+            inc     (hl)
+            ld      a,(Maze_Index)
+            ld      c,a
+            ld      b,$00
+            ld      hl,Maze_Pointer_Table
+            add     hl,bc
+            add     hl,bc
+            ld      c,(hl)
+            inc     hl
+            ld      b,(hl)
+            ld      hl,LD172
+            ld      a,$06
+L1A90:      ex      af,af'
+            ld      de,L0006
+            add     hl,de
+            push    hl
+            add     hl,de
+            add     hl,de
+            ex      de,hl
+            dec     de
+            pop     hl
+            call    L1AB4
+            call    L1ABB
+            call    L1AB4
+            call    L1ABB
+            call    L1AB4
+            ld      a,(bc)
+            inc     bc
+            and     $0F
+            ld      (hl),a
+            ex      af,af'
+            dec     a
+            jr      nz,L1A90
+            ret
+L1AB4:      ld      a,(bc)
+            rrca
+            rrca
+            rrca
+            rrca
+            jr      L1ABD
+L1ABB:      ld      a,(bc)
+            inc     bc
+L1ABD:      and     $0F
+            ld      (hl),a
+            and     $0C
+            ld      a,(hl)
+            inc     hl
+            jp      pe,L1AC9
+            xor     $0C
+L1AC9:      dec     de
+            ld      (de),a
+            ret
+Maze_Cell_Address_From_XY:
+            ld      a,e
+            ld      e,$FF
+L1ACF:      inc     e
+            sub     $18
+            jr      nc,L1ACF
+            ld      a,d
+            ld      d,$00
+L1AD7:      inc     d
+            sub     $18
+            jr      nc,L1AD7
+            ld      l,$0B
+            ld      a,$F5
+L1AE0:      add     a,l
+            dec     d
+            jr      nz,L1AE0
+            add     a,e
+            ld      e,a
+            ld      d,$00
+            ld      hl,LD178
+            add     hl,de
+            ret
+;*****************************************************************************
+; PACKED MAZE LIBRARY
+;
+; Maze_Index selects one of 24 pointers. Each maze record contains 18 packed
+; bytes: six rows of six four-bit cell values.
+;*****************************************************************************
+Maze_Pointer_Table:
+            DW      Maze_01_Data, Maze_15_Data, Maze_02_Data, Maze_03_Data, Maze_04_Data, Maze_05_Data
+            DW      Maze_06_Data, Maze_07_Data, Maze_08_Data, Maze_09_Data, Maze_10_Data, Maze_11_Data
+            DW      Maze_12_Data, Maze_13_Data, Maze_14_Data, Maze_16_Data, Maze_17_Data, Maze_18_Data
+            DW      Maze_19_Data, Maze_20_Data, Maze_21_Data, Maze_22_Data, Maze_23_Data, Maze_24_Data
+Maze_01_Data:
+            DB      $AC,$EC,$CE,$BC,$5A,$EF,$BC,$EF,$FF
+            DB      $B6,$9F
+Maze_01_Data_Byte_11:
+            DB      $DD,$3B,$EF,$EC,$95,$95,$9C
+Maze_02_Data:
+            DB      $AC,$EE,$CE,$3A,$D7,$AD,$97,$AF,$FC
+            DB      $AD,$73,$9E,$BC,$7B,$ED,$9C,$D5,$9C
+Maze_03_Data:
+            DB      $AC,$6A,$CE,$BC,$D7,$AD,$9E,$EF,$FE
+            DB      $A5,$33,$33,$BC,$F7,$9F,$9C,$59,$CD
+Maze_04_Data:
+            DB      $AC,$6A,$CE,$3A,$DF,$CF,$97,$AF,$63
+            DB      $AD,$73,$33,$BC,$F5,$BF,$9C,$DC,$51
+Maze_05_Data:
+            DB      $AC,$C6,$AE,$3A,$CD,$73,$97,$AE,$DF
+            DB      $A7,$3B,$CD,$3B,$FF,$CE,$9D,$59,$CD
+Maze_06_Data:
+            DB      $AC,$6A,$CE,$BC,$DF,$63,$9E,$C7,$BF
+            DB      $AD,$6B,$53,$BC,$7B,$ED,$9C,$D5,$9C
+Maze_07_Data:
+            DB      $A6,$AC,$EC,$3B,$5A,$FC,$9F,$E7,$BC
+            DB      $A7,$33,$BE,$33,$BF,$53,$9D,$59,$CD
+Maze_08_Data:
+            DB      $AE,$EE,$EE,$33,$33,$33,$9F,$79,$73
+            DB      $A7,$9E,$FF,$3B,$6B,$53,$95,$9D,$CD
+Maze_09_Data:
+            DB      $AC,$CE,$EC,$BC,$E5,$BC,$9E,$7A,$DE
+            DB      $A5,$B7,$AF,$3A,$5B,$73,$9D,$C5,$9D
+Maze_10_Data:
+            DB      $AC,$6A,$CE,$BC,$FF,$EF,$9E,$53,$33
+            DB      $A5,$A5,$BF,$BC,$5A,$73,$9C,$C5,$9D
+Maze_11_Data:
+            DB      $AC,$6A,$EC,$BC,$73,$9E,$96,$BF,$ED
+            DB      $AD,$53,$BC,$BC,$EF,$FC,$9C,$D5,$9C
+Maze_12_Data:
+            DB      $A6,$AC,$EC,$3B,$FC,$FC,$97,$B6,$9E
+            DB      $A7,$97,$AD,$3B,$EF,$DE,$9D,$59,$CD
+Maze_13_Data:
+            DB      $AC,$6A,$CE,$3A,$FD,$CF,$B7,$BC,$63
+            DB      $B5,$3A,$DF,$3A,$DF,$63,$9D,$C5,$9D
+Maze_14_Data:
+            DB      $A6,$AC,$EC,$3B,$7A,$DE,$95,$39,$63
+            DB      $AE,$DC,$73,$3B
+Maze_14_Data_Byte_13:
+            DB      $EE,$FD,$95,$95,$9C
+Maze_15_Data:
+            DB      $AE,$EE,$EE,$BF,$FF,$FF,$BF,$FF,$FF
+            DB      $BF,$FF,$FF,$BF,$FF,$FF,$9D,$DD,$DD
+Maze_16_Data:
+            DB      $AC,$EE,$EE,$B6,$BD,$53,$B5
+Maze_16_Data_Byte_07:
+            DB      $3A,$EF
+            DB      $BE,$D5,$BF,$B7,$AE,$FF,$9D,$DD,$DD
+Maze_17_Data:
+            DB      $AE
+Maze_17_Data_Byte_01:
+            DB      $EE,$CE,$BF,$F5,$AF,$BF,$5A,$FF
+            DB      $B5,$AF,$53,$BE,$F5,$AF,$9D,$DC,$DD
+Maze_18_Data:
+            DB      $AE,$EE,$EE,$3B,$73,$BF,$33,$B7,$33
+            DB      $B7,$3B,$73,$BF,$73,$BF,$9D,$DD,$DD
+Maze_19_Data:
+            DB      $AE,$EE,$EE,$39,$F5,$BF,$B6,$BE,$73
+            DB      $BD,$79,$73,$3A,$F6,$BF,$9D,$DD,$DD
+Maze_20_Data:
+            DB      $AE,$EE,$CE,$39,$F5,$AF,$B6,$9E,$FF
+            DB      $BF,$6B,$DF,$BF,$F5,$AF,$9D,$DC,$DD
+Maze_21_Data:
+            DB      $AE,$EE,$CE,$B5,$9F,$63,$B6,$A5,$9F
+            DB      $39,$F6,$AF,$B6,$9D,$FF,$9D,$CC,$DD
+Maze_22_Data:
+            DB      $AC,$EE,$EE,$B6,$9F,$53,$BF,$63,$AF
+            DB      $BF,$53,$9F,$B5,$AF,$63,$9C,$DD,$DD
+Maze_23_Data:
+            DB      $AC,$EE,$CE,$B6,$9F,$ED,$BF,$69,$FE
+            DB      $BF,$F6,$9F,$B7,$BF,$63,$9D,$DD,$DD
+Maze_24_Data:
+            DB      $AC,$EE,$EC,$BE,$D7,$BC,$3B,$ED,$FE
+            DB      $3B,$DE,$FD,$BD,$E7,$BC,$9C,$DD,$DC
+Draw_Player_Lives:
+            nop
+            call    Select_P1_Life_Icon
+            ld      a,(P1_Lives)
+            call    Draw_Life_Icons
+            call    Select_P2_Life_Icon
+            ld      a,(P2_Lives)
+Draw_Life_Icons:
+            and     a
+            ret     z
+            cp      $08
+            jr      c,Clamp_Life_Count
+            ld      a,$07
+Clamp_Life_Count:
+            ld      b,a
+Draw_Life_Icon_Loop:
+            call    Draw_Actor_Record
+            inc     hl
+            djnz    Draw_Life_Icon_Loop
+            ret
+Draw_Reserve_Life_Icons:
+            ld      hl,Reserve_Life_Icon_Primary
+            ld      de,Reserve_Life_Icon_Alternate
+            call    Select_Cabinet_Graphics_Variant
+            ld      b,$07
+            jr      Draw_Life_Icon_Loop
+Draw_P1_Extra_Life_Marker:
+            ld      hl,P1_Life_Marker_Primary
+            ld      de,P1_Life_Marker_Alternate
+            call    Select_Cabinet_Graphics_Variant
+            jp      Draw_Actor_Record
+Draw_P2_Extra_Life_Marker:
+            ld      hl,P2_Life_Marker_Primary
+            ld      de,P2_Life_Marker_Alternate
+            call    Select_Cabinet_Graphics_Variant
+            jp      Draw_Actor_Record
+Select_P1_Life_Icon:
+            ld      hl,P1_Life_Icon_Primary
+            ld      de,P1_Life_Icon_Alternate
+            jr      Select_Cabinet_Graphics_Variant
+Select_P2_Life_Icon:
+            ld      hl,P2_Life_Icon_Primary
+            ld      de,P2_Life_Icon_Alternate
+Select_Cabinet_Graphics_Variant:
+            in      a, (COINPORT)
+            bit     7,a
+            ret     nz
+            ex      de,hl
+L1D26:      ret
+;*****************************************************************************
+; LIFE-DISPLAY GRAPHICS
+;
+; Fixed actor-display records selected by player and cabinet orientation.
+;*****************************************************************************
+P1_Life_Icon_Primary:
+            DB      $62,$9C,$38,$FC,$2D,$62,$9C,$38,$F6,$2D
+            DB      $62,$9C,$38,$76,$26,$62,$9C,$38,$F6,$1E
+            DB      $62,$9C,$38,$76,$17,$62,$9C,$38,$76,$08
+            DB      $62,$9C,$38,$F6,$00
+P1_Life_Icon_Alternate:
+            DB      $E2,$9C,$38,$4C,$33,$E2,$9C,$38,$46,$33
+            DB      $E2,$9C,$38,$C6,$2B,$E2,$9C,$38,$46,$24
+            DB      $E2,$9C,$38,$C6,$1C,$E2,$9C,$38,$C6,$0D
+            DB      $E2,$9C,$38,$46,$06
+P2_Life_Icon_Primary:
+            DB      $22,$F6,$38,$33,$2E,$22,$F6,$38,$39,$2E
+            DB      $22,$F6,$38,$B9,$26,$22,$F6,$38,$39,$1F
+P2_Life_Icon_Primary_Byte_20:
+            DB      $22,$F6,$38,$B9,$17,$22,$F6,$38,$B9,$08
+            DB      $22,$F6,$38,$39,$01
+P2_Life_Icon_Alternate:
+            DB      $A2,$F6,$38,$83,$33,$A2,$F6,$38,$89,$33
+            DB      $A2,$F6,$38,$09,$2C,$A2,$F6,$38,$89,$24
+            DB      $A2,$F6,$38,$09,$1D,$A2,$F6,$38,$09,$0E
+            DB      $A2,$F6,$38,$89,$06
+Reserve_Life_Icon_Primary:
+            DB      $22,$AE,$9E,$24,$00,$22,$00,$96,$E4,$08
+            DB      $22,$2F,$3D,$A4,$11,$22,$9C,$38,$64,$1A
+            DB      $22,$F6,$38,$24,$23,$22,$9A,$A3,$E4,$2B
+            DB      $22,$10,$A6,$A4,$39
+Reserve_Life_Icon_Alternate:
+            DB      $E2,$AE,$9E,$9B,$3F,$E2,$00,$96,$DB,$36
+            DB      $E2,$2F,$3D,$1B,$2E,$E2,$9C,$38,$5B,$25
+            DB      $E2,$F6,$38,$9B,$1C,$E2,$9A,$A3,$DB,$13
+            DB      $E2,$10,$A6,$1B,$06
+P1_Life_Marker_Primary:
+            DB      $60,$9C,$38,$D7,$2B
+P1_Life_Marker_Alternate:
+            DB      $E0,$9C,$38,$F7,$10
+P2_Life_Marker_Primary:
+            DB      $22,$F6,$38,$F8,$2B
+P2_Life_Marker_Alternate:
+            DB      $A2,$F6,$38,$18,$11
+Initialize_Player_Life_Displays:
+            ld      a,(Credits)
+            dec     a
+            jr      z,L1E2F
+            ld      hl,Life_Display_Record_1B
+            ld      de,Life_Display_Record_3A
+            call    Select_Cabinet_Graphics_Variant
+            ld      b,$04
+L1E1E:      call    Draw_Initial_Life_Display
+            ld      hl,Life_Display_Record_2A
+            ld      de,Life_Display_Record_3B
+            call    Select_Cabinet_Graphics_Variant
+L1E2A:      ld      b,$04
+            call    Draw_Initial_Life_Display
+L1E2F:      ld      a,$78
+            ld      (LD04C),a
+            ld      hl,Life_Display_Record_1A
+            ld      de,Life_Display_Record_2B
+            call    Select_Cabinet_Graphics_Variant
+            ld      b,$02
+Draw_Initial_Life_Display:
+            ld      a,(Credits)
+            cp      b
+            ld      b,$02
+            jr      c,L1E49
+            ld      b,$05
+L1E49:      ld      a,(Starting_Lives_Dip)
+            and     a
+            ld      a,b
+            jr      z,L1E52
+            or      $03
+L1E52:      ld      c,a
+            ld      b,$05
+            ld      de,LD1CB
+L1E58:      ld      a,(hl)
+            inc     hl
+            ld      (de),a
+            inc     de
+            djnz    L1E58
+            ld      e,(hl)
+            inc     hl
+            ld      d,(hl)
+            ld      b,c
+L1E62:      push    de
+            ld      hl,LD1CB
+            call    Draw_Actor_Record
+            pop     de
+            ld      hl,(LD1CE)
+            add     hl,de
+            ld      (LD1CE),hl
+            djnz    L1E62
+            ret
+; Life-display templates: five display bytes followed by a 16-bit stride.
+Life_Display_Record_1A:
+            DB      $22,$F6,$38,$4A,$1E,$FB,$FF
+Life_Display_Record_1B:
+            DB      $62,$9C,$38,$06,$32,$05,$00
+Life_Display_Record_2A:
+            DB      $22,$F6,$38,$4A,$32,$FB,$FF
+Life_Display_Record_2B:
+            DB      $A2,$F6,$38,$EA,$1E,$FB,$FF
+Life_Display_Record_3A:
+            DB      $E2,$9C,$38,$A6,$0A,$05,$00
+Life_Display_Record_3B:
+            DB      $A2,$F6,$38,$EA,$0A,$FB,$FF,$00
+L1E9F:      ld      a,(LD1D7)
+            and     a
+            ret     z
+            ld      hl,P1_Actor_Record
+            bit     7,(hl)
+            jr      nz,L1ED6
+            ld      a,(P1_Lives)
+            and     a
+            jr      z,L1ED6
+            ld      b,$00
+            ld      de,$0344
+            call    L1F55
+            dec     c
+            jr      nz,L1EBE
+            ld      a,$03
+L1EBE:      ld      (LD1EF),a
+            ld      a,$02
+            ld      (LD043),a
+            xor     a
+            ld      (P2_Auto_Input_State),a
+            ld      (P2_Input_State),a
+            ld      a,$10
+            jr      z,L1ED3
+            ld      a,$20
+L1ED3:      call    L1EF3
+L1ED6:      ld      hl,P2_Actor_Record
+            bit     7,(hl)
+            ret     nz
+            ld      a,(P2_Lives)
+            and     a
+            ret     z
+            ld      b,$F0
+            ld      de,L0248
+            call    L1F55
+            ld      (LD1F0),a
+            ld      a,$02
+            ld      (LD044),a
+            ld      a,$20
+L1EF3:      ld      c,$00
+            push    hl
+            inc     hl
+            ld      (hl),c
+            inc     hl
+            ld      (hl),a
+            inc     hl
+            ld      (hl),c
+            inc     hl
+            ld      (hl),b
+            inc     hl
+            ld      (hl),c
+L1F00:      inc     hl
+            ld      (hl),$90
+            inc     hl
+            ld      (hl),d
+            inc     hl
+            ld      (hl),e
+            push    bc
+            push    hl
+            call    Select_P1_Life_Icon
+            ld      a,b
+L1F0D:      and     a
+            call    nz,Select_P2_Life_Icon
+            ex      de,hl
+            pop     hl
+            ld      b,$05
+L1F15:      ld      a,(de)
+            inc     de
+            inc     hl
+            ld      (hl),a
+            djnz    L1F15
+            pop     bc
+            pop     hl
+            ld      (hl),$94
+L1F1F:      ld      a,b
+            cp      $78
+            jr      c,L1F50
+            ld      hl,Right_Status_Display_Address
+L1F27:      ld      de,L004B
+L1F2A:      ld      b,$04
+            di
+            ld      a,$20
+            out     (MAGIC),a
+            ld      a,(LD1EB)
+            and     a
+            ld      c,$55
+L1F37:      jr      z,L1F3B
+            ld      c,$FF
+L1F3B:      ld      a,c
+            and     $0F
+L1F3E:      ld      (hl),a
+            inc     hl
+            ld      (hl),c
+            inc     hl
+            ld      (hl),c
+            inc     hl
+            ld      (hl),c
+            inc     hl
+            ld      (hl),c
+            inc     hl
+            ld      a,c
+            and     $F0
+            ld      (hl),a
+            add     hl,de
+            djnz    L1F3B
+            ret
+L1F50:
+            ld      hl,Left_Status_Display_Address
+            jr      L1F27
+L1F55:      ld      a,(Game_Mode)
+            ld      c,a
+            and     a
+            ld      a,$01
+            ret     z
+            ld      a,$0A
+            ret
+            nop
+            dec     iy
+            dec     iy
+            ei
+            call    L2081
+            call    L2BFD
+            call    L203B
+            ld      hl,LD1C3
+            bit     0,(hl)
+            jr      z,L1F94
+            res     0,(hl)
+            push    hl
+            ld      ix,P1_Actor_Record
+            call    L21B8
+            call    L2259
+            call    L2132
+            call    L2633
+            call    L2D9A
+            ld      a,(LD1DF)
+            and     a
+L1F90:      call    z,L231F
+            pop     hl
+L1F94:      bit     1,(hl)
+            jr      z,L1FBC
+            res     1,(hl)
+            push    hl
+            ld      ix,P2_Actor_Record
+            call    L2274
+            ld      a,$01
+            ld      (LD1DA),a
+            call    L2132
+            call    L2633
+            call    L2D9A
+            xor     a
+            ld      (LD1DA),a
+            ld      a,(LD1DF)
+            and     a
+            call    z,L2327
+            pop     hl
+L1FBC:      push    hl
+            call    L0BF7
+L1FC0:      ld      hl,LD1E0
+            dec     (hl)
+            pop     hl
+            jr      z,L2014
+            ld      a,(hl)
+            and     $03
+            ret     nz
+            bit     2,(hl)
+            jr      z,L1FEE
+            res     2,(hl)
+            push    hl
+            ld      a,$05
+L1FD4:      push    af
+            ld      hl,P1_Actor_Record
+            ld      de,P2_Actor_Record
+            call    Select_Enemy_Record_IX
+            call    L256E
+            call    L2633
+            call    L2D9A
+            pop     af
+            dec     a
+            dec     a
+            jp      p,L1FD4
+            pop     hl
+L1FEE:      bit     3,(hl)
+L1FF0:      jr      z,L2010
+            res     3,(hl)
+            push    hl
+            ld      a,$06
+L1FF7:      push    af
+            ld      hl,P2_Actor_Record
+            ld      de,P1_Actor_Record
+            call    Select_Enemy_Record_IX
+L2001:      call    L256E
+L2004:      call    L2633
+            call    L2D9A
+            pop     af
+            dec     a
+L200C:      dec     a
+            jr      nz,L1FF7
+            pop     hl
+L2010:      ld      a,(hl)
+            and     $03
+            ret     nz
+L2014:      ld      a,$04
+            ld      (LD1E0),a
+            call    Random_Byte
+            call    L2B8B
+            call    L2A38
+            call    L22FD
+            call    L2740
+            call    L1E9F
+            call    Sound_Request_Dispatch_Entry
+            call    L2D6B
+            call    L2C15
+            call    L1A0B
+            jp      L22A8
+            nop
+L203B:      ld      a,(LD1DB)
+            and     a
+            ret     z
+            ld      ix,P1_Actor_Record
+            ld      a,(P2_Input_State)
+            call    L2051
+            ld      ix,P2_Actor_Record
+            ld      a,(P1_Input_State)
+L2051:      and     $0F
+            ld      c,a
+            ld      b,(ix+$00)
+            bit     7,b
+            ret     z
+            bit     3,b
+            ret     nz
+            bit     4,b
+            jr      nz,L2070
+            bit     5,(ix+$08)
+            jr      nz,L2070
+            ld      a,(ix+$01)
+            and     $F0
+            or      c
+            ld      (ix+$01),a
+L2070:      bit     0,c
+            ret     z
+            bit     2,b
+            ret     z
+            res     2,(ix+$00)
+; Joystick direction bit 0 clears player actor-state bit 2. The exact gameplay
+; name of that actor-state transition is not yet established, so retain a
+; structural PLAYER INPUT STATE name rather than inferring from the sound.
+Post_Player_Input_State_Sound:
+            ld      hl,Sound_Request_2
+            set     6,(hl)              ; R2.B6 - PLAYER INPUT STATE
+            ret
+L2080:      nop
+L2081:      ld      hl,LD040
+            ld      a,(hl)
+            and     a
+            jr      z,L20AE
+            ld      (hl),$00
+            rra
+            push    af
+            call    c,L283D
+            pop     af
+            rra
+            push    af
+            call    c,L27C0
+            pop     af
+            rra
+            push    af
+            call    c,L284D
+            pop     af
+            rra
+            push    af
+            call    c,L27F3
+            pop     af
+            rra
+            push    af
+            call    c,L27DF
+            pop     af
+            rra
+            push    af
+            call    c,L20E8
+            pop     af
+L20AE:      ld      hl,LD041
+            ld      a,(hl)
+            and     a
+            jr      z,L20E7
+            ld      (hl),$00
+            rra
+            push    af
+            call    c,L2113
+            pop     af
+            rra
+            push    af
+            call    c,L28CD
+            pop     af
+            rra
+            push    af
+            call    c,L2100
+            pop     af
+            rra
+            push    af
+            call    c,Initialize_Player_Life_Displays
+            pop     af
+            rra
+            push    af
+            call    c,L20E7
+            pop     af
+            rra
+            push    af
+            call    c,L20E7
+            pop     af
+            rra
+            push    af
+            call    c,L20E7
+            pop     af
+            rra
+            push    af
+            call    c,L20F6
+            pop     af
+L20E7:      ret
+L20E8:      ld      a,(LD053)
+            and     a
+            ret     nz
+            inc     a
+            ld      (LD050),a
+            ld      iy,(LD051)
+            ret
+L20F6:      ld      a,(LD050)
+            and     a
+            ret     nz
+            inc     iy
+            inc     iy
+            ret
+
+
+L2100:      xor     a
+            ld      (LD1E8),a
+            ld      hl,LD096
+            ld      (hl),$40
+            call    L210C
+L210C:      inc     hl
+            inc     hl
+            ld      a,(hl)
+            and     $FC
+            ld      (hl),a
+            ret
+L2113:      ld      ix,Enemy_1_Actor_Record
+            ld      hl,LD04F
+            bit     7,(ix+$13)
+            jr      z,L2123
+L2120:      ld      (hl),$01
+            ret
+L2123:      ld      a,(ix+$00)
+            and     $88
+            cp      $80
+            jr      nz,L2120
+            ld      (hl),$14
+            jp      L2342
+            nop
+L2132:      push    iy
+            ld      a,$06
+L2136:      push    af
+            call    Select_Enemy_Record_IY
+            call    L2144
+            pop     af
+            dec     a
+            jr      nz,L2136
+            pop     iy
+            ret
+L2144:      ld      a,(ix+$00)
+            and     $98
+            cp      $80
+            ret     nz
+            ld      a,(iy+$00)
+            and     $9A
+            cp      $80
+            ret     nz
+            ld      a,(iy+$04)
+            sub     (ix+$04)
+            ld      h,a
+            add     a,$0E
+            cp      $1C
+            ret     nc
+            ld      a,(iy+$06)
+            sub     (ix+$06)
+            ld      d,a
+            add     a,$0E
+            cp      $1C
+            ret     nc
+            ld      b,(iy+$07)
+            bit     1,b
+            jr      z,L2174
+            ex      de,hl
+L2174:      ld      a,h
+            and     a
+            jr      nz,L2189
+            ld      a,d
+            bit     0,b
+            ld      h,$FF
+            jr      z,L2181
+            inc     h
+            cpl
+L2181:      cp      $0E
+            jp      c,L0D4C
+            ld      a,b
+            cpl
+            ld      b,a
+L2189:      ld      a,h
+            and     a
+            ld      d,$00
+            ld      h,d
+            jp      p,L2198
+            ld      d,$18
+            bit     1,b
+            jr      z,L2198
+            ex      de,hl
+L2198:      ld      a,(ix+$04)
+            call    L244D
+            add     a,d
+            jr      c,L21A4
+            ld      (ix+$04),a
+L21A4:      ld      a,(ix+$06)
+            call    L244D
+            add     a,h
+            cp      $79
+            jr      nc,L21B2
+            ld      (ix+$06),a
+L21B2:      set     5,(ix+$00)
+            ret
+            nop
+L21B8:      ld      a,(Game_Mode)
+            dec     a
+            ret     nz
+            ld      a,(P2_Actor_Record)
+            ld      b,a
+            rla
+            jr      c,L21D0
+            ld      a,(P2_Lives)
+            and     a
+            jr      nz,L21D0
+            ld      (ix+$00),a
+            ld      (P1_Lives),a
+L21D0:      ld      a,(ix+$00)
+            and     $9C
+            cp      $80
+            ret     nz
+            ld      a,(ix+$01)
+            and     $F0
+            jr      nz,L21EB
+            ld      a,r
+            bit     3,a
+            ld      a,$09
+            jr      z,L2237
+            ld      a,$06
+            jr      L2237
+L21EB:      ld      hl,LD049
+            ld      a,(hl)
+            and     a
+            jr      nz,L223A
+            ld      (hl),$90
+            push    iy
+            ld      de,L00FF
+            ld      a,$06
+L21FB:      push    af
+            call    Select_Enemy_Record_IY
+            bit     7,(iy+$00)
+            jr      z,L2230
+            ld      a,(ix+$04)
+L2208:      sub     (iy+$04)
+            ld      l,$04
+            jr      nc,L2213
+L220F:      ld      l,$08
+            neg
+L2213:      rra
+            and     $7F
+            ld      b,a
+            ld      a,(ix+$06)
+            sub     (iy+$06)
+            ld      h,$01
+            jr      nc,L2225
+            ld      h,$02
+            neg
+L2225:      rra
+            and     $7F
+            add     a,b
+L2229:      cp      e
+            jr      nc,L2230
+            ld      e,a
+            ld      a,h
+            or      l
+            ld      d,a
+L2230:      pop     af
+            dec     a
+            jr      nz,L21FB
+            pop     iy
+            ld      a,d
+L2237:
+            ld      (P2_Auto_Input_State),a
+L223A:      bit     7,(ix+$13)
+            ret     nz
+            push    iy
+            ld      a,$06
+L2243:      push    af
+L2244:      call    Select_Enemy_Record_IY
+            ld      a,(iy+$00)
+            and     $8A
+            cp      $80
+            call    z,L24B8
+            pop     af
+            dec     a
+            jr      nz,L2243
+            pop     iy
+            ret
+            nop
+L2259:
+            ld      a,(P2_Auto_Input_State)
+            ld      d,a
+            ld      a,(Game_Mode)
+            cp      GAME_MODE_TWO_PLAYER
+            jr      nz,L226F
+            in      a, (P2PORT)
+            ld      hl,LD04A
+            call    L228E
+            call    c,L289D
+L226F:      ld      a,d
+            ld      (P2_Input_State),a
+            ret
+L2274:
+            ld      a,(P1_Auto_Input_State)
+            ld      d,a
+            ld      a,(Game_Mode)
+            and     a
+            jr      z,L2289
+            in      a, (P1PORT)
+            ld      hl,LD04B
+            call    L228E
+            call    c,L289D
+L2289:      ld      a,d
+            ld      (P1_Input_State),a
+            ret
+L228E:      cpl
+            and     $3F
+            ld      d,a
+            bit     3,(ix+$00)
+            ret     nz
+            ld      a,$20
+            bit     4,d
+            jr      nz,L22A3
+            ld      a,(hl)
+            and     a
+            jr      z,L22A5
+            dec     (hl)
+            ret
+L22A3:      ld      (hl),$02
+L22A5:      scf
+            ret
+            nop
+L22A8:
+            ld      hl,Status_Display_Update_Flags
+            bit     1,(hl)
+            res     1,(hl)
+            ld      a,$0C
+            push    hl
+            call    nz,L22C0
+            pop     hl
+            bit     0,(hl)
+            res     0,(hl)
+            ld      a,$00
+            call    nz,L22C0
+            ret
+L22C0:      ld      hl,Status_Glyph_Data
+            ld      de,$1132
+            push    af
+            call    L22F4
+            pop     af
+            ld      de,L117C
+            call    L22F4
+            ld      c,$F0
+            ld      de,L0050
+            di
+            ld      a,$20
+            out     (MAGIC),a
+            ld      hl,L0F57
+            call    L22E4
+            ld      hl,L0F98
+L22E4:      ld      b,$08
+L22E6:      ld      (hl),c
+            add     hl,de
+            ld      (hl),c
+            add     hl,de
+            add     hl,de
+            djnz    L22E6
+            ld      a,c
+            rrca
+            rrca
+            rrca
+            rrca
+            ld      c,a
+            ret
+L22F4:      ld      bc,L01FF
+            jp      printstr
+Status_Glyph_Data:
+            DB      $5C,$61,$00    ; Two custom display glyphs and terminator
+L22FD:      ld      a,(LD1C6)
+L2300:      and     a
+            ret     nz
+            ld      a,$06
+            push    iy
+L2306:      push    af
+            call    Select_Enemy_Record_IX
+            ld      iy,P1_Actor_Record
+            call    L2498
+            ld      iy,P2_Actor_Record
+            call    L2498
+L2318:      pop     af
+            dec     a
+            jr      nz,L2306
+            pop     iy
+            ret
+L231F:      ld      a,(P2_Input_State)
+            ld      hl,LD1E6
+            jr      L232D
+L2327:      ld      a,(P1_Input_State)
+            ld      hl,LD1E7
+L232D:      bit     5,(hl)
+            ld      (hl),a
+            ret     nz
+            bit     5,a
+            ret     z
+            ld      a,(ix+$00)
+            bit     7,a
+            ret     z
+            and     $18
+            ret     nz
+            bit     7,(ix+$13)
+            ret     nz
+L2342:      ld      e,(ix+$04)
+            ld      d,(ix+$06)
+            ld      bc,$0000
+            ld      a,(ix+$07)
+            bit     1,a
+            rra
+            jp      z,L239B
+            jr      nc,L236D
+            call    L254C
+L2359:      call    L2463
+L235C:      ret     m
+            cp      b
+            ret     c
+            call    L2422
+            ld      a,(ix+$04)
+            add     a,$16
+            jr      nc,L2382
+            ld      a,$FF
+            jr      L2382
+L236D:      call    L2547
+L2370:      call    L246D
+            ret     m
+            cp      b
+            ret     c
+            call    L240E
+            ld      a,(ix+$04)
+            bit     2,c
+            jr      z,L2382
+            sub     $06
+L2382:      and     $F8
+            jr      nz,L2388
+            ld      a,$08
+L2388:      ld      b,a
+            ld      a,(ix+$06)
+            add     a,$0B
+            bit     2,(ix+$07)
+            jr      z,L2396
+            add     a,$03
+L2396:      ld      h,a
+            ld      l,$00
+            jr      L23D2
+L239B:      jr      nc,L23B1
+            call    L2542
+L23A0:      call    L2477
+            ret     m
+            cp      b
+            ret     c
+            call    L2422
+            ld      a,(ix+$06)
+            ld      l,c
+            add     a,$16
+            jr      L23C7
+L23B1:      call    L253D
+L23B4:      call    L2481
+            ret     m
+            cp      b
+            ret     c
+            call    L240E
+            ld      a,(ix+$06)
+            ld      l,c
+            bit     2,c
+            jr      z,L23C7
+            sub     $06
+L23C7:      and     $F8
+            ld      h,a
+            ld      a,(ix+$04)
+            add     a,$08
+            ld      b,a
+            ld      c,$00
+;*****************************************************************************
+; FINALIZE PROJECTILE AND POST FIRE SOUND
+;
+; IX is the firing actor. Actor flag IX+$07 bit 2 distinguishes the player
+; actor path from non-player actors here, matching the actor-class test used by
+; the death-sound selector.
+;
+;   player actor                         -> R2.B1  PLAYER FIRE
+;   ordinary non-player actor            -> R3.B2  MONSTER FIRE
+;   Worluk phase + active Wizard state   -> R4.B2  WIZARD FIRE
+;*****************************************************************************
+Finalize_Projectile_And_Post_Fire_Sound:
+L23D2:      ld      (ix+$14),c
+            ld      (ix+$16),l
+            ld      (ix+$15),b
+            ld      (ix+$17),h
+            ld      a,(ix+$07)
+            and     $07
+            or      d
+            ld      (ix+$13),a
+            bit     2,(ix+$07)
+            ld      hl,Sound_Request_2
+            jr      nz,L23F3
+Post_Player_Fire_Sound:
+            set     1,(hl)              ; R2.B1 - PLAYER FIRE
+            ret
+Post_NonPlayer_Fire_Sound:
+L23F3:      inc     hl                  ; -> Sound_Request_3
+            ld      a,(LD1EB)
+            and     a
+            ld      a,$08
+            jr      z,L240A
+            ld      b,a
+L23FD:      ld      a,(LD1C6)
+            and     a
+            ld      a,b
+            jr      z,L240A
+            ld      hl,Sound_Request_4
+Post_Wizard_Fire_Sound:
+            set     2,(hl)              ; R4.B2 - WIZARD FIRE
+            ret
+Post_Monster_Fire_Sound:
+L240A:      rrca                        ; $08 -> $04, R3.B2
+            or      (hl)                ; R3.B2 - MONSTER FIRE
+            ld      (hl),a
+            ret
+L240E:      ld      c,$F8
+            ld      a,(LD1C6)
+            and     a
+            jr      nz,L2418
+            ld      c,$FC
+L2418:      bit     2,(ix+$07)
+            jr      nz,L2434
+            ld      c,$F8
+            jr      L2434
+L2422:      ld      c,$08
+            ld      a,(LD1C6)
+            and     a
+            jr      nz,L242C
+            ld      c,$04
+L242C:      bit     2,(ix+$07)
+            jr      nz,L2434
+            ld      c,$08
+L2434:      set     1,(ix+$08)
+            ld      (ix+$1a),$03
+            ld      (ix+$1b),$01
+            set     5,(ix+$00)
+            ret
+L2445:      ld      hl,Coordinate_Thresholds
+L2448:      cp      (hl)
+            inc     hl
+            jr      c,L2448
+            ret
+L244D:      exx
+            ld      hl,Coordinate_Thresholds-1
+L2451:      inc     hl
+            cp      (hl)
+            jr      c,L2451
+            ld      a,(hl)
+            exx
+L2457:      ret
+Coordinate_Thresholds:
+            DB      $F0,$D8,$C0,$A8,$90,$78,$60,$48,$30,$18,$00
+L2463:      call    Maze_Cell_Address_From_XY
+            ld      de,$0001
+            ld      a,$08
+            jr      L2489
+L246D:      call    Maze_Cell_Address_From_XY
+            ld      de,LFFFF
+            ld      a,$04
+            jr      L2489
+L2477:      call    Maze_Cell_Address_From_XY
+L247A:      ld      de,L000B
+            ld      a,$02
+            jr      L2489
+L2481:      call    Maze_Cell_Address_From_XY
+            ld      de,LFFF5
+            ld      a,$01
+L2489:      and     (hl)
+            jr      z,L2490
+            add     hl,de
+            inc     c
+            jr      L2489
+L2490:      ld      a,c
+            and     a
+            ld      d,$80
+            ret     nz
+            ld      d,$A0
+            ret
+L2498:      ld      a,(ix+$00)
+            and     $8A
+            cp      $80
+            ret     nz
+            bit     7,(ix+$13)
+            ret     nz
+            ld      a,(ix+$02)
+            cp      $40
+            ret     z
+            ld      a,(LD1E8)
+            and     a
+            ret     nz
+            ld      a,(iy+$00)
+            and     $98
+            cp      $80
+            ret     nz
+L24B8:      ld      a,(ix+$1c)
+            and     a
+            ret     nz
+            ld      d,(ix+$06)
+            ld      e,(ix+$04)
+            ld      h,(iy+$06)
+            ld      l,(iy+$04)
+            ld      a,(ix+$07)
+            bit     1,a
+            rra
+            jr      z,L24FD
+            jr      nc,L24E8
+            ld      a,h
+            sub     d
+            add     a,$0E
+            cp      $1C
+            ret     nc
+            ld      a,l
+            sub     e
+            ret     c
+            call    L254C
+            ld      c,e
+            ld      b,l
+            call    L2529
+            jp      L2359
+L24E8:      ld      a,d
+            sub     h
+            add     a,$0E
+            cp      $1C
+            ret     nc
+            ld      a,e
+            sub     l
+            ret     c
+            ld      c,l
+            call    L2547
+            ld      b,e
+            call    L2529
+            jp      L2370
+L24FD:      jr      nc,L2514
+            ld      a,l
+            sub     e
+            add     a,$0E
+            cp      $1C
+            ret     nc
+            ld      a,h
+            sub     d
+            ret     c
+            call    L2542
+            ld      c,d
+            ld      b,h
+            call    L2529
+            jp      L23A0
+L2514:      ld      a,e
+            sub     l
+            add     a,$0E
+L2518:      cp      $1C
+            ret     nc
+            ld      a,d
+            sub     h
+            ret     c
+            call    L253D
+            ld      c,h
+            ld      b,d
+            call    L2529
+            jp      L23B4
+L2529:      ld      a,c
+            call    L244D
+            ld      c,a
+            ld      a,b
+            call    L244D
+            sub     c
+            ld      b,$FF
+L2535:      inc     b
+            sub     $18
+            jr      nc,L2535
+            ld      c,$00
+            ret
+L253D:      ld      a,d
+            add     a,$02
+            ld      d,a
+            ret
+L2542:      ld      a,d
+            add     a,$14
+            ld      d,a
+            ret
+L2547:      ld      a,e
+            add     a,$02
+            ld      e,a
+            ret
+L254C:      ld      a,e
+            add     a,$14
+            jr      nc,L2553
+            ld      a,$FF
+L2553:      ld      e,a
+            ret
+            nop
+L2556:      ld      a,(ix+$06)
+            cp      $30
+            ld      b,$01
+            jr      nc,L2561
+            ld      b,$02
+L2561:      ld      a,(LD1EA)
+            and     a
+            ld      a,$04
+            jr      z,L256B
+            ld      a,$08
+L256B:      jp      L2609
+L256E:      ld      a,(ix+$00)
+            ld      b,a
+            and     $88
+            cp      $80
+            ret     nz
+            ld      a,(ix+$24)
+            and     a
+            jr      z,L2580
+            dec     (ix+$24)
+L2580:      ld      a,(ix+$23)
+            and     a
+            jr      z,L258A
+            dec     (ix+$23)
+            ex      af,af'
+L258A:      bit     6,b
+            jr      z,L2598
+            res     6,(ix+$00)
+            ld      a,(ix+$25)
+            ld      (ix+$02),a
+L2598:      ld      a,(ix+$01)
+            and     a
+            jr      z,L25A4
+            and     $F0
+            jr      z,L25C9
+            ex      af,af'
+            ret     nz
+L25A4:      ld      a,(LD1C6)
+            and     a
+            jr      nz,L25B2
+            ld      a,(LD1EB)
+            and     a
+            jr      nz,L2556
+            jr      L25B9
+L25B2:      ld      a,(LD1EA)
+            and     a
+            jr      z,L25B9
+            ex      de,hl
+L25B9:      ld      a,(hl)
+            and     $98
+            cp      $80
+            jr      z,L25ED
+            ex      de,hl
+            ld      a,(hl)
+            ex      de,hl
+            and     $98
+            cp      $80
+            jr      z,L25E7
+L25C9:      ld      a,(ix+$06)
+            cp      $30
+            ld      c,$02
+            jr      c,L25D4
+            ld      c,$01
+L25D4:      ld      a,r
+            bit     4,a
+            ld      b,$01
+            jr      z,L25DD
+            ld      b,c
+L25DD:      bit     2,a
+            ld      a,$04
+            jr      z,L25E5
+            ld      a,$08
+L25E5:      jr      L2609
+L25E7:      ex      de,hl
+            call    L25ED
+            ex      de,hl
+            ret
+L25ED:      push    hl
+            ld      bc,$0004
+            add     hl,bc
+            ld      a,(hl)
+            sub     (ix+$04)
+            ld      b,$08
+            jr      nc,L25FC
+            ld      b,$04
+L25FC:      inc     hl
+            inc     hl
+            ld      a,(hl)
+            sub     (ix+$06)
+            ld      a,$02
+            jr      nc,L2608
+            ld      a,$01
+L2608:      pop     hl
+L2609:      or      b
+            ld      b,a
+            ld      a,(ix+$01)
+            and     $F0
+            or      b
+            ld      (ix+$01),a
+L2614:      ld      a,(ix+$02)
+            ld      b,$FF
+            cp      $10
+            jr      c,L262B
+            ld      b,$7F
+            cp      $20
+            jr      c,L262B
+            ld      b,$3F
+            cp      $40
+            jr      c,L262B
+            ld      b,$1F
+L262B:      ld      a,r
+            and     b
+            ld      (ix+$23),a
+            ret
+            nop
+L2633:      bit     3,(ix+$00)
+            ret     z
+            bit     7,(ix+$08)
+            ret     nz
+            ld      a,(ix+$1d)
+            and     a
+            jp      nz,L0D59
+            dec     (ix+$03)
+            ret     nz
+            ld      a,(ix+$05)
+            and     a
+            jr      z,L26AC
+            ld      (ix+$03),$04
+            dec     (ix+$05)
+            jr      z,L26A7
+            ld      a,(ix+$07)
+            inc     (ix+$07)
+            bit     7,a
+            ld      hl,Actor_Frame_Pointer_Table_A
+            jr      nz,L2667
+            ld      hl,Actor_Frame_Pointer_Table_B
+L2667:      and     $3F
+            ld      c,a
+            ld      b,$00
+            add     hl,bc
+            add     hl,bc
+            ld      c,(hl)
+            inc     hl
+            ld      b,(hl)
+            call    L30C7
+            ld      a,(ix+$01)
+            or      $23
+            ld      (hl),a
+            inc     hl
+            ld      (hl),c
+            inc     hl
+            ld      (hl),b
+            inc     d
+            inc     d
+            inc     d
+            inc     e
+            inc     e
+            call    XY_To_Video_Address
+            ld      bc,$0000
+            bit     7,(ix+$01)
+            jr      z,L2692
+            ld      bc,$0550
+L2692:      bit     6,(ix+$01)
+            jr      z,L269C
+            ld      a,c
+            add     a,$05
+            ld      c,a
+L269C:      ex      de,hl
+            add     hl,bc
+            ex      de,hl
+            inc     hl
+            ld      (hl),e
+            inc     hl
+            ld      (hl),d
+            set     5,(ix+$08)
+L26A7:      set     7,(ix+$08)
+            ret
+L26AC:      ld      (ix+$00),$00
+            bit     7,(ix+$07)
+            ret     z
+            ld      a,(ix+$08)
+            and     $0C
+            cp      $0C
+            ret     z
+            ld      e,$0C
+            cp      $08
+            jr      z,L26E8
+            ld      e,$08
+            ld      a,(Dungeon_Number)
+            cp      $07
+            jr      c,L26CE
+            ld      a,$06
+L26CE:      sub     $07
+            ld      hl,LD1D6
+            inc     (hl)
+            add     a,(hl)
+            ret     m
+            ld      hl,LD1E3
+            ld      a,(hl)
+            and     a
+            jr      nz,L26E8
+            call    Random_Byte
+            and     $07
+            or      $28
+            ld      (hl),a
+            call    Speech_Request_Entry
+L26E8:      ld      d,(ix+$02)
+L26EB:      call    Random_Byte
+            and     $07
+            inc     a
+            ld      b,a
+            xor     a
+L26F3:      add     a,$18
+            djnz    L26F3
+            ld      c,a
+            ld      a,(LD058)
+            sub     c
+            add     a,$18
+            cp      $30
+            jr      c,L26EB
+            ld      a,(LD078)
+            sub     c
+            add     a,$18
+            cp      $30
+            jr      c,L26EB
+L270C:      call    Random_Byte
+            and     $03
+            inc     a
+            ld      b,a
+L2713:      xor     a
+L2714:      add     a,$18
+            djnz    L2714
+            ld      b,a
+            ld      a,(LD05A)
+            sub     b
+            add     a,$0C
+            cp      $18
+            jr      c,L270C
+            ld      a,(LD07A)
+            sub     b
+            add     a,$0C
+            cp      $18
+            jr      c,L270C
+L272D:      ld      a,c
+            cp      $78
+            ld      a,$01
+            jr      c,L2735
+            xor     a
+L2735:      ld      (LD1EA),a
+            ld      (ix+$24),$1E
+            jp      L2A0B
+            nop
+L2740:      ld      a,(LD1C9)
+            and     a
+            ret     nz
+            ld      a,$06
+L2747:      push    af
+            call    Select_Enemy_Record_IX
+            call    L2754
+            pop     af
+            dec     a
+            jr      nz,L2747
+            ei
+            ret
+L2754:      bit     7,(ix+$20)
+            res     7,(ix+$20)
+            ld      l,(ix+$21)
+            ld      h,(ix+$22)
+            ld      c,$00
+            call    nz,L27B5
+            ld      a,(ix+$00)
+            and     $88
+            cp      $80
+            ret     nz
+            set     7,(ix+$20)
+            ld      a,(ix+$06)
+L2776:      add     a,$0C
+            ld      c,$FF
+L277A:      inc     c
+            sub     $18
+            jr      nc,L277A
+            ld      b,$00
+            ld      hl,L18C4
+            add     hl,bc
+            add     hl,bc
+            ld      e,(hl)
+            inc     hl
+            ld      d,(hl)
+            ld      a,(ix+$04)
+            add     a,$0C
+            ld      b,$00
+            ld      h,b
+L2791:      inc     b
+            sub     $18
+            jr      nc,L2791
+            xor     a
+L2797:      add     a,$02
+            djnz    L2797
+            ld      l,a
+            add     hl,de
+            ld      (ix+$21),l
+            ld      (ix+$22),h
+            ld      a,(ix+$08)
+            and     $0C
+            ld      c,$FF
+            jp      pe,L27B5
+            ld      c,$AA
+            bit     3,a
+            jr      nz,L27B5
+            ld      c,$55
+L27B5:      ld      de,L0050
+            ld      b,$04
+L27BA:      ld      (hl),c
+            add     hl,de
+            djnz    L27BA
+            ret
+            nop
+L27C0:      ld      a,$02
+            ld      (LD046),a
+            call    L27D0
+            ld      l,h
+            call    L27D0
+            ld      (P2_Auto_Input_State),hl ; Initialize both automatic-input states
+            ret
+L27D0:      ld      a,r
+            bit     2,a
+            ld      h,$05
+            jr      nz,L27DA
+            ld      h,$09
+L27DA:      bit     3,a
+            ret     z
+            inc     h
+            ret
+L27DF:      ld      hl,LD043
+            ld      de,L2F90
+            exx
+            ld      hl,P1_Actor_Record
+            ld      de,LD1EF
+            ld      bc,P2_Input_State
+            ld      a,$04
+            jr      L2805
+L27F3:      ld      hl,LD044
+            ld      de,L2FBE
+            exx
+            ld      hl,P2_Actor_Record
+            ld      de,LD1F0
+            ld      bc,P1_Input_State
+L2803:      ld      a,$08
+L2805:      ex      af,af'
+            ld      a,(LD1DB)
+            and     a
+            ret     z
+            bit     7,(hl)
+            ld      a,$40
+            jr      z,L2825
+            bit     2,(hl)
+            jr      z,L2825
+            ex      de,hl
+            dec     (hl)
+            jr      nz,L281F
+            ld      h,b
+            ld      l,c
+            ld      (hl),$01
+            jr      L2825
+L281F:      exx
+            inc     (hl)
+            exx
+            ld      a,(hl)
+            or      $30
+L2825:      exx
+            ld      hl,LD1CB
+            ld      (hl),a
+L282A:      in      a, (COINPORT)
+            bit     7,a
+            jr      nz,L2837
+            push    hl
+            ld      hl,L02D1
+            add     hl,de
+            ex      de,hl
+L2836:      pop     hl
+L2837:      ld      b,$01
+            ex      af,af'
+            jp      Print_String_With_Cabinet_Orientation
+L283D:      ld      hl,LD18E
+            set     2,(hl)
+            ld      hl,LD198
+            set     3,(hl)
+            ld      hl,Status_Display_Update_Flags
+            set     1,(hl)
+            ret
+L284D:      ld      a,$07
+            ld      (LD045),a           ;
+            ld      a,(Dungeon_Number)
+            dec     a
+            ld      d,$21
+            jr      nz,L285C
+            ld      d,$01
+L285C:      cp      $05
+            ld      e,$01
+            jr      nc,L286A
+            ld      c,a
+            ld      b,$00
+            ld      hl,L2882
+            add     hl,bc
+            ld      e,(hl)
+L286A:      ld      hl,LD1E9
+            inc     (hl)
+            ld      a,(hl)
+            cp      e
+            jr      c,L2874
+            ld      d,$41
+L2874:      ld      a,$06
+L2876:      push    af
+            call    Select_Enemy_Record_IX
+            call    L2887
+            pop     af
+            dec     a
+            jr      nz,L2876
+            ret
+L2882:      dec     b
+            ld      b,$04
+            inc     bc
+            ld      (bc),a
+L2887:      ld      a,(ix+$00)
+            and     $88
+            cp      $80
+            ret     nz
+L288F:      ld      a,(ix+$02)
+            add     a,a
+            cp      d
+            ret     nc
+            res     6,(ix+$00)
+            cp      $10
+            jr      c,L289F
+L289D:      and     $F0
+L289F:      ld      (ix+$02),a
+            cp      $20
+            ret     c
+            ld      b,$FE
+            jr      z,L28AB
+            ld      b,$FC
+L28AB:      ld      a,(ix+$04)
+            and     b
+            ld      (ix+$04),a
+            ld      a,(ix+$06)
+            and     b
+            ld      (ix+$06),a
+            ret
+L28BA:      ld      a,$2D
+            ld      (hl),a
+            ld      (LD04E),a
+L28C0:      ld      ix,Enemy_1_Actor_Record
+            ld      (ix+$00),$00
+            set     7,(ix+$08)
+            ret
+L28CD:      ld      hl,LD1C7
+            ld      a,(hl)
+            and     a
+            jr      z,L28BA
+            ld      (hl),$00
+            ld      a,(LD1C8)
+            and     a
+            ret     nz
+; Wizard appearance/reappearance path. The surrounding code consumes the
+; Wizard-spawn gate, rejects an already-active special actor, selects an active
+; player, and constructs the new special-actor position around that player.
+Post_Wizard_Appear_Sound:
+            ld      hl,Sound_Request_4
+            set     1,(hl)              ; R4.B1 - WIZARD APPEAR
+            ld      a,(Dungeon_Number)
+            ld      b,a
+            ld      a,$B0
+L28E6:      sub     $0A
+            djnz    L28E6
+            cp      $3C
+            jr      nc,L28F0
+            ld      a,$3C
+L28F0:      ld      (LD04E),a
+            inc     a
+            ld      (LD045),a           ; Store the adjacent threshold one count higher
+            ld      hl,P1_Actor_Record
+            ld      de,P2_Actor_Record
+            call    Random_Byte
+            bit     3,a
+            jr      z,L2905
+            ex      de,hl
+L2905:      ld      a,(hl)
+            and     $98
+            cp      $80
+            jr      z,L2918
+            ex      de,hl
+            ld      a,(hl)
+            and     $98
+            cp      $80
+            ld      bc,L0078
+            jp      nz,L2998
+L2918:      ld      a,l
+            ld      de,P1_Actor_Record
+            sub     e
+            ld      (LD1EA),a
+            push    hl
+            pop     ix
+            ld      hl,LD1F3
+            call    L29AB
+            ld      c,a
+            inc     hl
+            call    L29AB
+            ld      h,a
+            ld      l,c
+            ld      a,(ix+$04)
+            add     a,$0C
+            call    L244D
+            ld      c,a
+            ld      a,(ix+$06)
+            add     a,$0C
+            call    L244D
+            ld      b,a
+            ld      de,LD1F3
+L2945:      call    Random_Byte
+            bit     2,a
+            jr      nz,L2971
+            bit     4,a
+            ld      a,(ix+$07)
+            jr      nz,L295E
+            and     $03
+            cp      $03
+            call    z,L29A2
+            ld      a,c
+            add     a,h
+            jr      L2967
+L295E:      and     $03
+            cp      $02
+            call    z,L29A2
+            ld      a,c
+            sub     h
+L2967:      jr      c,L2945
+            cp      $F1
+            jr      nc,L2945
+            ld      c,a
+            inc     de
+            jr      L2991
+L2971:      bit     4,a
+            ld      a,(ix+$07)
+            jr      nz,L2983
+            and     $03
+            cp      $01
+            call    z,L29A2
+            ld      a,b
+            add     a,l
+            jr      L298A
+L2983:      and     $03
+            call    z,L29A2
+            ld      a,b
+            sub     l
+L298A:      jr      c,L2945
+            cp      $79
+            jr      nc,L2945
+            ld      b,a
+L2991:      ex      de,hl
+            ld      a,(hl)
+            cp      $02
+            jr      c,L2998
+            dec     (hl)
+L2998:      ld      de,L200C
+            ld      ix,Enemy_1_Actor_Record
+            jp      L2A0B
+L29A2:      call    Random_Byte
+            and     $03
+            ret     z
+            pop     af
+            jr      L2945
+L29AB:      ld      b,(hl)
+            xor     a
+L29AD:      add     a,$18
+            djnz    L29AD
+            ret
+            nop
+            ld      a,(Dungeon_Number)
+            and     a
+            jr      z,L29C5
+            cp      $04
+            jr      nc,L29D3
+            add     a,a
+            add     a,$03
+            ld      d,a
+            ld      a,$06
+            jr      L29C9
+L29C5:      ld      d,$06
+            ld      a,$02
+L29C9:      push    af
+            call    L29E6
+            pop     af
+            inc     d
+            dec     a
+            jr      nz,L29C9
+            ret
+L29D3:      ld      d,$20
+            cp      $07
+            jr      c,L29DB
+            ld      d,$40
+L29DB:      ld      a,$06
+L29DD:      push    af
+            call    L29E6
+            pop     af
+            dec     a
+            jr      nz,L29DD
+            ret
+L29E6:      ld      e,$04
+            ld      h,a
+            call    Select_Enemy_Record_IX
+            ld      c,h
+            ld      hl,L2A29
+            add     hl,bc
+            add     hl,bc
+            call    Random_Byte
+            bit     4,a
+            ld      a,$18
+            jr      z,L29FC
+            xor     a
+L29FC:      add     a,(hl)
+            ld      c,a
+            call    Random_Byte
+            bit     2,a
+            ld      a,$18
+            jr      z,L2A08
+            xor     a
+L2A08:      inc     hl
+            add     a,(hl)
+            ld      b,a
+L2A0B:      push    ix
+            pop     hl
+            inc     hl
+            ld      (hl),$00
+            inc     hl
+            ld      (hl),d
+            inc     hl
+            ld      (hl),$00
+            inc     hl
+            ld      (hl),c
+            inc     hl
+            ld      (hl),$00
+            inc     hl
+            ld      (hl),b
+            inc     hl
+            ld      (hl),$04
+            inc     hl
+            ld      (hl),e
+            ld      (ix+$1f),$E0
+            ld      (ix+$00),$80
+            ret
+            jr      L2A2D
+L2A2D:      ld      c,b
+            nop
+            sub     b
+            nop
+            ret     nz
+            nop
+            ld      c,b
+            jr      nc,L29C6
+            jr      nc,L2A38
+L2A38:      push    iy
+            ld      a,$06
+L2A3C:      push    af
+            call    Select_Enemy_Record_IX
+            ld      c,$FF
+            ld      iy,P1_Actor_Record
+            call    L2AF6
+            ld      a,c
+            and     a
+            jp      p,L2A90
+            ld      iy,P2_Actor_Record
+            call    L2AF6
+            ld      a,c
+            and     a
+            jp      p,L2A90
+            ld      a,(ix+$02)
+            cp      $10
+            jr      nc,L2A63
+            ld      a,$10
+L2A63:      ld      b,$1E
+            sub     $10
+            jr      z,L2A6B
+            ld      b,$0F
+L2A6B:      ld      a,(LD1C6)
+            and     a
+            jr      z,L2A73
+            ld      b,$00
+L2A73:      ld      (ix+$1c),b
+            ld      a,(ix+$24)
+            and     a
+            jr      nz,L2AE3
+            bit     5,(ix+$00)
+            jr      nz,L2AE3
+            set     1,(ix+$00)
+            set     7,(ix+$08)
+            ld      (ix+$1f),$E0
+            jr      L2AE3
+;*****************************************************************************
+; SELECT SAME-CORRIDOR / VISIBILITY SOUND FOR SPECIAL MONSTERS
+;
+; L2A38 reaches this selector only after L2AF6 has tested the enemy against the
+; player corridor/proximity geometry. The actor class is encoded in IX+$08
+; bits 2-3:
+;   $04 Burwor  -> deliberately posts no sound here
+;   $08 Garwor  -> R2.B4  GARWOR VISIBLE
+;   $0C         -> R2.B3  THORWOR VISIBLE while LD1EB == 0
+;                  R2.B2  WORLUK PROXIMITY while LD1EB != 0
+;
+; The Garwor/Thorwor meanings agree with the game's own instruction text:
+; invisible monsters become visible when they enter the same maze corridor as
+; the player. Worluk is not an invisible-monster case, so its reuse of the
+; $0C-class path is named by the proven proximity/corridor context.
+;*****************************************************************************
+Select_R2_Actor_State_Sound:
+L2A90:      ld      a,(LD1C6)
+            and     a
+            jr      nz,L2AE3
+            res     1,(ix+$00)
+            ld      a,(ix+$24)
+            and     a
+            ld      (ix+$24),$1E
+            jr      nz,L2AE3
+            ld      hl,Sound_Request_2
+            ld      a,(ix+$08)
+            and     $0C
+            jp      pe,L2AEB
+            bit     2,a
+            ld      a,$10               ; R2.B4 - GARWOR VISIBLE
+            jr      nz,L2AB7
+Post_Selected_R2_Actor_State_Sound:
+L2AB5:      or      (hl)                ; Post R2.B2/R2.B3/R2.B4 selected above
+            ld      (hl),a
+L2AB7:      call    L2614
+            ld      a,r
+            ld      b,a
+            ld      a,(LD1E9)
+            cp      $04
+            jr      nc,L2AD0
+            bit     3,b
+            jr      z,L2AD0
+            ld      a,(ix+$01)
+            xor     $0F
+            ld      (ix+$01),a
+L2AD0:      bit     4,b
+            jr      z,L2AE3
+            ld      a,(ix+$02)
+            ld      (ix+$25),a
+            ld      d,$20
+            call    L288F
+            set     6,(ix+$00)
+L2AE3:      pop     af
+            dec     a
+            jp      nz,L2A3C
+            pop     iy
+            ret
+L2AEB:      ld      a,(LD1EB)
+            and     a
+            ld      a,$08               ; R2.B3 - THORWOR VISIBLE
+            jr      z,L2AB5
+            rrca                        ; -> $04, R2.B2 - WORLUK PROXIMITY
+            jr      L2AB5
+L2AF6:      ld      a,(ix+$00)
+            and     $88
+            cp      $80
+            ret     nz
+            ld      a,(iy+$00)
+            and     $98
+            cp      $80
+            ret     nz
+            call    L2B7D
+            ld      a,e
+L2B0A:      sub     l
+            cp      $F1
+            jr      nc,L2B14
+            cp      $0F
+            jr      nc,L2B48
+            ex      de,hl
+L2B14:      ld      a,h
+L2B15:      call    L244D
+            ld      h,a
+            ld      a,d
+            call    L244D
+L2B1D:      sub     h
+            jr      nc,L2B23
+            ld      h,d
+            neg
+L2B23:      ld      c,$02
+L2B25:      dec     c
+            sub     $18
+            jr      nc,L2B25
+            ld      d,h
+            push    hl
+            ld      a,c
+            push    af
+            ld      a,e
+            add     a,$11
+            jr      nc,L2B35
+            ld      a,$FF
+L2B35:      ld      e,a
+            call    L2477
+            pop     af
+            pop     de
+            dec     c
+            ret     p
+            ld      c,a
+            call    L2477
+            dec     c
+            ret     p
+            ld      c,$FF
+            call    L2B7D
+L2B48:      ld      a,d
+            sub     h
+            cp      $EF
+            jr      nc,L2B52
+            cp      $11
+            ret     nc
+            ex      de,hl
+L2B52:      ld      a,l
+            call    L244D
+            ld      l,a
+            ld      a,e
+            call    L244D
+            sub     l
+            jr      nc,L2B61
+            ld      l,e
+            neg
+L2B61:      ld      c,$02
+L2B63:      dec     c
+            sub     $18
+            jr      nc,L2B63
+            ld      e,l
+            push    hl
+            ld      a,c
+            push    af
+            ld      a,d
+            add     a,$11
+            ld      d,a
+            call    L2463
+            pop     af
+            pop     de
+            dec     c
+            ret     p
+            ld      c,a
+            call    L2463
+            dec     c
+            ret
+L2B7D:      ld      d,(ix+$06)
+            ld      e,(ix+$04)
+            ld      h,(iy+$06)
+            ld      l,(iy+$04)
+            ret
+            nop
+L2B8B:      ld      d,$00
+            ld      ix,P1_Actor_Record
+            bit     4,(ix+$00)
+            jr      z,L2B99
+            set     0,d
+L2B99:      ld      ix,P2_Actor_Record
+            bit     4,(ix+$00)
+            jr      z,L2BA5
+            set     1,d
+L2BA5:      ld      a,(LD1EB)
+            and     a
+            jr      z,L2BAD
+            ld      d,$03
+L2BAD:      ld      a,$06
+L2BAF:      push    af
+            call    Select_Enemy_Record_IX
+            ld      a,(ix+$00)
+            and     $88
+            cp      $80
+            jr      nz,L2BF7
+            res     5,(ix+$00)
+            ld      a,(ix+$04)
+            cp      $78
+            ld      a,$01
+            jr      c,L2BCB
+            ld      a,$02
+L2BCB:      and     d
+            jr      nz,L2BE5
+            ld      a,(ix+$08)
+            and     $0C
+            cp      $04
+            jr      z,L2BE5
+            ld      a,(ix+$02)
+            cp      $40
+            jr      nz,L2BF7
+            ld      a,(Dungeon_Number)
+            cp      $05
+            jr      nc,L2BF7
+L2BE5:      set     5,(ix+$00)
+            bit     1,(ix+$00)
+            jr      z,L2BF3
+            ld      (ix+$1f),$E0
+L2BF3:      res     1,(ix+$00)
+L2BF7:      pop     af
+            dec     a
+            jr      nz,L2BAF
+            ret
+            nop
+L2BFD:
+            ld      hl,Coin_Events_Pending
+            ld      a,(hl)
+            and     a
+            ret     z
+            dec     (hl)
+            ld      a,(LD349)
+            and     a
+            ret     nz
+            ld      iy,$1052
+            inc     a
+L2C0E:      ld      (LD050),a
+            ld      (LD053),a
+            ret
+L2C15:      ld      a,(Game_Mode)
+            and     a
+            ret     z
+            ld      a,(LD1DB)
+            and     a
+            ret     z
+            in      a, (COINPORT)
+            and     $28
+            jp      z,L2D12
+            ld      a,$06
+L2C28:      push    af
+            call    Select_Enemy_Record_IX
+            pop     af
+            bit     7,(ix+$00)
+            ret     nz
+            dec     a
+            jr      nz,L2C28
+            ld      a,(LD1BB)
+            and     a
+            ret     nz
+            ld      hl,LD1EB
+            ld      a,(hl)
+            and     a
+            jr      nz,L2C78
+            ld      a,(Dungeon_Number)
+            dec     a
+            jp      z,L2CF9
+            call    L2CF0
+            ld      (hl),a
+            call    L3125
+            ld      a,(L6C68)
+            ld      (LD1F1),a
+            ld      a,(L6CA4)
+            ld      (LD1F2),a
+            ld      a,$03
+            ld      (LD047),a
+Post_Worluk_Entry_Sound:
+            ld      hl,Sound_Request_3
+            set     7,(hl)              ; R3.B7 - WORLUK ENTRY
+            ld      iy,$121D
+            ld      a,$20
+            ld      (LD04D),a
+            ld      hl,LD1E8
+            inc     (hl)
+            ld      de,$010C
+            jp      L26EB
+L2C78:      ld      a,(P1_Actor_Record)
+            ld      hl,P2_Actor_Record
+            or      (hl)
+            bit     3,a
+            ret     nz
+            ld      a,(LD1DF)
+            and     a
+            jr      nz,L2CF9
+            ld      hl,LD1C7
+            ld      a,(hl)
+            and     a
+            ret     nz
+            dec     hl
+            ld      a,(hl)
+            and     a
+            jr      nz,L2CF9
+            ld      a,(Dungeon_Number)
+            cp      $07
+            jr      c,L2CA3
+            call    Random_Byte
+            and     $03
+            jr      z,L2CF9
+            jr      L2CD6
+L2CA3:      ld      d,$FF
+            ld      a,(P1_Lives)
+            ld      b,a
+            ld      a,(P2_Lives)
+            ld      c,a
+            ld      a,(Game_Mode)
+            dec     a
+            jr      nz,L2CB7
+            ld      b,$00
+            sla     c
+L2CB7:      ld      a,c
+            add     a,b
+            rrca
+            rrca
+            and     $3F
+            jr      z,L2CC4
+L2CBF:      srl     d
+            dec     a
+            jr      nz,L2CBF
+L2CC4:      ld      a,(Dungeon_Number)
+            cp      $03
+            jr      c,L2CF9
+L2CCB:      srl     d
+            dec     a
+            jr      nz,L2CCB
+            call    Random_Byte
+            and     d
+            jr      nz,L2CF9
+L2CD6:      ld      a,$03
+            ld      (LD04E),a
+            ld      (LD04F),a
+            ld      (hl),a
+            inc     hl
+            ld      (hl),a
+            ld      (LD1D8),a
+            ld      (LD1C9),a
+            ld      (Timer_Group_2_Start),a
+            ld      hl,$0403
+            ld      (LD1F3),hl
+L2CF0:      ld      a,$0A
+            in      a, (CCMISC)
+            ld      a,$52
+            out     (COL3L),a
+            ret
+L2CF9:      ld      a,$01
+            ld      (LD1DF),a
+            ld      hl,LD067
+            ld      a,(LD087)
+            or      (hl)
+            and     $80
+            ret     nz
+            ld      hl,P1_Actor_Record
+            ld      a,(P2_Actor_Record)
+            or      (hl)
+            and     $08
+            ret     nz
+L2D12:      ld      (LD1DB),a
+            inc     a
+            ld      (Timer_Group_2_Start),a
+            ld      a,(Dungeon_Number)
+            sub     $07
+            jr      c,L2D42
+L2D20:      sub     $06
+            jr      nc,L2D20
+            add     a,$06
+            cp      $05
+            jr      nz,L2D3D
+            ld      a,DUNGEON_CLASS_PIT
+            ld      (Dungeon_Class),a       ; Every sixth advanced dungeon is The Pit
+            ld      hl,Maze_Selection_Flags
+            ld      bc,L1700
+L2D35:      ld      (hl),c
+            inc     hl
+            djnz    L2D35
+            ld      a,$01
+            jr      L2D67
+L2D3D:      ld      a,DUNGEON_CLASS_WORLORD
+            ld      (Dungeon_Class),a       ; Advanced non-Pit dungeon
+
+; Select an unused maze index from the range appropriate to the dungeon tier.
+Select_Next_Maze_Index:
+L2D42:      ld      a,(Dungeon_Number)
+            cp      $07
+            ld      de,L000D
+            jr      c,L2D4F
+            ld      d,e
+            ld      e,$09
+L2D4F:      call    Random_Byte
+            and     $0F
+            cp      e
+            jr      nc,L2D4F
+            add     a,d
+            ld      hl,Maze_Selection_Flags
+            ld      c,a
+            ld      b,$00
+            add     hl,bc
+            ld      a,(hl)
+            and     a
+            jr      nz,L2D4F
+            inc     (hl)
+            ld      a,c
+            inc     a
+            inc     a
+L2D67:      ld      (Maze_Index),a
+            ret
+;
+L2D6B:      ld      a,(Game_Mode)
+            and     a
+            ret     z
+            ld      a,(LD1D7)
+            and     a
+            ret     z
+            ld      a,(P1_Actor_Record)
+            ld      hl,P2_Actor_Record
+            or      (hl)
+            ret     m
+            ld      hl,P1_Lives
+            ld      a,(hl)
+            inc     hl
+            or      (hl)
+            ret     nz
+            call    L1939
+            xor     a
+            ld      (Game_Mode),a
+            ld      (LD1D7),a
+            ld      (LD1DB),a
+            inc     a
+            ld      (Timer_Group_2_Start),a
+            ld      (LD1D9),a
+            ret
+            nop
+L2D9A:      ld      a,(LD1DB)
+            and     a
+            ret     z
+            ld      a,(ix+$00)
+            ld      b,a
+            and     $8C
+            cp      $80
+            ret     nz
+            bit     7,(ix+$08)
+            ret     nz
+            bit     4,b
+            jp      nz,L30DD
+            ld      a,(ix+$1c)
+            and     a
+            jr      z,L2DBB
+            dec     (ix+$1c)
+L2DBB:      ld      a,(ix+$01)
+            and     $0F
+            ld      (ix+$01),a
+            call    L2E4F
+            ld      a,(ix+$01)
+            and     $F0
+            ret     nz
+            call    L2E4F
+            bit     2,(ix+$07)
+            ret     nz
+            ld      a,(ix+$01)
+            ld      b,a
+            and     $F0
+            ret     nz
+            ld      a,b
+            and     $0F
+            jp      po,L2DF6
+            bit     5,(ix+$00)
+            ret     z
+            res     5,(ix+$00)
+            ld      a,(ix+$07)
+            inc     c
+            exx
+            jp      L2FE2
+L2DF2:      ld      bc,$0402
+            ex      af,af'
+L2DF6:      call    L30D6
+            cp      $04
+            jr      c,L2E14
+            ld      a,d
+            add     a,$18
+L2E00:      sub     $18
+            jr      z,L2E34
+            jr      nc,L2E00
+            cp      $F4
+            ld      c,$01
+            jr      c,L2E2D
+            ld      c,$02
+            ld      a,d
+            add     a,$0C
+            ld      d,a
+            jr      L2E2D
+L2E14:      ld      a,e
+            add     a,$18
+            jr      nc,L2E1B
+            ld      a,$FF
+L2E1B:      sub     $18
+            jr      z,L2E34
+            jr      nc,L2E1B
+            cp      $F4
+            ld      c,$04
+            jr      c,L2E2D
+            ld      c,$08
+            ld      a,e
+            add     a,$0C
+            ld      e,a
+L2E2D:      call    Maze_Cell_Address_From_XY
+            ld      a,b
+            and     (hl)
+            jr      nz,L2E41
+L2E34:      ld      a,(ix+$07)
+            and     $03
+            ld      c,a
+            ld      b,$00
+            ld      hl,L2DF2
+            add     hl,bc
+            ld      c,(hl)
+L2E41:      call    L2E4C
+            ld      a,(ix+$01)
+            and     $F0
+            ret     nz
+            jr      L2E4F
+L2E4C:      ld      (ix+$01),c
+L2E4F:      ld      c,$00
+            exx
+            call    L30D6
+            ld      a,(ix+$01)
+            ld      b,a
+            and     $0F
+            ret     z
+            ld      c,a
+            ld      (ix+$01),a
+            ld      a,b
+            rrca
+            rrca
+            rrca
+            rrca
+            and     $0F
+            ld      b,a
+            and     c
+            jr      z,L2E75
+            ld      a,b
+            xor     c
+            jr      z,L2E75
+            cp      $03
+            jr      c,L2E7B
+            jr      L2EA7
+L2E75:      bit     0,(ix+$00)
+            jr      z,L2EA7
+L2E7B:      res     0,(ix+$00)
+            ld      a,e
+            call    L2445
+            ret     nz
+            bit     1,c
+            jr      z,L2E94
+            call    Maze_Cell_Address_From_XY
+            bit     1,(hl)
+            ret     z
+            ld      b,$01
+            set     5,c
+            jr      L2ED5
+L2E94:      bit     0,c
+            ret     z
+            ld      a,$17
+            add     a,d
+            ld      d,a
+            call    Maze_Cell_Address_From_XY
+            bit     0,(hl)
+            ret     z
+            ld      b,$00
+            set     4,c
+            jr      L2ED5
+L2EA7:      set     0,(ix+$00)
+            ld      a,d
+            call    L2445
+            ret     nz
+            bit     3,c
+            jr      z,L2EC0
+            call    Maze_Cell_Address_From_XY
+            bit     3,(hl)
+            ret     z
+            ld      b,$03
+            set     7,c
+            jr      L2ED5
+L2EC0:      bit     2,c
+            ret     z
+            ld      a,$17
+            add     a,e
+            jr      nc,L2ECA
+            ld      a,$FF
+L2ECA:      ld      e,a
+            call    Maze_Cell_Address_From_XY
+            bit     2,(hl)
+            ret     z
+            ld      b,$02
+            set     6,c
+L2ED5:      ld      (ix+$01),c
+            ld      a,c
+            and     $50
+            ld      a,(ix+$02)
+            jr      z,L2EE2
+            neg
+L2EE2:      and     a
+            jr      nz,L2EE9
+            exx
+            set     0,c
+            exx
+L2EE9:      ld      l,a
+            rla
+            ld      h,$00
+            jr      nc,L2EF0
+            dec     h
+L2EF0:      add     hl,hl
+            add     hl,hl
+            add     hl,hl
+            add     hl,hl
+            ld      a,c
+            cp      $40
+            jr      c,L2F58
+            ld      e,(ix+$03)
+            ld      d,(ix+$04)
+            add     hl,de
+            ld      (ix+$03),l
+            ld      (ix+$04),h
+            ld      a,h
+            cp      $F1
+            jr      c,L2F65
+            ld      a,h
+L2F0C:      cp      $F8
+            ld      h,$00
+            jr      c,L2F14
+            ld      h,$F0
+L2F14:      ld      (ix+$04),h
+            ld      a,(LD1EB)
+            and     a
+L2F1B:      jr      z,L2F42
+            ld      a,(LD1C6)
+            and     a
+            jr      nz,L2F42
+            bit     2,(ix+$07)
+            jr      z,L2F65
+            xor     a
+            ld      (ix+$00),a
+            ld      a,$F3
+            out     (COL3L),a
+            ld      (LD1BA),a
+            ld      (LD1D8),a
+; Active Worluk has crossed the maze boundary. The actor slot is cleared above,
+; matching the documented Worluk escape through a magic door.
+Post_Worluk_Escape_Sound:
+            ld      hl,Sound_Request_3
+            set     5,(hl)              ; R3.B5 - WORLUK ESCAPE
+            call    Enable_Sparkle_Colors
+            jp      L30BA
+L2F42:      ld      a,$0A
+            ld      (LD047),a
+            exx
+            ld      hl,Status_Display_Update_Flags
+            set     0,(hl)
+            call    L3125
+; Non-escape branch of the same maze-edge/magic-door transition path.
+Post_Magic_Door_Transit_Sound:
+            ld      hl,Sound_Request_3
+            set     4,(hl)              ; R3.B4 - MAGIC DOOR TRANSIT
+            exx
+            jr      L2F65
+L2F58:      ld      e,(ix+$05)
+            ld      d,(ix+$06)
+            add     hl,de
+            ld      (ix+$05),l
+            ld      (ix+$06),h
+L2F65:      ld      a,h
+            cp      d
+            ld      c,$FF
+            jr      z,L2F70
+            inc     c
+            exx
+            set     0,c
+            exx
+L2F70:      bit     2,(ix+$07)
+            jr      z,L2F82
+            ld      hl,LD1E8
+            ld      a,(hl)
+            dec     a
+            jr      nz,L2F82
+            inc     (hl)
+            exx
+            set     0,c
+            exx
+L2F82:      ld      a,(ix+$02)
+            and     a
+            jr      z,L2F89
+            inc     c
+L2F89:      ld      d,(ix+$07)
+            ld      a,d
+            and     $03
+            xor     b
+L2F90:      cp      $01
+            jr      nz,L2FA2
+            bit     2,d
+            jr      z,L2F9E
+            ld      a,(LD1E8)
+            and     a
+L2F9C:      jr      nz,L2FA2
+L2F9E:      exx
+            set     0,c
+            exx
+L2FA2:      ld      a,(ix+$08)
+            and     $0C
+            bit     2,d
+            jr      z,L2FC8
+            ld      hl,L30BF
+            sub     $04
+            jr      z,L2FD7
+            inc     hl
+            sub     $04
+            jr      z,L2FD7
+            inc     hl
+            ld      a,(LD1EB)
+            and     a
+            jr      z,L2FD7
+L2FBE:      inc     hl
+            ld      a,(LD1C6)
+            and     a
+            jr      z,L2FD7
+            inc     hl
+            jr      L2FD7
+L2FC8:      ld      hl,L30C4
+            sub     $04
+            jr      nz,L2FD7
+            inc     hl
+            ld      a,(Game_Mode)
+            dec     a
+            jr      nz,L2FD7
+            inc     hl
+L2FD7:      ld      a,d
+            dec     c
+            jr      nz,L2FDC
+            add     a,(hl)
+L2FDC:      and     $FC
+            or      b
+            ld      (ix+$07),a
+L2FE2:      ld      de,L0008
+            bit     2,a
+            ld      hl,L385C
+            jr      z,L2FEF
+            ld      hl,$3F4C
+L2FEF:      bit     1,(ix+$08)
+            jr      z,L2FF6
+            add     hl,de
+L2FF6:      bit     1,a
+            ld      bc,$0550
+            jr      z,L3002
+            add     hl,de
+            add     hl,de
+            ld      bc,L0005
+L3002:      bit     0,a
+            jr      nz,L3009
+            ld      bc,$0000
+L3009:      ld      e,a
+            bit     1,a
+L300C:      jr      nz,L301A
+            ld      a,(LD1DA)
+            and     a
+            jr      z,L3026
+            ld      a,c
+            add     a,$05
+            ld      c,a
+            jr      L3026
+L301A:      in      a, (COINPORT)
+            bit     7,a
+            jr      nz,L3026
+            ld      b,$05
+            ld      a,c
+            add     a,$50
+            ld      c,a
+L3026:      ld      a,e
+            push    bc
+            rlca
+            rlca
+            bit     1,(ix+$08)
+            jr      z,L3033
+L3030:      ld      a,(ix+$1a)
+L3033:      and     $03
+            ld      e,a
+            add     hl,de
+            add     hl,de
+            ld      e,$20
+            ld      a,(ix+$08)
+            and     $0C
+            sub     $04
+            jr      z,L3057
+            add     hl,de
+            sub     $04
+            jr      z,L3057
+            add     hl,de
+            ld      a,(LD1EB)
+            and     a
+            jr      z,L3057
+            add     hl,de
+            ld      a,(LD1C6)
+            and     a
+            jr      z,L3057
+            add     hl,de
+L3057:      ld      c,(hl)
+            inc     hl
+            ld      b,(hl)
+            call    L30C7
+            ex      (sp),hl
+            bit     2,l
+            jr      nz,L3063
+            inc     e
+L3063:      inc     e
+            inc     d
+            inc     d
+            inc     d
+            ld      a,e
+            and     $03
+            or      $20
+            bit     4,l
+            jr      z,L3072
+            or      $80
+L3072:      bit     2,l
+            jr      z,L3078
+            xor     $43
+L3078:      ex      (sp),hl
+            ld      (hl),a
+            inc     hl
+            ld      (hl),c
+            inc     hl
+            ld      (hl),b
+            call    XY_To_Video_Address
+            ex      de,hl
+            pop     bc
+            add     hl,bc
+            ex      de,hl
+            inc     hl
+            ld      (hl),e
+            inc     hl
+            ld      (hl),d
+            bit     1,(ix+$00)
+            ret     nz
+            exx
+            bit     0,c
+            ret     z
+            bit     1,(ix+$08)
+            jr      z,L30B6
+            set     5,(ix+$00)
+            dec     (ix+$1b)
+            ret     nz
+            ld      a,$01
+            bit     2,(ix+$07)
+            jr      z,L30AA
+            ld      a,$02
+L30AA:      ld      (ix+$1b),a
+            dec     (ix+$1a)
+            jr      nz,L30B6
+            res     1,(ix+$08)
+L30B6:      set     5,(ix+$08)
+L30BA:      set     7,(ix+$08)
+            ret
+L30BF:      jr      nz,L30E1
+            jr      nz,L30D3
+            jr      nz,L30E5
+            jr      nz,L30E7
+L30C7:      push    ix
+            pop     hl
+            ld      de,L0008
+            add     hl,de
+            bit     4,(hl)
+            ld      e,$05
+            jr      nz,L30D5
+            add     hl,de
+L30D5:      inc     hl
+L30D6:      ld      e,(ix+$04)
+            ld      d,(ix+$06)
+            ret
+L30DD:      ld      c,$01
+            exx
+            ld      a,(ix+$06)
+            cp      $79
+L30E5:      jr      c,L30F5
+L30E7:      ld      a,(ix+$06)
+            sub     $08
+            ld      (ix+$06),a
+            ld      a,(ix+$07)
+            jp      L2FE2
+L30F5:      res     4,(ix+$00)
+            ld      b,(ix+$04)
+            call    L1F1F
+            ld      bc,P1_Lives
+            call    Select_P1_Life_Icon
+            bit     2,(ix+$08)
+            jr      nz,L310F
+            call    Select_P2_Life_Icon
+            inc     bc
+L310F:      ld      a,(bc)
+            dec     a
+            ret     z
+            cp      $07
+            jr      nc,L3122
+            push    hl
+            ld      de,L0005
+L311A:      add     hl,de
+            dec     a
+            jr      nz,L311A
+            call    Draw_Actor_Record
+            pop     hl
+L3122:      jp      Draw_Actor_Record
+L3125:      ld      hl,LD18E
+            res     2,(hl)
+            ld      hl,LD198
+            res     3,(hl)
+            ret
+
+;
+; Strings here. Definatly starting at $3132 to $3335 or so...
+;
+;*****************************************************************************
+; ATTRACT, INSTRUCTION, AND STATUS TEXT
+;
+; Length-prefixed text records use @ as the on-screen space glyph.  Fixed-size
+; names and score strings follow the prefixed records.
+;*****************************************************************************
+Attract_Text_Pool:
+            DB      $00                  ; Leading pad/terminator
+Text_Insert_Coin:
+            DB      $0B,"INSERT"
+Text_Coin_Prompt_Suffix:
+            DB      "@COIN"
+Text_High_Scores:
+            DB      $0B,"HIGH@SCORES"
+Text_Press_One_Player:
+            DB      $17,"PRESS@ONE@PLAYER@BUTTON"
+Text_Press_Two_Player:
+            DB      $17,"PRESS@TWO@PLAYER@BUTTON"
+Text_Or:
+            DB      $02,"OR"
+Text_Deposit_Additional_Coin:
+            DB      $17,"DEPOSIT@ADDITIONAL@COIN"
+Text_For_Two_Player_Game:
+            DB      $13,"FOR@TWO@PLAYER@GAME"
+Text_Points:
+            DB      $06,"POINTS"
+Text_Bonus_Player:
+            DB      $0C,"BONUS@PLAYER"
+Text_Wait_For_Instructions:
+            DB      $15,"WAIT@FOR@INSTRUCTIONS"
+Text_Invisible_Monsters:
+            DB      $1E,"INVISIBLE@MONSTERS@IN@THE@MAZE"
+Text_Radar_Location:
+            DB      $22,"ARE@LOCATED@USING"
+Text_Radar_Location_Byte_18:
+            DB      "@THE@RADAR@SCREEN"
+Text_Monsters_Become_Visible:
+            DB      $25,"MONSTERS"
+Text_Monsters_Visible_Byte_09:
+            DB      "@BECOME@VISIBLE@WHEN@ENTERI"
+Text_Monsters_Visible_Byte_36:
+            DB      "NG"
+Text_Same_Maze_Corridor:
+            DB      $24,"THE@SAME@MAZE@CORRIDOR@AS@THE@PLAYER"
+Text_Get_Ready:
+            DB      $0B,"@GET@READY@"
+Text_Radar:
+            DB      $05,"RADAR"
+Text_Escaped:
+            DB      $07,"ESCAPED"
+Text_Credits:
+            DB      $07,"CREDITS"
+Text_Dungeon_Label:
+            DB      $09,"DUNGEON@@"
+Text_Worlord_Dungeon:
+            DB      $0F,"WORLORD@DUNGEON"
+Text_The_Arena:
+            DB      $09,"THE@ARENA"
+Text_The_Pit:
+            DB      $07,"THE@PIT"
+Text_Extra_Worriors:
+            DB      $15,"OR@FOR@EXTRA@WORRIORS"
+Text_Go:
+            DB      "GO"
+Text_Double_Score:
+            DB      "DOUBLE@SCORE"
+Text_Game_Over:
+            DB      "GAME@OVER"
+Text_Copyright:
+            DB      "[@1980@MIDWAY@MFG@CO"
+Text_Copyright_Glyphs:
+            DB      $5C,$5D,$5E
+Text_Dungeon:
+            DB      "DUNGEON"
+Text_Burwor:
+            DB      "BURWOR"
+Text_Garwor:
+            DB      "GARWOR"
+Text_Thorwor:
+            DB      "THORWOR"
+Text_Worluk:
+            DB      "WORLUK"
+Text_Wizard_Of:
+            DB      "WIZARD@OF"
+Text_Worriors_Suffix:
+            DB      "@WORRIORS"
+Text_Rights_Reserved:
+            DB      "ALL@RIGHTS@RESERVED"
+Text_Score_Values:
+            DB      "10020050010002500",$00
+; Actor animation and frame-pointer tables.
+Actor_Frame_Pointer_Table_A:
+            DW      $33CE,$3428,$3482,$34DC,$3536
+Actor_Frame_Pointer_Table_B:
+            DW      $3B12,$374D,$3B12,$374D,$3B12,$374D
+            DW      $3B12,$374D,$3B12,$374D,$3801
+Actor_Frame_Metadata:
+            DB      $01,$38,$DC
+            inc     (hl)
+L336C:      ld      (hl),$35
+            nop
+L336F:      nop
+L3370:      nop
+            nop
+            sbc     a,h
+            jr      c,L3368
+            ld      (hl),$9C
+L3377:      jr      c,L336C
+            ld      (hl),$9C
+            jr      c,L3370
+            ld      (hl),$9C
+            jr      c,L3374
+            ld      (hl),$9C
+            jr      c,L3378
+            ld      (hl),$A7
+            scf
+            and     a
+            scf
+            call    c,L3634
+            dec     (hl)
+            nop
+            nop
+            nop
+            nop
+            cp      b
+            ld      a,(L35EA)
+            cp      b
+            ld      a,(L35EA)
+            cp      b
+            ld      a,(L35EA)
+            cp      b
+            ld      a,(L35EA)
+            cp      b
+            ld      a,(L35EA)
+            sbc     a,c
+            ld      (hl),$99
+            ld      (hl),$DC
+            inc     (hl)
+            ld      (hl),$35
+            nop
+            nop
+            nop
+            nop
+            or      $38
+            sub     b
+            dec     (hl)
+            or      $38
+            sub     b
+            dec     (hl)
+            or      $38
+            sub     b
+            dec     (hl)
+            or      $38
+            sub     b
+            dec     (hl)
+            or      $38
+            sub     b
+            dec     (hl)
+            ld      b,h
+            ld      (hl),$44
+            ld      (hl),$DC
+            inc     (hl)
+            ld      (hl),$35
+            nop
+            nop
+            nop
+            nop
+            nop
+            nop
+            nop
+            nop
+            nop
+            nop
+            nop
+            nop
+            nop
+            nop
+            nop
+            nop
+            ret     nz
+            inc     b
+            nop
+            nop
+            ret     nz
+            di
+            nop
+            nop
+            nop
+            ccf
+            rst     38H
+            inc     c
+            nop
+            nop
+            rrca
+            rst     38H
+            call    m,$0000
+            rrca
+            rst     18H
+            ld      a,a
+            nop
+            nop
+            rst     38H
+            ld      d,l
+            ld      a,h
+            nop
+            nop
+            DB      $fd,$55
+            ld      a,h
+            nop
+            nop
+            ccf
+L3401:      push    af
+            ld      a,h
+            nop
+            nop
+            rrca
+            ccf
+            ret     p
+            nop
+            nop
+            ld      c,h
+            rrca
+            pop     bc
+            nop
+            nop
+            nop
+            rrca
+            ret     nz
+            nop
+            nop
+            nop
+            inc     bc
+            nop
+            nop
+            nop
+            nop
+            nop
+            nop
+            nop
+            nop
+            nop
+            nop
+            nop
+            nop
+            nop
+            nop
+            nop
+            nop
+            nop
+            nop
+            ld      bc,$0000
+            nop
+            nop
+            nop
+            ld      b,b
+            nop
+            nop
+            nop
+            nop
+            ld      d,h
+L3434:      nop
+            nop
+            nop
+            nop
+            inc     d
+            inc     b
+            nop
+            nop
+            nop
+            dec     d
+            ld      d,h
+            nop
+            ret     nz
+            nop
+            dec     e
+            ld      d,h
+            inc     d
+            nop
+            nop
+            ld      e,a
+            push    de
+            ld      d,l
+            nop
+            nop
+            ld      e,a
+            rst     38H
+            push    af
+            nop
+            pop     bc
+            ld      a,a
+            rst     38H
+            call    p,$1500
+            ld      a,a
+            rst     38H
+            call    nc,$1500
+            rst     38H
+            rst     38H
+            call    nc,$0500
+            rst     38H
+            rst     38H
+            push    af
+            nop
+            dec     b
+            push    af
+            DB      $fd,$f4
+            nop
+            nop
+            ld      d,l
+            ld      d,l
+            ld      d,h
+            nop
+            dec     b
+            inc     d
+            inc     d
+            ld      b,l
+            ld      b,b
+            inc     b
+            nop
+            nop
+            ld      b,b
+            ld      b,b
+            ld      d,b
+            nop
+L347A:      nop
+            ld      b,b
+            nop
+            nop
+            nop
+            nop
+            nop
+            nop
+            nop
+            nop
+            jr      nz,L3486
+L3486:      nop
+            add     a,b
+            nop
+            add     a,b
+            nop
+            add     a,b
+            jr      nz,L3490
+            nop
+            ld      (bc),a
+L3490:      nop
+            ex      af,af'
+L3492:      ld      (bc),a
+            nop
+            ex      af,af'
+            nop
+            ld      (bc),a
+            adc     a,d
+            adc     a,d
+            ex      af,af'
+            nop
+            nop
+            xor     a
+            jp      m,L0088
+            ld      (bc),a
+            cp      a
+            cp      $A0
+            nop
+            ld      (bc),a
+            cp      a
+            rst     38H
+            and     b
+            jr      nz,L34B5
+            rst     38H
+            rst     38H
+            and     b
+            nop
+            ld      a,(bc)
+            rst     38H
+            rst     38H
+            and     b
+            nop
+            ld      a,(bc)
+L34B5:      rst     38H
+            rst     38H
+            and     b
+            nop
+            ld      a,(bc)
+            cp      a
+            rst     38H
+            ret     pe
+            nop
+            jr      nz,L347A
+            cp      a
+            ret     po
+            nop
+            add     a,b
+            and     b
+            xor     a
+            xor     b
+            nop
+            nop
+            nop
+            ld      hl,(L808A)
+            nop
+            nop
+            jr      nz,L34D1
+L34D1:      add     a,b
+            nop
+            nop
+            add     a,b
+            nop
+            nop
+            nop
+            ld      (bc),a
+            nop
+            nop
+            nop
+            nop
+            ex      af,af'
+            djnz    L34E0
+L34E0:      nop
+            inc     de
+            ld      (bc),a
+            ld      (bc),a
+            djnz    L34E6
+L34E6:      nop
+            add     a,h
+            ret     nz
+            jr      nc,L34EB
+L34EB:      nop
+            pop     bc
+            inc     b
+            nop
+            nop
+            ex      af,af'
+            nop
+            nop
+            inc     c
+            nop
+            nop
+            ld      b,b
+            ld      b,$00
+            nop
+            ret     nz
+            ld      c,$03
+            inc     de
+            nop
+            inc     bc
+            nop
+            ld      c,b
+L3502:      nop
+            nop
+            ld      (bc),a
+            ld      bc,L2001
+            nop
+            ld      b,b
+            inc     b
+            djnz    L350E
+            nop
+L350E:      nop
+            nop
+            jr      nz,L3492
+            nop
+            jr      nc,L3538
+            nop
+            inc     c
+            nop
+            ld      bc,L2004
+            call    nz,L2300
+            ld      (bc),a
+            inc     bc
+            ld      bc,L0100
+            jr      nz,L3555
+            ld      sp,$0000
+            jr      nc,L34AA
+            ld      b,h
+L352B:      nop
+            nop
+            inc     b
+            ex      af,af'
+            nop
+            nop
+            nop
+            nop
+            nop
+            nop
+            nop
+            nop
+            nop
+L3538:      jr      nc,L355A
+            nop
+            nop
+            jr      nz,L353E
+L353E:      ld      b,b
+            nop
+            jr      nz,L3502
+            djnz    L354C
+            nop
+            nop
+            inc     b
+            nop
+            add     a,b
+            ld      b,b
+            nop
+            ld      b,b
+L354C:      nop
+            jr      nz,L354F
+L354F:      jr      nc,L3551
+L3551:      djnz    L3583
+            nop
+            nop
+L3555:      add     a,b
+            ld      (bc),a
+            nop
+            djnz    L359A
+L355A:      inc     b
+            jr      nc,L3560
+            nop
+            inc     bc
+            nop
+L3560:      nop
+            ld      (bc),a
+            nop
+            nop
+            nop
+            add     a,b
+            nop
+            nop
+            jr      nc,L358A
+            jr      nc,L356D
+            nop
+L356D:      ld      bc,$0002
+            inc     c
+            djnz    L3574
+            nop
+L3574:      add     a,c
+            nop
+            add     a,b
+            ld      b,b
+            inc     c
+            nop
+            inc     c
+            nop
+            ld      (bc),a
+            djnz    L358F
+            inc     bc
+            nop
+            nop
+            inc     bc
+L3583:      nop
+            ex      af,af'
+            nop
+            nop
+            ld      b,b
+            ld      bc,$0000
+            nop
+            inc     bc
+            nop
+            nop
+L358F:      nop
+            nop
+            nop
+            dec     a
+            ld      e,a
+            nop
+            nop
+            nop
+            dec     sp
+            ld      d,a
+            nop
+L359A:      nop
+            nop
+            rst     38H
+            ld      d,a
+            nop
+            nop
+            nop
+            push    de
+            ld      e,a
+            ret     p
+            nop
+            nop
+            DB      $fd,$5d
+            ld      (hl),b
+            nop
+            nop
+            dec     c
+            ld      d,l
+            ld      d,b
+            inc     sp
+            nop
+            dec     (hl)
+            and     (hl)
+            ld      d,b
+            DB      $dd,$ff
+            push    de
+            and     (hl)
+            ld      (hl),b
+            sbc     a,c
+            xor     d
+            xor     d
+            and     l
+            ld      (hl),b
+            DB      $dd,$fe
+            xor     d
+            sub     l
+            ld      (hl),b
+            inc     sp
+            rrca
+            push    de
+            ld      e,l
+            ld      (hl),b
+            nop
+            nop
+            dec     (hl)
+            ld      e,a
+            ret     p
+            nop
+            nop
+            dec     (hl)
+            ld      d,a
+            nop
+            nop
+            nop
+            push    de
+            ld      d,a
+            nop
+            nop
+            inc     bc
+            ld      d,a
+            rst     10H
+            nop
+            nop
+            dec     c
+            ld      e,h
+            push    de
+            ret     nz
+            nop
+            ld      (iy-$0b),b
+            ret     nz
+            nop
+            push    de
+            ld      (hl),e
+            ld      d,l
+            ret     nz
+L35EA:      nop
+            nop
+            call    pe,$0000
+            nop
+            inc     bc
+            ld      d,a
+            nop
+            nop
+            nop
+            nop
+            call    pe,$0000
+            nop
+            inc     bc
+            ld      d,a
+            nop
+            nop
+            ret     p
+            nop
+            call    pe,$0000
+            ld      (hl),b
+            nop
+            call    pe,$0000
+            ld      a,h
+L3609:      inc     bc
+            call    pe,$0000
+            ld      d,a
+            inc     bc
+            xor     h
+            nop
+            nop
+            ld      d,l
+            jp      $3FAC
+            nop
+            push    af
+            ld      a,l
+            and     a
+            scf
+            ret     p
+            dec     c
+            ld      d,l
+            and     l
+            rst     30H
+            or      b
+            jp      $A555
+            ld      d,a
+            ret     nc
+            ld      a,a
+            ld      d,l
+            xor     d
+L3629:      ld      d,l
+L362A:      ld      d,b
+            ld      (hl),l
+            ld      d,l
+            ld      l,d
+            ld      d,l
+            ld      d,b
+            ld      d,l
+            ld      e,a
+            ld      d,l
+            ld      a,l
+L3634:      ld      (hl),b
+            ld      d,a
+            DB      $fd,$5a
+            ld      e,a
+            ret     p
+            call    m,L550D
+            ld      e,h
+            nop
+            nop
+            rrca
+            DB      $fd,$7c
+            nop
+            nop
+            nop
+            nop
+            inc     b
+            nop
+            ld      b,h
+            nop
+            nop
+            inc     d
+            nop
+            ld      h,(hl)
+            xor     d
+            add     a,b
+            inc     d
+            add     a,b
+            ld      b,h
+            ld      a,(bc)
+            add     a,b
+            dec     d
+            ld      d,b
+            nop
+            nop
+            ld      bc,L4001
+            nop
+            nop
+            add     a,b
+            add     a,e
+            nop
+            nop
+            inc     bc
+            ld      d,d
+            ld      bc,$0000
+            nop
+            nop
+            ld      ($0000),a
+            nop
+            ld      de,L4004
+            nop
+            nop
+            ld      c,(hl)
+            ld      (bc),a
+            nop
+            nop
+            inc     d
+            jr      nz,L369E
+            ret     nz
+            nop
+            ld      d,h
+            ld      bc,$0000
+            ld      bc,L0050
+            ld      bc,L0150
+            ld      b,b
+            nop
+            dec     b
+            ld      d,b
+            dec     d
+            ld      b,b
+            nop
+            dec     b
+            djnz    L3690
+L3690:      nop
+            nop
+            nop
+            djnz    L3695
+L3695:      nop
+            nop
+            nop
+            nop
+            nop
+            nop
+            nop
+            dec     b
+            ld      b,b
+L369E:      inc     b
+            nop
+            nop
+            ld      (bc),a
+            nop
+            inc     b
+            nop
+            nop
+            dec     b
+            ld      b,b
+            dec     b
+            ld      b,b
+            nop
+            ld      (bc),a
+            nop
+            dec     b
+            ld      d,b
+            nop
+            ld      (bc),a
+            nop
+            nop
+            ld      d,h
+            nop
+            ld      (bc),a
+            nop
+            nop
+            inc     d
+            nop
+            ld      a,(bc)
+            nop
+            nop
+            nop
+            inc     c
+            ld      a,(bc)
+            nop
+            nop
+            ld      bc,L0A06
+            nop
+            nop
+            ex      af,af'
+            ld      b,h
+            djnz    L36CB
+L36CB:      nop
+            inc     bc
+            nop
+            nop
+            nop
+            nop
+            ld      (de),a
+            ld      c,b
+            ld      b,b
+            nop
+            nop
+            nop
+            ld      (bc),a
+            nop
+            nop
+            nop
+            ex      af,af'
+            jr      nc,L36E3
+            ld      b,b
+            dec     b
+            inc     b
+            ld      b,b
+            dec     d
+L36E3:      ld      d,b
+            dec     b
+            ld      b,d
+            daa
+            ld      d,h
+            nop
+            ld      bc,L404C
+            ld      d,(hl)
+            nop
+            dec     d
+            ld      b,b
+            nop
+            inc     d
+            nop
+            nop
+            nop
+            ld      a,$AF
+            nop
+            nop
+            nop
+            scf
+            xor     e
+            nop
+            nop
+            nop
+            rst     38H
+            xor     e
+            nop
+            nop
+            nop
+            jp      pe,LF0AF
+            nop
+            nop
+L3709:      cp      $AE
+            or      b
+            nop
+            nop
+            ld      c,$AA
+            and     b
+            inc     sp
+            nop
+            ld      a,($A059)
+            xor     $FF
+            jp      pe,LB059
+            ld      h,(hl)
+            ld      d,l
+            ld      d,l
+            ld      e,d
+            or      b
+            xor     $FD
+            ld      d,l
+            ld      l,d
+            or      b
+            inc     sp
+            rrca
+            jp      pe,LB0AE
+            nop
+            nop
+            ld      a,(LF0AF)
+            nop
+            nop
+            ld      a,(L00AB)
+            nop
+            nop
+L3736:      jp      pe,L00AB
+            nop
+            inc     bc
+            xor     e
+            ex      de,hl
+            nop
+            nop
+            ld      c,$AC
+            jp      pe,L00C0
+            cp      $B0
+            jp      m,L00C0
+            jp      pe,$AAB3
+            ret     nz
+            nop
+            nop
+            call    c,$0000
+            nop
+            inc     bc
+            xor     e
+            nop
+            nop
+            nop
+            nop
+            call    c,$0000
+            nop
+            inc     bc
+            xor     e
+            nop
+            nop
+            ret     p
+            nop
+            call    c,$0000
+            or      b
+            nop
+            call    c,$0000
+            cp      h
+            inc     bc
+            call    c,$0000
+            xor     e
+            inc     bc
+            ld      e,h
+            nop
+            nop
+            xor     d
+            jp      $3F5C
+            nop
+            jp      m,L5BBE
+            dec     sp
+            ret     p
+            ld      c,$AA
+            ld      e,d
+            ei
+            ld      (hl),b
+            jp      L5AAA
+            xor     e
+            ret     po
+            cp      a
+            xor     d
+            ld      d,l
+            xor     d
+            and     b
+            cp      d
+            xor     d
+            sub     l
+            xor     d
+            and     b
+            xor     d
+            xor     a
+            xor     d
+            cp      (hl)
+            or      b
+            xor     e
+            cp      $A5
+            xor     a
+            ret     p
+            call    m,$AA0E
+            xor     h
+            nop
+Radar_Line_Pattern_A:
+            DB      $00,$0F,$FE,$BC,$00,$00,$00,$00,$08,$00,$88,$00,$00,$28,$00,$99
+Radar_Line_Pattern_B:
+            DB      $55,$40,$28,$40,$88,$05,$40,$2A,$A0,$00,$00,$20,$0A,$A0,$00,$00
+Radar_Line_Pattern_Extra:
+            DB      $02,$02,$80,$00,$00,$40,$43,$00,$00,$03,$A1,$02,$00,$00,$00,$00
+            DB      $31,$00,$00,$00,$22,$08,$80,$00,$00,$8D
+Radar_Line_Pattern_C:
+            DB      $01,$00,$00,$28,$10,$18,$C0,$00,$A8,$02,$00,$00,$02,$A0,$00,$02
+Radar_Line_Pattern_D:
+            DB      $A0,$02,$80,$00,$0A,$A0,$2A,$80,$00,$0A,$20,$00,$00,$00,$00,$20
+Radar_Line_Pattern_Padding:
+            DB      $00
+L37FD:      nop
+            nop
+            nop
+            nop
+            nop
+            nop
+            nop
+            ld      a,(bc)
+            add     a,b
+            ex      af,af'
+            nop
+            nop
+            ld      bc,L0800
+            nop
+            nop
+            ld      a,(bc)
+            add     a,b
+L3810:      ld      a,(bc)
+            add     a,b
+            nop
+            ld      bc,L0A00
+            and     b
+            nop
+            ld      bc,$0000
+            xor     b
+            nop
+            ld      bc,$0000
+            jr      z,L3822
+L3822:      dec     b
+            nop
+            nop
+            nop
+            inc     c
+            dec     b
+            nop
+            nop
+            ld      (bc),a
+            add     hl,bc
+            dec     b
+            nop
+            nop
+            inc     b
+            adc     a,b
+            jr      nz,L3833
+L3833:      nop
+            inc     bc
+            nop
+            nop
+            nop
+            nop
+L3839:      ld      hl,L8084
+            nop
+            nop
+            nop
+            ld      bc,$0000
+            nop
+            inc     b
+            jr      nc,L3850
+            add     a,b
+            ld      a,(bc)
+            ex      af,af'
+            add     a,b
+            ld      hl,(L0AA0)
+            add     a,c
+            dec     de
+            xor     b
+L3850:      nop
+            ld      (bc),a
+            adc     a,h
+            add     a,b
+            xor     c
+            nop
+            ld      hl,(L0080)
+            jr      z,L385B
+L385B:      nop
+L385C:      ld      (de),a
+            dec     sp
+            add     a,$3B
+            ld      a,d
+            inc     a
+            add     a,$3B
+            nop
+            sbc     a,b
+            ld      e,d
+            sbc     a,b
+            or      h
+            sbc     a,b
+            ld      c,$99
+            sbc     a,h
+            jr      c,WORRIOR_BLUE_1 + $23
+            add     hl,sp
+            inc     b
+            ld      a,(L3950)
+            ld      l,b
+            sbc     a,c
+            jp      nz,L1C99
+            sbc     a,d
+            halt
+            sbc     a,d
+            cp      b
+            ld      a,(WORRIOR_YELLOW_2_UP)
+            jr      nz,L38BE
+            ld      l,h
+            dec     sp
+            ret     nc
+            sbc     a,d
+            ld      hl,(L849B)
+            sbc     a,e
+            sbc     a,$9B
+            or      $38
+            xor     d
+            add     hl,sp
+            ld      e,(hl)
+            ld      a,(WORRIOR_YELLOW_2)
+            jr      c,L3832
+            sub     d
+            sbc     a,h
+            call    pe,L469C
+            sbc     a,l
+;*******************************************************************************
+; WORRIOR_BLUE_1
+; 5 bytes/row = 20 pixels wide, 18 rows
+;*******************************************************************************
+WORRIOR_BLUE_1:
+        DB       $00,$00,$00,$54,$00 ; . . . . . . . . . . . . 1 1 1 . . . . .
+        DB       $00,$00,$03,$15,$00 ; . . . . . . . . . . . 3 . 1 1 1 . . . .
+        DB       $00,$00,$00,$15,$04 ; . . . . . . . . . . . . . 1 1 1 . . 1 .
+        DB       $00,$00,$05,$54,$00 ; . . . . . . . . . . 1 1 1 1 1 . . . . .
+        DB       $00,$00,$00,$54,$50 ; . . . . . . . . . . . . 1 1 1 . 1 1 . .
+        DB       $00,$00,$00,$55,$54 ; . . . . . . . . . . . . 1 1 1 1 1 1 1 .
+        DB       $00,$00,$01,$7D,$D4 ; . . . . . . . . . . . 1 1 3 3 1 3 1 1 .
+        DB       $04,$40,$05,$7D,$D0 ; . . 1 . 1 . . . . . 1 1 1 3 3 1 3 1 . .
+        DB       $37,$7F,$FF,$FD,$D0 ; . 3 1 3 1 3 3 3 3 3 3 3 3 3 3 1 3 1 . .
+        DB       $04,$40,$FF,$F5,$50 ; . . 1 . 1 . . . 3 3 3 3 3 3 1 1 1 1 . .
+        DB       $00,$00,$05,$54,$50 ; . . . . . . . . . . 1 1 1 1 1 . 1 1 . .
+        DB       $00,$00,$00,$55,$00 ; . . . . . . . . . . . . 1 1 1 1 . . . .
+        DB       $00,$00,$01,$55,$00 ; . . . . . . . . . . . 1 1 1 1 1 . . . .
+        DB       $00,$00,$05,$55,$00 ; . . . . . . . . . . 1 1 1 1 1 1 . . . .
+        DB       $00,$00,$15,$05,$00 ; . . . . . . . . . 1 1 1 . . 1 1 . . . .
+        DB       $00,$00,$54,$05,$40 ; . . . . . . . . 1 1 1 . . . 1 1 1 . . .
+        DB       $00,$00,$50,$01,$40 ; . . . . . . . . 1 1 . . . . . 1 1 . . .
+        DB       $00,$05,$50,$15,$40 ; . . . . . . 1 1 1 1 . . . 1 1 1 1 . . .
+
+
+;*******************************************************************************
+; WORRIOR_YELLOW_1
+; 5 bytes/row = 20 pixels wide, 18 rows
+;*******************************************************************************
+WORRIOR_YELLOW_1:
+        DB       $00,$00,$00,$A8,$00 ; . . . . . . . . . . . . 2 2 2 . . . . .
+        DB       $00,$00,$03,$2A,$00 ; . . . . . . . . . . . 3 . 2 2 2 . . . .
+        DB       $00,$00,$00,$2A,$08 ; . . . . . . . . . . . . . 2 2 2 . . 2 .
+        DB       $00,$00,$0A,$A8,$00 ; . . . . . . . . . . 2 2 2 2 2 . . . . .
+        DB       $00,$00,$00,$A8,$A0 ; . . . . . . . . . . . . 2 2 2 . 2 2 . .
+        DB       $00,$00,$00,$AA,$A8 ; . . . . . . . . . . . . 2 2 2 2 2 2 2 .
+        DB       $00,$00,$02,$BE,$E8 ; . . . . . . . . . . . 2 2 3 3 2 3 2 2 .
+        DB       $08,$80,$0A,$BE,$E0 ; . . 2 . 2 . . . . . 2 2 2 3 3 2 3 2 . .
+        DB       $3B,$BF,$FF,$FE,$E0 ; . 3 2 3 2 3 3 3 3 3 3 3 3 3 3 2 3 2 . .
+        DB       $08,$80,$FF,$FA,$A0 ; . . 2 . 2 . . . 3 3 3 3 3 3 2 2 2 2 . .
+        DB       $00,$00,$0A,$A8,$A0 ; . . . . . . . . . . 2 2 2 2 2 . 2 2 . .
+        DB       $00,$00,$00,$AA,$00 ; . . . . . . . . . . . . 2 2 2 2 . . . .
+        DB       $00,$00,$02,$AA,$00 ; . . . . . . . . . . . 2 2 2 2 2 . . . .
+        DB       $00,$00,$0A,$AA,$00 ; . . . . . . . . . . 2 2 2 2 2 2 . . . .
+        DB       $00,$00,$2A,$0A,$00 ; . . . . . . . . . 2 2 2 . . 2 2 . . . .
+        DB       $00,$00,$A8,$0A,$80 ; . . . . . . . . 2 2 2 . . . 2 2 2 . . .
+        DB       $00,$00,$A0,$02,$80 ; . . . . . . . . 2 2 . . . . . 2 2 . . .
+        DB       $00,$0A,$A0,$2A,$80 ; . . . . . . 2 2 2 2 . . . 2 2 2 2 . . .
+
+;*******************************************************************************
+; WORRIOR_BLUE_2
+; 5 bytes/row = 20 pixels wide, 18 rows
+;*******************************************************************************
+WORRIOR_BLUE_2:
+        DB       $00,$00,$00,$54,$00 ; . . . . . . . . . . . . 1 1 1 . . . . .
+        DB       $00,$00,$03,$15,$00 ; . . . . . . . . . . . 3 . 1 1 1 . . . .
+        DB       $00,$00,$00,$15,$04 ; . . . . . . . . . . . . . 1 1 1 . . 1 .
+        DB       $00,$00,$05,$54,$00 ; . . . . . . . . . . 1 1 1 1 1 . . . . .
+        DB       $00,$00,$00,$54,$50 ; . . . . . . . . . . . . 1 1 1 . 1 1 . .
+        DB       $00,$00,$00,$55,$54 ; . . . . . . . . . . . . 1 1 1 1 1 1 1 .
+        DB       $00,$00,$01,$7D,$D4 ; . . . . . . . . . . . 1 1 3 3 1 3 1 1 .
+        DB       $04,$40,$05,$7D,$D0 ; . . 1 . 1 . . . . . 1 1 1 3 3 1 3 1 . .
+        DB       $37,$7F,$FF,$FD,$D0 ; . 3 1 3 1 3 3 3 3 3 3 3 3 3 3 1 3 1 . .
+        DB       $04,$40,$FF,$F5,$50 ; . . 1 . 1 . . . 3 3 3 3 3 3 1 1 1 1 . .
+        DB       $00,$00,$05,$54,$50 ; . . . . . . . . . . 1 1 1 1 1 . 1 1 . .
+        DB       $00,$00,$01,$54,$00 ; . . . . . . . . . . . 1 1 1 1 . . . . .
+        DB       $00,$00,$00,$50,$00 ; . . . . . . . . . . . . 1 1 . . . . . .
+        DB       $00,$00,$00,$50,$00 ; . . . . . . . . . . . . 1 1 . . . . . .
+        DB       $00,$00,$00,$50,$00 ; . . . . . . . . . . . . 1 1 . . . . . .
+        DB       $00,$00,$00,$50,$00 ; . . . . . . . . . . . . 1 1 . . . . . .
+        DB       $00,$00,$00,$50,$00 ; . . . . . . . . . . . . 1 1 . . . . . .
+        DB       $00,$00,$05,$50,$00 ; . . . . . . . . . . 1 1 1 1 . . . . . .
+
+
+;*******************************************************************************
+; WORRIOR_YELLOW_2
+; 5 bytes/row = 20 pixels wide, 18 rows
+;*******************************************************************************
+WORRIOR_YELLOW_2:
+        DB       $00,$00,$00,$A8,$00 ; . . . . . . . . . . . . 2 2 2 . . . . .
+        DB       $00,$00,$03,$2A,$00 ; . . . . . . . . . . . 3 . 2 2 2 . . . .
+        DB       $00,$00,$00,$2A,$08 ; . . . . . . . . . . . . . 2 2 2 . . 2 .
+        DB       $00,$00,$0A,$A8,$00 ; . . . . . . . . . . 2 2 2 2 2 . . . . .
+        DB       $00,$00,$00,$A8,$A0 ; . . . . . . . . . . . . 2 2 2 . 2 2 . .
+        DB       $00,$00,$00,$AA,$A8 ; . . . . . . . . . . . . 2 2 2 2 2 2 2 .
+        DB       $00,$00,$02,$BE,$E8 ; . . . . . . . . . . . 2 2 3 3 2 3 2 2 .
+        DB       $08,$80,$0A,$BE,$E0 ; . . 2 . 2 . . . . . 2 2 2 3 3 2 3 2 . .
+        DB       $3B,$BF,$FF,$FE,$E0 ; . 3 2 3 2 3 3 3 3 3 3 3 3 3 3 2 3 2 . .
+        DB       $08,$80,$FF,$FA,$A0 ; . . 2 . 2 . . . 3 3 3 3 3 3 2 2 2 2 . .
+        DB       $00,$00,$0A,$A8,$A0 ; . . . . . . . . . . 2 2 2 2 2 . 2 2 . .
+        DB       $00,$00,$02,$A8,$00 ; . . . . . . . . . . . 2 2 2 2 . . . . .
+        DB       $00,$00,$00,$A0,$00 ; . . . . . . . . . . . . 2 2 . . . . . .
+        DB       $00,$00,$00,$A0,$00 ; . . . . . . . . . . . . 2 2 . . . . . .
+        DB       $00,$00,$00,$A0,$00 ; . . . . . . . . . . . . 2 2 . . . . . .
+        DB       $00,$00,$00,$A0,$00 ; . . . . . . . . . . . . 2 2 . . . . . .
+        DB       $00,$00,$00,$A0,$00 ; . . . . . . . . . . . . 2 2 . . . . . .
+        DB       $00,$00,$0A,$A0,$00 ; . . . . . . . . . . 2 2 2 2 . . . . . .
+
+
+;*******************************************************************************
+; WORRIOR_BLUE_3
+; 5 bytes/row = 20 pixels wide, 18 rows
+;*******************************************************************************
+WORRIOR_BLUE_3:
+        DB       $00,$00,$00,$54,$00 ; . . . . . . . . . . . . 1 1 1 . . . . .
+        DB       $00,$00,$03,$15,$00 ; . . . . . . . . . . . 3 . 1 1 1 . . . .
+        DB       $00,$00,$00,$15,$04 ; . . . . . . . . . . . . . 1 1 1 . . 1 .
+        DB       $00,$00,$05,$54,$00 ; . . . . . . . . . . 1 1 1 1 1 . . . . .
+        DB       $00,$00,$00,$54,$50 ; . . . . . . . . . . . . 1 1 1 . 1 1 . .
+        DB       $00,$00,$00,$55,$54 ; . . . . . . . . . . . . 1 1 1 1 1 1 1 .
+        DB       $00,$00,$01,$7D,$D4 ; . . . . . . . . . . . 1 1 3 3 1 3 1 1 .
+        DB       $04,$40,$05,$7D,$D0 ; . . 1 . 1 . . . . . 1 1 1 3 3 1 3 1 . .
+        DB       $37,$7F,$FF,$FD,$D0 ; . 3 1 3 1 3 3 3 3 3 3 3 3 3 3 1 3 1 . .
+        DB       $04,$40,$FF,$F5,$50 ; . . 1 . 1 . . . 3 3 3 3 3 3 1 1 1 1 . .
+        DB       $00,$00,$05,$54,$50 ; . . . . . . . . . . 1 1 1 1 1 . 1 1 . .
+        DB       $00,$00,$01,$54,$00 ; . . . . . . . . . . . 1 1 1 1 . . . . .
+        DB       $00,$00,$00,$55,$00 ; . . . . . . . . . . . . 1 1 1 1 . . . .
+        DB       $00,$00,$00,$55,$40 ; . . . . . . . . . . . . 1 1 1 1 1 . . .
+        DB       $00,$00,$01,$45,$40 ; . . . . . . . . . . . 1 1 . 1 1 1 . . .
+        DB       $00,$00,$01,$41,$50 ; . . . . . . . . . . . 1 1 . . 1 1 1 . .
+        DB       $00,$00,$01,$40,$10 ; . . . . . . . . . . . 1 1 . . . . 1 . .
+        DB       $00,$00,$15,$41,$50 ; . . . . . . . . . 1 1 1 1 . . 1 1 1 . .
+
+
+;*******************************************************************************
+; WORRIOR_YELLOW_3
+; 5 bytes/row = 20 pixels wide, 18 rows
+;*******************************************************************************
+WORRIOR_YELLOW_3:
+        DB       $00,$00,$00,$A8,$00 ; . . . . . . . . . . . . 2 2 2 . . . . .
+        DB       $00,$00,$03,$2A,$00 ; . . . . . . . . . . . 3 . 2 2 2 . . . .
+        DB       $00,$00,$00,$2A,$08 ; . . . . . . . . . . . . . 2 2 2 . . 2 .
+        DB       $00,$00,$0A,$A8,$00 ; . . . . . . . . . . 2 2 2 2 2 . . . . .
+        DB       $00,$00,$00,$A8,$A0 ; . . . . . . . . . . . . 2 2 2 . 2 2 . .
+        DB       $00,$00,$00,$AA,$A8 ; . . . . . . . . . . . . 2 2 2 2 2 2 2 .
+        DB       $00,$00,$02,$BE,$E8 ; . . . . . . . . . . . 2 2 3 3 2 3 2 2 .
+        DB       $08,$80,$0A,$BE,$E0 ; . . 2 . 2 . . . . . 2 2 2 3 3 2 3 2 . .
+        DB       $3B,$BF,$FF,$FE,$E0 ; . 3 2 3 2 3 3 3 3 3 3 3 3 3 3 2 3 2 . .
+        DB       $08,$80,$FF,$FA,$A0 ; . . 2 . 2 . . . 3 3 3 3 3 3 2 2 2 2 . .
+        DB       $00,$00,$0A,$A8,$A0 ; . . . . . . . . . . 2 2 2 2 2 . 2 2 . .
+        DB       $00,$00,$02,$A8,$00 ; . . . . . . . . . . . 2 2 2 2 . . . . .
+        DB       $00,$00,$00,$AA,$00 ; . . . . . . . . . . . . 2 2 2 2 . . . .
+        DB       $00,$00,$00,$AA,$80 ; . . . . . . . . . . . . 2 2 2 2 2 . . .
+        DB       $00,$00,$02,$8A,$80 ; . . . . . . . . . . . 2 2 . 2 2 2 . . .
+        DB       $00,$00,$02,$82,$A0 ; . . . . . . . . . . . 2 2 . . 2 2 2 . .
+        DB       $00,$00,$02,$80,$20 ; . . . . . . . . . . . 2 2 . . . . 2 . .
+        DB       $00,$00,$2A,$82,$A0 ; . . . . . . . . . 2 2 2 2 . . 2 2 2 . .
+
+;*******************************************************************************
+; WORRIOR_YELLOW_1_UP
+; 5 bytes/row = 20 pixels wide, 18 rows
+;*******************************************************************************
+WORRIOR_YELLOW_1_UP:
+        DB       $00,$00,$0C,$00,$00 ; . . . . . . . . . . 3 . . . . . . . . .
+        DB       $00,$00,$2A,$00,$00 ; . . . . . . . . . 2 2 2 . . . . . . . .
+        DB       $00,$00,$0C,$00,$00 ; . . . . . . . . . . 3 . . . . . . . . .
+        DB       $00,$00,$2A,$00,$00 ; . . . . . . . . . 2 2 2 . . . . . . . .
+        DB       $00,$00,$0C,$00,$00 ; . . . . . . . . . . 3 . . . . . . . . .
+        DB       $20,$00,$0C,$00,$00 ; . 2 . . . . . . . . 3 . . . . . . . . .
+        DB       $20,$00,$0C,$00,$00 ; . 2 . . . . . . . . 3 . . . . . . . . .
+        DB       $2A,$00,$3C,$00,$00 ; . 2 2 2 . . . . . 3 3 . . . . . . . . .
+        DB       $2A,$80,$3C,$00,$00 ; . 2 2 2 2 . . . . 3 3 . . . . . . . . .
+        DB       $02,$A0,$BE,$02,$00 ; . . . 2 2 2 . . 2 3 3 2 . . . 2 . . . .
+        DB       $00,$AA,$BE,$82,$30 ; . . . . 2 2 2 2 2 3 3 2 2 . . 2 . 3 . .
+        DB       $00,$2A,$AA,$AA,$08 ; . . . . . 2 2 2 2 2 2 2 2 2 2 2 . . 2 .
+        DB       $20,$2A,$BF,$EA,$A8 ; . 2 . . . 2 2 2 2 3 3 3 3 2 2 2 2 2 2 .
+        DB       $22,$AA,$AF,$EA,$A8 ; . 2 . 2 2 2 2 2 2 2 3 3 3 2 2 2 2 2 2 .
+        DB       $2A,$A8,$2A,$A0,$A0 ; . 2 2 2 2 2 2 . . 2 2 2 2 2 . . 2 2 . .
+        DB       $2A,$00,$AF,$E8,$00 ; . 2 2 2 . . . . 2 2 3 3 3 2 2 . . . . .
+        DB       $00,$00,$AA,$A8,$00 ; . . . . . . . . 2 2 2 2 2 2 2 . . . . .
+        DB       $00,$00,$00,$A0,$80 ; . . . . . . . . . . . . 2 2 . . 2 . . .
+
+
+;*******************************************************************************
+; WORRIOR_BLUE_1_UP
+; 5 bytes/row = 20 pixels wide, 18 rows
+;*******************************************************************************
+WORRIOR_BLUE_1_UP:
+        DB       $00,$00,$0C,$00,$00 ; . . . . . . . . . . 3 . . . . . . . . .
+        DB       $00,$00,$15,$00,$00 ; . . . . . . . . . 1 1 1 . . . . . . . .
+        DB       $00,$00,$0C,$00,$00 ; . . . . . . . . . . 3 . . . . . . . . .
+        DB       $00,$00,$15,$00,$00 ; . . . . . . . . . 1 1 1 . . . . . . . .
+        DB       $00,$00,$0C,$00,$00 ; . . . . . . . . . . 3 . . . . . . . . .
+        DB       $10,$00,$0C,$00,$00 ; . 1 . . . . . . . . 3 . . . . . . . . .
+        DB       $10,$00,$0C,$00,$00 ; . 1 . . . . . . . . 3 . . . . . . . . .
+        DB       $15,$00,$3C,$00,$00 ; . 1 1 1 . . . . . 3 3 . . . . . . . . .
+        DB       $15,$40,$3C,$00,$00 ; . 1 1 1 1 . . . . 3 3 . . . . . . . . .
+        DB       $01,$50,$7D,$01,$00 ; . . . 1 1 1 . . 1 3 3 1 . . . 1 . . . .
+        DB       $00,$55,$7D,$41,$30 ; . . . . 1 1 1 1 1 3 3 1 1 . . 1 . 3 . .
+        DB       $00,$15,$7D,$55,$04 ; . . . . . 1 1 1 1 3 3 1 1 1 1 1 . . 1 .
+        DB       $10,$15,$7F,$D5,$54 ; . 1 . . . 1 1 1 1 3 3 3 3 1 1 1 1 1 1 .
+        DB       $11,$55,$5F,$D5,$54 ; . 1 . 1 1 1 1 1 1 1 3 3 3 1 1 1 1 1 1 .
+        DB       $15,$54,$15,$50,$50 ; . 1 1 1 1 1 1 . . 1 1 1 1 1 . . 1 1 . .
+        DB       $15,$00,$5F,$D4,$00 ; . 1 1 1 . . . . 1 1 3 3 3 1 1 . . . . .
+        DB       $00,$00,$55,$54,$00 ; . . . . . . . . 1 1 1 1 1 1 1 . . . . .
+        DB       $00,$00,$00,$50,$40 ; . . . . . . . . . . . . 1 1 . . 1 . . .
+
+
+;*******************************************************************************
+; WORRIOR_YELLOW_2_UP
+; 5 bytes/row = 20 pixels wide, 18 rows
+;*******************************************************************************
+WORRIOR_YELLOW_2_UP:
+        DB       $00,$00,$0C,$00,$00 ; . . . . . . . . . . 3 . . . . . . . . .
+        DB       $00,$00,$2A,$00,$00 ; . . . . . . . . . 2 2 2 . . . . . . . .
+        DB       $00,$00,$0C,$00,$00 ; . . . . . . . . . . 3 . . . . . . . . .
+        DB       $00,$00,$2A,$00,$00 ; . . . . . . . . . 2 2 2 . . . . . . . .
+        DB       $00,$00,$0C,$00,$00 ; . . . . . . . . . . 3 . . . . . . . . .
+        DB       $00,$00,$0C,$00,$00 ; . . . . . . . . . . 3 . . . . . . . . .
+        DB       $00,$00,$0C,$00,$00 ; . . . . . . . . . . 3 . . . . . . . . .
+        DB       $00,$00,$3C,$00,$00 ; . . . . . . . . . 3 3 . . . . . . . . .
+        DB       $00,$00,$3C,$00,$00 ; . . . . . . . . . 3 3 . . . . . . . . .
+        DB       $20,$00,$BE,$02,$00 ; . 2 . . . . . . 2 3 3 2 . . . 2 . . . .
+        DB       $20,$02,$BE,$82,$30 ; . 2 . . . . . 2 2 3 3 2 2 . . 2 . 3 . .
+        DB       $2A,$AA,$BE,$AA,$08 ; . 2 2 2 2 2 2 2 2 3 3 2 2 2 2 2 . . 2 .
+        DB       $2A,$AA,$BF,$EA,$A8 ; . 2 2 2 2 2 2 2 2 3 3 3 3 2 2 2 2 2 2 .
+        DB       $00,$02,$AF,$EA,$A8 ; . . . . . . . 2 2 2 3 3 3 2 2 2 2 2 2 .
+        DB       $00,$00,$2A,$A0,$A0 ; . . . . . . . . . 2 2 2 2 2 . . 2 2 . .
+        DB       $00,$00,$AF,$E8,$00 ; . . . . . . . . 2 2 3 3 3 2 2 . . . . .
+        DB       $00,$00,$AA,$A8,$00 ; . . . . . . . . 2 2 2 2 2 2 2 . . . . .
+        DB       $00,$00,$00,$A0,$00 ; . . . . . . . . . . . . 2 2 . . . . . .
+
+
+;*******************************************************************************
+; WORRIOR_BLUE_2_UP
+; 5 bytes/row = 20 pixels wide, 18 rows
+;*******************************************************************************
+WORRIOR_BLUE_2_UP:
+        DB       $00,$00,$0C,$00,$00 ; . . . . . . . . . . 3 . . . . . . . . .
+        DB       $00,$00,$15,$00,$00 ; . . . . . . . . . 1 1 1 . . . . . . . .
+        DB       $00,$00,$0C,$00,$00 ; . . . . . . . . . . 3 . . . . . . . . .
+        DB       $00,$00,$15,$00,$00 ; . . . . . . . . . 1 1 1 . . . . . . . .
+        DB       $00,$00,$0C,$00,$00 ; . . . . . . . . . . 3 . . . . . . . . .
+        DB       $00,$00,$0C,$00,$00 ; . . . . . . . . . . 3 . . . . . . . . .
+        DB       $00,$00,$0C,$00,$00 ; . . . . . . . . . . 3 . . . . . . . . .
+        DB       $00,$00,$3C,$00,$00 ; . . . . . . . . . 3 3 . . . . . . . . .
+        DB       $00,$00,$3C,$00,$00 ; . . . . . . . . . 3 3 . . . . . . . . .
+        DB       $10,$00,$7D,$01,$00 ; . 1 . . . . . . 1 3 3 1 . . . 1 . . . .
+        DB       $10,$01,$7D,$41,$30 ; . 1 . . . . . 1 1 3 3 1 1 . . 1 . 3 . .
+        DB       $15,$55,$7D,$55,$04 ; . 1 1 1 1 1 1 1 1 3 3 1 1 1 1 1 . . 1 .
+        DB       $15,$55,$7F,$D5,$54 ; . 1 1 1 1 1 1 1 1 3 3 3 3 1 1 1 1 1 1 .
+        DB       $00,$01,$5F,$D5,$54 ; . . . . . . . 1 1 1 3 3 3 1 1 1 1 1 1 .
+        DB       $00,$00,$15,$50,$50 ; . . . . . . . . . 1 1 1 1 1 . . 1 1 . .
+        DB       $00,$00,$5F,$D4,$00 ; . . . . . . . . 1 1 3 3 3 1 1 . . . . .
+        DB       $00,$00,$55,$54,$00 ; . . . . . . . . 1 1 1 1 1 1 1 . . . . .
+        DB       $00,$00,$00,$50,$00 ; . . . . . . . . . . . . 1 1 . . . . . .
+
+
+;*******************************************************************************
+; WORRIOR_YELLOW_3_UP
+; 5 bytes/row = 20 pixels wide, 18 rows
+;*******************************************************************************
+WORRIOR_YELLOW_3_UP:
+        DB       $00,$00,$0C,$00,$00 ; . . . . . . . . . . 3 . . . . . . . . .
+        DB       $00,$00,$2A,$00,$00 ; . . . . . . . . . 2 2 2 . . . . . . . .
+        DB       $00,$00,$0C,$00,$00 ; . . . . . . . . . . 3 . . . . . . . . .
+        DB       $00,$00,$2A,$00,$00 ; . . . . . . . . . 2 2 2 . . . . . . . .
+        DB       $00,$00,$0C,$00,$00 ; . . . . . . . . . . 3 . . . . . . . . .
+        DB       $00,$00,$0C,$00,$00 ; . . . . . . . . . . 3 . . . . . . . . .
+        DB       $00,$00,$0C,$00,$00 ; . . . . . . . . . . 3 . . . . . . . . .
+        DB       $00,$00,$3C,$00,$00 ; . . . . . . . . . 3 3 . . . . . . . . .
+        DB       $20,$00,$3C,$00,$00 ; . 2 . . . . . . . 3 3 . . . . . . . . .
+        DB       $20,$00,$BE,$02,$00 ; . 2 . . . . . . 2 3 3 2 . . . 2 . . . .
+        DB       $2A,$82,$BE,$82,$30 ; . 2 2 2 2 . . 2 2 3 3 2 2 . . 2 . 3 . .
+        DB       $2A,$AA,$BE,$AA,$08 ; . 2 2 2 2 2 2 2 2 3 3 2 2 2 2 2 . . 2 .
+        DB       $00,$2A,$BF,$EA,$A8 ; . . . . . 2 2 2 2 3 3 3 3 2 2 2 2 2 2 .
+        DB       $00,$AA,$AF,$EA,$A8 ; . . . . 2 2 2 2 2 2 3 3 3 2 2 2 2 2 2 .
+        DB       $22,$A8,$2A,$A0,$A0 ; . 2 . 2 2 2 2 . . 2 2 2 2 2 . . 2 2 . .
+        DB       $22,$A0,$AF,$E8,$00 ; . 2 . 2 2 2 . . 2 2 3 3 3 2 2 . . . . .
+        DB       $2A,$00,$AA,$A8,$00 ; . 2 2 2 . . . . 2 2 2 2 2 2 2 . . . . .
+        DB       $00,$00,$00,$A0,$80 ; . . . . . . . . . . . . 2 2 . . 2 . . .
+
+;*******************************************************************************
+; WORRIOR_BLUE_3_UP
+; 5 bytes/row = 20 pixels wide, 18 rows
+;*******************************************************************************
+WORRIOR_BLUE_3_UP:
+        DB       $00,$00,$0C,$00,$00 ; . . . . . . . . . . 3 . . . . . . . . .
+        DB       $00,$00,$15,$00,$00 ; . . . . . . . . . 1 1 1 . . . . . . . .
+        DB       $00,$00,$0C,$00,$00 ; . . . . . . . . . . 3 . . . . . . . . .
+        DB       $00,$00,$15,$00,$00 ; . . . . . . . . . 1 1 1 . . . . . . . .
+        DB       $00,$00,$0C,$00,$00 ; . . . . . . . . . . 3 . . . . . . . . .
+        DB       $00,$00,$0C,$00,$00 ; . . . . . . . . . . 3 . . . . . . . . .
+        DB       $00,$00,$0C,$00,$00 ; . . . . . . . . . . 3 . . . . . . . . .
+        DB       $00,$00,$3C,$00,$00 ; . . . . . . . . . 3 3 . . . . . . . . .
+        DB       $10,$00,$3C,$00,$00 ; . 1 . . . . . . . 3 3 . . . . . . . . .
+        DB       $10,$00,$7D,$01,$00 ; . 1 . . . . . . 1 3 3 1 . . . 1 . . . .
+        DB       $15,$41,$7D,$41,$30 ; . 1 1 1 1 . . 1 1 3 3 1 1 . . 1 . 3 . .
+        DB       $15,$55,$7D,$55,$04 ; . 1 1 1 1 1 1 1 1 3 3 1 1 1 1 1 . . 1 .
+        DB       $00,$15,$7F,$D5,$54 ; . . . . . 1 1 1 1 3 3 3 3 1 1 1 1 1 1 .
+        DB       $00,$55,$5F,$D5,$54 ; . . . . 1 1 1 1 1 1 3 3 3 1 1 1 1 1 1 .
+        DB       $11,$54,$15,$50,$50 ; . 1 . 1 1 1 1 . . 1 1 1 1 1 . . 1 1 . .
+        DB       $11,$50,$5F,$D4,$00 ; . 1 . 1 1 1 . . 1 1 3 3 3 1 1 . . . . .
+        DB       $15,$00,$55,$54,$00 ; . 1 1 1 . . . . 1 1 1 1 1 1 1 . . . . .
+        DB       $00,$00,$00,$50,$40 ; . . . . . . . . . . . . 1 1 . . 1 . . .
+
+            nop
+;*******************************************************************************
+; GARWOR_3_UP
+; 5 bytes/row = 20 pixels wide, 18 rows
+;*******************************************************************************
+GARWOR_3_UP:
+        DB       $00,$00,$03,$00,$00 ; . . . . . . . . . . . 3 . . . . . . . .
+        DB       $00,$00,$00,$CA,$00 ; . . . . . . . . . . . . 3 . 2 2 . . . .
+        DB       $00,$00,$02,$CA,$00 ; . . . . . . . . . . . 2 3 . 2 2 . . . .
+        DB       $00,$00,$0B,$EA,$80 ; . . . . . . . . . . 2 3 3 2 2 2 2 . . .
+        DB       $00,$00,$0A,$FA,$80 ; . . . . . . . . . . 2 2 3 3 2 2 2 . . .
+        DB       $00,$00,$0B,$EA,$A0 ; . . . . . . . . . . 2 3 3 2 2 2 2 2 . .
+        DB       $00,$02,$0A,$FA,$A8 ; . . . . . . . 2 . . 2 2 3 3 2 2 2 2 2 .
+        DB       $02,$02,$AB,$E9,$28 ; . . . 2 . . . 2 2 2 2 3 3 2 2 1 . 2 2 .
+        DB       $0A,$8A,$AA,$F8,$28 ; . . 2 2 2 . 2 2 2 2 2 2 3 3 2 . . 2 2 .
+        DB       $28,$AA,$AA,$AA,$A8 ; . 2 2 . 2 2 2 2 2 2 2 2 2 2 2 2 2 2 2 .
+        DB       $00,$AA,$AA,$AA,$A8 ; . . . . 2 2 2 2 2 2 2 2 2 2 2 2 2 2 2 .
+        DB       $22,$AA,$AA,$AA,$80 ; . 2 . 2 2 2 2 2 2 2 2 2 2 2 2 2 2 . . .
+        DB       $2A,$AA,$AA,$AA,$00 ; . 2 2 2 2 2 2 2 2 2 2 2 2 2 2 2 . . . .
+        DB       $00,$AA,$AA,$A0,$00 ; . . . . 2 2 2 2 2 2 2 2 2 2 . . . . . .
+        DB       $00,$2A,$AA,$00,$F0 ; . . . . . 2 2 2 2 2 2 2 . . . . 3 3 . .
+        DB       $00,$2A,$A0,$0A,$FC ; . . . . . 2 2 2 2 2 . . . . 2 2 3 3 3 .
+        DB       $00,$0A,$80,$08,$FC ; . . . . . . 2 2 2 . . . . . 2 . 3 3 3 .
+        DB       $00,$02,$AA,$A8,$0C ; . . . . . . . 2 2 2 2 2 2 2 2 . . . 3 .
+
+;*******************************************************************************
+; THORWOR_1
+; 5 bytes/row = 20 pixels wide, 18 rows
+;*******************************************************************************
+THORWOR_1:
+        DB       $00,$00,$00,$00,$F0 ; . . . . . . . . . . . . . . . . 3 3 . .
+        DB       $00,$0A,$00,$03,$C0 ; . . . . . . 2 2 . . . . . . . 3 3 . . .
+        DB       $00,$20,$C0,$0F,$C0 ; . . . . . 2 . . 3 . . . . . 3 3 3 . . .
+        DB       $00,$83,$F0,$0C,$00 ; . . . . 2 . . 3 3 3 . . . . 3 . . . . .
+        DB       $00,$0F,$FC,$0F,$00 ; . . . . . . 3 3 3 3 3 . . . 3 3 . . . .
+        DB       $00,$3C,$FF,$03,$00 ; . . . . . 3 3 . 3 3 3 3 . . . 3 . . . .
+        DB       $00,$F0,$FF,$03,$F0 ; . . . . 3 3 . . 3 3 3 3 . . . 3 3 3 . .
+        DB       $00,$F1,$FF,$C0,$30 ; . . . . 3 3 . 1 3 3 3 3 3 . . . . 3 . .
+        DB       $0F,$FF,$FF,$F0,$3C ; . . 3 3 3 3 3 3 3 3 3 3 3 3 . . . 3 3 .
+        DB       $3F,$FF,$FF,$FF,$FC ; . 3 3 3 3 3 3 3 3 3 3 3 3 3 3 3 3 3 3 .
+        DB       $00,$FF,$FF,$FF,$F0 ; . . . . 3 3 3 3 3 3 3 3 3 3 3 3 3 3 . .
+        DB       $3C,$03,$FF,$FF,$F0 ; . 3 3 . . . . 3 3 3 3 3 3 3 3 3 3 3 . .
+        DB       $3F,$FF,$FF,$FF,$C0 ; . 3 3 3 3 3 3 3 3 3 3 3 3 3 3 3 3 . . .
+        DB       $00,$FF,$0C,$30,$C0 ; . . . . 3 3 3 3 . . 3 . . 3 . . 3 . . .
+        DB       $00,$00,$0C,$30,$C0 ; . . . . . . . . . . 3 . . 3 . . 3 . . .
+        DB       $00,$00,$3C,$F3,$C0 ; . . . . . . . . . 3 3 . 3 3 . 3 3 . . .
+        DB       $00,$00,$30,$C3,$00 ; . . . . . . . . . 3 . . 3 . . 3 . . . .
+        DB       $00,$00,$51,$45,$00 ; . . . . . . . . 1 1 . 1 1 . 1 1 . . . .
+
+;*******************************************************************************
+; THORWOR_2
+; 5 bytes/row = 20 pixels wide, 18 rows
+;*******************************************************************************
+THORWOR_2:
+        DB       $00,$00,$00,$00,$F0 ; . . . . . . . . . . . . . . . . 3 3 . .
+        DB       $00,$0A,$00,$00,$C0 ; . . . . . . 2 2 . . . . . . . . 3 . . .
+        DB       $00,$20,$C0,$00,$C0 ; . . . . . 2 . . 3 . . . . . . . 3 . . .
+        DB       $00,$83,$F0,$00,$F0 ; . . . . 2 . . 3 3 3 . . . . . . 3 3 . .
+        DB       $00,$0F,$FC,$00,$30 ; . . . . . . 3 3 3 3 3 . . . . . . 3 . .
+        DB       $00,$3C,$FF,$00,$30 ; . . . . . 3 3 . 3 3 3 3 . . . . . 3 . .
+        DB       $00,$F0,$FF,$00,$30 ; . . . . 3 3 . . 3 3 3 3 . . . . . 3 . .
+        DB       $03,$F1,$FF,$C0,$3C ; . . . 3 3 3 . 1 3 3 3 3 3 . . . . 3 3 .
+        DB       $3F,$FF,$FF,$F0,$3C ; . 3 3 3 3 3 3 3 3 3 3 3 3 3 . . . 3 3 .
+        DB       $3C,$3F,$FF,$FF,$FC ; . 3 3 . . 3 3 3 3 3 3 3 3 3 3 3 3 3 3 .
+        DB       $01,$0F,$FF,$FF,$F0 ; . . . 1 . . 3 3 3 3 3 3 3 3 3 3 3 3 . .
+        DB       $00,$03,$FF,$FF,$F0 ; . . . . . . . 3 3 3 3 3 3 3 3 3 3 3 . .
+        DB       $31,$3F,$FF,$FF,$C0 ; . 3 . 1 . 3 3 3 3 3 3 3 3 3 3 3 3 . . .
+        DB       $3F,$FF,$CC,$30,$C0 ; . 3 3 3 3 3 3 3 3 . 3 . . 3 . . 3 . . .
+        DB       $03,$FC,$0C,$30,$C0 ; . . . 3 3 3 3 . . . 3 . . 3 . . 3 . . .
+        DB       $00,$00,$0C,$30,$C0 ; . . . . . . . . . . 3 . . 3 . . 3 . . .
+        DB       $00,$00,$0C,$30,$C0 ; . . . . . . . . . . 3 . . 3 . . 3 . . .
+        DB       $00,$00,$14,$51,$40 ; . . . . . . . . . 1 1 . 1 1 . 1 1 . . .
+
+;*******************************************************************************
+; THORWOR_3
+; 5 bytes/row = 20 pixels wide, 18 rows
+;*******************************************************************************
+THORWOR_3:
+        DB       $00,$88,$03,$FC,$00 ; . . . . 2 . 2 . . . . 3 3 3 3 . . . . .
+        DB       $00,$02,$00,$0F,$C0 ; . . . . . . . 2 . . . . . . 3 3 3 . . .
+        DB       $00,$00,$C0,$00,$C0 ; . . . . . . . . 3 . . . . . . . 3 . . .
+        DB       $00,$03,$F0,$00,$C0 ; . . . . . . . 3 3 3 . . . . . . 3 . . .
+        DB       $00,$FF,$FC,$00,$C0 ; . . . . 3 3 3 3 3 3 3 . . . . . 3 . . .
+        DB       $00,$3C,$FF,$00,$F0 ; . . . . . 3 3 . 3 3 3 3 . . . . 3 3 . .
+        DB       $00,$F0,$FF,$00,$30 ; . . . . 3 3 . . 3 3 3 3 . . . . . 3 . .
+        DB       $0F,$F1,$FF,$C0,$3C ; . . 3 3 3 3 . 1 3 3 3 3 3 . . . . 3 3 .
+        DB       $3C,$3F,$FF,$F0,$3C ; . 3 3 . . 3 3 3 3 3 3 3 3 3 . . . 3 3 .
+        DB       $31,$0F,$FF,$FF,$FC ; . 3 . 1 . . 3 3 3 3 3 3 3 3 3 3 3 3 3 .
+        DB       $01,$03,$FF,$FF,$F0 ; . . . 1 . . . 3 3 3 3 3 3 3 3 3 3 3 . .
+        DB       $00,$03,$FF,$FF,$F0 ; . . . . . . . 3 3 3 3 3 3 3 3 3 3 3 . .
+        DB       $00,$0F,$FF,$FF,$C0 ; . . . . . . 3 3 3 3 3 3 3 3 3 3 3 . . .
+        DB       $31,$0F,$CC,$30,$C0 ; . 3 . 1 . . 3 3 3 . 3 . . 3 . . 3 . . .
+        DB       $3C,$3F,$0C,$30,$C0 ; . 3 3 . . 3 3 3 . . 3 . . 3 . . 3 . . .
+        DB       $0F,$FC,$0F,$3C,$F0 ; . . 3 3 3 3 3 . . . 3 3 . 3 3 . 3 3 . .
+        DB       $00,$00,$03,$0C,$30 ; . . . . . . . . . . . 3 . . 3 . . 3 . .
+        DB       $00,$00,$05,$14,$50 ; . . . . . . . . . . 1 1 . 1 1 . 1 1 . .
+
+;*******************************************************************************
+; THORWOR_1_UP
+; 5 bytes/row = 20 pixels wide, 18 rows
+;*******************************************************************************
+THORWOR_1_UP:
+        DB       $00,$0F,$30,$00,$00 ; . . . . . . 3 3 . 3 . . . . . . . . . .
+        DB       $00,$0F,$3C,$00,$00 ; . . . . . . 3 3 . 3 3 . . . . . . . . .
+        DB       $00,$0C,$3C,$00,$00 ; . . . . . . 3 . . 3 3 . . . . . . . . .
+        DB       $00,$3C,$FF,$C2,$00 ; . . . . . 3 3 . 3 3 3 3 3 . . 2 . . . .
+        DB       $00,$3C,$FF,$F0,$80 ; . . . . . 3 3 . 3 3 3 3 3 3 . . 2 . . .
+        DB       $00,$3C,$FC,$3C,$20 ; . . . . . 3 3 . 3 3 3 . . 3 3 . . 2 . .
+        DB       $00,$3F,$FD,$0F,$20 ; . . . . . 3 3 3 3 3 3 1 . . 3 3 . 2 . .
+        DB       $10,$0F,$FF,$FF,$C0 ; . 1 . . . . 3 3 3 3 3 3 3 3 3 3 3 . . .
+        DB       $1F,$0F,$FF,$FF,$00 ; . 1 3 3 . . 3 3 3 3 3 3 3 3 3 3 . . . .
+        DB       $03,$FF,$FF,$FC,$00 ; . . . 3 3 3 3 3 3 3 3 3 3 3 3 . . . . .
+        DB       $10,$0F,$FF,$F0,$00 ; . 1 . . . . 3 3 3 3 3 3 3 3 . . . . . .
+        DB       $1F,$0F,$FF,$00,$00 ; . 1 3 3 . . 3 3 3 3 3 3 . . . . . . . .
+        DB       $03,$FF,$FC,$00,$00 ; . . . 3 3 3 3 3 3 3 3 . . . . . . . . .
+        DB       $10,$0F,$F0,$0F,$C0 ; . 1 . . . . 3 3 3 3 . . . . 3 3 3 . . .
+        DB       $1F,$0F,$F0,$FC,$F0 ; . 1 3 3 . . 3 3 3 3 . . 3 3 3 . 3 3 . .
+        DB       $03,$FF,$F0,$C0,$FC ; . . . 3 3 3 3 3 3 3 . . 3 . . . 3 3 3 .
+        DB       $00,$03,$FF,$C0,$0C ; . . . . . . . 3 3 3 3 3 3 . . . . . 3 .
+        DB       $00,$00,$3C,$00,$00 ; . . . . . . . . . 3 3 . . . . . . . . .
+
+;*******************************************************************************
+; THORWOR_2_UP
+; 5 bytes/row = 20 pixels wide, 18 rows
+;*******************************************************************************
+THORWOR_2_UP:
+        DB       $00,$3C,$3C,$00,$00 ; . . . . . 3 3 . . 3 3 . . . . . . . . .
+        DB       $00,$30,$3C,$00,$00 ; . . . . . 3 . . . 3 3 . . . . . . . . .
+        DB       $00,$F4,$4F,$00,$00 ; . . . . 3 3 1 . 1 . 3 3 . . . . . . . .
+        DB       $00,$F0,$0F,$C2,$00 ; . . . . 3 3 . . . . 3 3 3 . . 2 . . . .
+        DB       $00,$FC,$3F,$F0,$80 ; . . . . 3 3 3 . . 3 3 3 3 3 . . 2 . . .
+        DB       $00,$FC,$FC,$3C,$20 ; . . . . 3 3 3 . 3 3 3 . . 3 3 . . 2 . .
+        DB       $00,$3F,$FD,$0F,$20 ; . . . . . 3 3 3 3 3 3 1 . . 3 3 . 2 . .
+        DB       $00,$3F,$FF,$FF,$C0 ; . . . . . 3 3 3 3 3 3 3 3 3 3 3 3 . . .
+        DB       $10,$0F,$FF,$FF,$00 ; . 1 . . . . 3 3 3 3 3 3 3 3 3 3 . . . .
+        DB       $1F,$FF,$FF,$FC,$00 ; . 1 3 3 3 3 3 3 3 3 3 3 3 3 3 . . . . .
+        DB       $00,$0F,$FF,$F0,$00 ; . . . . . . 3 3 3 3 3 3 3 3 . . . . . .
+        DB       $00,$0F,$FF,$F0,$00 ; . . . . . . 3 3 3 3 3 3 3 3 . . . . . .
+        DB       $1F,$FF,$FC,$00,$00 ; . 1 3 3 3 3 3 3 3 3 3 . . . . . . . . .
+        DB       $00,$0F,$F0,$00,$00 ; . . . . . . 3 3 3 3 . . . . . . . . . .
+        DB       $10,$0F,$F0,$00,$00 ; . 1 . . . . 3 3 3 3 . . . . . . . . . .
+        DB       $1F,$FF,$F0,$03,$FC ; . 1 3 3 3 3 3 3 3 3 . . . . . 3 3 3 3 .
+        DB       $00,$03,$FF,$FF,$0C ; . . . . . . . 3 3 3 3 3 3 3 3 3 . . 3 .
+        DB       $00,$00,$3F,$00,$00 ; . . . . . . . . . 3 3 3 . . . . . . . .
+
+;*******************************************************************************
+; THORWOR_3_UP
+; 5 bytes/row = 20 pixels wide, 18 rows
+;*******************************************************************************
+THORWOR_3_UP:
+        DB       $00,$F0,$3C,$00,$00 ; . . . . 3 3 . . . 3 3 . . . . . . . . .
+        DB       $03,$C0,$0F,$00,$00 ; . . . 3 3 . . . . . 3 3 . . . . . . . .
+        DB       $03,$10,$53,$00,$00 ; . . . 3 . 1 . . 1 1 . 3 . . . . . . . .
+        DB       $03,$00,$03,$C0,$08 ; . . . 3 . . . . . . . 3 3 . . . . . 2 .
+        DB       $03,$C0,$0F,$F0,$00 ; . . . 3 3 . . . . . 3 3 3 3 . . . . . .
+        DB       $03,$FC,$3C,$3C,$08 ; . . . 3 3 3 3 . . 3 3 . . 3 3 . . . 2 .
+        DB       $00,$FF,$FD,$0F,$20 ; . . . . 3 3 3 3 3 3 3 1 . . 3 3 . 2 . .
+        DB       $00,$3F,$FF,$FF,$C0 ; . . . . . 3 3 3 3 3 3 3 3 3 3 3 3 . . .
+        DB       $00,$0F,$FF,$FF,$00 ; . . . . . . 3 3 3 3 3 3 3 3 3 3 . . . .
+        DB       $13,$FF,$FF,$FC,$00 ; . 1 . 3 3 3 3 3 3 3 3 3 3 3 3 . . . . .
+        DB       $1F,$0F,$FF,$F0,$0C ; . 1 3 3 . . 3 3 3 3 3 3 3 3 . . . . 3 .
+        DB       $00,$0F,$FF,$00,$0C ; . . . . . . 3 3 3 3 3 3 . . . . . . 3 .
+        DB       $13,$FF,$FC,$00,$0C ; . 1 . 3 3 3 3 3 3 3 3 . . . . . . . 3 .
+        DB       $1F,$0F,$F0,$00,$3C ; . 1 3 3 . . 3 3 3 3 . . . . . . . 3 3 .
+        DB       $00,$0F,$F0,$00,$30 ; . . . . . . 3 3 3 3 . . . . . . . 3 . .
+        DB       $13,$FF,$F0,$3F,$F0 ; . 1 . 3 3 3 3 3 3 3 . . . 3 3 3 3 3 . .
+        DB       $1F,$03,$FF,$F0,$00 ; . 1 3 3 . . . 3 3 3 3 3 3 3 . . . . . .
+        DB       $00,$00,$3F,$00,$00 ; . . . . . . . . . 3 3 3 . . . . . . . .
+
+            nop
+            and     b
+            sbc     a,l
+            and     b
+            sbc     a,l
+            jp      m,L549D
+            sbc     a,(hl)
+            cp      h
+            sbc     a,a
+            ld      d,$A0
+            ld      (hl),b
+            and     b
+            jp      z,$AEA0
+            sbc     a,(hl)
+            xor     (hl)
+            sbc     a,(hl)
+            ex      af,af'
+            sbc     a,a
+            ld      h,d
+            sbc     a,a
+            inc     h
+            and     c
+            ld      a,(hl)
+            and     c
+            ret     c
+            and     c
+            ld      (L0EA2),a
+            sub     a
+            ld      l,b
+            sub     a
+            ld      l,b
+            sub     a
+            push    de
+            inc     a
+            sub     h
+            xor     c
+            xor     $A9
+            ld      c,b
+            xor     d
+            and     d
+            xor     d
+            nop
+            sub     (hl)
+            ld      e,d
+            sub     (hl)
+            ld      e,d
+            sub     (hl)
+            or      h
+            sub     (hl)
+            call    m,L56AA
+            xor     e
+            or      b
+            xor     e
+            ld      a,(bc)
+            xor     h
+            dec     a
+            ld      a,$97
+            ld      a,$F1
+            ld      a,$97
+            ld      a,$64
+            xor     h
+            cp      (hl)
+            xor     h
+            jr      $3F47
+            ld      (hl),d
+            xor     l
+            cpl
+            dec     a
+            adc     a,c
+            dec     a
+            ex      (sp),hl
+            dec     a
+            adc     a,c
+            dec     a
+            call    z,L26AD
+            xor     (hl)
+            add     a,b
+            xor     (hl)
+            jp      c,L8CAE
+            and     d
+            adc     a,h
+            and     d
+            and     $A2
+            ld      b,b
+            and     e
+            nop
+            nop
+            nop
+            nop
+            nop
+            nop
+            nop
+            nop
+            sbc     a,d
+            and     e
+            sbc     a,d
+            and     e
+            call    p,L4EA3
+            and     h
+            nop
+            nop
+            nop
+            nop
+            nop
+            nop
+            nop
+            nop
+            xor     b
+            and     h
+            ld      (bc),a
+            and     l
+            ld      e,h
+            and     l
+            or      (hl)
+            and     l
+            ld      a,b
+            and     a
+            jp      nc,L2CA7
+            xor     b
+            jp      nc,L10A7
+            and     (hl)
+            ld      l,d
+            and     (hl)
+            call    nz,L1EA6
+            and     a
+            add     a,(hl)
+            xor     b
+            ret     po
+            xor     b
+            ld      a,(LE0A9)
+            xor     b
+            nop
+            rst     38H
+            rst     38H
+            rst     38H
+            rst     38H
+            rst     38H
+            rst     38H
+            rst     38H
+            rst     38H
+            rst     38H
+            rst     38H
+            rst     38H
+            rst     38H
+            rst     38H
+            rst     38H
+            rst     38H
+            rst     38H
+            rst     38H
+            rst     38H
+            rst     38H
+;
+;
+;
+            ORG     $8000
+
+;*****************************************************************************
+; NATIVE SOUND / SPEECH HIGH-ROM API
+;
+; $8000 -> periodic sound/speech service
+; $8003 -> consume $D240-$D243 requests and decode ready sound streams
+; $8006 -> initialize both sound engines and validate speech-queue state
+; $8009 -> queue one language-independent speech phrase ID
+; $800C -> validate/reset speech-queue state
+;
+; Non-speech sound uses two 18-byte software engine records. Each record has a
+; 42-byte area of six 7-byte modulator slots immediately before it:
+;   $D246-$D26F modulator area  -> $D270-$D281 primary engine record
+;   $D282-$D2AB modulator area  -> $D2AC-$D2BD secondary engine record
+; The primary Astrocade custom I/O IC uses $10-$17 / block port $18; the
+; secondary custom I/O IC uses $50-$57 / block port $58.
+;*****************************************************************************
+Sound_Service_Entry:
+L8000:      jp      Service_Sound_And_Speech ; $8000 periodic service
+Sound_Request_Dispatch_Entry:
+L8003:      jp      Dispatch_Sound_Requests ; $8003 request/stream dispatcher
+Sound_Reset_All_Entry:
+L8006:
+            jp      Init_All_Sound_Engines ; $8006 sound initialization / speech-queue validation
+Speech_Request_Entry:
+L8009:
+            jp      Queue_Speech_Request
+Speech_Queue_Validate_Entry:
+L800C:
+            jp      Validate_Speech_Queue_State
+
+; If bit 7 is set, negate A and clear bit 7; otherwise return A unchanged.
+Normalize_Signed_Modulator_Value:
+L800F:      bit     7,a
+            jp      p,L8018
+            neg
+            res     7,a
+L8018:      ret
+;
+;*****************************************************************************************
+; RESET ONE SOUND-ENGINE RECORD AND ITS ASTROCADE CUSTOM I/O IC
+;
+; DE points at the engine record. Byte 0 contains the block-output port ($18
+; primary or $58 secondary). The routine sets STREAM_READY, clears record bytes
+; +$03 through +$10, transfers eight zero bytes to the sound registers, and
+; clears the 42-byte modulator area immediately preceding the record.
+;*****************************************************************************************
+Reset_Sound_Engine_Record:
+L8019:      ld      hl,L0011
+            add     hl,de
+            ld      (hl),$01            ; (DE+17) = 1
+
+            push    de
+            ld      hl,$0000
+            add     hl,de
+            ld      c,(hl)              ; c=(DE)
+
+            ld      b,$08
+            push    bc
+
+            ld      hl,L0003
+            add     hl,de
+
+            ld      bc,L000D
+            push    hl
+            push    hl
+            pop     de
+
+            ld      (hl),$00
+            inc     de
+            ldir                        ; (DE+3) to (DE+16) = 0 (14 bytes)
+
+
+            ; Record bytes +$03..+$0A are zero here; the block transfer clears
+            ; all eight sound registers on the selected custom I/O IC.
+            pop     hl
+            pop     bc
+            otir                        ; SNDBX transfer of eight zero bytes
+
+
+            pop     hl
+            dec     hl
+            push    hl
+            pop     de
+            dec     de
+            ld      bc,L0029
+            ld      (hl),$00
+            lddr                        ; Clear the six 7-byte modulator slots
+
+
+            exx                         ; Restore caller register set
+
+            ret
+
+;
+;*****************************************************************************************
+; UPDATE ONE 7-BYTE SOUND MODULATOR SLOT
+;
+; IY = engine record, DE = signed record-relative slot offset, B = current value.
+; Slot layout:
+;   +0 countdown       +1 reload value      +2 control flags
+;   +3 step value      +4 boundary A        +5 boundary B
+;   +6 completion count
+;
+; Control bit 0 enables the slot. On a completed boundary transition, bit 1
+; selects snap-to-boundary instead of reversing the signed step. Bit 2 selects
+; the random path, bit 3 marks a pending boundary transition, bit 4 records the
+; selected boundary, and bit 5 sets SNDREC_STREAM_READY when the completion
+; count expires. The resulting parameter value returns in B.
+;*****************************************************************************************
+Update_Sound_Modulator_Slot:
+L8049:      push    iy
+            pop     hl
+            add     hl,de
+            dec     (hl)
+            jp      nz,L80E1
+            inc     hl
+            ld      a,(hl)
+            dec     hl
+            ld      (hl),a
+            inc     hl
+            inc     hl
+            bit     0,(hl)
+            ret     z
+            ld      c,(hl)
+            inc     hl
+            bit     2,c
+            jp      nz,L80CF
+            bit     3,c
+            jp      z,L80A5
+            inc     hl
+            inc     hl
+            inc     hl
+            xor     a
+            cp      (hl)
+            jp      z,L8089
+            dec     (hl)
+            jp      nz,L8089
+            res     0,c
+            ld      de,L0006
+            or      a
+            sbc     hl,de
+            ld      (hl),$00
+            bit     5,c
+            jp      z,L8085
+            ld      (iy+$11),$01
+L8085:      inc     hl
+            inc     hl
+            ld      (hl),c
+            ret
+L8089:      dec     hl
+L808A:      dec     hl
+            dec     hl
+            res     3,c
+            bit     1,c
+            jp      nz,L8099
+            xor     a
+            sub     (hl)
+            ld      (hl),a
+            jp      L80A5
+L8099:      dec     hl
+            ld      (hl),c
+            bit     4,c
+            inc     hl
+            inc     hl
+            jp      z,L80A3
+            inc     hl
+L80A3:      ld      b,(hl)
+            ret
+L80A5:      ld      a,b
+            add     a,(hl)
+            ld      b,a
+            inc     hl
+            cp      (hl)
+            jp      nc,L80B4
+            set     4,c
+            set     3,c
+            jp      L80C8
+L80B4:      jp      nz,L80BE
+            set     4,c
+            set     3,c
+            jp      L80C8
+L80BE:      inc     hl
+            cp      (hl)
+            jp      c,L80C7
+            res     4,c
+            set     3,c
+L80C7:      dec     hl
+L80C8:      dec     hl
+            dec     hl
+            ld      (hl),c
+            ret
+            jp      L80DE
+L80CF:      inc     hl
+            push    hl
+            ld      a,(hl)
+            inc     hl
+            sub     (hl)
+            neg
+            ld      e,a
+            ld      d,$00
+            ld      a,r
+            pop     hl
+            add     a,(hl)
+            ld      b,a
+L80DE:      jp      L80E4
+L80E1:      inc     hl
+            inc     hl
+            ld      c,(hl)
+L80E4:      ret
+            nop
+;*****************************************************************************************
+; SERVICE ONE SOUND-ENGINE RECORD
+;
+; IY is a Z80 WORK-RAM pointer, not an I/O address:
+;
+;   IY = Primary_Sound_Engine_Record   = $D270
+;        six modulator slots precede it at $D246-$D26F
+;        record +$04..+$0B = $D274-$D27B register-image RAM
+;        record +$00 holds Astrocade block-output PORT $18
+;
+;   IY = Secondary_Sound_Engine_Record = $D2AC
+;        six modulator slots precede it at $D282-$D2AB
+;        record +$04..+$0B = $D2B0-$D2B7 register-image RAM
+;        record +$00 holds Astrocade block-output PORT $58
+;
+; The negative IY displacements deliberately make this one routine service the
+; same 42-byte modulator layout in either 60-byte engine bundle:
+;
+;   IY-$2A slot 0   IY-$23 slot 1   IY-$1C slot 2
+;   IY-$15 slot 3   IY-$0E slot 4   IY-$07 slot 5
+;
+; Wait expiry sets SNDREC_STREAM_READY. Slot 1 updates VOLN, slot 3 updates
+; VIBRA, slot 4 updates the A/B/C tone volumes together, and slot 5 updates
+; TONMO. Slots 0 and 2 drive slot 5's reload and step values. Record byte +$0C
+; enables the slot-5-to-slot-4 coupling path.
+;
+; Output_Sound_Register_Image finally copies the eight-byte RAM image through
+; I/O block port $18 or $58. Memory addresses $D246-$D2BD and I/O ports
+; $10-$18/$50-$58 are separate Z80 address spaces.
+;*****************************************************************************************
+Service_Sound_Engine_Record:
+L80E6:      xor     a
+            cp      (iy+$11)
+            jp      nz,L81C5
+            cp      (iy+$10)
+            jp      nz,L81C5
+            inc     (iy+$10)
+            cp      (iy+$0d)
+            jr      z,L8104
+            dec     (iy+$0d)
+            jr      nz,L8104
+            ld      (iy+$11),$01
+Service_Master_Reload_Modulator:
+L8104:      cp      (iy-$2a)            ; Slot 0 countdown: $D246 primary / $D282 secondary
+            jr      z,L8116
+L8109:      ld      b,(iy-$06)
+            ld      de,LFFD6
+            call    Update_Sound_Modulator_Slot
+            ld      (iy-$06),b
+            xor     a
+Service_Master_Step_Modulator:
+L8116:      cp      (iy-$1c)            ; Slot 2 countdown: $D254 primary / $D290 secondary
+            jr      z,L8136
+            ld      a,(iy-$04)
+            call    Normalize_Signed_Modulator_Value
+            ld      b,a
+            ld      de,LFFE4
+            call    Update_Sound_Modulator_Slot
+            ld      a,b
+            ld      b,(iy-$04)
+            bit     7,b
+            jr      z,L8132
+            neg
+L8132:      ld      (iy-$04),a
+            xor     a
+Service_Noise_Modulator:
+L8136:      cp      (iy-$23)            ; Slot 1 countdown: $D24D primary / $D289 secondary
+            jr      z,L8148
+            ld      b,(iy+$04)
+            ld      de,LFFDD
+            call    Update_Sound_Modulator_Slot
+            ld      (iy+$04),b
+            xor     a
+Service_Master_Oscillator_Modulator:
+L8148:      cp      (iy-$07)            ; Slot 5 countdown: $D269 primary / $D2A5 secondary
+            jr      z,L818B
+            inc     a
+            cp      (iy-$07)
+            jr      nz,L817E
+            ld      a,(iy+$0c)
+            or      a
+            jr      z,L817E
+Service_Master_Volume_Coupling:
+            ; Slot 5 countdown = 1 and coupling enabled: seed slot 4 from the
+            ; master-oscillator modulator state and prime its volume transition.
+            ld      a,(iy-$06)
+            rlca
+            rlca
+            rlca
+            rlca
+            and     $0F
+            inc     a
+            ld      (iy-$0d),a
+            ld      a,(iy-$09)
+            ld      e,a
+            rrca
+            rrca
+            rrca
+            rrca
+            or      e
+            ld      (iy+$05),a
+            ld      (iy-$08),$01
+            ld      (iy-$0e),$01
+            ld      (iy-$0c),$03
+L817E:      ld      b,(iy+$0b)
+            ld      de,LFFF9
+            call    Update_Sound_Modulator_Slot
+            ld      (iy+$0b),b
+            xor     a
+Service_Tone_Volume_Modulator:
+L818B:      cp      (iy-$0e)            ; Slot 4 countdown: $D262 primary / $D29E secondary
+            jr      z,L81AF
+            ld      a,(iy+$05)
+            and     $0F
+            ld      b,a
+            ld      de,LFFF2
+            call    Update_Sound_Modulator_Slot
+            ld      a,b
+            rrca
+            rrca
+            rrca
+            rrca
+            or      b
+            ld      (iy+$05),a
+            ld      a,(iy+$06)
+            and     $F0
+            or      b
+            ld      (iy+$06),a
+            xor     a
+Service_Vibrato_Modulator:
+L81AF:      cp      (iy-$15)            ; Slot 3 countdown: $D25B primary / $D297 secondary
+            jr      z,L81C1
+            ld      b,(iy+$07)
+            ld      de,LFFEB
+            call    Update_Sound_Modulator_Slot
+            ld      (iy+$07),b
+            xor     a
+L81C1:      xor     a
+            ld      (iy+$10),a
+Output_Sound_Register_Image:
+L81C5:      ld      c,(iy+$00)          ; C = block-output I/O port: $18 primary / $58 secondary
+            ld      a,$17
+            cp      c
+            jr      nc,L81D8
+            push    iy
+            pop     hl
+            ld      de,$0004
+            add     hl,de               ; HL = RAM image: $D274 primary / $D2B0 secondary
+            ld      b,$08
+            otir                        ; 8 RAM bytes -> $17-$10 or $57-$50 via block port
+Sound_Register_Output_Return:
+L81D8:      ret
+;*****************************************************************************************
+; ----> Play_Next_Phoneme
+;
+;       Checks the Votrax SC-01 ready signal and decodes the next 8-bit command
+;       from the active fragment. Bits 0-5 select the phoneme. Bit 6 passes
+;       directly from ROM. Bit 7 is differential: it is XORed with the saved
+;       decoded bit-7 state, then the new decoded bit 7 becomes the saved state.
+;*****************************************************************************************
+Play_Next_Phoneme:
+            in      a, (P1PORT)             ; Read Port $12 (Player 1 / Votrax Status)
+            bit     VOTRAX_READY_BIT,a       ; SC-01 A/R: 1 = ready
+            jr      z,Speech_Phoneme_Return ; If 0 (busy speaking), return immediately
+            ld      hl,Speech_Phonemes_Remaining
+            dec     (hl)                    ; Decrement the phonemes remaining counter
+            inc     hl                      ; Advance to the saved inflection state
+            ld      a,(hl)                  ; Load the previous command's bit-7 inflection state
+            ld      hl,(Speech_Phoneme_Pointer)
+            xor     (hl)                    ; Differentially decode bit 7; all other ROM bits pass through
+            inc     hl                      ; Advance pointer to the next phoneme in ROM
+            ld      (Speech_Phoneme_Pointer),hl
+            ld      b,a                     ; B = decoded 8-bit speech command
+            and     $80                     ; Save decoded bit-7 state for the next byte
+            ld      (Speech_Inflection_State),a
+            ld      c,VOTRAX_DATA_PORT       ; SC-01 command strobe port
+            in      a,(c)                   ; B supplies phoneme data on the upper address bus
+Speech_Phoneme_Return:
+            ret                             ; Return to caller
+
+;*****************************************************************************************
+; ----> Service_Speech_Queue
+;
+;       Streams the current speech fragment to the SC-01 or advances to the next
+;       queued fragment pointer. Queue entries are two-byte fragment addresses.
+;       When the queue becomes empty, the routine clears Speech_Active and sends
+;       the SC-01 STOP command.
+;*****************************************************************************************
+Service_Speech_Queue:
+            ld      a,(Speech_Phonemes_Remaining)
+            or      a                   ; if no more phonemes...
+            jr      z,Speech_Load_Next_Queued_Fragment ; ...then load the next queued fragment
+            jp      Play_Next_Phoneme   ; Otherwise, call speech phoneme output routine
+Speech_Load_Next_Queued_Fragment:
+            xor     a                   ; Zero A
+            ld      hl,(Speech_Queue_Write_Pointer)
+            ld      de,(Speech_Queue_Read_Pointer)
+            sbc     hl,de               ; HL = HL - DE
+            jr      z,Speech_Queue_Empty     ; Empty queue: clear state and send STOP
+            ex      de,hl
+            ld      e,(hl)
+            inc     hl
+            ld      d,(hl)
+            ex      de,hl
+            ld      a,(hl)
+            ld      (Speech_Phonemes_Remaining),a
+            inc     hl
+            ld      (Speech_Phoneme_Pointer),hl
+            ld      hl,(Speech_Queue_Read_Pointer)
+            ld      de,$0002
+            add     hl,de
+            ex      de,hl
+            ld      hl,Speech_Queue_Last_Record
+            or      a
+            sbc     hl,de
+            jr      nc,Speech_Store_Queue_Read_Pointer
+            ld      de,Speech_Queue_Buffer
+Speech_Store_Queue_Read_Pointer:
+            ld      (Speech_Queue_Read_Pointer),de
+            jp      Play_Next_Phoneme
+Speech_Queue_Empty:
+            xor     a
+            ld      (Speech_Active),a
+            ld      bc,VOTRAX_STOP_COMMAND  ; B=$3F STOP phoneme, C=Votrax port
+            in      a,(c)
+            ret
+;
+;*****************************************************************************************
+; ----> Validate_Speech_Queue_Pointer
+;
+;       Checks DE against the circular speech-queue address range
+;       $D2BE-$D2CC. Alignment is not tested. Sets A nonzero when DE is outside
+;       that range.
+;*****************************************************************************************
+Validate_Speech_Queue_Pointer:
+            ld      hl,Speech_Queue_Buffer - 1
+            or      a                   ; Clear carry before the range comparison
+            sbc     hl,de
+            jr      c,Speech_Check_Queue_Upper_Bound
+            ld      a,$01
+Speech_Check_Queue_Upper_Bound:
+            ld      hl,Speech_Queue_Last_Record
+            or      a                   ; Clear carry before the range comparison
+            sbc     hl,de
+            jr      nc,Speech_Queue_Pointer_Validated
+            ld      a,$01
+Speech_Queue_Pointer_Validated:
+            ret
+
+;
+;*****************************************************************************************
+; ----> Validate_Speech_Queue_State
+;
+;       Validates both circular-queue pointers. If either pointer is invalid,
+;       resets the queue, clears the active fragment state, and stops the SC-01.
+;*****************************************************************************************
+Validate_Speech_Queue_State:
+            exx
+            ld      de,(Speech_Queue_Write_Pointer)
+            xor     a
+            call    Validate_Speech_Queue_Pointer
+            ld      de,(Speech_Queue_Read_Pointer)
+            call    Validate_Speech_Queue_Pointer
+            or      a
+            jr      z,Speech_Queue_State_Return
+            xor     a
+            ld      (Speech_Active),a
+            ld      hl,Speech_Queue_Buffer
+            ld      (Speech_Queue_Write_Pointer),hl
+            ld      (Speech_Queue_Read_Pointer),hl
+            ld      (Speech_Phonemes_Remaining),a
+            ld      bc,VOTRAX_STOP_COMMAND  ; B=$3F STOP phoneme, C=Votrax port
+            in      a,(c)
+Speech_Queue_State_Return:
+            exx
+            ret
+
+;
+;******************************************************************************
+;
+;******************************************************************************
+;
+
+;*****************************************************************************************
+; ----> Queue_Speech_Request
+;
+;       Expands one language-independent speech phrase ID into one or more
+;       language-local speech fragments and appends their addresses to the
+;       circular speech queue.
+;
+;       Input:  A = phrase ID $00-$4F
+;       See:    docs/SPEECH_MAP.md for the resident English speech map.
+;*****************************************************************************************
+Queue_Speech_Request:
+            ; A is the language-independent phrase ID. The game defines 80
+            ; phrase IDs ($00-$4F); values outside that range are ignored.
+            cp      SPEECH_PHRASE_COUNT
+            jr      nc,Speech_Request_Return
+
+            ; Select the phrase-definition table. English is resident in the
+            ; main ROM; foreign mode obtains the table address from X11 $C002.
+            ld      hl,English_Speech_Phrase_Table
+            inc     a
+            ld      c,a                 ; C = 1-based phrase record to locate
+            ld      a,($D347)           ; Value is replaced by the live port read below
+            in      a,(SETTINGS)
+            bit     LANGUAGE_DIP_BIT,a
+            jr      nz,Speech_Locate_Phrase_Record
+            ld      hl,(X11_Speech_Phrase_Table_Ptr)
+
+            ; Phrase markers are bytes > $7F; their low seven bits hold the
+            ; fragment count. Bytes <= $7F are fragment indexes.
+Speech_Locate_Phrase_Record:
+            ld      a,SPEECH_FRAGMENT_COUNT_MASK
+Speech_Scan_Phrase_Table:
+            cp      (hl)
+            jr      nc,Speech_Advance_Phrase_Scan
+            dec     c                   ; Found a phrase marker (> $7F)
+Speech_Advance_Phrase_Scan:
+            inc     hl
+            jr      nz,Speech_Scan_Phrase_Table
+
+            ; Low seven bits of the marker are the number of fragment indexes
+            ; that make up this phrase. A zero count suppresses the request.
+            dec     hl
+            ld      a,(hl)
+            and     SPEECH_FRAGMENT_COUNT_MASK
+            jr      z,Speech_Request_Return
+            ld      c,a
+            di
+
+Speech_Queue_Next_Fragment:
+            inc     hl
+            ld      a,(Dungeon_Class)
+            or      a
+            ld      a,(hl)              ; A = speech fragment index
+            jr      z,Speech_Resolve_Fragment_Pointer
+
+            ; Non-basic dungeons substitute the WORLORD fragment IDs before the
+            ; language-specific pointer table is selected:
+            ;   WORRIOR $09 -> WORLORD $40
+            ;   padded  $37 -> padded  $41
+            cp      SPEECH_FRAGMENT_WORRIOR
+            jr      nz,Speech_Check_Padded_Worrior_Substitution
+            ld      a,SPEECH_FRAGMENT_WORLORD
+Speech_Check_Padded_Worrior_Substitution:
+            cp      SPEECH_FRAGMENT_WORRIOR_PADDED
+            jr      nz,Speech_Resolve_Fragment_Pointer
+            ld      a,SPEECH_FRAGMENT_WORLORD_PADDED
+
+Speech_Resolve_Fragment_Pointer:
+            exx
+            rlca                        ; 16-bit pointer table: index * 2
+            ld      hl,English_Speech_Fragment_Pointers
+            ld      e,a
+
+            ; Select the fragment-pointer table independently of the phrase
+            ; table. Foreign mode obtains this address from X11 $C000.
+            ld      a,($D347)           ; Value is replaced by the live port read below
+            in      a,(SETTINGS)
+            bit     LANGUAGE_DIP_BIT,a
+            jr      nz,Speech_Fragment_Table_Selected
+            ld      hl,(X11_Speech_Fragment_Table_Ptr)
+
+Speech_Fragment_Table_Selected:
+            ld      d,$00
+            add     hl,de
+            ld      e,(hl)              ; Read little-endian fragment address
+            ld      a,e
+            inc     hl
+            or      (hl)                ; Null pointer means no fragment is queued
+            jr      z,Speech_Continue_Phrase
+            ld      d,(hl)
+
+            ; Queue the fragment pointer in the circular speech queue.
+            ld      hl,(Speech_Queue_Write_Pointer)
+            ld      (hl),e
+            inc     hl
+            ld      (hl),d
+            inc     hl
+            ex      de,hl
+            ld      hl,Speech_Queue_Last_Record
+            and     a                   ; Clear carry before range comparison
+            sbc     hl,de
+            jr      nc,Speech_Store_Queue_Write_Pointer
+            ld      de,Speech_Queue_Buffer
+Speech_Store_Queue_Write_Pointer:
+            ld      (Speech_Queue_Write_Pointer),de
+
+Speech_Continue_Phrase:
+            exx
+            dec     c
+            jr      nz,Speech_Queue_Next_Fragment
+            ld      a,$01
+            ld      (Speech_Active),a
+            ei
+Speech_Request_Return:
+            ret
+
+;*****************************************************************************************
+; ----> Initialize Sound Engine Header
+;
+;       DE' points to an 18-byte engine record in WORK RAM ($D270 or $D2AC).
+;       A is an Astrocade I/O block-port number ($18 or $58); storing A at
+;       record +$00 associates that RAM record with the corresponding sound IC.
+;
+;       Record +$01..+$02 is seeded with ROM stream address $8740, whose first
+;       byte ($03) is the invalid-stream/reset fallback command. This stores a
+;       DATA POINTER; execution does not jump to $8740. Reset_Sound_Engine_Record
+;       then clears the runtime state and silences the selected hardware engine.
+;*****************************************************************************************
+Initialize_Sound_Engine_Header:
+            ld      hl,$0000            ; HL = record offset 0
+            add     hl,de               ; HL = engine-record base
+
+            ld      (hl),a              ; Byte 0: (DE) = A
+            ld      hl,$0001            ; HL = record offset 1
+            add     hl,de               ; HL = DE + 1
+
+            ld      (hl),$40            ; Byte 1: (DE+1) = $40
+            inc     hl                  ; HL = record offset 2
+            ld      (hl),$87            ; Byte 2: (DE+2) = $87
+
+Init_Sound_Exec:
+            jp      Reset_Sound_Engine_Record
+
+;*****************************************************************************************
+; ----> Primary Sound Engine
+;       Initializes WORK-RAM record $D270 and associates it with Astrocade
+;       registers $10-$17 / block-output port $18. Its six modulator slots are
+;       the immediately preceding RAM area $D246-$D26F.
+;*****************************************************************************************
+Init_Primary_Sound_Engine:
+            ld      a, $18
+Init_Primary_Sound_Engine_Alt:
+            exx                         ; Swap to alternate register set
+            ld      de, Primary_Sound_Engine_Record ; DE' = $D270
+            jr      Initialize_Sound_Engine_Header
+
+;*****************************************************************************************
+; ----> Secondary Sound Engine
+;       Initializes WORK-RAM record $D2AC and associates it with Astrocade
+;       registers $50-$57 / block-output port $58. Its six modulator slots are
+;       the immediately preceding RAM area $D282-$D2AB.
+;*****************************************************************************************
+Init_Secondary_Sound_Engine:
+            ld      a, $58
+            exx                         ; Swap to alternate register set
+            ld      de, Secondary_Sound_Engine_Record ; DE' = $D2AC
+            jr      Initialize_Sound_Engine_Header
+
+;*****************************************************************************************
+; ----> Initialize Both Sound Engines
+;       Initializes both sound-engine records, then validates speech-queue state.
+;       Exposed through the $8006 high-ROM entry.
+;*****************************************************************************************
+Init_All_Sound_Engines:
+            call    Init_Primary_Sound_Engine
+            call    Init_Secondary_Sound_Engine
+            jp      Validate_Speech_Queue_State
+
+;*****************************************************************************************
+; SOUND-STREAM COMMAND HANDLERS ($831F-$8406)
+;
+; HL points into the current ROM sound stream and IY points at the active engine
+; record. Commands $10-$17 consume one data byte, write the corresponding
+; Astrocade sound register, and mirror it in record bytes +$04-$0B. Opcodes
+; $04-$07 configure the six resident 7-byte modulator slots. Handler return
+; A=0 continues decoding; A!=0 yields.
+;*****************************************************************************************
+Sound_Stream_Op_Jump:
+            ld      e,(hl)
+            inc     hl
+            ld      d,(hl)
+            ex      de,hl               ; HL = absolute stream destination
+            xor     a                   ; Continue decoding at the new address
+            ret
+
+; Common register writer used by opcodes $10-$17.
+; A = register value, B = block-port delta, HL = engine-record mirror offset.
+;
+; IY is the active engine's WORK-RAM record. Record +$00 contains the hardware
+; block port ($18/$58). Subtracting B derives the direct sound-register I/O port
+; ($10-$17/$50-$57). The OUT updates hardware immediately; the following RAM
+; write mirrors the same value into record +$04..+$0B so periodic modulation and
+; later OTIR block output operate on a coherent software register image.
+Sound_Write_Register_From_Stream:
+L8325:      push    iy
+            pop     de
+            push    hl
+            ld      c,a
+            ld      hl,$0000
+            add     hl,de
+            ld      a,(hl)              ; Engine block port: $18 primary / $58 secondary
+            sub     b                   ; Convert block port to direct register port
+            ld      b,c
+            ld      c,a
+            out     (c),b
+            pop     hl
+            add     hl,de
+            ld      (hl),b              ; Mirror current register value in engine record
+            exx
+            xor     a                   ; Continue decoding this pass
+            ret
+
+Sound_Stream_Op_Master_Oscillator:      ; opcode $10 -> $10 / $50
+            ld      a,(hl)
+            inc     hl
+            exx
+            ld      b,$08
+            ld      hl,L000B
+            jr      Sound_Write_Register_From_Stream
+
+Sound_Stream_Op_Noise:                  ; opcode $17 -> $17 / $57
+            ld      a,(hl)
+            inc     hl
+            exx
+            ld      b,$01
+            ld      hl,$0004
+            jr      Sound_Write_Register_From_Stream
+
+Sound_Stream_Op_Volume_AB:              ; opcode $16 -> $16 / $56
+            ld      a,(hl)
+            inc     hl
+            exx
+            ld      b,$02
+            ld      hl,L0005
+            jp      Sound_Write_Register_From_Stream
+
+Sound_Stream_Op_Volume_C_Noise:         ; opcode $15 -> $15 / $55
+            ld      a,(hl)
+            inc     hl
+            exx
+            ld      b,$03
+            ld      hl,L0006
+            jp      Sound_Write_Register_From_Stream
+
+Sound_Stream_Op_Vibrato:                ; opcode $14 -> $14 / $54
+            ld      a,(hl)
+            inc     hl
+            exx
+            ld      b,$04
+            ld      hl,L0007
+            jp      Sound_Write_Register_From_Stream
+
+Sound_Stream_Op_Tone_A:                 ; opcode $11 -> $11 / $51
+            ld      a,(hl)
+            inc     hl
+            exx
+            ld      b,$07
+            ld      hl,L000A
+            jp      Sound_Write_Register_From_Stream
+
+Sound_Stream_Op_Tone_B:                 ; opcode $12 -> $12 / $52
+            ld      a,(hl)
+            inc     hl
+            exx
+            ld      b,$06
+            ld      hl,L0009
+            jp      Sound_Write_Register_From_Stream
+
+Sound_Stream_Op_Tone_C:                 ; opcode $13 -> $13 / $53
+L8385:      ld      a,(hl)
+            inc     hl
+            exx
+            ld      b,$05
+            ld      hl,L0008
+            jp      Sound_Write_Register_From_Stream
+
+Sound_Stream_Op_Reset_Engine:           ; opcode $03
+L8390:      exx
+            push    iy
+            pop     de
+            jp      Reset_Sound_Engine_Record
+
+Sound_Stream_Op_Yield:                  ; opcodes $00 and $0B-$0F
+L8397:      ld      a,$01
+            ret
+
+Sound_Stream_Op_Wait:                   ; opcode $01
+Sound_Stream_Op_Set_Delay_And_Yield:
+            ld      a,(hl)
+            inc     hl
+            ld      (iy+$0d),a
+            ld      a,$01
+            ret
+
+Sound_Stream_Op_Set_Priority_1:         ; opcode $09
+            ld      (iy+$03),$01
+            xor     a
+            ret
+
+Sound_Stream_Op_Set_Priority_0:         ; opcode $0A
+            ld      (iy+$03),$00
+            xor     a
+            ret
+
+Sound_Stream_Op_Disable_Modulator:      ; opcode $07
+            ; Operand: signed record-relative slot offset.
+            ; Clears slot +0 and control bit 0.
+            ld      e,(hl)
+            inc     hl
+            ld      d,(hl)
+            inc     hl
+            push    hl
+            push    iy
+            pop     hl
+            add     hl,de
+            ld      (hl),$00
+            inc     hl
+            inc     hl
+            res     0,(hl)
+            pop     hl
+            xor     a
+            ret
+
+Sound_Stream_Op_Enable_Modulator:       ; opcode $06
+            ; Operands: signed record-relative slot offset, countdown value.
+            ; Stores the countdown at slot +0 and sets control bit 0.
+            ld      e,(hl)
+            inc     hl
+            ld      d,(hl)
+            inc     hl
+            ld      a,(hl)
+            inc     hl
+            push    hl
+            push    iy
+            pop     hl
+            add     hl,de
+            ld      (hl),a
+            inc     hl
+            inc     hl
+            set     0,(hl)
+            xor     a
+            pop     hl
+            ret
+
+Sound_Stream_Op_Load_Modulator:         ; opcode $04
+            ; Operands: signed record-relative slot offset, six data bytes.
+            ; The six bytes are copied in order to slot +5,+4,+3,+2,+1,+0.
+            ld      e,(hl)
+            inc     hl
+            ld      d,(hl)
+            inc     hl
+            push    hl
+            push    iy
+            pop     hl
+            add     hl,de
+            ld      de,L0005
+            add     hl,de
+            ld      a,$06
+            pop     de
+L83E3:      ex      de,hl
+            ld      b,(hl)
+            inc     hl
+            ex      de,hl
+            ld      (hl),b
+            dec     hl
+            dec     a
+            jr      nz,L83E3
+            ex      de,hl
+            ret
+
+Sound_Stream_Op_Set_Modulator_Completion_Count:
+Sound_Stream_Op_Set_Modulator_Value:    ; opcode $05
+            ; Operands: signed record-relative slot offset, completion count.
+            ; Stores the count at slot +6.
+            ld      e,(hl)
+            inc     hl
+            ld      d,(hl)
+            inc     hl
+            ld      a,(hl)
+            inc     hl
+            push    hl
+            push    iy
+            pop     hl
+            add     hl,de
+            ld      de,L0006
+            add     hl,de
+            ld      (hl),a
+            pop     hl
+            xor     a
+            ret
+
+Sound_Stream_Op_Enable_Master_Volume_Coupling:
+Sound_Stream_Op_Set_Record_Flag_0C:     ; opcode $08: enable slot-5-to-slot-4 coupling
+            ld      (iy+$0c),$01
+            xor     a
+            ret
+
+;*****************************************************************************************
+; SOUND-STREAM OPCODE DISPATCH TABLE ($8407-$8436)
+;
+; 24 little-endian handler addresses indexed directly by opcode $00-$17.
+; Opcodes $00 and $0B-$0F share the yield handler. Opcodes $10-$17 map one-to-one
+; to the eight Astrocade output registers TONMO through VOLN.
+;*****************************************************************************************
+Sound_Stream_Opcode_Table:
+L8407:      DW      Sound_Stream_Op_Yield                  ; $00
+            DW      Sound_Stream_Op_Set_Delay_And_Yield    ; $01
+            DW      Sound_Stream_Op_Jump                   ; $02
+            DW      Sound_Stream_Op_Reset_Engine           ; $03
+            DW      Sound_Stream_Op_Load_Modulator         ; $04
+            DW      Sound_Stream_Op_Set_Modulator_Value    ; $05 set slot +6 completion count
+            DW      Sound_Stream_Op_Enable_Modulator       ; $06
+            DW      Sound_Stream_Op_Disable_Modulator      ; $07
+            DW      Sound_Stream_Op_Set_Record_Flag_0C     ; $08 enable slot-5-to-slot-4 coupling
+            DW      Sound_Stream_Op_Set_Priority_1         ; $09
+            DW      Sound_Stream_Op_Set_Priority_0         ; $0A
+            DW      Sound_Stream_Op_Yield                  ; $0B same yield handler
+            DW      Sound_Stream_Op_Yield                  ; $0C same yield handler
+            DW      Sound_Stream_Op_Yield                  ; $0D same yield handler
+            DW      Sound_Stream_Op_Yield                  ; $0E same yield handler
+            DW      Sound_Stream_Op_Yield                  ; $0F same yield handler
+            DW      Sound_Stream_Op_Master_Oscillator      ; $10 TONMO
+            DW      Sound_Stream_Op_Tone_A                 ; $11 TONEA
+            DW      Sound_Stream_Op_Tone_B                 ; $12 TONEB
+            DW      Sound_Stream_Op_Tone_C                 ; $13 TONEC
+            DW      Sound_Stream_Op_Vibrato                ; $14 VIBRA
+            DW      Sound_Stream_Op_Volume_C_Noise         ; $15 VOLC
+            DW      Sound_Stream_Op_Volume_AB              ; $16 VOLAB
+            DW      Sound_Stream_Op_Noise                  ; $17 VOLN
+
+;*****************************************************************************************
+; DECODE ONE ENGINE'S RESIDENT SOUND STREAM
+;
+; IY points to the active WORK-RAM engine record. Record +$01..+$02 holds a ROM
+; DATA POINTER such as $887B or $8928. HL is loaded from that pointer and the
+; bytes at HL are interpreted as WoW sound-stream commands; they are not entered
+; as Z80 executable code.
+;
+; Decoding runs only while SNDREC_STREAM_READY is nonzero. A command handler
+; returning A=0 continues in the same pass. A nonzero return saves HL as the
+; next stream pointer, clears STREAM_READY, and yields. Opcodes >= $18 are
+; redirected to the $8740 fallback stream, whose first byte is reset opcode $03.
+;*****************************************************************************************
+Decode_Sound_Stream_Commands:
+L8437:      ld      a,(iy+$11)
+            or      a
+            jr      z,L846F
+            ld      l,(iy+$01)
+            ld      h,(iy+$02)
+Sound_Stream_Next_Command:
+L8443:      ld      a,(hl)
+            inc     hl
+            cp      $18
+            jr      nc,L845E
+            exx
+            ld      hl,L8462
+            push    hl
+            ld      hl,Sound_Stream_Opcode_Table
+            rlca
+            ld      e,a
+            ld      d,$00
+            add     hl,de
+            ld      e,(hl)
+            inc     hl
+            ld      d,(hl)
+            push    de
+            exx
+            ret
+            jr      L8462
+Sound_Stream_Invalid_Opcode:
+L845E:      ld      hl,Sound_Stream_Invalid_Fallback
+            xor     a
+Sound_Stream_Handler_Return:
+L8462:      or      a
+            jr      z,L8443
+            ld      (iy+$01),l
+            ld      (iy+$02),h
+            ld      (iy+$11),$00
+Sound_Stream_Decode_Return:
+L846F:      ret
+; Count active-low bits in A and return eight times that count in A.
+Scale_Diagnostic_Active_Low_Bits:
+L8470:      xor     $FF
+            ld      b,a
+            xor     a
+            ld      de,L0008
+L8477:      rl      b
+            adc     a,d
+            dec     e
+            jr      nz,L8477
+            rla
+            rla
+            rla
+            ret
+;*****************************************************************************************
+; SERVICE-SWITCH SOUND/INPUT DIAGNOSTIC
+;
+; In attract mode with the cabinet service switch active, this path drives both
+; Astrocade custom I/O IC sound generators from system/control/DIP input patterns
+; and continues servicing speech.
+;*****************************************************************************************
+Service_Diagnostic_Sound_Test:
+L8481:      ld      bc,L3010
+            out     (c),b
+            ld      c,$50
+            out     (c),b
+            in      a, (COINPORT)       ;
+            set     3,a                 ; Force service-switch input inactive before scaling
+            call    Scale_Diagnostic_Active_Low_Bits
+            ld      bc,L0C15
+            or      a
+            jr      nz,L849B
+            ld      b,$00
+            jr      L849F
+L849B:      xor     $7F
+            add     a,$32
+L849F:      out     (c),b
+            out     (TONEC),a
+            in      a, (P2PORT)
+            and     $3F
+            or      $C0
+            call    Scale_Diagnostic_Active_Low_Bits
+            ld      bc,L0C56
+            or      a
+            jr      nz,L84B6
+            ld      b,$00
+            jr      L84B8
+L84B6:      add     a,$4E
+L84B8:      out     (c),b
+            out     ($51),a             ; Secondary Tone A
+            in      a, (P1PORT)
+            and     $3F
+            or      $C0
+            call    Scale_Diagnostic_Active_Low_Bits
+            ld      bc,L0C16
+            or      a
+            jr      nz,L84CF
+            ld      b,$00
+            jr      L84D1
+L84CF:      add     a,$27
+L84D1:      out     (c),b
+            out     (TONEA),a
+            ld      a,($D347)
+            in      a, (SETTINGS)
+            call    Scale_Diagnostic_Active_Low_Bits
+            ld      bc,L0C55
+            or      a
+            jr      nz,L84E7
+            ld      b,$00
+            jr      L84EB
+L84E7:      xor     $7F
+            sub     $0F
+L84EB:      out     (c),b
+            out     ($53),a             ; Secondary Tone C
+            jp      Service_Speech_Queue
+;*****************************************************************************************
+; PERIODIC SOUND / SPEECH SERVICE
+;
+; In attract mode with the physical service switch active, execution uses the
+; diagnostic path above. Otherwise a zero Sound_Service_Enabled gate suppresses
+; normal service; nonzero services primary sound, secondary sound, then speech.
+;
+; The same Service_Sound_Engine_Record code is called twice with different IY
+; WORK-RAM bases. That base selects both the preceding modulator area and the
+; block-output port stored in record byte +$00:
+;
+;   IY=$D270 -> modulators $D246-$D26F -> block port $18 -> IC $10-$17
+;   IY=$D2AC -> modulators $D282-$D2AB -> block port $58 -> IC $50-$57
+;*****************************************************************************************
+Service_Sound_And_Speech:
+L84F2:      ld      a,(Game_Mode)
+            or      a
+            jr      nz,L8501
+            in      a, (COINPORT)       ;
+            bit     3,a                 ; Is service switch on?
+            jr      nz,L8501            ; no, skip down
+            jp      Service_Diagnostic_Sound_Test
+L8501:      ld      a,(Sound_Service_Enabled) ; Runtime gate seeded by attract DIP; gameplay can enable it
+            or      a
+            jr      z,L851C
+            push    iy
+            ld      iy,Primary_Sound_Engine_Record
+            call    Service_Sound_Engine_Record
+            ld      iy,Secondary_Sound_Engine_Record
+            call    Service_Sound_Engine_Record
+            call    Service_Speech_Queue
+            pop     iy
+Sound_Service_Return:
+L851C:      ret
+;*****************************************************************************************
+; INSTALL SOUND STREAM INTO ONE ENGINE RECORD
+;
+; Input:
+;   IY = WORK-RAM engine record ($D270 primary or $D2AC secondary)
+;   HL = ROM sound-bytecode entry address (for example $887B or $8928)
+;   D  = requested priority
+;
+; HL is stored in record +$01..+$02 as the resident stream DATA POINTER; this
+; routine does not call or jump to HL. Decode_Sound_Stream_Commands later reads
+; bytes through that pointer and interprets them.
+;
+; The install is rejected when D is lower than the record's current priority.
+; Accepted installs reset that engine, mark stream decoding active, store the
+; new priority, and set the stream pointer.
+;*****************************************************************************************
+Install_Sound_Stream:
+L851D:      ld      a,d
+            cp      (iy+$03)
+            jr      c,L8537
+            push    iy
+            exx
+            pop     de
+            call    Reset_Sound_Engine_Record
+            ld      (iy+$11),$01
+            ld      (iy+$03),d
+            ld      (iy+$01),l
+            ld      (iy+$02),h
+Install_Sound_Stream_Return:
+L8537:      ret
+;*****************************************************************************************
+; SOUND REQUEST PRODUCER CROSS-REFERENCE
+;
+; Connects gameplay producer -> request bit -> sound dispatcher.
+; "confirmed" means the gameplay event is directly established by this source.
+; "context" means the producer path is located but its exact event is unresolved.
+;
+; R1.B0      Fetch_Sound_Request_From_Stream       WORLORD DUNGEON CUE             context ($112B)
+; R1.B1      Fetch_Sound_Request_From_Stream       command-stream event            unresolved ($1153)
+; R1.B2      command-stream write $D240=$04        RADAR CUE                       context ($1508)
+; R1.B3      Fetch_Sound_Request_From_Stream       attract-stream event            unresolved ($10D4)
+; R1.B4      Fetch_Sound_Request_From_Stream       ROUND START / GET READY CUE     context ($12FF)
+; R1.B5      Post_Coin_Up_Sound_Request            COIN UP                         confirmed
+; R2.B0      Request_Player_Death_Sound            PLAYER DEATH                    confirmed
+; R2.B1      Post_Player_Fire_Sound                PLAYER FIRE                     confirmed
+; R2.B2      Select_R2_Actor_State_Sound           WORLUK PROXIMITY                context
+; R2.B3      Select_R2_Actor_State_Sound           THORWOR VISIBLE                 confirmed path
+; R2.B4      Select_R2_Actor_State_Sound           GARWOR VISIBLE                  confirmed path
+; R2.B6      Post_Player_Input_State_Sound         PLAYER INPUT STATE              context
+; R2.B7      command-stream write $D241=$80        DUNGEON INTRO PRIMARY           context ($11B6)
+; R3.B0      Request_Actor_Death_Sound             WORLUK DEATH                    confirmed
+; R3.B1      Request_Actor_Death_Sound             MONSTER DEATH                   confirmed
+; R3.B2      Post_Monster_Fire_Sound               MONSTER FIRE                    confirmed
+; R3.B3      same stream as R3.B2; static producer unresolved
+; R3.B4      Post_Magic_Door_Transit_Sound         MAGIC DOOR TRANSIT              confirmed path
+; R3.B5      Post_Worluk_Escape_Sound              WORLUK ESCAPE                   confirmed
+; R3.B7      Post_Worluk_Entry_Sound               WORLUK ENTRY                    confirmed
+; R4.B0      Request_Actor_Death_Sound             WIZARD DEATH                    confirmed
+; R4.B1      Post_Wizard_Appear_Sound              WIZARD APPEAR                   confirmed path
+; R4.B2      Post_Wizard_Fire_Sound                WIZARD FIRE                     confirmed
+; R4.B3      Post_Worluk_Escaped_Sound             WORLUK ESCAPED                  confirmed
+;*****************************************************************************************
+; SOUND REQUEST DECODERS ($D241-$D243)
+;
+; Each decoder clears its complete request byte, then scans from bit 0 upward.
+; The first recognized set bit transfers to Install_Sound_Stream and returns to
+; the caller, so one selector is serviced from each consumed R2/R3/R4 byte.
+;
+; R2: B0 S:$8928 p1 PLAYER DEATH   B1 S:$887B p0 PLAYER FIRE
+;     B2 S:$87EA p1 WORLUK PROXIMITY  B3 S:$883B p0 THORWOR VISIBLE
+;     B4 S:$8825 p0 GARWOR VISIBLE    B5 ignored
+;     B6 S:$8988 p0 PLAYER INPUT STATE B7 P:$8741 p1 DUNGEON INTRO PRIMARY
+; R3: B0 P:$8AA1/S:$8ADD p1 WORLUK DEATH
+;     B1 S:$890E p0 MONSTER DEATH   B2/B3 S:$8851 p0 MONSTER FIRE stream
+;     B4 S:$8A42 p0 MAGIC DOOR TRANSIT
+;     B5 P:$8A81/S:$8A6C p1 WORLUK ESCAPE
+;     B6 ignored                      B7 P:$877B p1 WORLUK ENTRY
+; R4: B0 P:$88E2/S:$8905 p2 WIZARD DEATH
+;     B1 P:$8AF6/S:$8B1F p1 WIZARD APPEAR
+;     B2 S:$8AF3 p1 WIZARD FIRE
+;     B3 P:$8B2E/S:$8B5D p1 WORLUK ESCAPED   B4-B7 ignored
+;*****************************************************************************************
+Dispatch_Sound_Request_2:
+L8538:      ld      hl,Sound_Request_2
+            ld      a,(hl)
+            or      a
+            jr      z,L8582
+            ld      (hl),$00
+            ld      iy,Secondary_Sound_Engine_Record
+            rra                         ; R2.B0 - player death
+            ld      d,$01
+            ld      hl,Sound_Stream_R2_B0_Secondary
+            jr      c,Install_Sound_Stream
+            rra                         ; R2.B1 - PLAYER FIRE
+            ld      d,$00
+            ld      hl,Sound_Stream_R2_B1_Secondary
+            jr      c,Install_Sound_Stream
+            rra                         ; R2.B2
+            ld      d,$01
+            ld      hl,Sound_Stream_R2_B2_Secondary
+            jr      c,Install_Sound_Stream
+            rra                         ; R2.B3
+            ld      d,$00
+            ld      hl,Sound_Stream_R2_B3_Secondary
+            jp      c,Install_Sound_Stream
+            rra                         ; R2.B4
+            ld      hl,Sound_Stream_R2_B4_Secondary
+            jp      c,Install_Sound_Stream
+            rra                         ; R2.B5 ignored
+            rra                         ; R2.B6
+            ld      hl,Sound_Stream_R2_B6_Secondary
+            jp      c,Install_Sound_Stream
+            ld      iy,Primary_Sound_Engine_Record
+            rra                         ; R2.B7
+            ld      d,$01
+            ld      hl,Sound_Stream_R1_B2_Primary
+            jp      c,Install_Sound_Stream
+Dispatch_Sound_Request_2_Return:
+L8582:      ret
+Dispatch_Sound_Request_3:
+L8583:      ld      hl,Sound_Request_3
+            ld      a,(hl)
+            ld      (hl),$00
+            ld      iy,Primary_Sound_Engine_Record
+            rra                         ; R3.B0
+            ld      d,$01
+            ld      hl,Sound_Stream_R3_B0_Primary
+            jr      nc,L85A2
+            call    Install_Sound_Stream
+            ld      iy,Secondary_Sound_Engine_Record
+            ld      hl,Sound_Stream_R3_B0_Secondary
+            jp      Install_Sound_Stream
+L85A2:      ld      iy,Secondary_Sound_Engine_Record
+            rra                         ; R3.B1 - MONSTER DEATH
+            ld      d,$00
+            ld      hl,Sound_Stream_R3_B1_Secondary
+            jp      c,Install_Sound_Stream
+            rra                         ; R3.B2 - MONSTER FIRE
+            ld      hl,Sound_Stream_R3_B2_B3_Secondary
+            jp      c,Install_Sound_Stream
+            rra                         ; R3.B3 - same MONSTER FIRE stream; producer unresolved
+            ld      hl,Sound_Stream_R3_B2_B3_Secondary
+            jp      c,Install_Sound_Stream
+            rra                         ; R3.B4
+            ld      hl,Sound_Stream_R3_B4_Secondary
+            jp      c,Install_Sound_Stream
+            rra                         ; R3.B5
+            jr      nc,L85D9
+            ld      d,$01
+            ld      hl,Sound_Stream_R3_B5_Secondary
+            call    Install_Sound_Stream
+            ld      iy,Primary_Sound_Engine_Record
+            ld      hl,Sound_Stream_R3_B5_Primary
+            jp      Install_Sound_Stream
+L85D9:      rra                         ; R3.B6 ignored
+            ld      iy,Primary_Sound_Engine_Record
+            ld      d,$01
+            rra                         ; R3.B7 - WORLUK ENTRY
+            ld      hl,Sound_Stream_R3_B7_Primary
+            jp      c,Install_Sound_Stream
+            ret
+Dispatch_Sound_Request_4:
+L85E8:      ld      hl,Sound_Request_4
+            ld      a,(hl)
+            ld      (hl),$00
+            ld      iy,Primary_Sound_Engine_Record
+            rra                         ; R4.B0
+            ld      d,$02
+            ld      hl,Sound_Stream_R4_B0_Primary
+            jr      nc,L8607
+            call    Install_Sound_Stream
+            ld      iy,Secondary_Sound_Engine_Record
+            ld      hl,Sound_Stream_R4_B0_Secondary
+            jp      Install_Sound_Stream
+L8607:      rra                         ; R4.B1 - WIZARD APPEAR
+            ld      d,$01
+            ld      hl,Sound_Stream_R4_B1_Primary
+            jr      nc,L861C
+            call    Install_Sound_Stream
+            ld      hl,Sound_Stream_R4_B1_Secondary
+            ld      iy,Secondary_Sound_Engine_Record
+            jp      Install_Sound_Stream
+L861C:      ld      iy,Secondary_Sound_Engine_Record
+            rra                         ; R4.B2 - WIZARD FIRE
+            ld      hl,Sound_Stream_R4_B2_Secondary
+            jp      c,Install_Sound_Stream
+            rra                         ; R4.B3 - WORLUK ESCAPED
+            ld      hl,Sound_Stream_R4_B3_Secondary
+            jr      nc,L863A
+            call    Install_Sound_Stream
+            ld      hl,Sound_Stream_R4_B3_Primary
+            ld      iy,Primary_Sound_Engine_Record
+            jp      Install_Sound_Stream
+Dispatch_Sound_Request_4_Return:
+L863A:      ret
+            ld      d,$02
+            call    Install_Sound_Stream
+            ld      d,$00
+            ret
+Dispatch_Sound_R1_B0:
+L8643:      call    Init_All_Sound_Engines
+            ld      iy,Primary_Sound_Engine_Record
+            ld      d,$00
+            ld      hl,Sound_Stream_R1_B0_Primary
+            call    Install_Sound_Stream
+            ld      iy,Secondary_Sound_Engine_Record
+            ld      hl,Sound_Stream_R1_B0_Secondary
+            jp      Install_Sound_Stream
+Dispatch_Sound_R1_B4:
+L865C:      call    Init_All_Sound_Engines
+            ld      d,$00
+            ld      iy,Primary_Sound_Engine_Record
+            ld      hl,Sound_Stream_R1_B4_Primary
+            call    Install_Sound_Stream
+            ld      iy,Secondary_Sound_Engine_Record
+            ld      hl,Sound_Stream_R1_B4_Secondary
+            jp      Install_Sound_Stream
+Dispatch_Sound_R1_B5_Coin_Up:
+L8675:      ld      iy,Primary_Sound_Engine_Record
+            ld      d,$00
+            ld      hl,Sound_Stream_R1_B5_Primary
+            jp      Install_Sound_Stream
+Dispatch_Sound_R1_B1:
+L8681:      call    Init_All_Sound_Engines
+            ld      iy,Primary_Sound_Engine_Record
+            ld      hl,Sound_Stream_R1_B1_Primary
+            call    Install_Sound_Stream
+            ld      iy,Secondary_Sound_Engine_Record
+            ld      hl,Sound_Stream_R1_B1_Secondary
+            jp      Install_Sound_Stream
+Dispatch_Sound_R1_B3:
+L8698:      call    Init_All_Sound_Engines
+            ld      iy,Primary_Sound_Engine_Record
+            ld      d,$00
+            ld      hl,Sound_Stream_R1_B3_Primary
+            call    Install_Sound_Stream
+            ret
+Dispatch_Sound_R1_B2:
+L86A8:      call    Init_All_Sound_Engines
+            ld      iy,Secondary_Sound_Engine_Record
+            ld      hl,Sound_Stream_R1_B2_Secondary
+            ld      d,$00
+            call    Install_Sound_Stream
+            ld      iy,Primary_Sound_Engine_Record
+            ld      hl,Sound_Stream_R1_B2_Primary
+            jp      Install_Sound_Stream
+;*****************************************************************************************
+; DISPATCH PENDING SOUND REQUESTS AND ADVANCE STREAM DECODERS
+;
+; Request 1 has pass-level precedence. When $D240 is nonzero, the dispatcher
+; clears the byte and processes every set R1 bit in ascending order, then proceeds
+; directly to stream decoding. Bits 0-5 are audible selectors; bit 6 resets the
+; secondary engine and bit 7 resets the primary engine. R2-R4 are decoded only
+; when R1 is zero at entry.
+;
+; R1 stream selections:
+;   B0 P:$89BE/S:$89E5 p0   B1 P:$89A0/S:$89AF p0
+;   B2 P:$8741/S:$8772 p0   B3 P:$8981 p0
+;   B4 P:$8A0C/S:$8A27 p0   B5 P:$8971 p0 (coin request)
+;*****************************************************************************************
+Dispatch_Sound_Requests:
+L86C1:      ld      a,(Sound_Service_Enabled)
+            or      a
+            jr      z,L8717
+            push    iy
+            ld      hl,Sound_Request_1
+            ld      a,(hl)
+            or      a
+            jr      z,L86FE
+            ld      d,$00
+            ld      (hl),d
+            ld      e,a
+            bit     0,e
+            call    nz,Dispatch_Sound_R1_B0
+            bit     1,e
+            call    nz,Dispatch_Sound_R1_B1
+            bit     2,e
+            call    nz,Dispatch_Sound_R1_B2
+            bit     3,e
+            call    nz,Dispatch_Sound_R1_B3
+            bit     4,e
+            call    nz,Dispatch_Sound_R1_B4
+            bit     5,e
+            call    nz,Dispatch_Sound_R1_B5_Coin_Up
+            bit     6,e
+            call    nz,Init_Secondary_Sound_Engine
+            bit     7,e
+            call    nz,Init_Primary_Sound_Engine
+            jr      Decode_Installed_Sound_Streams
+Dispatch_Sound_Request_Banks_2_4:
+L86FE:      call    Dispatch_Sound_Request_2
+            call    Dispatch_Sound_Request_3
+            call    Dispatch_Sound_Request_4
+Decode_Installed_Sound_Streams:
+L8707:      ld      iy,Primary_Sound_Engine_Record
+            call    Decode_Sound_Stream_Commands
+            ld      iy,Secondary_Sound_Engine_Record
+            call    Decode_Sound_Stream_Commands
+            pop     iy
+Sound_Request_Dispatch_Return:
+L8717:      ret
+
+            ; 40 bytes - ROM Padding
+            DB      $00, $FF, $FF, $FF, $FF, $FF, $FF, $FF
+            DB      $FF, $FF, $FF, $FF, $FF, $FF, $FF, $FF
+            DB      $FF, $FF, $FF, $FF, $FF, $FF, $FF, $FF
+            DB      $FF, $FF, $FF, $FF, $FF, $FF, $FF, $FF
+            DB      $FF, $FF, $FF, $FF, $FF, $FF, $FF, $FF
+
+;*****************************************************************************************
+; SOUND-STREAM BYTECODE DATA ($8740-$8B65)
+;
+; This ROM region is consumed as bytecode by Decode_Sound_Stream_Commands
+; ($8437). It is data, not native Z80 instruction flow. The sound dispatcher
+; installs Sound_Stream_* addresses into an engine record and the decoder reads
+; command bytes $00-$17 from those addresses.
+;
+; Use DB here deliberately. Bytes in this region must not be read as Z80
+; instructions even when their values happen to form valid Z80 opcodes.
+; Sound_Stream_* labels identify dispatcher-visible bytecode entry points.
+; Lxxxx anchors remain exact ROM-address anchors for cross-reference purposes.
+;*****************************************************************************************
+Sound_Stream_Invalid_Fallback:
+L8740:
+            DB      $03                 ; $03 RESET_ENGINE fallback command
+Sound_Stream_R1_B2_Primary:             ; R1.B2 primary, priority 0
+Sound_Stream_R2_B7_Primary:             ; R2.B7 primary, priority 1; same stream entry
+L8741:
+            DB      $13,$34,$12,$A8,$11,$FD,$10,$A7,$04,$F9,$FF,$B1
+            DB      $A7,$05,$03,$55,$55,$04,$D6,$FF,$55,$06,$FF,$01
+            DB      $17,$01,$05,$D6,$FF,$01,$16,$FF,$15,$0F,$04,$F2
+            DB      $FF,$0F,$03,$FF,$03,$05,$01,$08,$05,$F2,$FF,$01
+            DB      $00
+Sound_Stream_R1_B2_Secondary:             ; R1.B2 secondary, priority 0
+L8772:
+            DB      $13,$6A,$12,$96,$11,$B2,$02,$47,$87
+Sound_Stream_R3_B7_Primary:             ; R3.B7 WORLUK ENTRY, primary, priority 1
+L877B:
+            DB      $10,$10,$04,$F9,$FF,$A0,$10,$04,$21,$01,$01,$13
+L8787:
+            DB      $29,$12,$34,$11,$3E,$14
+L878D:
+            DB      $81,$05,$F9,$FF,$05,$16,$DD,$15,$0E,$00,$14,$00
+            DB      $10,$5A,$13,$54,$12,$6A,$11,$7E,$01,$08,$13,$4F
+            DB      $12,$5E,$11,$6A,$01,$08,$13,$46,$12,$54,$11,$5E
+            DB      $01,$08,$10,$55,$13,$54,$12,$6A,$11,$7E,$01,$08
+            DB      $13,$4F,$12,$5E,$11,$6A,$01,$08,$13,$46,$12,$54
+            DB      $11,$5E,$01,$08,$10,$50,$13,$54,$12,$6A,$11,$7E
+            DB      $01,$08,$13,$4F,$12,$5E,$11,$6A,$01,$08,$13,$46
+            DB      $12,$54,$11,$5E,$01,$08,$02,$99,$87
+Sound_Stream_R2_B2_Secondary:             ; R2.B2 WORLUK PROXIMITY, secondary, priority 1
+L87EA:
+            DB      $10,$A0,$04,$F9
+L87EE:
+            DB      $FF,$A0,$10,$FC,$21,$01,$01
+L87F5:
+            DB      $13,$1A,$12,$20,$11,$25,$14,$81,$05,$F9,$FF,$05
+            DB      $16,$CC,$15,$0C,$00,$03,$10,$20,$15
+L880A:
+            DB      $1B
+L880B:
+            DB      $16,$AA,$00,$03,$04,$F9,$FF,$20,$06,$FD,$23
+L8816:
+            DB      $03,$01,$05,$F9
+L881A:
+            DB      $FF,$01,$13,$27,$12
+L881F:
+            DB      $1B,$11,$17,$02,$07,$88
+Sound_Stream_R2_B4_Secondary:             ; R2.B4 GARWOR VISIBLE, secondary, priority 0
+L8825:
+            DB      $04,$F9,$FF,$20,$04,$FE,$23,$02,$01,$05,$F9,$FF
+            DB      $02,$13,$13,$12,$0D,$11,$0B,$02,$07,$88
+Sound_Stream_R2_B3_Secondary:             ; R2.B3 THORWOR VISIBLE, secondary, priority 0
+L883B:
+            DB      $04,$F9,$FF,$20,$02,$FE,$23
+L8842:
+            DB      $01,$01,$05,$F9,$FF,$03,$13,$0A,$12,$08,$11,$06
+            DB      $02,$07,$88
+Sound_Stream_R3_B2_B3_Secondary:             ; R3.B2/B3 MONSTER FIRE, secondary, priority 0
+L8851:
+            DB      $13,$2C,$12,$14,$11,$0F,$10,$10,$05,$F9,$FF,$02
+            DB      $04,$F9
+L885F:
+            DB      $FF,$A0,$10,$04,$21,$01,$01,$17
+L8867:
+            DB      $10,$04,$DD,$FF,$70,$10,$04,$03,$01,$01,$05
+L8872:
+            DB      $DD,$FF,$01,$16,$88,$15,$18,$00
+L887A:
+            DB      $03
+; R2.B1 is posted by Post_Player_Fire_Sound in the projectile-launch path.
+; The dispatcher installs this bytecode entry in the secondary engine.
+Sound_Stream_R2_B1_Secondary:             ; R2.B1 PLAYER FIRE, secondary, priority 0
+L887B:
+            DB      $10,$18,$04,$F9,$FF,$18,$02,$FE,$21
+L8884:
+            DB      $01,$01,$13,$27,$12,$46,$11,$7E,$05,$F9,$FF,$01
+            DB      $16,$77,$15,$17,$17
+L8895:
+            DB      $0A,$04,$DD,$FF,$0A,$02,$FE,$03,$01,$01,$05,$DD
+            DB      $FF,$01,$00,$04,$F9,$FF,$80,$02,$02
+L88AA:
+            DB      $23,$01,$01,$05,$F9,$FF,$01,$00,$03,$10,$06,$04
+            DB      $F9,$FF,$72,$06,$05
+L88BB:
+            DB      $21,$01,$01,$17,$22,$04,$DD,$FF,$64,$05,$03,$21
+            DB      $01,$01,$05,$DD,$FF,$04,$13,$11,$12,$17,$11,$1F
+            DB      $16,$9A,$15,$1A,$00,$05,$F9,$FF,$01,$06,$F9,$FF
+            DB      $01,$00,$03
+Sound_Stream_R4_B0_Primary:             ; R4.B0 WIZARD DEATH, primary, priority 2
+L88E2:
+            DB      $01,$02,$13,$2A,$12,$18,$11,$06,$10,$30,$04,$F9
+            DB      $FF,$30,$20
+L88F1:
+            DB      $FC,$01,$01,$01,$17,$00,$04,$DD,$FF,$20,$00
+L88FC:
+            DB      $02,$01,$04,$04,$16,$FF,$15,$1F,$00
+Sound_Stream_R4_B0_Secondary:             ; R4.B0 WIZARD DEATH, secondary, priority 2
+L8905:
+            DB      $13,$64,$12,$50,$11,$3C,$02,$EA,$88,$10,$20,$13
+L8911:
+            DB      $13,$12,$12,$11,$10,$17,$10,$16,$67,$15,$17,$04
+            DB      $F9,$FF,$18,$20,$F8,$01,$02,$02,$01,$28,$03
+; R2.B0 is posted by Request_Player_Death_Sound from the player branch of
+; Handle_Actor_Death. The dispatcher installs this secondary stream at $8928.
+Sound_Stream_R2_B0_Secondary:             ; R2.B0 secondary - PLAYER DEATH, priority 1
+L8928:
+            DB      $10,$28,$17,$84,$04,$DD,$FF
+L892F:
+            DB      $84,$0A,$FF,$03,$01,$01,$16,$CC,$15,$0C,$14,$83
+            DB      $13,$22,$12,$1D,$11,$10,$04,$EB,$FF,$8C,$83,$01
+            DB      $23,$08,$08,$05,$EB,$FF,$01,$00,$15,$1C,$01,$20
+            DB      $03,$13,$54,$12,$34,$11,$FD,$10,$20,$04,$F9,$FF
+            DB      $38,$08
+L8961:
+            DB      $FF,$01,$01,$01,$05,$F2,$FF,$01
+L8969:
+            DB      $01,$60,$09,$06,$F9,$FF,$01,$00,$16,$FF,$15,$1F
+            DB      $04,$F2,$FF,$0F,$02,$FF,$03,$19,$19,$02,$54,$89
+Sound_Stream_R1_B3_Primary:             ; R1.B3 primary, priority 0
+L8981:
+            DB      $16,$22,$15,$12,$02,$54,$89
+Sound_Stream_R2_B6_Secondary:             ; R2.B6 PLAYER INPUT STATE, secondary, priority 0
+L8988:
+            DB      $10,$20,$04,$F9,$FF,$20,$0C,$FF,$03,$02,$01,$16
+            DB      $55,$15,$06,$13,$54,$12,$6A
+L899B:
+            DB      $11,$FD,$01,$28,$03
+Sound_Stream_R1_B1_Primary:             ; R1.B1 primary, priority 0
+L89A0:
+            DB      $10,$30,$14
+L89A3:
+            DB      $81,$16,$FC,$15,$0E,$13,$46
+L89AA:
+            DB      $12,$2C,$11,$FD,$00
+Sound_Stream_R1_B1_Secondary:             ; R1.B1 secondary, priority 0
+L89AF:
+            DB      $10,$30,$14,$81,$16,$FD,$15,$0E,$13,$7E,$12,$59
+            DB      $11,$6A,$00
+Sound_Stream_R1_B0_Primary:             ; R1.B0 primary, priority 0
+L89BE:
+            DB      $10,$30,$16,$FE,$15,$0F,$14,$81,$13,$3E,$12,$A8
+            DB      $11,$6A,$01,$42,$13,$37,$12,$70
+L89D2:
+            DB      $11,$5E,$01,$16,$13,$35,$12,$6A,$11,$54,$01,$34
+            DB      $13,$3E,$12
+L89E1:
+            DB      $A8,$11,$6A,$00
+Sound_Stream_R1_B0_Secondary:             ; R1.B0 secondary, priority 0
+L89E5:
+            DB      $10,$30,$14,$81,$16,$EE,$15,$0F,$13,$54,$12
+L89F0:
+            DB      $6A,$11,$FD,$01,$42,$13,$5E,$12,$54,$11,$E1,$01
+            DB      $16,$13,$46,$12,$3E,$11,$D4,$01,$34,$13,$54,$12
+            DB      $7E,$11,$FD,$00
+Sound_Stream_R1_B4_Primary:             ; R1.B4 primary, priority 0
+L8A0C:
+            DB      $10,$30,$16,$EF,$15,$0F,$14,$81,$13,$70,$12
+L8A17:
+            DB      $3E,$11,$A8,$01,$60,$13,$70,$12,$42,$11,$A8,$01
+            DB      $58,$02,$BE,$89
+Sound_Stream_R1_B4_Secondary:             ; R1.B4 secondary, priority 0
+L8A27:
+            DB      $10,$30,$14,$81,$16,$EF,$15,$0F,$13,$4F,$12,$34
+            DB      $11,$5E,$01,$60,$13,$54,$12,$37,$11,$5E,$01
+L8A3E:
+            DB      $58,$02,$E5,$89
+Sound_Stream_R3_B4_Secondary:             ; R3.B4 MAGIC DOOR TRANSIT, priority 0
+L8A42:
+            DB      $10,$14,$14,$48,$04,$F9,$FF,$14,$08,$FF,$23,$02
+            DB      $03,$15,$28,$17,$20,$04,$DD,$FF,$54,$20,$04
+L8A59:
+            DB      $03,$02,$03,$05
+L8A5D:
+            DB      $F9,$FF,$01,$16,$88,$13,$FD,$12,$FE,$11,$FF,$00
+L8A69:
+            DB      $01,$06,$03
+Sound_Stream_R3_B5_Secondary:             ; R3.B5 WORLUK ESCAPE, priority 1
+L8A6C:
+            DB      $13,$E0,$12,$C8,$11,$B6,$10,$14,$14,$48,$16,$88
+            DB      $15,$28,$17,$20,$01,$20,$02,$42,$8A
+Sound_Stream_R3_B5_Primary:             ; R3.B5 WORLUK ESCAPE, priority 1
+L8A81:
+            DB      $10,$09,$14,$48,$13,$E0,$12,$C8,$11,$B6,$16
+L8A8C:
+            DB      $BB,$15,$0D,$01,$20,$04
+L8A92:
+            DB      $F9,$FF,$21,$09,$02,$21,$02,$03,$05,$F9,$FF,$01
+            DB      $02,$62,$8A
+Sound_Stream_R3_B0_Primary:             ; R3.B0 WORLUK DEATH, primary, priority 1
+L8AA1:
+            DB      $04,$DD,$FF,$80,$00,$FE,$21,$01,$01,$17,$80,$10
+            DB      $40,$13,$68,$12,$44,$11,$21,$05,$DD,$FF,$01,$15
+            DB      $1F,$16,$EE,$00,$15,$2F,$05,$F9,$FF,$02,$06,$DD
+            DB      $FF,$01,$04,$F9,$FF,$80,$02,$FF,$21,$01,$01,$14
+            DB      $80,$04,$EB,$FF,$BF,$80,$01,$01,$02,$02,$00,$03
+Sound_Stream_R3_B0_Secondary:             ; R3.B0 WORLUK DEATH, secondary, priority 1
+L8ADD:
+            DB      $13,$33,$12,$30,$11,$02,$01,$04,$04,$DD,$FF,$80
+            DB      $00,$02,$21,$01,$01
+L8AEE:
+            DB      $17,$00,$02,$AC,$8A
+Sound_Stream_R4_B2_Secondary:             ; R4.B2 WIZARD FIRE, secondary, priority 1
+L8AF3:
+            DB      $02,$B3,$88
+Sound_Stream_R4_B1_Primary:             ; R4.B1 WIZARD APPEAR, priority 1
+L8AF6:
+            DB      $10,$14,$14,$88,$13,$37,$12,$85,$11,$8D,$17,$00
+            DB      $16,$AA,$15,$2A,$01,$28,$14,$00,$04,$F9
+L8B0C:
+            DB      $FF,$5C,$14,$06,$01,$04,$04,$17,$28,$04,$D6,$FF
+            DB      $04,$01,$FF,$01,$30,$30,$00
+Sound_Stream_R4_B1_Secondary:             ; R4.B1 WIZARD APPEAR, priority 1
+L8B1F:
+            DB      $10,$10,$14,$86,$13,$29,$12,$35,$11,$7E,$16,$99
+            DB      $15,$29,$00
+Sound_Stream_R4_B3_Primary:             ; R4.B3 WORLUK ESCAPED, primary, priority 1
+L8B2E:
+            DB      $13,$A8,$12
+L8B31:
+            DB      $1A,$11,$7E,$16,$DD,$15,$2D,$10,$1E,$17,$18,$14
+            DB      $01,$05,$EB,$FF,$05,$04,$EB,$FF,$1C,$01,$03,$23
+            DB      $02,$02,$00,$05,$EB
+L8B4E:
+            DB      $FF,$01,$14,$1C,$04,$EB,$FF,$1C,$01,$FD,$23,$07
+            DB      $07,$00,$03
+Sound_Stream_R4_B3_Secondary:             ; R4.B3 WORLUK ESCAPED, secondary, priority 1
+L8B5D:
+            DB      $13,$54,$12,$34,$11,$FD,$02,$34,$8B
+
+;******************************************************************************
+; ENGLISH SC-01 SPEECH FRAGMENTS - $8B66-$9475
+;
+; The 79 logical fragment IDs ($00-$4E) are stored in physical ROM order here.
+; English_Speech_Fragment_Pointers maps each logical fragment ID to one record.
+;
+; Record format:
+;     DB encoded_byte_count
+;     DB encoded_sc01_byte[, ...]
+;
+; The byte count is not part of the SC-01 stream. Bits 0-5 carry the phoneme
+; code, bit 6 passes directly to the device, and bit 7 is differentially
+; decoded against the saved bit-7 state before the full command byte reaches
+; the speech interface.
+; Fragment labels describe the words encoded by each record; several records
+; are intentionally sentence fragments that are combined by the phrase table.
+;******************************************************************************
+
+; Fragment $00 @ $8B66: "Kill Worluk for double score"
+SPK_Kill_Worluk_For_Double_Score:
+            DB      $1D                 ; encoded SC-01 byte count
+            DB      $83,$19,$27,$09,$18,$03,$2D,$26
+            DB      $35,$2B,$18,$33,$19,$03,$1D,$35
+            DB      $2B,$1E,$33,$0E,$23,$18,$1F,$19
+            DB      $26,$35,$2B,$3E,$83
+
+; Fragment $01 @ $8B84: "If you get too powerful, I'll take care of you myself"
+SPK_F01_If_Too_Powerful:
+            DB      $31                 ; encoded SC-01 byte count
+            DB      $27,$1D,$22,$09,$36,$28,$1C,$3B
+            DB      $00,$2A,$2A,$28,$37,$25,$15,$2D
+            DB      $3A,$1D,$32,$18,$3E,$83,$15,$00
+            DB      $09,$29,$18,$2A,$20,$19,$19,$3B
+            DB      $2B,$32,$0F,$22,$36,$28,$03,$0C
+            DB      $15,$09,$29,$1F,$3B,$18,$1D,$3E
+            DB      $83
+
+; Fragment $4E @ $8BB6: "You're in"
+SPK_Youre_In:
+            DB      $0A                 ; encoded SC-01 byte count
+            DB      $83,$22,$36,$28,$33,$2B,$27,$0D
+            DB      $3E,$83
+
+; Fragment $02 @ $8BC1: "The dungeons of Wor"
+SPK_The_Dungeons_Of_Wor:
+            DB      $14                 ; encoded SC-01 byte count
+            DB      $83,$38,$33,$03,$1E,$33,$0D,$1A
+            DB      $02,$0D,$12,$33,$0F,$2D,$26,$35
+            DB      $2B,$2B,$3E,$BE
+
+; Fragment $03 @ $8BD6: "I am"
+SPK_I_Am:
+            DB      $08                 ; encoded SC-01 byte count
+            DB      $15,$23,$09,$29,$2F,$00,$0C,$3E
+
+; Fragment $04 @ $8BDF: "The Wizard of Wor"
+SPK_The_Wizard_Of_Wor:
+            DB      $11                 ; encoded SC-01 byte count
+            DB      $3E,$38,$73,$2D,$67,$12,$3A,$1E
+            DB      $73,$4F,$03,$6D,$26,$35,$2B,$2B
+            DB      $3E
+
+; Fragment $05 @ $8BF1: "One bite from my pretties, and you'll explode"
+SPK_F05_One_Bite_Pretties:
+            DB      $2B                 ; encoded SC-01 byte count
+            DB      $2D,$33,$0D,$0E,$23,$08,$29,$2A
+            DB      $1D,$2B,$33,$0C,$0C,$15,$09,$22
+            DB      $25,$2B,$27,$2A,$29,$22,$1F,$3E
+            DB      $3E,$2F,$00,$0D,$1E,$22,$36,$28
+            DB      $18,$3B,$19,$03,$1F,$25,$18,$26
+            DB      $37,$1E,$3E
+
+; Fragment $06 @ $8C1D: "My creatures are radioactive"
+SPK_My_Creatures_Are_Radioactive:
+            DB      $1C                 ; encoded SC-01 byte count
+            DB      $0C,$15,$00,$09,$29,$19,$2B,$3C
+            DB      $2A,$10,$3A,$1F,$24,$23,$2B,$2B
+            DB      $06,$1E,$29,$35,$37,$2F,$00,$19
+            DB      $2A,$0B,$0F,$3E
+
+; Fragment $07 @ $8C3A: "Worluk will escape through the door"
+SPK_Worluk_Will_Escape_Through_The_Door:
+            DB      $1E                 ; encoded SC-01 byte count
+            DB      $2D,$26,$2B,$18,$33,$19,$03,$2D
+            DB      $27,$18,$03,$3B,$1F,$03,$19,$06
+            DB      $09,$22,$25,$03,$38,$2B,$28,$38
+            DB      $33,$1E,$26,$35,$2B,$3E
+
+; Fragment $22 @ $8C59: "You won't have a chance for your dance"
+SPK_F22_No_Chance_For_Dance:
+            DB      $1E                 ; encoded SC-01 byte count
+            DB      $22,$36,$28,$2D,$35,$0D,$2A,$1B
+            DB      $6F,$0A,$0F,$03,$06,$2A,$10,$6E
+            DB      $0D,$1F,$03,$1D,$34,$2B,$29,$35
+            DB      $2B,$1E,$6E,$0D,$1F,$3E
+
+; Fragment $23 @ $8C78: "Remember, I'm the Wizard, not you"
+SPK_Remember_Im_The_Wizard_Not_You:
+            DB      $1F                 ; encoded SC-01 byte count
+            DB      $83,$2B,$3C,$0C,$7B,$0C,$0E,$3A
+            DB      $3E,$55,$00,$09,$29,$0C,$38,$33
+            DB      $2D,$27,$12,$3A,$1E,$3E,$0D,$15
+            DB      $2A,$29,$36,$37,$37,$3E,$83
+
+; Fragment $24 @ $8C98: "If you can't beat the rest, then you'll never get the best"
+SPK_F24_Cant_Beat_Rest:
+            DB      $2C                 ; encoded SC-01 byte count
+            DB      $4B,$5D,$29,$09,$37,$19,$2F,$00
+            DB      $0D,$2A,$3E,$0E,$7C,$2A,$38,$32
+            DB      $2B,$3B,$1F,$2A,$3E,$B8,$42,$0D
+            DB      $29,$36,$37,$18,$0D,$02,$0F,$3A
+            DB      $3E,$1C,$42,$2A,$38,$32,$0E,$3B
+            DB      $1F,$2A,$03,$83
+
+; Fragment $25 @ $8CC5: "If you destroy my babies, I'll pop you in the oven"
+SPK_F25_Destroy_My_Babies:
+            DB      $31                 ; encoded SC-01 byte count
+            DB      $83,$27,$1D,$29,$09,$28,$1E,$3C
+            DB      $1F,$2A,$2B,$35,$23,$09,$21,$0C
+            DB      $08,$08,$00,$09,$29,$0E,$60,$0E
+            DB      $29,$22,$1F,$3E,$15,$09,$22,$18
+            DB      $25,$55,$25,$29,$36,$28,$0B,$0D
+            DB      $38,$21,$21,$33,$0F,$3B,$0D,$3E
+            DB      $83
+
+; Fragment $26 @ $8CF7: "Now I'm getting mad"
+SPK_Now_Im_Getting_Mad:
+            DB      $15                 ; encoded SC-01 byte count
+            DB      $83,$0D,$55,$23,$37,$15,$00,$09
+            DB      $29,$0C,$1C,$3B,$2A,$27,$14,$0C
+            DB      $2E,$00,$1E,$3E,$83
+
+; Fragment $27 @ $8D0D: "You'll never leave Wor alive"
+SPK_Youll_Never_Leave_Wor_Alive:
+            DB      $1B                 ; encoded SC-01 byte count
+            DB      $83,$22,$36,$28,$2D,$27,$18,$0D
+            DB      $7B,$0F,$3A,$18,$3C,$3C,$0F,$2D
+            DB      $66,$75,$2B,$32,$18,$55,$00,$29
+            DB      $0F,$3E,$83
+
+; Fragment $1B @ $8D29: "Garwor, go after them"
+SPK_Garwor_Go_After_Them:
+            DB      $15                 ; encoded SC-01 byte count
+            DB      $83,$1C,$55,$2B,$2D,$35,$2B,$3E
+            DB      $1C,$35,$35,$6F,$00,$1D,$2A,$3A
+            DB      $38,$3B,$0C,$3E,$83
+
+; Fragment $08 @ $8D3F: "Watch the radar"
+SPK_Watch_The_Radar:
+            DB      $0E                 ; encoded SC-01 byte count
+            DB      $83,$2D,$15,$2A,$10,$38,$33,$2B
+            DB      $20,$1E,$15,$2B,$03,$83
+
+; Fragment $09 @ $8D4E: "Worrior"
+SPK_Worrior:
+            DB      $06                 ; encoded SC-01 byte count
+            DB      $2D,$26,$2B,$29,$3A,$3E
+
+; Fragment $1A @ $8D55: "Now you get the heavyweights"
+SPK_Now_You_Get_The_Heavyweights:
+            DB      $1D                 ; encoded SC-01 byte count
+            DB      $83,$0D,$15,$63,$77,$22,$36,$37
+            DB      $37,$1C,$3B,$2A,$03,$39,$32,$03
+            DB      $5B,$42,$49,$0F,$3C,$2D,$45,$09
+            DB      $22,$2A,$1F,$3E,$83
+
+; Fragment $35 @ $8D73: "You're asking for trouble"
+SPK_Youre_Asking_For_Trouble:
+            DB      $16                 ; encoded SC-01 byte count
+            DB      $83,$29,$34,$34,$2B,$6F,$00,$5F
+            DB      $59,$27,$14,$1D,$26,$2B,$2A,$2B
+            DB      $73,$4E,$23,$18,$3E,$83
+
+; Fragment $1C @ $8D8A: "If you try any harder, you'll only meet with doom"
+SPK_F1C_Try_Harder_Meet_Doom:
+            DB      $2A                 ; encoded SC-01 byte count
+            DB      $27,$1D,$29,$36,$28,$2A,$2B,$15
+            DB      $00,$09,$29,$6F,$0D,$29,$1B,$55
+            DB      $6B,$1E,$3A,$3E,$83,$22,$36,$28
+            DB      $18,$75,$0D,$18,$29,$0C,$2C,$3C
+            DB      $2A,$2D,$27,$39,$5E,$28,$28,$0C
+            DB      $3E,$83
+
+; Fragment $1D @ $8DB5: "Burwor, Garwor, and Thorwor will do you in"
+SPK_F1D_Bur_Gar_Thor_Do_You_In:
+            DB      $27                 ; encoded SC-01 byte count
+            DB      $83,$0E,$7A,$6B,$2D,$26,$2B,$3E
+            DB      $1C,$55,$6B,$2D,$26,$2B,$3E,$2F
+            DB      $00,$0D,$1E,$39,$66,$6B,$2D,$26
+            DB      $2B,$3E,$2D,$27,$18,$1E,$36,$68
+            DB      $22,$36,$28,$27,$0D,$3E,$83
+
+; Fragment $1E @ $8DDD: "My worlings are very very hungry"
+SPK_My_Worlings_Are_Very_Very_Hungry:
+            DB      $22                 ; encoded SC-01 byte count
+            DB      $83,$0C,$15,$00,$09,$29,$2D,$66
+            DB      $6B,$18,$27,$14,$1F,$15,$23,$2B
+            DB      $0F,$7B,$40,$2B,$29,$0F,$7B,$40
+            DB      $2B,$29,$1B,$73,$0D,$1C,$2B,$29
+            DB      $3E,$83
+
+; Fragment $1F @ $8E00: "My magic is stronger than your weapons"
+SPK_F1F_Magic_Stronger_Weapons:
+            DB      $23                 ; encoded SC-01 byte count
+            DB      $0C,$15,$40,$49,$69,$0C,$6F,$1E
+            DB      $1A,$0B,$19,$27,$12,$1F,$2A,$2B
+            DB      $7D,$0D,$1C,$2B,$38,$2F,$00,$0D
+            DB      $29,$34,$34,$2B,$2D,$7B,$65,$32
+            DB      $0D,$1F,$3E
+
+; Fragment $21 @ $8E24: "Your bones will lie in the dungeons of Wor"
+SPK_F21_Bones_In_Dungeons:
+            DB      $26                 ; encoded SC-01 byte count
+            DB      $83,$29,$34,$34,$2B,$4E,$26,$34
+            DB      $4D,$1F,$2D,$27,$18,$03,$18,$15
+            DB      $00,$29,$27,$0D,$38,$33,$1E,$73
+            DB      $0D,$1A,$02,$0D,$1F,$33,$0F,$2D
+            DB      $26,$35,$2B,$2B,$3E,$83
+
+; Fragment $20 @ $8E4B: "While you developed science, we developed magic"
+SPK_F20_Science_Vs_Magic:
+            DB      $2B                 ; encoded SC-01 byte count
+            DB      $2D,$15,$00,$09,$18,$22,$76,$68
+            DB      $1E,$3C,$0F,$02,$18,$23,$25,$2A
+            DB      $1F,$15,$09,$21,$3B,$0D,$1F,$3E
+            DB      $2D,$3C,$29,$1E,$3C,$0F,$02,$18
+            DB      $23,$25,$2A,$0C,$2F,$00,$1E,$1A
+            DB      $0B,$19,$3E
+
+; Fragment $0A @ $8E77: "Hey, insert coin"
+SPK_Hey_Insert_Coin:
+            DB      $13                 ; encoded SC-01 byte count
+            DB      $1B,$60,$4B,$62,$3E,$3E,$27,$0D
+            DB      $1F,$7A,$6A,$3E,$59,$75,$34,$09
+            DB      $22,$0D,$3E
+
+; Fragment $0B @ $8E8B: "Find me"
+SPK_Find_Me:
+            DB      $0A                 ; encoded SC-01 byte count
+            DB      $1D,$55,$49,$69,$0D,$1E,$0C,$2C
+            DB      $3C,$3E
+
+; Fragment $0C @ $8E96: "I'm out of sight"
+SPK_Im_Out_Of_Sight:
+            DB      $12                 ; encoded SC-01 byte count
+            DB      $15,$49,$69,$0C,$03,$08,$35,$37
+            DB      $1E,$15,$03,$1F,$25,$08,$4B,$69
+            DB      $2A,$3E
+
+; Fragment $0D @ $8EA9: "Get ready"
+SPK_Get_Ready:
+            DB      $08                 ; encoded SC-01 byte count
+            DB      $1C,$3B,$2A,$2B,$3B,$1E,$29,$3E
+
+; Fragment $0E @ $8EB2: "You'd better hope you don't find me"
+SPK_Youd_Better_Hope_You_Dont_Find_Me:
+            DB      $20                 ; encoded SC-01 byte count
+            DB      $22,$36,$28,$1E,$03,$0E,$42,$2A
+            DB      $3A,$03,$1B,$26,$25,$22,$76,$68
+            DB      $1E,$26,$0D,$2A,$5D,$55,$09,$22
+            DB      $0D,$1E,$4C,$2C,$3C,$3E,$3E,$3E
+
+; Fragment $0F @ $8ED3: "Another coin for my treasure chest"
+SPK_Another_Coin_For_My_Treasure_Chest:
+            DB      $1E                 ; encoded SC-01 byte count
+            DB      $15,$0D,$33,$39,$3A,$03,$19,$35
+            DB      $34,$09,$22,$0D,$1D,$26,$2B,$0C
+            DB      $55,$49,$62,$2A,$2B,$02,$07,$3A
+            DB      $2A,$10,$3B,$1F,$2A,$3E
+
+; Fragment $10 @ $8EF2: "Ha ha ha ha"
+SPK_Ha_Ha_Ha_Ha:
+            DB      $0A                 ; encoded SC-01 byte count
+            DB      $3E,$1B,$55,$1B,$55,$1B,$15,$1B
+            DB      $15,$3E
+
+; Fragment $11 @ $8EFD: "Ah good! My pets were getting hungry"
+SPK_Ah_Good_My_Pets_Were_Getting_Hungry:
+            DB      $22                 ; encoded SC-01 byte count
+            DB      $64,$08,$03,$5C,$76,$76,$36,$36
+            DB      $1E,$3E,$0C,$15,$09,$29,$25,$7B
+            DB      $2A,$1F,$2D,$3A,$2B,$1C,$3B,$2A
+            DB      $27,$14,$1B,$73,$54,$1C,$2B,$29
+            DB      $3E,$3E
+
+; Fragment $12 @ $8F20: "You'll get the Arena"
+SPK_Youll_Get_The_Arena:
+            DB      $14                 ; encoded SC-01 byte count
+            DB      $83,$22,$36,$28,$18,$1C,$3B,$2A
+            DB      $3E,$3E,$38,$2C,$03,$48,$2B,$2C
+            DB      $0D,$15,$3E,$BE
+
+; Fragment $36 @ $8F35: "Ha ha ha ha (padded)"
+SPK_Ha_Ha_Ha_Ha_Padded:
+            DB      $0B                 ; encoded SC-01 byte count
+            DB      $BE,$1B,$15,$1B,$15,$1B,$15,$1B
+            DB      $15,$3E,$83
+
+; Fragment $13 @ $8F41: "Another worrior for my babies to devour"
+SPK_F13_Worrior_For_Babies:
+            DB      $23                 ; encoded SC-01 byte count
+            DB      $15,$0D,$32,$38,$3A,$03,$2D,$26
+            DB      $2B,$29,$3A,$1D,$35,$2B,$0C,$15
+            DB      $09,$22,$0E,$20,$29,$0E,$22,$29
+            DB      $1F,$2A,$28,$1E,$2C,$0F,$15,$34
+            DB      $37,$2B,$3E
+
+; Fragment $14 @ $8F65: "Keep going and you will find me"
+SPK_Keep_Going_And_You_Will_Find_Me:
+            DB      $1D                 ; encoded SC-01 byte count
+            DB      $19,$6C,$25,$03,$1C,$26,$0B,$22
+            DB      $14,$03,$2E,$0D,$1E,$29,$36,$28
+            DB      $2D,$27,$18,$1D,$55,$0B,$22,$0D
+            DB      $1E,$0C,$2C,$3C,$3E
+
+; Fragment $15 @ $8F83: "A few more dungeons and you'll be a"
+SPK_A_Few_More_Dungeons_And_Youll_Be_A:
+            DB      $1D                 ; encoded SC-01 byte count
+            DB      $15,$1D,$3C,$28,$28,$0C,$26,$2B
+            DB      $1E,$33,$0D,$1A,$02,$0D,$1F,$3E
+            DB      $15,$0D,$1E,$29,$36,$68,$58,$0E
+            DB      $2C,$3C,$03,$20,$06
+
+; Fragment $40 @ $8FA1: "Worlord"
+SPK_Worlord:
+            DB      $08                 ; encoded SC-01 byte count
+            DB      $2D,$66,$6B,$18,$26,$2B,$1E,$3E
+
+; Fragment $41 @ $8FAA: "Worlord (padded)"
+SPK_Worlord_Padded:
+            DB      $0A                 ; encoded SC-01 byte count
+            DB      $83,$2D,$66,$6B,$18,$26,$2B,$1E
+            DB      $3E,$83
+
+; Fragment $16 @ $8FB5: "Come back for more with"
+SPK_Come_Back_For_More_With:
+            DB      $12                 ; encoded SC-01 byte count
+            DB      $19,$15,$0C,$0E,$2E,$19,$1D,$26
+            DB      $2B,$0C,$26,$35,$2B,$3E,$3E,$2D
+            DB      $27,$39
+
+; Fragment $17 @ $8FC8: "The dungeons of Wor await your return"
+SPK_F17_Dungeons_Await_Return:
+            DB      $27                 ; encoded SC-01 byte count
+            DB      $83,$38,$33,$1E,$73,$4D,$1A,$3B
+            DB      $0D,$1F,$03,$33,$0F,$03,$2D,$26
+            DB      $35,$2B,$2B,$15,$2D,$46,$61,$29
+            DB      $2A,$03,$29,$26,$35,$2B,$2B,$09
+            DB      $3C,$2A,$7A,$2B,$0D,$3E,$83
+
+; Fragment $18 @ $8FF0: "Deep in the caverns of Wor, you will meet me"
+SPK_F18_Deep_Caverns_Meet_Me:
+            DB      $2B                 ; encoded SC-01 byte count
+            DB      $83,$1E,$6C,$3C,$25,$27,$0D,$38
+            DB      $33,$03,$19,$2E,$0F,$3A,$0D,$1F
+            DB      $03,$33,$0F,$2D,$66,$75,$2B,$2B
+            DB      $3E,$3E,$22,$36,$28,$37,$2D,$27
+            DB      $18,$0C,$6C,$7C,$2A,$03,$0C,$2C
+            DB      $3C,$03,$83
+
+; Fragment $19 @ $901C: "thanks you"
+SPK_Thanks_You:
+            DB      $0E                 ; encoded SC-01 byte count
+            DB      $3E,$39,$39,$2F,$00,$14,$19,$1F
+            DB      $03,$29,$36,$28,$37,$3E
+
+; Fragment $29 @ $902B: "You know you can do better"
+SPK_You_Know_You_Can_Do_Better:
+            DB      $18                 ; encoded SC-01 byte count
+            DB      $83,$22,$36,$28,$0D,$75,$75,$35
+            DB      $22,$36,$28,$19,$2F,$00,$0D,$1E
+            DB      $36,$28,$0E,$7B,$2A,$3A,$3E,$83
+
+; Fragment $2A @ $9044: "Hurry back, I can't wait to do it again"
+SPK_F2A_Hurry_Back:
+            DB      $26                 ; encoded SC-01 byte count
+            DB      $1B,$7A,$6B,$29,$0E,$2F,$00,$19
+            DB      $3E,$3E,$15,$00,$09,$29,$19,$2F
+            DB      $00,$0D,$2A,$2D,$46,$61,$29,$2A
+            DB      $2A,$36,$37,$1E,$76,$28,$27,$2A
+            DB      $32,$1C,$45,$42,$0D,$3E
+
+; Fragment $2B @ $906B: "You can start anew, but for now you're through"
+SPK_F2B_Start_Anew_Youre_Through:
+            DB      $27                 ; encoded SC-01 byte count
+            DB      $22,$36,$28,$19,$2F,$00,$0D,$1F
+            DB      $2A,$55,$2B,$2A,$15,$0D,$76,$37
+            DB      $2D,$3E,$BE,$0E,$33,$2A,$1D,$35
+            DB      $2B,$0D,$15,$63,$77,$29,$34,$34
+            DB      $2B,$39,$2B,$77,$37,$3E,$BE
+
+; Fragment $2C @ $9093: "He he he ho ho ho ha ha ha ha, that was fun"
+SPK_F2C_He_Ho_Ha_That_Was_Fun:
+            DB      $22                 ; encoded SC-01 byte count
+            DB      $1B,$6C,$1B,$6C,$1B,$6C,$1B,$26
+            DB      $1B,$26,$1B,$26,$1B,$15,$1B,$15
+            DB      $1B,$15,$1B,$15,$3E,$38,$6E,$00
+            DB      $2A,$03,$03,$2D,$33,$12,$1D,$33
+            DB      $0D,$3E
+
+; Fragment $2D @ $90B6: "Welcome to my world of Wor"
+SPK_Welcome_To_My_World_Of_Wor:
+            DB      $19                 ; encoded SC-01 byte count
+            DB      $2D,$7B,$18,$19,$33,$0C,$3E,$2A
+            DB      $37,$0C,$15,$0B,$29,$2D,$35,$7A
+            DB      $58,$1E,$33,$0F,$2D,$26,$35,$2B
+            DB      $3E
+
+; Fragment $2E @ $90D0: "So you've come to score in the world of Wor"
+SPK_F2E_Come_To_Score:
+            DB      $21                 ; encoded SC-01 byte count
+            DB      $1F,$66,$29,$36,$37,$0F,$19,$73
+            DB      $4C,$2A,$37,$1F,$19,$26,$35,$2B
+            DB      $3E,$0B,$0D,$38,$32,$2D,$35,$7A
+            DB      $18,$1E,$33,$0F,$2D,$66,$35,$2B
+            DB      $3E
+
+; Fragment $2F @ $90F2: "You're off to see the Wizard, the magical Wizard of Wor"
+SPK_F2F_Off_To_See_Wizard:
+            DB      $2C                 ; encoded SC-01 byte count
+            DB      $29,$34,$34,$2B,$3D,$1D,$2A,$36
+            DB      $37,$9F,$3C,$29,$38,$33,$AD,$27
+            DB      $12,$3A,$1E,$3E,$38,$33,$0C,$2F
+            DB      $00,$1E,$1A,$0B,$19,$32,$18,$AD
+            DB      $27,$12,$3A,$1E,$B3,$0F,$2D,$35
+            DB      $34,$2B,$3E,$3E
+
+; Fragment $30 @ $911F: "Burwor hasn't eaten anyone in months"
+SPK_Burwor_Hasnt_Eaten_Anyone_In_Months:
+            DB      $20                 ; encoded SC-01 byte count
+            DB      $83,$0E,$3A,$2B,$2D,$26,$2B,$1B
+            DB      $2E,$1F,$0D,$2A,$2C,$2A,$02,$0D
+            DB      $3B,$0D,$29,$2D,$33,$0D,$03,$0B
+            DB      $0D,$0C,$33,$0D,$39,$1F,$3E,$83
+
+; Fragment $31 @ $9140: "My babies breathe fire"
+SPK_My_Babies_Breathe_Fire:
+            DB      $16                 ; encoded SC-01 byte count
+            DB      $0C,$15,$09,$29,$0E,$60,$0E,$29
+            DB      $22,$1F,$03,$0E,$2B,$3C,$29,$39
+            DB      $1D,$55,$00,$21,$2B,$3E
+
+; Fragment $32 @ $9157: "I'll fry you with my lightning bolts"
+SPK_Ill_Fry_You_With_My_Lightning_Bolts:
+            DB      $26                 ; encoded SC-01 byte count
+            DB      $83,$15,$00,$09,$29,$18,$1D,$2B
+            DB      $15,$40,$40,$69,$22,$09,$37,$2D
+            DB      $0B,$39,$0C,$15,$00,$09,$29,$18
+            DB      $23,$48,$69,$2A,$0D,$27,$14,$0E
+            DB      $26,$18,$2A,$1F,$3E,$83
+
+; Fragment $28 @ $917E: "Garwor and Thorwor become invisible"
+SPK_Garwor_And_Thorwor_Become_Invisible:
+            DB      $22                 ; encoded SC-01 byte count
+            DB      $1C,$15,$2B,$2D,$26,$2B,$2F,$00
+            DB      $0D,$1E,$39,$26,$2B,$2D,$26,$2B
+            DB      $3E,$0E,$29,$19,$33,$0C,$3E,$BE
+            DB      $27,$0D,$0F,$4B,$52,$0B,$0E,$18
+            DB      $3E,$83
+
+; Fragment $33 @ $91A1: "Thorwor is red, mean, and hungry for space food"
+SPK_F33_Thorwor_Red_Hungry:
+            DB      $2C                 ; encoded SC-01 byte count
+            DB      $83,$39,$26,$2B,$2D,$26,$2B,$3E
+            DB      $27,$12,$2B,$3B,$1E,$3E,$0C,$3C
+            DB      $21,$0D,$3E,$2F,$00,$0D,$1E,$1B
+            DB      $73,$54,$1C,$2B,$29,$1D,$26,$2B
+            DB      $1F,$25,$06,$09,$29,$1F,$1D,$37
+            DB      $37,$1E,$3E,$83
+
+; Fragment $34 @ $91CE: "Worrior fear, I draw near, each time I appear"
+SPK_F34_Worrior_Fear:
+            DB      $28                 ; encoded SC-01 byte count
+            DB      $2D,$26,$2B,$29,$3A,$1D,$21,$0A
+            DB      $2B,$3E,$15,$00,$09,$29,$1E,$2B
+            DB      $3D,$0D,$21,$0A,$2B,$3E,$3C,$2A
+            DB      $10,$2A,$15,$09,$22,$0C,$15,$00
+            DB      $09,$29,$32,$25,$61,$49,$2B,$3E
+
+; Fragment $37 @ $91F7: "Worrior (padded)"
+SPK_Worrior_Padded:
+            DB      $07                 ; encoded SC-01 byte count
+            DB      $AD,$26,$2B,$29,$3A,$3E,$83
+
+; Fragment $38 @ $91FF: "You've just been fried by"
+SPK_Youve_Just_Been_Fried_By:
+            DB      $17                 ; encoded SC-01 byte count
+            DB      $29,$36,$37,$0F,$03,$1A,$33,$1F
+            DB      $2A,$0E,$3B,$0D,$1D,$2B,$15,$0B
+            DB      $22,$1E,$3E,$0E,$15,$0A,$22
+
+; Fragment $39 @ $9217: "Bite the bolt"
+SPK_Bite_The_Bolt:
+            DB      $0F                 ; encoded SC-01 byte count
+            DB      $83,$0E,$23,$15,$29,$2A,$38,$33
+            DB      $0E,$35,$35,$18,$2A,$3E,$83
+
+; Fragment $3A @ $9227: "Wasn't that lightning bolt delicious"
+SPK_Wasnt_That_Lightning_Bolt_Delicious:
+            DB      $1D                 ; encoded SC-01 byte count
+            DB      $2D,$33,$1F,$0D,$2A,$38,$2F,$2A
+            DB      $18,$23,$48,$69,$2A,$0D,$27,$14
+            DB      $0E,$26,$18,$2A,$03,$1E,$2C,$18
+            DB      $0B,$11,$32,$1F,$3E
+
+; Fragment $3B @ $9245: "And my teleporting spell can be even faster"
+SPK_F3B_Teleport_Spell_Faster:
+            DB      $2A                 ; encoded SC-01 byte count
+            DB      $83,$2E,$0D,$1E,$03,$0C,$15,$0B
+            DB      $22,$2A,$02,$18,$02,$25,$26,$2B
+            DB      $2A,$0B,$14,$1F,$25,$3B,$18,$03
+            DB      $19,$2F,$0D,$0E,$2C,$03,$03,$3C
+            DB      $0F,$3B,$0D,$1D,$2E,$1F,$2A,$3A
+            DB      $3E,$83
+
+; Fragment $3C @ $9270: "Now you know the taste of my magic"
+; The decoded SC-01 commands at $9286-$9287 are the valid V -> M transition.
+SPK_Now_You_Know_The_Taste_Of_My_Magic:
+            DB      $23                 ; encoded SC-01 byte count
+            DB      $83,$0D,$55,$23,$37,$29,$36,$37
+            DB      $37,$0D,$26,$26,$38,$33,$2A,$20
+            DB      $05,$1F,$2A,$03,$32,$0F,$0C,$15
+            DB      $0A,$22,$0C,$2F,$00,$1E,$1A,$0B
+            DB      $19,$03,$83
+
+; Fragment $3D @ $9294: "Maybe you'll see me again"
+SPK_Maybe_Youll_See_Me_Again:
+            DB      $16                 ; encoded SC-01 byte count
+            DB      $0C,$20,$29,$0E,$2C,$29,$36,$37
+            DB      $18,$1F,$2C,$3C,$0C,$3C,$2C,$03
+            DB      $33,$1C,$06,$01,$0D,$3E
+
+; Fragment $3E @ $92AB: "Your explosion was music to my ears"
+SPK_Your_Explosion_Was_Music_To_My_Ears:
+            DB      $23                 ; encoded SC-01 byte count
+            DB      $22,$34,$34,$2B,$02,$19,$5F,$25
+            DB      $18,$66,$07,$33,$0D,$03,$2D,$32
+            DB      $1F,$0C,$62,$68,$1F,$27,$19,$2A
+            DB      $28,$0C,$15,$09,$22,$03,$3C,$3A
+            DB      $2B,$1F,$3E
+
+; Fragment $3F @ $92CF: "I'll say it again"
+SPK_Ill_Say_It_Again:
+            DB      $10                 ; encoded SC-01 byte count
+            DB      $15,$00,$09,$29,$18,$1F,$20,$22
+            DB      $27,$2A,$33,$1C,$06,$01,$0D,$3E
+
+; Fragment $42 @ $92E0: "Be forewarned! You approach the Pit"
+SPK_Be_Forewarned_You_Approach_The_Pit:
+            DB      $22                 ; encoded SC-01 byte count
+            DB      $83,$0E,$3C,$2C,$1D,$26,$2B,$2D
+            DB      $35,$26,$2B,$0D,$1E,$3E,$29,$36
+            DB      $28,$37,$3E,$32,$25,$2B,$26,$35
+            DB      $2A,$10,$3E,$38,$33,$25,$27,$2A
+            DB      $3E,$83
+
+; Fragment $43 @ $9303: "Your path leads directly to the Pit"
+SPK_Your_Path_Leads_Directly_To_The_Pit:
+            DB      $22                 ; encoded SC-01 byte count
+            DB      $83,$29,$34,$34,$2B,$25,$2E,$39
+            DB      $03,$18,$2C,$1E,$1F,$03,$1E,$3A
+            DB      $02,$19,$2A,$18,$22,$03,$2A,$28
+            DB      $37,$3E,$3E,$38,$33,$25,$27,$2A
+            DB      $3E,$83
+
+; Fragment $44 @ $9326: "Deeper, ever deeper into"
+SPK_Deeper_Ever_Deeper_Into:
+            DB      $16                 ; encoded SC-01 byte count
+            DB      $83,$1E,$3C,$2C,$25,$3A,$3E,$3B
+            DB      $0F,$3A,$1E,$3C,$2C,$25,$3A,$3E
+            DB      $27,$0D,$2A,$28,$3E,$83
+
+; Fragment $45 @ $933D: "Beware! You are in the Worlord dungeons"
+SPK_F45_Worlord_Dungeons:
+            DB      $21                 ; encoded SC-01 byte count
+            DB      $83,$0E,$29,$2D,$3B,$2B,$3E,$29
+            DB      $36,$28,$15,$2B,$27,$0D,$38,$33
+            DB      $2D,$26,$2B,$18,$26,$2B,$1E,$03
+            DB      $1E,$33,$0D,$1A,$02,$0D,$12,$3E
+            DB      $83
+
+; Fragment $46 @ $935F: "Ah! You thought you could hide, but I'm the dungeon master"
+SPK_F46_Dungeon_Master:
+            DB      $2F                 ; encoded SC-01 byte count
+            DB      $83,$24,$15,$3E,$29,$36,$28,$39
+            DB      $3D,$2A,$29,$36,$28,$19,$17,$1E
+            DB      $1B,$15,$0A,$22,$1E,$3E,$0E,$33
+            DB      $2A,$15,$00,$09,$29,$0C,$3E,$3E
+            DB      $38,$33,$1E,$33,$0D,$1A,$02,$0D
+            DB      $0C,$2E,$1F,$2A,$3A,$3E,$83
+
+; Fragment $47 @ $938F: "Thor, Bur, Gar! Dinner's ready"
+SPK_Thor_Bur_Gar_Dinners_Ready:
+            DB      $1B                 ; encoded SC-01 byte count
+            DB      $83,$39,$26,$35,$2B,$03,$0E,$3A
+            DB      $2B,$03,$1C,$24,$2B,$3E,$1E,$67
+            DB      $4D,$3A,$1F,$03,$2B,$7B,$09,$1E
+            DB      $29,$3E,$83
+
+; Fragment $48 @ $93AB: "Hey! Your space boots untied"
+SPK_Hey_Your_Space_Boots_Untied:
+            DB      $1F                 ; encoded SC-01 byte count
+            DB      $1B,$60,$4B,$62,$3E,$3E,$29,$34
+            DB      $34,$2B,$1F,$25,$06,$21,$29,$1F
+            DB      $03,$0E,$28,$37,$2A,$1F,$03,$33
+            DB      $0D,$2A,$15,$0A,$22,$1E,$3E
+
+; Fragment $49 @ $93CB: "My beasts run wild in the Worlord dungeons"
+SPK_F49_Beasts_Wild_Worlord:
+            DB      $2C                 ; encoded SC-01 byte count
+            DB      $83,$0C,$15,$00,$09,$22,$0E,$2C
+            DB      $3C,$1F,$2A,$1F,$03,$2B,$33,$0D
+            DB      $2D,$15,$0A,$22,$18,$1E,$3E,$27
+            DB      $0D,$38,$33,$2D,$26,$2B,$18,$26
+            DB      $2B,$1E,$3E,$1E,$33,$0D,$1A,$02
+            DB      $0D,$12,$3E,$83
+
+; Fragment $4A @ $93F8: "Now your only chance is your dance"
+SPK_Now_Your_Only_Chance_Is_Your_Dance:
+            DB      $1C                 ; encoded SC-01 byte count
+            DB      $0D,$15,$63,$77,$29,$34,$34,$2B
+            DB      $26,$0D,$18,$29,$2A,$10,$2E,$0D
+            DB      $1F,$0B,$1F,$29,$34,$34,$2B,$1E
+            DB      $2E,$0D,$1F,$3E
+
+; Fragment $4B @ $9415: "Are you fit to survive the Pit"
+SPK_Are_You_Fit_To_Survive_The_Pit:
+            DB      $24                 ; encoded SC-01 byte count
+            DB      $83,$24,$2B,$03,$03,$22,$36,$28
+            DB      $03,$83,$1D,$27,$2A,$03,$03,$2A
+            DB      $28,$03,$83,$1F,$3A,$0F,$08,$0A
+            DB      $22,$0F,$03,$03,$38,$33,$03,$83
+            DB      $25,$27,$2A,$3E
+
+; Fragment $4C @ $943A: "Oops! I must have forgotten the walls"
+SPK_Oops_I_Must_Have_Forgotten_The_Walls:
+            DB      $1F                 ; encoded SC-01 byte count
+            DB      $28,$25,$1F,$3E,$3E,$15,$23,$09
+            DB      $29,$0C,$33,$1F,$2A,$1B,$2F,$0F
+            DB      $1D,$26,$2B,$1C,$15,$2A,$02,$0D
+            DB      $38,$33,$2D,$3D,$18,$1F,$3E
+
+; Fragment $4D @ $945A: "Where are you going to hide now"
+SPK_Where_Are_You_Going_To_Hide_Now:
+            DB      $1B                 ; encoded SC-01 byte count
+            DB      $83,$2D,$2F,$3A,$15,$2B,$22,$36
+            DB      $28,$1C,$26,$0B,$14,$2A,$28,$1B
+            DB      $15,$0A,$22,$1E,$03,$0D,$15,$23
+            DB      $28,$3E,$83
+
+;******************************************************************************
+; ENGLISH SPEECH TABLES
+;
+; English_Speech_Fragment_Pointers contains 79 entries ($00-$4E).
+; The records themselves occupy the contiguous ROM range $8B66-$9475.
+;
+; Queue_Speech_Request accepts phrase IDs $00-$4F. Each phrase record begins
+; with a marker byte whose high bit identifies the record and whose low seven
+; bits specify the number of speech fragments that follow. Fragment indexes are
+; resolved through English_Speech_Fragment_Pointers. Each resolved fragment is
+; a length-prefixed SC-01 stream consumed by Service_Speech_Queue.
+;
+; The foreign-language X11 ROM supplies equivalent phrase and fragment-pointer
+; tables through the ABI pointers at $C002 and $C000 respectively.
+; Full resident fragment semantics and all 80 English phrase compositions are
+; documented in docs/SPEECH_MAP.md.
+;******************************************************************************
+English_Speech_Fragment_Pointers:
+            DW      SPK_Kill_Worluk_For_Double_Score                                 ; fragment $00: "Kill Worluk for double score"
+            DW      SPK_F01_If_Too_Powerful          ; fragment $01: "If you get too powerful, I'll take care of you myself"
+            DW      SPK_The_Dungeons_Of_Wor                                          ; fragment $02: "The dungeons of Wor"
+            DW      SPK_I_Am                                                         ; fragment $03: "I am"
+            DW      SPK_The_Wizard_Of_Wor                                            ; fragment $04: "The Wizard of Wor"
+            DW      SPK_F05_One_Bite_Pretties                  ; fragment $05: "One bite from my pretties, and you'll explode"
+            DW      SPK_My_Creatures_Are_Radioactive                                 ; fragment $06: "My creatures are radioactive"
+            DW      SPK_Worluk_Will_Escape_Through_The_Door                          ; fragment $07: "Worluk will escape through the door"
+            DW      SPK_Watch_The_Radar                                              ; fragment $08: "Watch the radar"
+            DW      SPK_Worrior                                                      ; fragment $09: "Worrior"
+            DW      SPK_Hey_Insert_Coin                                              ; fragment $0A: "Hey, insert coin"
+            DW      SPK_Find_Me                                                      ; fragment $0B: "Find me"
+            DW      SPK_Im_Out_Of_Sight                                              ; fragment $0C: "I'm out of sight"
+            DW      SPK_Get_Ready                                                    ; fragment $0D: "Get ready"
+            DW      SPK_Youd_Better_Hope_You_Dont_Find_Me                            ; fragment $0E: "You'd better hope you don't find me"
+            DW      SPK_Another_Coin_For_My_Treasure_Chest                           ; fragment $0F: "Another coin for my treasure chest"
+            DW      SPK_Ha_Ha_Ha_Ha                                                  ; fragment $10: "Ha ha ha ha"
+            DW      SPK_Ah_Good_My_Pets_Were_Getting_Hungry                          ; fragment $11: "Ah good! My pets were getting hungry"
+            DW      SPK_Youll_Get_The_Arena                                          ; fragment $12: "You'll get the Arena"
+            DW      SPK_F13_Worrior_For_Babies                      ; fragment $13: "Another worrior for my babies to devour"
+            DW      SPK_Keep_Going_And_You_Will_Find_Me                              ; fragment $14: "Keep going and you will find me"
+            DW      SPK_A_Few_More_Dungeons_And_Youll_Be_A                           ; fragment $15: "A few more dungeons and you'll be a"
+            DW      SPK_Come_Back_For_More_With                                      ; fragment $16: "Come back for more with"
+            DW      SPK_F17_Dungeons_Await_Return                        ; fragment $17: "The dungeons of Wor await your return"
+            DW      SPK_F18_Deep_Caverns_Meet_Me                  ; fragment $18: "Deep in the caverns of Wor, you will meet me"
+            DW      SPK_Thanks_You                                                   ; fragment $19: "thanks you"
+            DW      SPK_Now_You_Get_The_Heavyweights                                 ; fragment $1A: "Now you get the heavyweights"
+            DW      SPK_Garwor_Go_After_Them                                         ; fragment $1B: "Garwor, go after them"
+            DW      SPK_F1C_Try_Harder_Meet_Doom              ; fragment $1C: "If you try any harder, you'll only meet with doom"
+            DW      SPK_F1D_Bur_Gar_Thor_Do_You_In                     ; fragment $1D: "Burwor, Garwor, and Thorwor will do you in"
+            DW      SPK_My_Worlings_Are_Very_Very_Hungry                             ; fragment $1E: "My worlings are very very hungry"
+            DW      SPK_F1F_Magic_Stronger_Weapons                       ; fragment $1F: "My magic is stronger than your weapons"
+            DW      SPK_F20_Science_Vs_Magic               ; fragment $20: "While you developed science, we developed magic"
+            DW      SPK_F21_Bones_In_Dungeons                   ; fragment $21: "Your bones will lie in the dungeons of Wor"
+            DW      SPK_F22_No_Chance_For_Dance                        ; fragment $22: "You won't have a chance for your dance"
+            DW      SPK_Remember_Im_The_Wizard_Not_You                               ; fragment $23: "Remember, I'm the Wizard, not you"
+            DW      SPK_F24_Cant_Beat_Rest      ; fragment $24: "If you can't beat the rest, then you'll never get the best"
+            DW      SPK_F25_Destroy_My_Babies             ; fragment $25: "If you destroy my babies, I'll pop you in the oven"
+            DW      SPK_Now_Im_Getting_Mad                                           ; fragment $26: "Now I'm getting mad"
+            DW      SPK_Youll_Never_Leave_Wor_Alive                                  ; fragment $27: "You'll never leave Wor alive"
+            DW      SPK_Garwor_And_Thorwor_Become_Invisible                          ; fragment $28: "Garwor and Thorwor become invisible"
+            DW      SPK_You_Know_You_Can_Do_Better                                   ; fragment $29: "You know you can do better"
+            DW      SPK_F2A_Hurry_Back                        ; fragment $2A: "Hurry back, I can't wait to do it again"
+            DW      SPK_F2B_Start_Anew_Youre_Through                 ; fragment $2B: "You can start anew, but for now you're through"
+            DW      SPK_F2C_He_Ho_Ha_That_Was_Fun                   ; fragment $2C: "He he he ho ho ho ha ha ha ha, that was fun"
+            DW      SPK_Welcome_To_My_World_Of_Wor                                   ; fragment $2D: "Welcome to my world of Wor"
+            DW      SPK_F2E_Come_To_Score                   ; fragment $2E: "So you've come to score in the world of Wor"
+            DW      SPK_F2F_Off_To_See_Wizard        ; fragment $2F: "You're off to see the Wizard, the magical Wizard of Wor"
+            DW      SPK_Burwor_Hasnt_Eaten_Anyone_In_Months                          ; fragment $30: "Burwor hasn't eaten anyone in months"
+            DW      SPK_My_Babies_Breathe_Fire                                       ; fragment $31: "My babies breathe fire"
+            DW      SPK_Ill_Fry_You_With_My_Lightning_Bolts                          ; fragment $32: "I'll fry you with my lightning bolts"
+            DW      SPK_F33_Thorwor_Red_Hungry                ; fragment $33: "Thorwor is red, mean, and hungry for space food"
+            DW      SPK_F34_Worrior_Fear                  ; fragment $34: "Worrior fear, I draw near, each time I appear"
+            DW      SPK_Youre_Asking_For_Trouble                                     ; fragment $35: "You're asking for trouble"
+            DW      SPK_Ha_Ha_Ha_Ha_Padded                                           ; fragment $36: "Ha ha ha ha (padded)"
+            DW      SPK_Worrior_Padded                                               ; fragment $37: "Worrior (padded)"
+            DW      SPK_Youve_Just_Been_Fried_By                                     ; fragment $38: "You've just been fried by"
+            DW      SPK_Bite_The_Bolt                                                ; fragment $39: "Bite the bolt"
+            DW      SPK_Wasnt_That_Lightning_Bolt_Delicious                          ; fragment $3A: "Wasn't that lightning bolt delicious"
+            DW      SPK_F3B_Teleport_Spell_Faster                  ; fragment $3B: "And my teleporting spell can be even faster"
+            DW      SPK_Now_You_Know_The_Taste_Of_My_Magic                           ; fragment $3C: "Now you know the taste of my magic"
+            DW      SPK_Maybe_Youll_See_Me_Again                                     ; fragment $3D: "Maybe you'll see me again"
+            DW      SPK_Your_Explosion_Was_Music_To_My_Ears                          ; fragment $3E: "Your explosion was music to my ears"
+            DW      SPK_Ill_Say_It_Again                                             ; fragment $3F: "I'll say it again"
+            DW      SPK_Worlord                                                      ; fragment $40: "Worlord"
+            DW      SPK_Worlord_Padded                                               ; fragment $41: "Worlord (padded)"
+            DW      SPK_Be_Forewarned_You_Approach_The_Pit                           ; fragment $42: "Be forewarned! You approach the Pit"
+            DW      SPK_Your_Path_Leads_Directly_To_The_Pit                          ; fragment $43: "Your path leads directly to the Pit"
+            DW      SPK_Deeper_Ever_Deeper_Into                                      ; fragment $44: "Deeper, ever deeper into"
+            DW      SPK_F45_Worlord_Dungeons                       ; fragment $45: "Beware! You are in the Worlord dungeons"
+            DW      SPK_F46_Dungeon_Master      ; fragment $46: "Ah! You thought you could hide, but I'm the dungeon master"
+            DW      SPK_Thor_Bur_Gar_Dinners_Ready                                   ; fragment $47: "Thor, Bur, Gar! Dinner's ready"
+            DW      SPK_Hey_Your_Space_Boots_Untied                                  ; fragment $48: "Hey! Your space boots untied"
+            DW      SPK_F49_Beasts_Wild_Worlord                   ; fragment $49: "My beasts run wild in the Worlord dungeons"
+            DW      SPK_Now_Your_Only_Chance_Is_Your_Dance                           ; fragment $4A: "Now your only chance is your dance"
+            DW      SPK_Are_You_Fit_To_Survive_The_Pit                               ; fragment $4B: "Are you fit to survive the Pit"
+            DW      SPK_Oops_I_Must_Have_Forgotten_The_Walls                         ; fragment $4C: "Oops! I must have forgotten the walls"
+            DW      SPK_Where_Are_You_Going_To_Hide_Now                              ; fragment $4D: "Where are you going to hide now"
+            DW      SPK_Youre_In                                                     ; fragment $4E: "You're in"
+
+; 80 language-independent phrase IDs ($00-$4F). The fragment composition is
+; intentionally numeric here because fragment IDs are the on-ROM ABI.
+English_Speech_Phrase_Table:
+            DB      $81,$0A              ; phrase $00: 1 fragment ($0A)
+            DB      $82,$0B,$04          ; phrase $01: 2 fragments ($0B $04)
+            DB      $81,$0A              ; phrase $02: 1 fragment ($0A)
+            DB      $82,$0C,$10          ; phrase $03: 2 fragments ($0C $10)
+            DB      $81,$0A              ; phrase $04: 1 fragment ($0A)
+            DB      $82,$0B,$04          ; phrase $05: 2 fragments ($0B $04)
+            DB      $81,$0A              ; phrase $06: 1 fragment ($0A)
+            DB      $82,$0C,$10          ; phrase $07: 2 fragments ($0C $10)
+            DB      $82,$0D,$09          ; phrase $08: 2 fragments ($0D $09)
+            DB      $82,$0E,$04          ; phrase $09: 2 fragments ($0E $04)
+            DB      $81,$0F              ; phrase $0A: 1 fragment ($0F)
+            DB      $82,$11,$10          ; phrase $0B: 2 fragments ($11 $10)
+            DB      $82,$1E,$36          ; phrase $0C: 2 fragments ($1E $36)
+            DB      $81,$2D              ; phrase $0D: 1 fragment ($2D)
+            DB      $82,$2E,$10          ; phrase $0E: 2 fragments ($2E $10)
+            DB      $82,$2F,$10          ; phrase $0F: 2 fragments ($2F $10)
+            DB      $81,$00              ; phrase $10: 1 fragment ($00)
+            DB      $82,$4E,$02          ; phrase $11: 2 fragments ($4E $02)
+            DB      $82,$03,$04          ; phrase $12: 2 fragments ($03 $04)
+            DB      $82,$05,$10          ; phrase $13: 2 fragments ($05 $10)
+            DB      $81,$06              ; phrase $14: 1 fragment ($06)
+            DB      $81,$07              ; phrase $15: 1 fragment ($07)
+            DB      $82,$08,$37          ; phrase $16: 2 fragments ($08 $37)
+            DB      $82,$33,$36          ; phrase $17: 2 fragments ($33 $36)
+            DB      $81,$23              ; phrase $18: 1 fragment ($23)
+            DB      $82,$24,$36          ; phrase $19: 2 fragments ($24 $36)
+            DB      $82,$27,$36          ; phrase $1A: 2 fragments ($27 $36)
+            DB      $82,$25,$36          ; phrase $1B: 2 fragments ($25 $36)
+            DB      $82,$30,$36          ; phrase $1C: 2 fragments ($30 $36)
+            DB      $82,$31,$09          ; phrase $1D: 2 fragments ($31 $09)
+            DB      $81,$32              ; phrase $1E: 1 fragment ($32)
+            DB      $81,$1D              ; phrase $1F: 1 fragment ($1D)
+            DB      $82,$12,$36          ; phrase $20: 2 fragments ($12 $36)
+            DB      $81,$13              ; phrase $21: 1 fragment ($13)
+            DB      $81,$14              ; phrase $22: 1 fragment ($14)
+            DB      $82,$15,$40          ; phrase $23: 2 fragments ($15 $40)
+            DB      $82,$37,$26          ; phrase $24: 2 fragments ($37 $26)
+            DB      $82,$34,$10          ; phrase $25: 2 fragments ($34 $10)
+            DB      $83,$09,$22,$10      ; phrase $26: 3 fragments ($09 $22 $10)
+            DB      $82,$35,$37          ; phrase $27: 2 fragments ($35 $37)
+            DB      $82,$1A,$36          ; phrase $28: 2 fragments ($1A $36)
+            DB      $81,$1B              ; phrase $29: 1 fragment ($1B)
+            DB      $82,$1C,$36          ; phrase $2A: 2 fragments ($1C $36)
+            DB      $82,$01,$36          ; phrase $2B: 2 fragments ($01 $36)
+            DB      $82,$1F,$09          ; phrase $2C: 2 fragments ($1F $09)
+            DB      $82,$09,$20          ; phrase $2D: 2 fragments ($09 $20)
+            DB      $82,$21,$36          ; phrase $2E: 2 fragments ($21 $36)
+            DB      $82,$28,$36          ; phrase $2F: 2 fragments ($28 $36)
+            DB      $83,$16,$04,$10      ; phrase $30: 3 fragments ($16 $04 $10)
+            DB      $82,$17,$37          ; phrase $31: 2 fragments ($17 $37)
+            DB      $82,$18,$37          ; phrase $32: 2 fragments ($18 $37)
+            DB      $82,$04,$19          ; phrase $33: 2 fragments ($04 $19)
+            DB      $82,$29,$37          ; phrase $34: 2 fragments ($29 $37)
+            DB      $81,$2A              ; phrase $35: 1 fragment ($2A)
+            DB      $82,$2B,$36          ; phrase $36: 2 fragments ($2B $36)
+            DB      $81,$2C              ; phrase $37: 1 fragment ($2C)
+            DB      $83,$38,$04,$10      ; phrase $38: 3 fragments ($38 $04 $10)
+            DB      $83,$39,$37,$36      ; phrase $39: 3 fragments ($39 $37 $36)
+            DB      $82,$3A,$10          ; phrase $3A: 2 fragments ($3A $10)
+            DB      $82,$3B,$36          ; phrase $3B: 2 fragments ($3B $36)
+            DB      $82,$3C,$37          ; phrase $3C: 2 fragments ($3C $37)
+            DB      $82,$09,$3D          ; phrase $3D: 2 fragments ($09 $3D)
+            DB      $82,$3E,$10          ; phrase $3E: 2 fragments ($3E $10)
+            DB      $83,$3F,$34,$10      ; phrase $3F: 3 fragments ($3F $34 $10)
+            DB      $83,$41,$42,$36      ; phrase $40: 3 fragments ($41 $42 $36)
+            DB      $83,$41,$43,$36      ; phrase $41: 3 fragments ($41 $43 $36)
+            DB      $83,$44,$02,$36      ; phrase $42: 3 fragments ($44 $02 $36)
+            DB      $81,$45              ; phrase $43: 1 fragment ($45)
+            DB      $82,$46,$36          ; phrase $44: 2 fragments ($46 $36)
+            DB      $82,$47,$36          ; phrase $45: 2 fragments ($47 $36)
+            DB      $82,$48,$10          ; phrase $46: 2 fragments ($48 $10)
+            DB      $82,$49,$36          ; phrase $47: 2 fragments ($49 $36)
+            DB      $82,$4A,$10          ; phrase $48: 2 fragments ($4A $10)
+            DB      $82,$4B,$10          ; phrase $49: 2 fragments ($4B $10)
+            DB      $82,$4C,$10          ; phrase $4A: 2 fragments ($4C $10)
+            DB      $82,$4D,$36          ; phrase $4B: 2 fragments ($4D $36)
+            DB      $82,$4A,$10          ; phrase $4C: 2 fragments ($4A $10)
+            DB      $82,$4B,$36          ; phrase $4D: 2 fragments ($4B $36)
+            DB      $82,$4C,$10          ; phrase $4E: 2 fragments ($4C $10)
+            DB      $82,$4D,$36          ; phrase $4F: 2 fragments ($4D $36)
+English_Speech_Phrase_Table_Padding:
+            DB      $00                 ; alignment/padding byte before sprite data
+            DB      $ff,$ff,$ff,$ff,$ff
+;*******************************************************************************
+; GARWOR_1
+; 5 bytes/row = 20 pixels wide, 18 rows
+;*******************************************************************************
+GARWOR_1:
+        DB       $00,$00,$00,$03,$C0 ; . . . . . . . . . . . . . . . 3 3 . . .
+        DB       $00,$02,$AA,$00,$FC ; . . . . . . . 2 2 2 2 2 . . . . 3 3 3 .
+        DB       $00,$0A,$AA,$80,$3C ; . . . . . . 2 2 2 2 2 2 2 . . . . 3 3 .
+        DB       $00,$AA,$0A,$A0,$08 ; . . . . 2 2 2 2 . . 2 2 2 2 . . . . 2 .
+        DB       $0A,$AA,$4A,$A8,$08 ; . . 2 2 2 2 2 2 1 . 2 2 2 2 2 . . . 2 .
+        DB       $0A,$AA,$AA,$AA,$08 ; . . 2 2 2 2 2 2 2 2 2 2 2 2 2 2 . . 2 .
+        DB       $00,$BB,$AA,$AA,$08 ; . . . . 2 3 2 3 2 2 2 2 2 2 2 2 . . 2 .
+        DB       $0F,$FF,$AA,$AA,$88 ; . . 3 3 3 3 3 3 2 2 2 2 2 2 2 2 2 . 2 .
+        DB       $32,$EE,$8A,$AA,$88 ; . 3 . 2 3 2 3 2 2 . 2 2 2 2 2 2 2 . 2 .
+        DB       $00,$AA,$2A,$AA,$88 ; . . . . 2 2 2 2 . 2 2 2 2 2 2 2 2 . 2 .
+        DB       $00,$00,$2A,$AA,$A8 ; . . . . . . . . . 2 2 2 2 2 2 2 2 2 2 .
+        DB       $00,$00,$AA,$AA,$A8 ; . . . . . . . . 2 2 2 2 2 2 2 2 2 2 2 .
+        DB       $00,$0A,$AA,$AA,$A0 ; . . . . . . 2 2 2 2 2 2 2 2 2 2 2 2 . .
+        DB       $00,$20,$2A,$AA,$80 ; . . . . . 2 . . . 2 2 2 2 2 2 2 2 . . .
+        DB       $00,$00,$0A,$A8,$00 ; . . . . . . . . . . 2 2 2 2 2 . . . . .
+        DB       $00,$00,$0A,$82,$00 ; . . . . . . . . . . 2 2 2 . . 2 . . . .
+        DB       $00,$00,$0A,$02,$00 ; . . . . . . . . . . 2 2 . . . 2 . . . .
+        DB       $00,$00,$A8,$0A,$00 ; . . . . . . . . 2 2 2 . . . 2 2 . . . .
+
+;*******************************************************************************
+; GARWOR_2
+; 5 bytes/row = 20 pixels wide, 18 rows
+;*******************************************************************************
+GARWOR_2:
+        DB       $00,$0A,$A8,$00,$3C ; . . . . . . 2 2 2 2 2 . . . . . . 3 3 .
+        DB       $00,$2A,$A8,$03,$F0 ; . . . . . 2 2 2 2 2 2 . . . . 3 3 3 . .
+        DB       $02,$A8,$2A,$03,$C0 ; . . . 2 2 2 2 . . 2 2 2 . . . 3 3 . . .
+        DB       $2A,$A9,$2A,$82,$00 ; . 2 2 2 2 2 2 1 . 2 2 2 2 . . 2 . . . .
+        DB       $2A,$AA,$AA,$82,$00 ; . 2 2 2 2 2 2 2 2 2 2 2 2 . . 2 . . . .
+        DB       $02,$EE,$EA,$A2,$A8 ; . . . 2 3 2 3 2 3 2 2 2 2 2 . 2 2 2 2 .
+        DB       $03,$FF,$EA,$A0,$08 ; . . . 3 3 3 3 3 3 2 2 2 2 2 . . . . 2 .
+        DB       $0B,$BB,$AA,$A8,$08 ; . . 2 3 2 3 2 3 2 2 2 2 2 2 2 . . . 2 .
+        DB       $02,$AA,$AA,$AA,$28 ; . . . 2 2 2 2 2 2 2 2 2 2 2 2 2 . 2 2 .
+        DB       $00,$02,$AA,$AA,$20 ; . . . . . . . 2 2 2 2 2 2 2 2 2 . 2 . .
+        DB       $00,$02,$AA,$AA,$A0 ; . . . . . . . 2 2 2 2 2 2 2 2 2 2 2 . .
+        DB       $00,$02,$AA,$AA,$A0 ; . . . . . . . 2 2 2 2 2 2 2 2 2 2 2 . .
+        DB       $00,$08,$AA,$AA,$80 ; . . . . . . 2 . 2 2 2 2 2 2 2 2 2 . . .
+        DB       $00,$20,$AA,$AA,$00 ; . . . . . 2 . . 2 2 2 2 2 2 2 2 . . . .
+        DB       $00,$00,$2A,$A0,$00 ; . . . . . . . . . 2 2 2 2 2 . . . . . .
+        DB       $00,$00,$0A,$0A,$80 ; . . . . . . . . . . 2 2 . . 2 2 2 . . .
+        DB       $00,$00,$02,$00,$80 ; . . . . . . . . . . . 2 . . . . 2 . . .
+        DB       $00,$00,$2A,$00,$00 ; . . . . . . . . . 2 2 2 . . . . . . . .
+
+;*******************************************************************************
+; GARWOR_3
+; 5 bytes/row = 20 pixels wide, 18 rows
+;*******************************************************************************
+GARWOR_3:
+        DB       $00,$02,$AA,$00,$FC ; . . . . . . . 2 2 2 2 2 . . . . 3 3 3 .
+        DB       $00,$0A,$AA,$03,$F0 ; . . . . . . 2 2 2 2 2 2 . . . 3 3 3 . .
+        DB       $00,$AA,$0A,$83,$F0 ; . . . . 2 2 2 2 . . 2 2 2 . . 3 3 3 . .
+        DB       $0A,$AA,$4A,$A0,$80 ; . . 2 2 2 2 2 2 1 . 2 2 2 2 . . 2 . . .
+        DB       $0A,$AA,$AA,$A0,$A8 ; . . 2 2 2 2 2 2 2 2 2 2 2 2 . . 2 2 2 .
+        DB       $00,$BB,$BA,$A8,$08 ; . . . . 2 3 2 3 2 3 2 2 2 2 2 . . . 2 .
+        DB       $0F,$FF,$FA,$A8,$08 ; . . 3 3 3 3 3 3 3 3 2 2 2 2 2 . . . 2 .
+        DB       $32,$EE,$EA,$AA,$08 ; . 3 . 2 3 2 3 2 3 2 2 2 2 2 2 2 . . 2 .
+        DB       $00,$AA,$AA,$AA,$08 ; . . . . 2 2 2 2 2 2 2 2 2 2 2 2 . . 2 .
+        DB       $00,$00,$AA,$AA,$88 ; . . . . . . . . 2 2 2 2 2 2 2 2 2 . 2 .
+        DB       $00,$00,$AA,$AA,$A8 ; . . . . . . . . 2 2 2 2 2 2 2 2 2 2 2 .
+        DB       $00,$02,$AA,$AA,$A8 ; . . . . . . . 2 2 2 2 2 2 2 2 2 2 2 2 .
+        DB       $00,$00,$2A,$AA,$A0 ; . . . . . . . . . 2 2 2 2 2 2 2 2 2 . .
+        DB       $00,$00,$0A,$AA,$80 ; . . . . . . . . . . 2 2 2 2 2 2 2 . . .
+        DB       $00,$00,$2A,$A8,$00 ; . . . . . . . . . 2 2 2 2 2 2 . . . . .
+        DB       $00,$00,$A0,$A0,$00 ; . . . . . . . . 2 2 . . 2 2 . . . . . .
+        DB       $00,$00,$28,$20,$00 ; . . . . . . . . . 2 2 . . 2 . . . . . .
+        DB       $00,$00,$08,$A0,$00 ; . . . . . . . . . . 2 . 2 2 . . . . . .
+
+;*******************************************************************************
+; GARWOR_1_UP
+; 5 bytes/row = 20 pixels wide, 18 rows
+;*******************************************************************************
+GARWOR_1_UP:
+        DB       $00,$00,$0C,$00,$00 ; . . . . . . . . . . 3 . . . . . . . . .
+        DB       $00,$00,$03,$28,$00 ; . . . . . . . . . . . 3 . 2 2 . . . . .
+        DB       $00,$00,$0B,$28,$00 ; . . . . . . . . . . 2 3 . 2 2 . . . . .
+        DB       $00,$00,$2F,$AA,$00 ; . . . . . . . . . 2 3 3 2 2 2 2 . . . .
+        DB       $00,$20,$2B,$EA,$00 ; . . . . . 2 . . . 2 2 3 3 2 2 2 . . . .
+        DB       $00,$08,$2F,$AA,$80 ; . . . . . . 2 . . 2 3 3 2 2 2 2 2 . . .
+        DB       $00,$08,$2B,$EA,$A0 ; . . . . . . 2 . . 2 2 3 3 2 2 2 2 2 . .
+        DB       $20,$0A,$0A,$A4,$A0 ; . 2 . . . . 2 2 . . 2 2 2 2 1 . 2 2 . .
+        DB       $20,$2A,$A2,$A0,$A0 ; . 2 . . . 2 2 2 2 2 . 2 2 2 . . 2 2 . .
+        DB       $2A,$AA,$AA,$AA,$A0 ; . 2 2 2 2 2 2 2 2 2 2 2 2 2 2 2 2 2 . .
+        DB       $0A,$AA,$AA,$AA,$A0 ; . . 2 2 2 2 2 2 2 2 2 2 2 2 2 2 2 2 . .
+        DB       $02,$AA,$AA,$AA,$80 ; . . . 2 2 2 2 2 2 2 2 2 2 2 2 2 2 . . .
+        DB       $00,$AA,$AA,$AA,$00 ; . . . . 2 2 2 2 2 2 2 2 2 2 2 2 . . . .
+        DB       $20,$AA,$AA,$A8,$00 ; . 2 . . 2 2 2 2 2 2 2 2 2 2 2 . . . . .
+        DB       $2A,$2A,$AA,$A0,$0C ; . 2 2 2 . 2 2 2 2 2 2 2 2 2 . . . . 3 .
+        DB       $00,$2A,$AA,$00,$3C ; . . . . . 2 2 2 2 2 2 2 . . . . . 3 3 .
+        DB       $00,$0A,$80,$00,$F0 ; . . . . . . 2 2 2 . . . . . . . 3 3 . .
+        DB       $00,$02,$AA,$AA,$F0 ; . . . . . . . 2 2 2 2 2 2 2 2 2 3 3 . .
+
+;*******************************************************************************
+; GARWOR_2_UP
+; 5 bytes/row = 20 pixels wide, 18 rows
+;*******************************************************************************
+GARWOR_2_UP:
+        DB       $00,$00,$00,$0A,$00 ; . . . . . . . . . . . . . . 2 2 . . . .
+        DB       $00,$00,$02,$0A,$00 ; . . . . . . . . . . . 2 . . 2 2 . . . .
+        DB       $00,$00,$0B,$EA,$80 ; . . . . . . . . . . 2 3 3 2 2 2 2 . . .
+        DB       $00,$00,$0A,$FA,$80 ; . . . . . . . . . . 2 2 3 3 2 2 2 . . .
+        DB       $00,$20,$0B,$EA,$A0 ; . . . . . 2 . . . . 2 3 3 2 2 2 2 2 . .
+        DB       $00,$08,$0A,$FA,$A8 ; . . . . . . 2 . . . 2 2 3 3 2 2 2 2 2 .
+        DB       $00,$02,$AB,$E9,$28 ; . . . . . . . 2 2 2 2 3 3 2 2 1 . 2 2 .
+        DB       $00,$2A,$AA,$F8,$28 ; . . . . . 2 2 2 2 2 2 2 3 3 2 . . 2 2 .
+        DB       $20,$AA,$AA,$AA,$A8 ; . 2 . . 2 2 2 2 2 2 2 2 2 2 2 2 2 2 2 .
+        DB       $22,$AA,$AA,$AA,$A8 ; . 2 . 2 2 2 2 2 2 2 2 2 2 2 2 2 2 2 2 .
+        DB       $2A,$AA,$AA,$AA,$80 ; . 2 2 2 2 2 2 2 2 2 2 2 2 2 2 2 2 . . .
+        DB       $00,$AA,$AA,$AA,$00 ; . . . . 2 2 2 2 2 2 2 2 2 2 2 2 . . . .
+        DB       $00,$AA,$AA,$A0,$00 ; . . . . 2 2 2 2 2 2 2 2 2 2 . . . . . .
+        DB       $02,$2A,$AA,$00,$00 ; . . . 2 . 2 2 2 2 2 2 2 . . . . . . . .
+        DB       $02,$2A,$A8,$2A,$F0 ; . . . 2 . 2 2 2 2 2 2 . . 2 2 2 3 3 . .
+        DB       $0A,$0A,$80,$20,$F0 ; . . 2 2 . . 2 2 2 . . . . 2 . . 3 3 . .
+        DB       $00,$02,$A8,$20,$3C ; . . . . . . . 2 2 2 2 . . 2 . . . 3 3 .
+        DB       $00,$00,$0A,$A0,$0C ; . . . . . . . . . . 2 2 2 2 . . . . 3 .
+
+
+; ----> Block of 62 $ff
+
+            DB      $ff,$ff,$ff,$ff,$ff,$ff,$ff,$ff,$ff,$ff
+            DB      $ff,$ff,$ff,$ff,$ff,$ff,$ff,$ff,$ff,$ff
+            DB      $ff,$ff,$ff,$ff,$ff,$ff,$ff,$ff,$ff,$ff
+            DB      $ff,$ff,$ff,$ff,$ff,$ff,$ff,$ff,$ff,$ff
+            DB      $ff,$ff,$ff,$ff,$ff,$ff,$ff,$ff,$ff,$ff
+            DB      $ff,$ff,$ff,$ff,$ff,$ff,$ff,$ff,$ff,$ff
+            DB      $ff,$ff
+;*******************************************************************************
+; WORRIOR_BLUE_FIRE_1_UP
+; 5 bytes/row = 20 pixels wide, 18 rows
+;*******************************************************************************
+WORRIOR_BLUE_FIRE_1_UP:
+        DB       $00,$00,$0E,$30,$00 ; . . . . . . . . . . 3 2 . 3 . . . . . .
+        DB       $00,$00,$0A,$B0,$00 ; . . . . . . . . . . 2 2 2 3 . . . . . .
+        DB       $00,$00,$0A,$88,$00 ; . . . . . . . . . . 2 2 2 . 2 . . . . .
+        DB       $00,$00,$02,$00,$00 ; . . . . . . . . . . . 2 . . . . . . . .
+        DB       $00,$10,$03,$00,$00 ; . . . . . 1 . . . . . 3 . . . . . . . .
+        DB       $01,$40,$05,$40,$00 ; . . . 1 1 . . . . . 1 1 1 . . . . . . .
+        DB       $05,$00,$03,$00,$00 ; . . 1 1 . . . . . . . 3 . . . . . . . .
+        DB       $05,$40,$05,$40,$00 ; . . 1 1 1 . . . . . 1 1 1 . . . . . . .
+        DB       $05,$50,$03,$00,$00 ; . . 1 1 1 1 . . . . . 3 . . . . . . . .
+        DB       $00,$54,$03,$00,$00 ; . . . . 1 1 1 . . . . 3 . . . . . . . .
+        DB       $00,$15,$0F,$01,$00 ; . . . . . 1 1 1 . . 3 3 . . . 1 . . . .
+        DB       $00,$05,$5F,$41,$30 ; . . . . . . 1 1 1 1 3 3 1 . . 1 . 3 . .
+        DB       $10,$55,$5F,$55,$04 ; . 1 . . 1 1 1 1 1 1 3 3 1 1 1 1 . . 1 .
+        DB       $11,$55,$5F,$75,$54 ; . 1 . 1 1 1 1 1 1 1 3 3 1 3 1 1 1 1 1 .
+        DB       $15,$55,$5F,$F5,$54 ; . 1 1 1 1 1 1 1 1 1 3 3 3 3 1 1 1 1 1 .
+        DB       $15,$05,$57,$D0,$50 ; . 1 1 1 . . 1 1 1 1 1 3 3 1 . . 1 1 . .
+        DB       $00,$00,$55,$54,$00 ; . . . . . . . . 1 1 1 1 1 1 1 . . . . .
+        DB       $00,$00,$55,$54,$30 ; . . . . . . . . 1 1 1 1 1 1 1 . . 3 . .
+
+;*******************************************************************************
+; WORRIOR_BLUE_FIRE_2_UP
+; 5 bytes/row = 20 pixels wide, 18 rows
+;*******************************************************************************
+WORRIOR_BLUE_FIRE_2_UP:
+        DB       $00,$00,$00,$0C,$CC ; . . . . . . . . . . . . . . 3 . 3 . 3 .
+        DB       $00,$00,$0C,$02,$B0 ; . . . . . . . . . . 3 . . . . 2 2 3 . .
+        DB       $00,$00,$00,$02,$AC ; . . . . . . . . . . . . . . . 2 2 2 3 .
+        DB       $00,$01,$00,$82,$A0 ; . . . . . . . 1 . . . . 2 . . 2 2 2 . .
+        DB       $00,$14,$00,$02,$80 ; . . . . . 1 1 . . . . . . . . 2 2 . . .
+        DB       $00,$50,$00,$1C,$00 ; . . . . 1 1 . . . . . . . 1 3 . . . . .
+        DB       $00,$50,$00,$74,$00 ; . . . . 1 1 . . . . . . 1 3 1 . . . . .
+        DB       $00,$14,$00,$D0,$00 ; . . . . . 1 1 . . . . . 3 1 . . . . . .
+        DB       $00,$15,$03,$C0,$00 ; . . . . . 1 1 1 . . . 3 3 . . . . . . .
+        DB       $00,$05,$0F,$00,$00 ; . . . . . . 1 1 . . 3 3 . . . . . . . .
+        DB       $10,$05,$0F,$00,$00 ; . 1 . . . . 1 1 . . 3 3 . . . . . . . .
+        DB       $10,$05,$7C,$01,$00 ; . 1 . . . . 1 1 1 3 3 . . . . 1 . . . .
+        DB       $10,$05,$7D,$01,$30 ; . 1 . . . . 1 1 1 3 3 1 . . . 1 . 3 . .
+        DB       $15,$05,$7D,$45,$04 ; . 1 1 1 . . 1 1 1 3 3 1 1 . 1 1 . . 1 .
+        DB       $15,$55,$7F,$55,$54 ; . 1 1 1 1 1 1 1 1 3 3 3 1 1 1 1 1 1 1 .
+        DB       $05,$55,$5F,$D5,$54 ; . . 1 1 1 1 1 1 1 1 3 3 3 1 1 1 1 1 1 .
+        DB       $00,$55,$57,$54,$50 ; . . . . 1 1 1 1 1 1 1 3 1 1 1 . 1 1 . .
+        DB       $00,$00,$55,$50,$30 ; . . . . . . . . 1 1 1 1 1 1 . . . 3 . .
+
+;*******************************************************************************
+; WORRIOR_BLUE_FIRE_3_UP
+; 5 bytes/row = 20 pixels wide, 18 rows
+;*******************************************************************************
+WORRIOR_BLUE_FIRE_3_UP:
+        DB       $00,$00,$00,$30,$80 ; . . . . . . . . . . . . . 3 . . 2 . . .
+        DB       $00,$00,$00,$C8,$0C ; . . . . . . . . . . . . 3 . 2 . . . 3 .
+        DB       $00,$00,$00,$2A,$C0 ; . . . . . . . . . . . . . 2 2 2 3 . . .
+        DB       $00,$00,$00,$2A,$00 ; . . . . . . . . . . . . . 2 2 2 . . . .
+        DB       $00,$04,$00,$28,$00 ; . . . . . . 1 . . . . . . 2 2 . . . . .
+        DB       $00,$50,$01,$C0,$08 ; . . . . 1 1 . . . . . 1 3 . . . . . 2 .
+        DB       $01,$40,$03,$43,$00 ; . . . 1 1 . . . . . . 3 1 . . 3 . . . .
+        DB       $01,$50,$0F,$C0,$00 ; . . . 1 1 1 . . . . 3 3 3 . . . . . . .
+        DB       $00,$54,$0F,$00,$00 ; . . . . 1 1 1 . . . 3 3 . . . . . . . .
+        DB       $00,$15,$0F,$00,$00 ; . . . . . 1 1 1 . . 3 3 . . . . . . . .
+        DB       $10,$05,$3F,$00,$00 ; . 1 . . . . 1 1 . 3 3 3 . . . . . . . .
+        DB       $10,$05,$7C,$01,$00 ; . 1 . . . . 1 1 1 3 3 . . . . 1 . . . .
+        DB       $10,$05,$7D,$41,$30 ; . 1 . . . . 1 1 1 3 3 1 1 . . 1 . 3 . .
+        DB       $15,$55,$7D,$55,$04 ; . 1 1 1 1 1 1 1 1 3 3 1 1 1 1 1 . . 1 .
+        DB       $15,$55,$7F,$55,$54 ; . 1 1 1 1 1 1 1 1 3 3 3 1 1 1 1 1 1 1 .
+        DB       $00,$55,$5F,$D5,$54 ; . . . . 1 1 1 1 1 1 3 3 3 1 1 1 1 1 1 .
+        DB       $00,$00,$57,$50,$50 ; . . . . . . . . 1 1 1 3 1 1 . . 1 1 . .
+        DB       $00,$00,$55,$54,$30 ; . . . . . . . . 1 1 1 1 1 1 1 . . 3 . .
+
+;*******************************************************************************
+; WORRIOR_BLUE_FIRE_4_UP
+; 5 bytes/row = 20 pixels wide, 18 rows
+;*******************************************************************************
+WORRIOR_BLUE_FIRE_4_UP:
+        DB       $00,$00,$0E,$30,$00 ; . . . . . . . . . . 3 2 . 3 . . . . . .
+        DB       $00,$00,$0A,$B0,$00 ; . . . . . . . . . . 2 2 2 3 . . . . . .
+        DB       $00,$00,$0A,$88,$20 ; . . . . . . . . . . 2 2 2 . 2 . . 2 . .
+        DB       $00,$00,$02,$00,$00 ; . . . . . . . . . . . 2 . . . . . . . .
+        DB       $00,$00,$03,$00,$C0 ; . . . . . . . . . . . 3 . . . . 3 . . .
+        DB       $00,$40,$05,$40,$00 ; . . . . 1 . . . . . 1 1 1 . . . . . . .
+        DB       $01,$40,$03,$00,$00 ; . . . 1 1 . . . . . . 3 . . . . . . . .
+        DB       $05,$00,$05,$40,$00 ; . . 1 1 . . . . . . 1 1 1 . . . . . . .
+        DB       $05,$50,$03,$00,$00 ; . . 1 1 1 1 . . . . . 3 . . . . . . . .
+        DB       $00,$55,$03,$00,$00 ; . . . . 1 1 1 1 . . . 3 . . . . . . . .
+        DB       $00,$15,$0F,$01,$00 ; . . . . . 1 1 1 . . 3 3 . . . 1 . . . .
+        DB       $00,$05,$5F,$41,$30 ; . . . . . . 1 1 1 1 3 3 1 . . 1 . 3 . .
+        DB       $10,$05,$5F,$55,$04 ; . 1 . . . . 1 1 1 1 3 3 1 1 1 1 . . 1 .
+        DB       $10,$55,$5F,$75,$54 ; . 1 . . 1 1 1 1 1 1 3 3 1 3 1 1 1 1 1 .
+        DB       $15,$55,$5F,$F5,$54 ; . 1 1 1 1 1 1 1 1 1 3 3 3 3 1 1 1 1 1 .
+        DB       $15,$55,$57,$D0,$50 ; . 1 1 1 1 1 1 1 1 1 1 3 3 1 . . 1 1 . .
+        DB       $00,$00,$55,$54,$00 ; . . . . . . . . 1 1 1 1 1 1 1 . . . . .
+        DB       $00,$00,$55,$54,$30 ; . . . . . . . . 1 1 1 1 1 1 1 . . 3 . .
+
+;*******************************************************************************
+; WORRIOR_BLUE_FIRE_1
+; 5 bytes/row = 20 pixels wide, 18 rows
+;*******************************************************************************
+WORRIOR_BLUE_FIRE_1:
+        DB       $00,$00,$00,$15,$00 ; . . . . . . . . . . . . . 1 1 1 . . . .
+        DB       $00,$00,$00,$C5,$4C ; . . . . . . . . . . . . 3 . 1 1 1 . 3 .
+        DB       $00,$00,$00,$05,$40 ; . . . . . . . . . . . . . . 1 1 1 . . .
+        DB       $00,$00,$01,$55,$00 ; . . . . . . . . . . . 1 1 1 1 1 . . . .
+        DB       $02,$00,$00,$15,$14 ; . . . 2 . . . . . . . . . 1 1 1 . 1 1 .
+        DB       $3C,$00,$00,$1F,$54 ; . 3 3 . . . . . . . . . . 1 3 3 1 1 1 .
+        DB       $0A,$04,$40,$57,$D4 ; . . 2 2 . . 1 . 1 . . . 1 1 1 3 3 1 1 .
+        DB       $2A,$B7,$7F,$FF,$D4 ; . 2 2 2 2 3 1 3 1 3 3 3 3 3 3 3 3 1 1 .
+        DB       $3A,$04,$43,$FF,$54 ; . 3 2 2 . . 1 . 1 . . 3 3 3 3 3 1 1 1 .
+        DB       $00,$00,$00,$55,$54 ; . . . . . . . . . . . . 1 1 1 1 1 1 1 .
+        DB       $00,$00,$00,$55,$54 ; . . . . . . . . . . . . 1 1 1 1 1 1 1 .
+        DB       $00,$00,$01,$55,$40 ; . . . . . . . . . . . 1 1 1 1 1 1 . . .
+        DB       $00,$00,$05,$55,$40 ; . . . . . . . . . . 1 1 1 1 1 1 1 . . .
+        DB       $00,$10,$15,$15,$00 ; . . . . . 1 . . . 1 1 1 . 1 1 1 . . . .
+        DB       $00,$04,$54,$15,$00 ; . . . . . . 1 . 1 1 1 . . 1 1 1 . . . .
+        DB       $00,$05,$50,$05,$40 ; . . . . . . 1 1 1 1 . . . . 1 1 1 . . .
+        DB       $00,$01,$40,$01,$40 ; . . . . . . . 1 1 . . . . . . 1 1 . . .
+        DB       $00,$00,$00,$15,$40 ; . . . . . . . . . . . . . 1 1 1 1 . . .
+
+;*******************************************************************************
+; WORRIOR_BLUE_FIRE_2
+; 5 bytes/row = 20 pixels wide, 18 rows
+;*******************************************************************************
+WORRIOR_BLUE_FIRE_2:
+        DB       $33,$00,$00,$05,$40 ; . 3 . 3 . . . . . . . . . . 1 1 1 . . .
+        DB       $0E,$80,$00,$31,$5C ; . . 3 2 2 . . . . . . . . 3 . 1 1 1 3 .
+        DB       $3A,$A0,$00,$01,$50 ; . 3 2 2 2 2 . . . . . . . . . 1 1 1 . .
+        DB       $0A,$A0,$00,$55,$40 ; . . 2 2 2 2 . . . . . . 1 1 1 1 1 . . .
+        DB       $30,$0D,$00,$05,$50 ; . 3 . . . . 3 1 . . . . . . 1 1 1 1 . .
+        DB       $00,$07,$40,$01,$54 ; . . . . . . 1 3 1 . . . . . . 1 1 1 1 .
+        DB       $00,$81,$F0,$05,$D4 ; . . . . 2 . . 1 3 3 . . . . 1 1 3 1 1 .
+        DB       $00,$00,$3F,$17,$F4 ; . . . . . . . . . 3 3 3 . 1 1 3 3 3 1 .
+        DB       $0C,$00,$0F,$FF,$D4 ; . . 3 . . . . . . . 3 3 3 3 3 3 3 1 1 .
+        DB       $00,$00,$00,$FF,$54 ; . . . . . . . . . . . . 3 3 3 3 1 1 1 .
+        DB       $00,$00,$00,$55,$54 ; . . . . . . . . . . . . 1 1 1 1 1 1 1 .
+        DB       $00,$40,$15,$55,$50 ; . . . . 1 . . . . 1 1 1 1 1 1 1 1 1 . .
+        DB       $00,$10,$55,$55,$50 ; . . . . . 1 . . 1 1 1 1 1 1 1 1 1 1 . .
+        DB       $00,$15,$50,$01,$50 ; . . . . . 1 1 1 1 1 . . . . . 1 1 1 . .
+        DB       $00,$05,$00,$01,$50 ; . . . . . . 1 1 . . . . . . . 1 1 1 . .
+        DB       $00,$00,$00,$05,$40 ; . . . . . . . . . . . . . . 1 1 1 . . .
+        DB       $00,$00,$00,$05,$40 ; . . . . . . . . . . . . . . 1 1 1 . . .
+        DB       $00,$00,$01,$55,$00 ; . . . . . . . . . . . 1 1 1 1 1 . . . .
+
+;*******************************************************************************
+; WORRIOR_BLUE_FIRE_3
+; 5 bytes/row = 20 pixels wide, 18 rows
+;*******************************************************************************
+WORRIOR_BLUE_FIRE_3:
+        DB       $0C,$08,$00,$05,$40 ; . . 3 . . . 2 . . . . . . . 1 1 1 . . .
+        DB       $00,$00,$00,$31,$5C ; . . . . . . . . . . . . . 3 . 1 1 1 3 .
+        DB       $23,$00,$00,$01,$50 ; . 2 . 3 . . . . . . . . . . . 1 1 1 . .
+        DB       $02,$83,$00,$55,$40 ; . . . 2 2 . . 3 . . . . 1 1 1 1 1 . . .
+        DB       $0A,$A0,$00,$05,$44 ; . . 2 2 2 2 . . . . . . . . 1 1 1 . 1 .
+        DB       $32,$A0,$00,$05,$54 ; . 3 . 2 2 2 . . . . . . . . 1 1 1 1 1 .
+        DB       $0C,$0D,$C0,$15,$D4 ; . . 3 . . . 3 1 3 . . . . 1 1 1 3 1 1 .
+        DB       $00,$07,$FF,$17,$F4 ; . . . . . . 1 3 3 3 3 3 . 1 1 3 3 3 1 .
+        DB       $00,$00,$FF,$FF,$D4 ; . . . . . . . . 3 3 3 3 3 3 3 3 3 1 1 .
+        DB       $00,$00,$03,$FF,$54 ; . . . . . . . . . . . 3 3 3 3 3 1 1 1 .
+        DB       $00,$00,$00,$55,$54 ; . . . . . . . . . . . . 1 1 1 1 1 1 1 .
+        DB       $00,$00,$05,$55,$40 ; . . . . . . . . . . 1 1 1 1 1 1 1 . . .
+        DB       $00,$10,$15,$55,$40 ; . . . . . 1 . . . 1 1 1 1 1 1 1 1 . . .
+        DB       $00,$04,$54,$05,$40 ; . . . . . . 1 . 1 1 1 . . . 1 1 1 . . .
+        DB       $00,$05,$50,$05,$40 ; . . . . . . 1 1 1 1 . . . . 1 1 1 . . .
+        DB       $00,$01,$40,$05,$00 ; . . . . . . . 1 1 . . . . . 1 1 . . . .
+        DB       $00,$00,$00,$05,$00 ; . . . . . . . . . . . . . . 1 1 . . . .
+        DB       $00,$00,$01,$55,$00 ; . . . . . . . . . . . 1 1 1 1 1 . . . .
+
+;*******************************************************************************
+; WORRIOR_BLUE_FIRE_4
+; 5 bytes/row = 20 pixels wide, 18 rows
+;*******************************************************************************
+WORRIOR_BLUE_FIRE_4:
+        DB       $00,$00,$00,$15,$00 ; . . . . . . . . . . . . . 1 1 1 . . . .
+        DB       $02,$00,$00,$C5,$4C ; . . . 2 . . . . . . . . 3 . 1 1 1 . 3 .
+        DB       $00,$30,$00,$05,$40 ; . . . . . 3 . . . . . . . . 1 1 1 . . .
+        DB       $00,$00,$01,$55,$00 ; . . . . . . . . . . . 1 1 1 1 1 . . . .
+        DB       $02,$00,$00,$15,$14 ; . . . 2 . . . . . . . . . 1 1 1 . 1 1 .
+        DB       $3C,$00,$00,$1F,$54 ; . 3 3 . . . . . . . . . . 1 3 3 1 1 1 .
+        DB       $0A,$04,$40,$57,$D4 ; . . 2 2 . . 1 . 1 . . . 1 1 1 3 3 1 1 .
+        DB       $2A,$B7,$7F,$FF,$D4 ; . 2 2 2 2 3 1 3 1 3 3 3 3 3 3 3 3 1 1 .
+        DB       $3A,$04,$43,$FF,$54 ; . 3 2 2 . . 1 . 1 . . 3 3 3 3 3 1 1 1 .
+        DB       $00,$00,$00,$55,$54 ; . . . . . . . . . . . . 1 1 1 1 1 1 1 .
+        DB       $00,$00,$00,$55,$54 ; . . . . . . . . . . . . 1 1 1 1 1 1 1 .
+        DB       $00,$00,$05,$55,$40 ; . . . . . . . . . . 1 1 1 1 1 1 1 . . .
+        DB       $00,$00,$05,$55,$40 ; . . . . . . . . . . 1 1 1 1 1 1 1 . . .
+        DB       $00,$00,$15,$05,$40 ; . . . . . . . . . 1 1 1 . . 1 1 1 . . .
+        DB       $00,$05,$14,$05,$40 ; . . . . . . 1 1 . 1 1 . . . 1 1 1 . . .
+        DB       $00,$01,$50,$01,$40 ; . . . . . . . 1 1 1 . . . . . 1 1 . . .
+        DB       $00,$00,$50,$01,$40 ; . . . . . . . . 1 1 . . . . . 1 1 . . .
+        DB       $00,$00,$00,$15,$40 ; . . . . . . . . . . . . . 1 1 1 1 . . .
+
+;*******************************************************************************
+; WORRIOR_YELLOW_FIRE_1_UP
+; 5 bytes/row = 20 pixels wide, 18 rows
+;*******************************************************************************
+WORRIOR_YELLOW_FIRE_1_UP:
+        DB       $00,$00,$0E,$30,$00 ; . . . . . . . . . . 3 2 . 3 . . . . . .
+        DB       $00,$00,$0A,$B0,$00 ; . . . . . . . . . . 2 2 2 3 . . . . . .
+        DB       $00,$00,$0A,$88,$00 ; . . . . . . . . . . 2 2 2 . 2 . . . . .
+        DB       $00,$00,$02,$00,$00 ; . . . . . . . . . . . 2 . . . . . . . .
+        DB       $00,$20,$03,$00,$00 ; . . . . . 2 . . . . . 3 . . . . . . . .
+        DB       $02,$80,$0A,$80,$00 ; . . . 2 2 . . . . . 2 2 2 . . . . . . .
+        DB       $0A,$00,$03,$00,$00 ; . . 2 2 . . . . . . . 3 . . . . . . . .
+        DB       $0A,$80,$0A,$80,$00 ; . . 2 2 2 . . . . . 2 2 2 . . . . . . .
+        DB       $0A,$A0,$03,$00,$00 ; . . 2 2 2 2 . . . . . 3 . . . . . . . .
+        DB       $00,$A8,$03,$00,$00 ; . . . . 2 2 2 . . . . 3 . . . . . . . .
+        DB       $00,$2A,$0F,$02,$00 ; . . . . . 2 2 2 . . 3 3 . . . 2 . . . .
+        DB       $00,$0A,$AF,$82,$30 ; . . . . . . 2 2 2 2 3 3 2 . . 2 . 3 . .
+        DB       $20,$AA,$AF,$AA,$08 ; . 2 . . 2 2 2 2 2 2 3 3 2 2 2 2 . . 2 .
+        DB       $22,$AA,$AF,$BA,$A8 ; . 2 . 2 2 2 2 2 2 2 3 3 2 3 2 2 2 2 2 .
+        DB       $2A,$AA,$AF,$FA,$A8 ; . 2 2 2 2 2 2 2 2 2 3 3 3 3 2 2 2 2 2 .
+        DB       $2A,$0A,$AB,$E0,$A0 ; . 2 2 2 . . 2 2 2 2 2 3 3 2 . . 2 2 . .
+        DB       $00,$00,$AA,$A8,$00 ; . . . . . . . . 2 2 2 2 2 2 2 . . . . .
+        DB       $00,$00,$AA,$A8,$30 ; . . . . . . . . 2 2 2 2 2 2 2 . . 3 . .
+
+;*******************************************************************************
+; WORRIOR_YELLOW_FIRE_2_UP
+; 5 bytes/row = 20 pixels wide, 18 rows
+;*******************************************************************************
+WORRIOR_YELLOW_FIRE_2_UP:
+        DB       $00,$00,$00,$0C,$CC ; . . . . . . . . . . . . . . 3 . 3 . 3 .
+        DB       $00,$00,$0C,$02,$B0 ; . . . . . . . . . . 3 . . . . 2 2 3 . .
+        DB       $00,$00,$00,$02,$AC ; . . . . . . . . . . . . . . . 2 2 2 3 .
+        DB       $00,$02,$00,$42,$A0 ; . . . . . . . 2 . . . . 1 . . 2 2 2 . .
+        DB       $00,$28,$00,$02,$80 ; . . . . . 2 2 . . . . . . . . 2 2 . . .
+        DB       $00,$A0,$00,$2C,$00 ; . . . . 2 2 . . . . . . . 2 3 . . . . .
+        DB       $00,$A0,$00,$B8,$04 ; . . . . 2 2 . . . . . . 2 3 2 . . . 1 .
+        DB       $00,$28,$00,$E0,$00 ; . . . . . 2 2 . . . . . 3 2 . . . . . .
+        DB       $00,$2A,$03,$C0,$00 ; . . . . . 2 2 2 . . . 3 3 . . . . . . .
+        DB       $00,$0A,$0F,$00,$00 ; . . . . . . 2 2 . . 3 3 . . . . . . . .
+        DB       $20,$0A,$0F,$00,$00 ; . 2 . . . . 2 2 . . 3 3 . . . . . . . .
+        DB       $20,$0A,$BC,$02,$00 ; . 2 . . . . 2 2 2 3 3 . . . . 2 . . . .
+        DB       $20,$0A,$BE,$02,$30 ; . 2 . . . . 2 2 2 3 3 2 . . . 2 . 3 . .
+        DB       $2A,$0A,$BE,$8A,$08 ; . 2 2 2 . . 2 2 2 3 3 2 2 . 2 2 . . 2 .
+        DB       $2A,$AA,$BF,$AA,$A8 ; . 2 2 2 2 2 2 2 2 3 3 3 2 2 2 2 2 2 2 .
+        DB       $0A,$AA,$AF,$EA,$A8 ; . . 2 2 2 2 2 2 2 2 3 3 3 2 2 2 2 2 2 .
+        DB       $00,$AA,$AB,$A8,$A0 ; . . . . 2 2 2 2 2 2 2 3 2 2 2 . 2 2 . .
+        DB       $00,$00,$AA,$A0,$30 ; . . . . . . . . 2 2 2 2 2 2 . . . 3 . .
+
+;*******************************************************************************
+; WORRIOR_YELLOW_FIRE_3_UP
+; 5 bytes/row = 20 pixels wide, 18 rows
+;*******************************************************************************
+WORRIOR_YELLOW_FIRE_3_UP:
+        DB       $00,$00,$00,$30,$80 ; . . . . . . . . . . . . . 3 . . 2 . . .
+        DB       $00,$00,$00,$48,$04 ; . . . . . . . . . . . . 1 . 2 . . . 1 .
+        DB       $00,$00,$00,$2A,$C0 ; . . . . . . . . . . . . . 2 2 2 3 . . .
+        DB       $00,$00,$00,$2A,$00 ; . . . . . . . . . . . . . 2 2 2 . . . .
+        DB       $00,$08,$00,$28,$00 ; . . . . . . 2 . . . . . . 2 2 . . . . .
+        DB       $00,$A0,$02,$C0,$08 ; . . . . 2 2 . . . . . 2 3 . . . . . 2 .
+        DB       $02,$80,$03,$83,$00 ; . . . 2 2 . . . . . . 3 2 . . 3 . . . .
+        DB       $02,$A0,$0F,$C0,$00 ; . . . 2 2 2 . . . . 3 3 3 . . . . . . .
+        DB       $00,$A8,$0F,$00,$00 ; . . . . 2 2 2 . . . 3 3 . . . . . . . .
+        DB       $00,$2A,$0F,$00,$00 ; . . . . . 2 2 2 . . 3 3 . . . . . . . .
+        DB       $20,$0A,$3F,$00,$00 ; . 2 . . . . 2 2 . 3 3 3 . . . . . . . .
+        DB       $20,$0A,$BC,$02,$00 ; . 2 . . . . 2 2 2 3 3 . . . . 2 . . . .
+        DB       $20,$0A,$BE,$82,$30 ; . 2 . . . . 2 2 2 3 3 2 2 . . 2 . 3 . .
+        DB       $2A,$AA,$BE,$AA,$08 ; . 2 2 2 2 2 2 2 2 3 3 2 2 2 2 2 . . 2 .
+        DB       $2A,$AA,$BF,$AA,$A8 ; . 2 2 2 2 2 2 2 2 3 3 3 2 2 2 2 2 2 2 .
+        DB       $00,$AA,$AF,$EA,$A8 ; . . . . 2 2 2 2 2 2 3 3 3 2 2 2 2 2 2 .
+        DB       $00,$00,$AB,$A0,$A0 ; . . . . . . . . 2 2 2 3 2 2 . . 2 2 . .
+        DB       $00,$00,$AA,$A8,$30 ; . . . . . . . . 2 2 2 2 2 2 2 . . 3 . .
+
+;*******************************************************************************
+; WORRIOR_YELLOW_FIRE_4_UP
+; 5 bytes/row = 20 pixels wide, 18 rows
+;*******************************************************************************
+WORRIOR_YELLOW_FIRE_4_UP:
+        DB       $00,$00,$0E,$30,$00 ; . . . . . . . . . . 3 2 . 3 . . . . . .
+        DB       $00,$00,$4A,$B0,$00 ; . . . . . . . . 1 . 2 2 2 3 . . . . . .
+        DB       $00,$00,$0A,$88,$20 ; . . . . . . . . . . 2 2 2 . 2 . . 2 . .
+        DB       $00,$00,$02,$00,$00 ; . . . . . . . . . . . 2 . . . . . . . .
+        DB       $00,$00,$03,$00,$C0 ; . . . . . . . . . . . 3 . . . . 3 . . .
+        DB       $00,$80,$0A,$80,$00 ; . . . . 2 . . . . . 2 2 2 . . . . . . .
+        DB       $02,$80,$03,$00,$00 ; . . . 2 2 . . . . . . 3 . . . . . . . .
+        DB       $0A,$00,$0A,$80,$00 ; . . 2 2 . . . . . . 2 2 2 . . . . . . .
+        DB       $0A,$A0,$03,$00,$00 ; . . 2 2 2 2 . . . . . 3 . . . . . . . .
+        DB       $00,$AA,$03,$00,$00 ; . . . . 2 2 2 2 . . . 3 . . . . . . . .
+        DB       $00,$2A,$0F,$02,$00 ; . . . . . 2 2 2 . . 3 3 . . . 2 . . . .
+        DB       $00,$0A,$AF,$82,$30 ; . . . . . . 2 2 2 2 3 3 2 . . 2 . 3 . .
+        DB       $20,$0A,$AF,$AA,$08 ; . 2 . . . . 2 2 2 2 3 3 2 2 2 2 . . 2 .
+        DB       $20,$AA,$AF,$BA,$A8 ; . 2 . . 2 2 2 2 2 2 3 3 2 3 2 2 2 2 2 .
+        DB       $2A,$AA,$AF,$FA,$A8 ; . 2 2 2 2 2 2 2 2 2 3 3 3 3 2 2 2 2 2 .
+        DB       $2A,$AA,$AB,$E0,$A0 ; . 2 2 2 2 2 2 2 2 2 2 3 3 2 . . 2 2 . .
+        DB       $00,$00,$AA,$A8,$00 ; . . . . . . . . 2 2 2 2 2 2 2 . . . . .
+        DB       $00,$00,$AA,$A8,$30 ; . . . . . . . . 2 2 2 2 2 2 2 . . 3 . .
+
+;*******************************************************************************
+; WORRIOR_YELLOW_FIRE_1
+; 5 bytes/row = 20 pixels wide, 18 rows
+;*******************************************************************************
+WORRIOR_YELLOW_FIRE_1:
+        DB       $00,$00,$00,$2A,$00 ; . . . . . . . . . . . . . 2 2 2 . . . .
+        DB       $00,$00,$00,$CA,$8C ; . . . . . . . . . . . . 3 . 2 2 2 . 3 .
+        DB       $00,$00,$00,$0A,$80 ; . . . . . . . . . . . . . . 2 2 2 . . .
+        DB       $00,$00,$02,$AA,$00 ; . . . . . . . . . . . 2 2 2 2 2 . . . .
+        DB       $02,$00,$00,$2A,$28 ; . . . 2 . . . . . . . . . 2 2 2 . 2 2 .
+        DB       $3C,$00,$00,$2F,$A8 ; . 3 3 . . . . . . . . . . 2 3 3 2 2 2 .
+        DB       $0A,$08,$80,$AB,$E8 ; . . 2 2 . . 2 . 2 . . . 2 2 2 3 3 2 2 .
+        DB       $2A,$BB,$BF,$FF,$E8 ; . 2 2 2 2 3 2 3 2 3 3 3 3 3 3 3 3 2 2 .
+        DB       $3A,$08,$83,$FF,$A8 ; . 3 2 2 . . 2 . 2 . . 3 3 3 3 3 2 2 2 .
+        DB       $00,$00,$00,$AA,$A8 ; . . . . . . . . . . . . 2 2 2 2 2 2 2 .
+        DB       $00,$00,$00,$AA,$A8 ; . . . . . . . . . . . . 2 2 2 2 2 2 2 .
+        DB       $00,$00,$02,$AA,$80 ; . . . . . . . . . . . 2 2 2 2 2 2 . . .
+        DB       $00,$00,$0A,$AA,$80 ; . . . . . . . . . . 2 2 2 2 2 2 2 . . .
+        DB       $00,$20,$2A,$2A,$00 ; . . . . . 2 . . . 2 2 2 . 2 2 2 . . . .
+        DB       $00,$08,$A8,$2A,$00 ; . . . . . . 2 . 2 2 2 . . 2 2 2 . . . .
+        DB       $00,$0A,$A0,$0A,$80 ; . . . . . . 2 2 2 2 . . . . 2 2 2 . . .
+        DB       $00,$02,$80,$02,$80 ; . . . . . . . 2 2 . . . . . . 2 2 . . .
+        DB       $00,$00,$00,$2A,$80 ; . . . . . . . . . . . . . 2 2 2 2 . . .
+
+;*******************************************************************************
+; WORRIOR_YELLOW_FIRE_2
+; 5 bytes/row = 20 pixels wide, 18 rows
+;*******************************************************************************
+WORRIOR_YELLOW_FIRE_2:
+        DB       $33,$01,$00,$0A,$80 ; . 3 . 3 . . . 1 . . . . . . 2 2 2 . . .
+        DB       $0E,$80,$00,$32,$AC ; . . 3 2 2 . . . . . . . . 3 . 2 2 2 3 .
+        DB       $3A,$A0,$00,$02,$A0 ; . 3 2 2 2 2 . . . . . . . . . 2 2 2 . .
+        DB       $0A,$A0,$00,$AA,$80 ; . . 2 2 2 2 . . . . . . 2 2 2 2 2 . . .
+        DB       $30,$0E,$00,$0A,$A0 ; . 3 . . . . 3 2 . . . . . . 2 2 2 2 . .
+        DB       $00,$0B,$80,$02,$A8 ; . . . . . . 2 3 2 . . . . . . 2 2 2 2 .
+        DB       $00,$42,$F0,$0A,$E8 ; . . . . 1 . . 2 3 3 . . . . 2 2 3 2 2 .
+        DB       $00,$00,$3F,$2B,$F8 ; . . . . . . . . . 3 3 3 . 2 2 3 3 3 2 .
+        DB       $0C,$00,$0F,$FF,$E8 ; . . 3 . . . . . . . 3 3 3 3 3 3 3 2 2 .
+        DB       $00,$00,$00,$FF,$A8 ; . . . . . . . . . . . . 3 3 3 3 2 2 2 .
+        DB       $00,$00,$00,$AA,$A8 ; . . . . . . . . . . . . 2 2 2 2 2 2 2 .
+        DB       $00,$80,$2A,$AA,$A0 ; . . . . 2 . . . . 2 2 2 2 2 2 2 2 2 . .
+        DB       $00,$20,$AA,$AA,$A0 ; . . . . . 2 . . 2 2 2 2 2 2 2 2 2 2 . .
+        DB       $00,$2A,$A0,$02,$A0 ; . . . . . 2 2 2 2 2 . . . . . 2 2 2 . .
+        DB       $00,$0A,$00,$02,$A0 ; . . . . . . 2 2 . . . . . . . 2 2 2 . .
+        DB       $00,$00,$00,$0A,$80 ; . . . . . . . . . . . . . . 2 2 2 . . .
+        DB       $00,$00,$00,$0A,$80 ; . . . . . . . . . . . . . . 2 2 2 . . .
+        DB       $00,$00,$02,$AA,$00 ; . . . . . . . . . . . 2 2 2 2 2 . . . .
+
+;*******************************************************************************
+; WORRIOR_YELLOW_FIRE_3
+; 5 bytes/row = 20 pixels wide, 18 rows
+;*******************************************************************************
+WORRIOR_YELLOW_FIRE_3:
+        DB       $04,$08,$00,$0A,$80 ; . . 1 . . . 2 . . . . . . . 2 2 2 . . .
+        DB       $00,$00,$00,$32,$AC ; . . . . . . . . . . . . . 3 . 2 2 2 3 .
+        DB       $23,$00,$00,$02,$A0 ; . 2 . 3 . . . . . . . . . . . 2 2 2 . .
+        DB       $02,$83,$00,$AA,$80 ; . . . 2 2 . . 3 . . . . 2 2 2 2 2 . . .
+        DB       $0A,$A0,$00,$0A,$88 ; . . 2 2 2 2 . . . . . . . . 2 2 2 . 2 .
+        DB       $32,$A0,$00,$0A,$A8 ; . 3 . 2 2 2 . . . . . . . . 2 2 2 2 2 .
+        DB       $04,$0E,$C0,$2A,$E8 ; . . 1 . . . 3 2 3 . . . . 2 2 2 3 2 2 .
+        DB       $00,$0B,$FF,$2B,$F8 ; . . . . . . 2 3 3 3 3 3 . 2 2 3 3 3 2 .
+        DB       $00,$00,$FF,$FF,$E8 ; . . . . . . . . 3 3 3 3 3 3 3 3 3 2 2 .
+        DB       $00,$00,$03,$FF,$A8 ; . . . . . . . . . . . 3 3 3 3 3 2 2 2 .
+        DB       $00,$00,$00,$AA,$A8 ; . . . . . . . . . . . . 2 2 2 2 2 2 2 .
+        DB       $00,$00,$0A,$AA,$80 ; . . . . . . . . . . 2 2 2 2 2 2 2 . . .
+        DB       $00,$20,$2A,$AA,$80 ; . . . . . 2 . . . 2 2 2 2 2 2 2 2 . . .
+        DB       $00,$08,$A8,$0A,$80 ; . . . . . . 2 . 2 2 2 . . . 2 2 2 . . .
+        DB       $00,$0A,$A0,$0A,$80 ; . . . . . . 2 2 2 2 . . . . 2 2 2 . . .
+        DB       $00,$02,$80,$0A,$00 ; . . . . . . . 2 2 . . . . . 2 2 . . . .
+        DB       $00,$00,$00,$0A,$00 ; . . . . . . . . . . . . . . 2 2 . . . .
+        DB       $00,$00,$02,$AA,$00 ; . . . . . . . . . . . 2 2 2 2 2 . . . .
+
+;*******************************************************************************
+; WORRIOR_YELLOW_FIRE_4
+; 5 bytes/row = 20 pixels wide, 18 rows
+;*******************************************************************************
+WORRIOR_YELLOW_FIRE_4:
+        DB       $00,$00,$00,$2A,$00 ; . . . . . . . . . . . . . 2 2 2 . . . .
+        DB       $02,$00,$00,$CA,$8C ; . . . 2 . . . . . . . . 3 . 2 2 2 . 3 .
+        DB       $00,$30,$00,$0A,$80 ; . . . . . 3 . . . . . . . . 2 2 2 . . .
+        DB       $00,$00,$02,$AA,$00 ; . . . . . . . . . . . 2 2 2 2 2 . . . .
+        DB       $02,$00,$00,$2A,$28 ; . . . 2 . . . . . . . . . 2 2 2 . 2 2 .
+        DB       $3C,$00,$00,$2F,$A8 ; . 3 3 . . . . . . . . . . 2 3 3 2 2 2 .
+        DB       $0A,$08,$80,$AB,$E8 ; . . 2 2 . . 2 . 2 . . . 2 2 2 3 3 2 2 .
+        DB       $2A,$BB,$BF,$FF,$E8 ; . 2 2 2 2 3 2 3 2 3 3 3 3 3 3 3 3 2 2 .
+        DB       $3A,$08,$83,$FF,$A8 ; . 3 2 2 . . 2 . 2 . . 3 3 3 3 3 2 2 2 .
+        DB       $00,$00,$00,$AA,$A8 ; . . . . . . . . . . . . 2 2 2 2 2 2 2 .
+        DB       $04,$00,$00,$AA,$A8 ; . . 1 . . . . . . . . . 2 2 2 2 2 2 2 .
+        DB       $00,$00,$0A,$AA,$80 ; . . . . . . . . . . 2 2 2 2 2 2 2 . . .
+        DB       $00,$00,$0A,$AA,$80 ; . . . . . . . . . . 2 2 2 2 2 2 2 . . .
+        DB       $00,$00,$2A,$0A,$80 ; . . . . . . . . . 2 2 2 . . 2 2 2 . . .
+        DB       $00,$0A,$28,$0A,$80 ; . . . . . . 2 2 . 2 2 . . . 2 2 2 . . .
+        DB       $00,$02,$A0,$02,$80 ; . . . . . . . 2 2 2 . . . . . 2 2 . . .
+        DB       $00,$00,$A0,$02,$80 ; . . . . . . . . 2 2 . . . . . 2 2 . . .
+        DB       $00,$00,$00,$2A,$80 ; . . . . . . . . . . . . . 2 2 2 2 . . .
+
+;*******************************************************************************
+; BURWOR_1_UP
+; 5 bytes/row = 20 pixels wide, 18 rows
+;*******************************************************************************
+BURWOR_1_UP:
+        DB       $00,$00,$05,$40,$00 ; . . . . . . . . . . 1 1 1 . . . . . . .
+        DB       $00,$00,$15,$40,$00 ; . . . . . . . . . 1 1 1 1 . . . . . . .
+        DB       $10,$05,$15,$40,$00 ; . 1 . . . . 1 1 . 1 1 1 1 . . . . . . .
+        DB       $10,$55,$15,$50,$00 ; . 1 . . 1 1 1 1 . 1 1 1 1 1 . . . . . .
+        DB       $11,$55,$15,$D4,$00 ; . 1 . 1 1 1 1 1 . 1 1 1 3 1 1 . . . . .
+        DB       $15,$54,$05,$F4,$00 ; . 1 1 1 1 1 1 . . . 1 1 3 3 1 . . . . .
+        DB       $14,$10,$05,$F4,$00 ; . 1 1 . . 1 . . . . 1 1 3 3 1 . . . . .
+        DB       $10,$50,$55,$54,$00 ; . 1 . . 1 1 . . 1 1 1 1 1 1 1 . . . . .
+        DB       $01,$55,$55,$54,$00 ; . . . 1 1 1 1 1 1 1 1 1 1 1 1 . . . . .
+        DB       $01,$55,$55,$54,$00 ; . . . 1 1 1 1 1 1 1 1 1 1 1 1 . . . . .
+        DB       $01,$55,$01,$41,$00 ; . . . 1 1 1 1 1 . . . 1 1 . . 1 . . . .
+        DB       $01,$55,$01,$10,$00 ; . . . 1 1 1 1 1 . . . 1 . 1 . . . . . .
+        DB       $01,$54,$40,$00,$00 ; . . . 1 1 1 1 . 1 . . . . . . . . . . .
+        DB       $10,$10,$10,$00,$00 ; . 1 . . . 1 . . . 1 . . . . . . . . . .
+        DB       $15,$54,$05,$55,$50 ; . 1 1 1 1 1 1 . . . 1 1 1 1 1 1 1 1 . .
+        DB       $11,$54,$01,$55,$54 ; . 1 . 1 1 1 1 . . . . 1 1 1 1 1 1 1 1 .
+        DB       $10,$55,$00,$55,$50 ; . 1 . . 1 1 1 1 . . . . 1 1 1 1 1 1 . .
+        DB       $10,$05,$00,$05,$00 ; . 1 . . . . 1 1 . . . . . . 1 1 . . . .
+
+;*******************************************************************************
+; BURWOR_2_UP
+; 5 bytes/row = 20 pixels wide, 18 rows
+;*******************************************************************************
+BURWOR_2_UP:
+        DB       $00,$00,$00,$45,$00 ; . . . . . . . . . . . . 1 . 1 1 . . . .
+        DB       $01,$01,$01,$55,$00 ; . . . 1 . . . 1 . . . 1 1 1 1 1 . . . .
+        DB       $01,$05,$41,$45,$00 ; . . . 1 . . 1 1 1 . . 1 1 . 1 1 . . . .
+        DB       $01,$15,$41,$55,$40 ; . . . 1 . 1 1 1 1 . . 1 1 1 1 1 1 . . .
+        DB       $01,$55,$41,$47,$50 ; . . . 1 1 1 1 1 1 . . 1 1 . 1 3 1 1 . .
+        DB       $01,$41,$40,$57,$D0 ; . . . 1 1 . . 1 1 . . . 1 1 1 3 3 1 . .
+        DB       $01,$01,$40,$57,$D0 ; . . . 1 . . . 1 1 . . . 1 1 1 3 3 1 . .
+        DB       $00,$05,$55,$55,$50 ; . . . . . . 1 1 1 1 1 1 1 1 1 1 1 1 . .
+        DB       $00,$05,$55,$55,$50 ; . . . . . . 1 1 1 1 1 1 1 1 1 1 1 1 . .
+        DB       $00,$05,$55,$55,$50 ; . . . . . . 1 1 1 1 1 1 1 1 1 1 1 1 . .
+        DB       $00,$05,$51,$15,$10 ; . . . . . . 1 1 1 1 . 1 . 1 1 1 . 1 . .
+        DB       $00,$05,$40,$11,$00 ; . . . . . . 1 1 1 . . . . 1 . 1 . . . .
+        DB       $00,$15,$50,$00,$00 ; . . . . . 1 1 1 1 1 . . . . . . . . . .
+        DB       $04,$55,$45,$00,$00 ; . . 1 . 1 1 1 1 1 . 1 1 . . . . . . . .
+        DB       $05,$55,$01,$51,$40 ; . . 1 1 1 1 1 1 . . . 1 1 1 . 1 1 . . .
+        DB       $04,$14,$00,$55,$50 ; . . 1 . . 1 1 . . . . . 1 1 1 1 1 1 . .
+        DB       $10,$00,$00,$15,$54 ; . 1 . . . . . . . . . . . 1 1 1 1 1 1 .
+        DB       $10,$00,$00,$05,$44 ; . 1 . . . . . . . . . . . . 1 1 1 . 1 .
+
+;*******************************************************************************
+; BURWOR_3_UP
+; 5 bytes/row = 20 pixels wide, 18 rows
+;*******************************************************************************
+BURWOR_3_UP:
+        DB       $04,$00,$00,$01,$40 ; . . 1 . . . . . . . . . . . . 1 1 . . .
+        DB       $01,$01,$00,$45,$40 ; . . . 1 . . . 1 . . . . 1 . 1 1 1 . . .
+        DB       $00,$45,$40,$41,$40 ; . . . . 1 . 1 1 1 . . . 1 . . 1 1 . . .
+        DB       $00,$55,$40,$45,$50 ; . . . . 1 1 1 1 1 . . . 1 . 1 1 1 1 . .
+        DB       $00,$51,$50,$41,$D4 ; . . . . 1 1 . 1 1 1 . . 1 . . 1 3 1 1 .
+        DB       $00,$40,$50,$15,$F4 ; . . . . 1 . . . 1 1 . . . 1 1 1 3 3 1 .
+        DB       $00,$00,$54,$15,$F4 ; . . . . . . . . 1 1 1 . . 1 1 1 3 3 1 .
+        DB       $00,$00,$55,$55,$54 ; . . . . . . . . 1 1 1 1 1 1 1 1 1 1 1 .
+        DB       $00,$00,$55,$55,$54 ; . . . . . . . . 1 1 1 1 1 1 1 1 1 1 1 .
+        DB       $00,$00,$55,$55,$54 ; . . . . . . . . 1 1 1 1 1 1 1 1 1 1 1 .
+        DB       $00,$00,$54,$45,$44 ; . . . . . . . . 1 1 1 . 1 . 1 1 1 . 1 .
+        DB       $00,$00,$50,$04,$40 ; . . . . . . . . 1 1 . . . . 1 . 1 . . .
+        DB       $00,$40,$54,$00,$00 ; . . . . 1 . . . 1 1 1 . . . . . . . . .
+        DB       $00,$51,$51,$05,$50 ; . . . . 1 1 . 1 1 1 . 1 . . 1 1 1 1 . .
+        DB       $00,$55,$40,$55,$54 ; . . . . 1 1 1 1 1 . . . 1 1 1 1 1 1 1 .
+        DB       $00,$45,$40,$50,$54 ; . . . . 1 . 1 1 1 . . . 1 1 . . 1 1 1 .
+        DB       $01,$01,$00,$00,$14 ; . . . 1 . . . 1 . . . . . . . . . 1 1 .
+        DB       $04,$00,$00,$00,$10 ; . . 1 . . . . . . . . . . . . . . 1 . .
+
+;*******************************************************************************
+; BURWOR_1
+; 5 bytes/row = 20 pixels wide, 18 rows
+;*******************************************************************************
+BURWOR_1:
+        DB       $00,$00,$00,$00,$40 ; . . . . . . . . . . . . . . . . 1 . . .
+        DB       $00,$00,$00,$01,$50 ; . . . . . . . . . . . . . . . 1 1 1 . .
+        DB       $00,$00,$00,$01,$50 ; . . . . . . . . . . . . . . . 1 1 1 . .
+        DB       $00,$00,$01,$01,$54 ; . . . . . . . . . . . 1 . . . 1 1 1 1 .
+        DB       $00,$15,$54,$01,$54 ; . . . . . 1 1 1 1 1 1 . . . . 1 1 1 1 .
+        DB       $00,$5F,$54,$41,$50 ; . . . . 1 1 3 3 1 1 1 . 1 . . 1 1 1 . .
+        DB       $15,$7F,$55,$01,$50 ; . 1 1 1 1 3 3 3 1 1 1 1 . . . 1 1 1 . .
+        DB       $15,$55,$55,$41,$40 ; . 1 1 1 1 1 1 1 1 1 1 1 1 . . 1 1 . . .
+        DB       $15,$55,$54,$01,$00 ; . 1 1 1 1 1 1 1 1 1 1 . . . . 1 . . . .
+        DB       $05,$50,$54,$04,$00 ; . . 1 1 1 1 . . 1 1 1 . . . 1 . . . . .
+        DB       $00,$00,$54,$10,$00 ; . . . . . . . . 1 1 1 . . 1 . . . . . .
+        DB       $01,$50,$15,$40,$14 ; . . . 1 1 1 . . . 1 1 1 1 . . . . 1 1 .
+        DB       $01,$54,$15,$51,$54 ; . . . 1 1 1 1 . . 1 1 1 1 1 . 1 1 1 1 .
+        DB       $00,$55,$55,$55,$50 ; . . . . 1 1 1 1 1 1 1 1 1 1 1 1 1 1 . .
+        DB       $00,$54,$55,$51,$50 ; . . . . 1 1 1 . 1 1 1 1 1 1 . 1 1 1 . .
+        DB       $00,$14,$15,$51,$40 ; . . . . . 1 1 . . 1 1 1 1 1 . 1 1 . . .
+        DB       $00,$05,$00,$01,$00 ; . . . . . . 1 1 . . . . . . . 1 . . . .
+        DB       $01,$55,$40,$05,$54 ; . . . 1 1 1 1 1 1 . . . . . 1 1 1 1 1 .
+
+;*******************************************************************************
+; BURWOR_2
+; 5 bytes/row = 20 pixels wide, 18 rows
+;*******************************************************************************
+BURWOR_2:
+        DB       $00,$00,$00,$00,$14 ; . . . . . . . . . . . . . . . . . 1 1 .
+        DB       $00,$15,$55,$00,$50 ; . . . . . 1 1 1 1 1 1 1 . . . . 1 1 . .
+        DB       $00,$5F,$54,$01,$54 ; . . . . 1 1 3 3 1 1 1 . . . . 1 1 1 1 .
+        DB       $15,$7F,$55,$41,$54 ; . 1 1 1 1 3 3 3 1 1 1 1 1 . . 1 1 1 1 .
+        DB       $15,$55,$55,$00,$54 ; . 1 1 1 1 1 1 1 1 1 1 1 . . . . 1 1 1 .
+        DB       $04,$45,$55,$41,$50 ; . . 1 . 1 . 1 1 1 1 1 1 1 . . 1 1 1 . .
+        DB       $15,$55,$54,$01,$40 ; . 1 1 1 1 1 1 1 1 1 1 . . . . 1 1 . . .
+        DB       $05,$50,$55,$05,$00 ; . . 1 1 1 1 . . 1 1 1 1 . . 1 1 . . . .
+        DB       $00,$00,$54,$04,$00 ; . . . . . . . . 1 1 1 . . . 1 . . . . .
+        DB       $00,$00,$55,$10,$00 ; . . . . . . . . 1 1 1 1 . 1 . . . . . .
+        DB       $01,$55,$55,$54,$00 ; . . . 1 1 1 1 1 1 1 1 1 1 1 1 . . . . .
+        DB       $05,$55,$55,$55,$00 ; . . 1 1 1 1 1 1 1 1 1 1 1 1 1 1 . . . .
+        DB       $01,$50,$55,$55,$40 ; . . . 1 1 1 . . 1 1 1 1 1 1 1 1 1 . . .
+        DB       $00,$50,$00,$15,$40 ; . . . . 1 1 . . . . . . . 1 1 1 1 . . .
+        DB       $00,$14,$00,$05,$00 ; . . . . . 1 1 . . . . . . . 1 1 . . . .
+        DB       $05,$55,$00,$01,$00 ; . . 1 1 1 1 1 1 . . . . . . . 1 . . . .
+        DB       $00,$00,$00,$05,$40 ; . . . . . . . . . . . . . . 1 1 1 . . .
+        DB       $00,$00,$00,$00,$14 ; . . . . . . . . . . . . . . . . . 1 1 .
+
+;*******************************************************************************
+; BURWOR_3
+; 5 bytes/row = 20 pixels wide, 18 rows
+;*******************************************************************************
+BURWOR_3:
+        DB       $00,$15,$55,$01,$50 ; . . . . . 1 1 1 1 1 1 1 . . . 1 1 1 . .
+        DB       $00,$5F,$54,$05,$54 ; . . . . 1 1 3 3 1 1 1 . . . 1 1 1 1 1 .
+        DB       $15,$7F,$55,$45,$40 ; . 1 1 1 1 3 3 3 1 1 1 1 1 . 1 1 1 . . .
+        DB       $15,$55,$55,$05,$00 ; . 1 1 1 1 1 1 1 1 1 1 1 . . 1 1 . . . .
+        DB       $04,$45,$55,$45,$00 ; . . 1 . 1 . 1 1 1 1 1 1 1 . 1 1 . . . .
+        DB       $00,$05,$54,$01,$40 ; . . . . . . 1 1 1 1 1 . . . . 1 1 . . .
+        DB       $05,$50,$55,$01,$40 ; . . 1 1 1 1 . . 1 1 1 1 . . . 1 1 . . .
+        DB       $00,$00,$54,$04,$00 ; . . . . . . . . 1 1 1 . . . 1 . . . . .
+        DB       $00,$01,$55,$10,$00 ; . . . . . . . 1 1 1 1 1 . 1 . . . . . .
+        DB       $00,$15,$55,$54,$00 ; . . . . . 1 1 1 1 1 1 1 1 1 1 . . . . .
+        DB       $01,$55,$55,$55,$40 ; . . . 1 1 1 1 1 1 1 1 1 1 1 1 1 1 . . .
+        DB       $05,$50,$00,$05,$50 ; . . 1 1 1 1 . . . . . . . . 1 1 1 1 . .
+        DB       $01,$40,$00,$01,$40 ; . . . 1 1 . . . . . . . . . . 1 1 . . .
+        DB       $00,$50,$00,$05,$00 ; . . . . 1 1 . . . . . . . . 1 1 . . . .
+        DB       $01,$54,$00,$15,$40 ; . . . 1 1 1 1 . . . . . . 1 1 1 1 . . .
+        DB       $04,$00,$00,$00,$10 ; . . 1 . . . . . . . . . . . . . . 1 . .
+        DB       $10,$00,$00,$00,$04 ; . 1 . . . . . . . . . . . . . . . . 1 .
+        DB       $00,$00,$00,$00,$00 ; . . . . . . . . . . . . . . . . . . . .
+
+;*******************************************************************************
+; BURWOR_FIRE_0_UP
+; 5 bytes/row = 20 pixels wide, 18 rows
+;*******************************************************************************
+BURWOR_FIRE_0_UP:
+        DB       $00,$00,$CC,$00,$00 ; . . . . . . . . 3 . 3 . . . . . . . . .
+        DB       $00,$00,$07,$50,$00 ; . . . . . . . . . . 1 3 1 1 . . . . . .
+        DB       $10,$05,$15,$50,$00 ; . 1 . . . . 1 1 . 1 1 1 1 1 . . . . . .
+        DB       $10,$55,$17,$50,$00 ; . 1 . . 1 1 1 1 . 1 1 3 1 1 . . . . . .
+        DB       $11,$55,$15,$54,$00 ; . 1 . 1 1 1 1 1 . 1 1 1 1 1 1 . . . . .
+        DB       $15,$54,$17,$75,$00 ; . 1 1 1 1 1 1 . . 1 1 3 1 3 1 1 . . . .
+        DB       $14,$10,$05,$7D,$00 ; . 1 1 . . 1 . . . . 1 1 1 3 3 1 . . . .
+        DB       $10,$50,$05,$7D,$00 ; . 1 . . 1 1 . . . . 1 1 1 3 3 1 . . . .
+        DB       $01,$55,$55,$55,$00 ; . . . 1 1 1 1 1 1 1 1 1 1 1 1 1 . . . .
+        DB       $01,$55,$55,$55,$00 ; . . . 1 1 1 1 1 1 1 1 1 1 1 1 1 . . . .
+        DB       $01,$55,$55,$55,$00 ; . . . 1 1 1 1 1 1 1 1 1 1 1 1 1 . . . .
+        DB       $01,$55,$41,$50,$40 ; . . . 1 1 1 1 1 1 . . 1 1 1 . . 1 . . .
+        DB       $01,$55,$01,$04,$00 ; . . . 1 1 1 1 1 . . . 1 . . 1 . . . . .
+        DB       $10,$10,$40,$00,$00 ; . 1 . . . 1 . . 1 . . . . . . . . . . .
+        DB       $15,$54,$15,$55,$50 ; . 1 1 1 1 1 1 . . 1 1 1 1 1 1 1 1 1 . .
+        DB       $11,$54,$05,$55,$54 ; . 1 . 1 1 1 1 . . . 1 1 1 1 1 1 1 1 1 .
+        DB       $10,$55,$01,$55,$50 ; . 1 . . 1 1 1 1 . . . 1 1 1 1 1 1 1 . .
+        DB       $10,$05,$00,$15,$00 ; . 1 . . . . 1 1 . . . . . 1 1 1 . . . .
+
+;*******************************************************************************
+; BURWOR_FIRE_1_UP
+; 5 bytes/row = 20 pixels wide, 18 rows
+;*******************************************************************************
+BURWOR_FIRE_1_UP:
+        DB       $30,$00,$CC,$00,$00 ; . 3 . . . . . . 3 . 3 . . . . . . . . .
+        DB       $00,$C0,$0F,$50,$00 ; . . . . 3 . . . . . 3 3 1 1 . . . . . .
+        DB       $10,$05,$1D,$50,$00 ; . 1 . . . . 1 1 . 1 3 1 1 1 . . . . . .
+        DB       $10,$55,$1F,$50,$00 ; . 1 . . 1 1 1 1 . 1 3 3 1 1 . . . . . .
+        DB       $11,$55,$1D,$54,$00 ; . 1 . 1 1 1 1 1 . 1 3 1 1 1 1 . . . . .
+        DB       $15,$54,$1D,$75,$00 ; . 1 1 1 1 1 1 . . 1 3 1 1 3 1 1 . . . .
+        DB       $14,$10,$05,$7D,$00 ; . 1 1 . . 1 . . . . 1 1 1 3 3 1 . . . .
+        DB       $10,$50,$05,$7D,$00 ; . 1 . . 1 1 . . . . 1 1 1 3 3 1 . . . .
+        DB       $01,$55,$55,$55,$00 ; . . . 1 1 1 1 1 1 1 1 1 1 1 1 1 . . . .
+        DB       $01,$55,$55,$55,$00 ; . . . 1 1 1 1 1 1 1 1 1 1 1 1 1 . . . .
+        DB       $01,$55,$55,$55,$00 ; . . . 1 1 1 1 1 1 1 1 1 1 1 1 1 . . . .
+        DB       $01,$55,$41,$50,$40 ; . . . 1 1 1 1 1 1 . . 1 1 1 . . 1 . . .
+        DB       $01,$55,$01,$04,$00 ; . . . 1 1 1 1 1 . . . 1 . . 1 . . . . .
+        DB       $10,$10,$40,$00,$00 ; . 1 . . . 1 . . 1 . . . . . . . . . . .
+        DB       $15,$54,$15,$55,$54 ; . 1 1 1 1 1 1 . . 1 1 1 1 1 1 1 1 1 1 .
+        DB       $11,$54,$05,$55,$50 ; . 1 . 1 1 1 1 . . . 1 1 1 1 1 1 1 1 . .
+        DB       $10,$55,$01,$55,$40 ; . 1 . . 1 1 1 1 . . . 1 1 1 1 1 1 . . .
+        DB       $10,$05,$00,$15,$00 ; . 1 . . . . 1 1 . . . . . 1 1 1 . . . .
+
+;*******************************************************************************
+; BURWOR_FIRE_2_UP
+; 5 bytes/row = 20 pixels wide, 18 rows
+;*******************************************************************************
+BURWOR_FIRE_2_UP:
+        DB       $00,$20,$30,$CC,$00 ; . . . . . 2 . . . 3 . . 3 . 3 . . . . .
+        DB       $01,$01,$02,$F0,$00 ; . . . 1 . . . 1 . . . 2 3 3 . . . . . .
+        DB       $01,$05,$40,$B1,$40 ; . . . 1 . . 1 1 1 . . . 2 3 . 1 1 . . .
+        DB       $01,$15,$41,$F5,$40 ; . . . 1 . 1 1 1 1 . . 1 3 3 1 1 1 . . .
+        DB       $01,$55,$41,$FD,$40 ; . . . 1 1 1 1 1 1 . . 1 3 3 3 1 1 . . .
+        DB       $31,$41,$41,$F5,$50 ; . 3 . 1 1 . . 1 1 . . 1 3 3 1 1 1 1 . .
+        DB       $01,$01,$51,$FD,$D4 ; . . . 1 . . . 1 1 1 . 1 3 3 3 1 3 1 1 .
+        DB       $00,$05,$50,$75,$F4 ; . . . . . . 1 1 1 1 . . 1 3 1 1 3 3 1 .
+        DB       $0C,$05,$55,$55,$F4 ; . . 3 . . . 1 1 1 1 1 1 1 1 1 1 3 3 1 .
+        DB       $00,$05,$55,$55,$54 ; . . . . . . 1 1 1 1 1 1 1 1 1 1 1 1 1 .
+        DB       $00,$05,$55,$55,$54 ; . . . . . . 1 1 1 1 1 1 1 1 1 1 1 1 1 .
+        DB       $00,$05,$54,$45,$44 ; . . . . . . 1 1 1 1 1 . 1 . 1 1 1 . 1 .
+        DB       $00,$15,$50,$04,$40 ; . . . . . 1 1 1 1 1 . . . . 1 . 1 . . .
+        DB       $04,$55,$54,$00,$00 ; . . 1 . 1 1 1 1 1 1 1 . . . . . . . . .
+        DB       $05,$55,$05,$55,$40 ; . . 1 1 1 1 1 1 . . 1 1 1 1 1 1 1 . . .
+        DB       $04,$14,$01,$55,$50 ; . . 1 . . 1 1 . . . . 1 1 1 1 1 1 1 . .
+        DB       $10,$00,$00,$55,$54 ; . 1 . . . . . . . . . . 1 1 1 1 1 1 1 .
+        DB       $10,$00,$00,$15,$50 ; . 1 . . . . . . . . . . . 1 1 1 1 1 . .
+
+;*******************************************************************************
+; BURWOR_FIRE_3_UP
+; 5 bytes/row = 20 pixels wide, 18 rows
+;*******************************************************************************
+BURWOR_FIRE_3_UP:
+        DB       $00,$00,$00,$C8,$00 ; . . . . . . . . . . . . 3 . 2 . . . . .
+        DB       $04,$00,$00,$F0,$00 ; . . 1 . . . . . . . . . 3 3 . . . . . .
+        DB       $01,$01,$02,$F0,$00 ; . . . 1 . . . 1 . . . 2 3 3 . . . . . .
+        DB       $00,$45,$40,$B1,$40 ; . . . . 1 . 1 1 1 . . . 2 3 . 1 1 . . .
+        DB       $08,$55,$41,$F5,$40 ; . . 2 . 1 1 1 1 1 . . 1 3 3 1 1 1 . . .
+        DB       $00,$51,$51,$FD,$40 ; . . . . 1 1 . 1 1 1 . 1 3 3 3 1 1 . . .
+        DB       $00,$41,$51,$F5,$50 ; . . . . 1 . . 1 1 1 . 1 3 3 1 1 1 1 . .
+        DB       $00,$00,$51,$FD,$D4 ; . . . . . . . . 1 1 . 1 3 3 3 1 3 1 1 .
+        DB       $30,$00,$50,$75,$F4 ; . 3 . . . . . . 1 1 . . 1 3 1 1 3 3 1 .
+        DB       $00,$00,$55,$55,$F4 ; . . . . . . . . 1 1 1 1 1 1 1 1 3 3 1 .
+        DB       $03,$00,$55,$55,$54 ; . . . 3 . . . . 1 1 1 1 1 1 1 1 1 1 1 .
+        DB       $00,$00,$55,$55,$54 ; . . . . . . . . 1 1 1 1 1 1 1 1 1 1 1 .
+        DB       $00,$40,$54,$45,$44 ; . . . . 1 . . . 1 1 1 . 1 . 1 1 1 . 1 .
+        DB       $00,$51,$54,$04,$40 ; . . . . 1 1 . 1 1 1 1 . . . 1 . 1 . . .
+        DB       $00,$55,$45,$00,$00 ; . . . . 1 1 1 1 1 . 1 1 . . . . . . . .
+        DB       $00,$45,$41,$55,$40 ; . . . . 1 . 1 1 1 . . 1 1 1 1 1 1 . . .
+        DB       $01,$01,$00,$55,$50 ; . . . 1 . . . 1 . . . . 1 1 1 1 1 1 . .
+        DB       $04,$00,$00,$15,$54 ; . . 1 . . . . . . . . . . 1 1 1 1 1 1 .
+
+;*******************************************************************************
+; BURWOR_FIRE_0
+; 5 bytes/row = 20 pixels wide, 18 rows
+;*******************************************************************************
+BURWOR_FIRE_0:
+        DB       $00,$00,$00,$00,$40 ; . . . . . . . . . . . . . . . . 1 . . .
+        DB       $00,$00,$00,$01,$50 ; . . . . . . . . . . . . . . . 1 1 1 . .
+        DB       $00,$00,$00,$41,$50 ; . . . . . . . . . . . . 1 . . 1 1 1 . .
+        DB       $00,$05,$55,$01,$54 ; . . . . . . 1 1 1 1 1 1 . . . 1 1 1 1 .
+        DB       $00,$17,$D5,$11,$54 ; . . . . . 1 1 3 3 1 1 1 . 1 . 1 1 1 1 .
+        DB       $05,$5F,$D5,$41,$54 ; . . 1 1 1 1 3 3 3 1 1 1 1 . . 1 1 1 1 .
+        DB       $05,$55,$55,$41,$50 ; . . 1 1 1 1 1 1 1 1 1 1 1 . . 1 1 1 . .
+        DB       $0D,$DD,$55,$51,$50 ; . . 3 1 3 1 3 1 1 1 1 1 1 1 . 1 1 1 . .
+        DB       $35,$55,$55,$01,$40 ; . 3 1 1 1 1 1 1 1 1 1 1 . . . 1 1 . . .
+        DB       $01,$54,$15,$01,$00 ; . . . 1 1 1 1 . . 1 1 1 . . . 1 . . . .
+        DB       $30,$00,$15,$44,$00 ; . 3 . . . . . . . 1 1 1 1 . 1 . . . . .
+        DB       $01,$50,$15,$50,$14 ; . . . 1 1 1 . . . 1 1 1 1 1 . . . 1 1 .
+        DB       $01,$54,$15,$51,$54 ; . . . 1 1 1 1 . . 1 1 1 1 1 . 1 1 1 1 .
+        DB       $00,$55,$55,$55,$50 ; . . . . 1 1 1 1 1 1 1 1 1 1 1 1 1 1 . .
+        DB       $00,$54,$55,$51,$50 ; . . . . 1 1 1 . 1 1 1 1 1 1 . 1 1 1 . .
+        DB       $00,$14,$15,$51,$40 ; . . . . . 1 1 . . 1 1 1 1 1 . 1 1 . . .
+        DB       $00,$05,$00,$01,$00 ; . . . . . . 1 1 . . . . . . . 1 . . . .
+        DB       $01,$55,$40,$05,$54 ; . . . 1 1 1 1 1 1 . . . . . 1 1 1 1 1 .
+
+;*******************************************************************************
+; BURWOR_FIRE_1
+; 5 bytes/row = 20 pixels wide, 18 rows
+;*******************************************************************************
+BURWOR_FIRE_1:
+        DB       $00,$00,$00,$01,$00 ; . . . . . . . . . . . . . . . 1 . . . .
+        DB       $00,$00,$00,$01,$40 ; . . . . . . . . . . . . . . . 1 1 . . .
+        DB       $00,$00,$00,$41,$50 ; . . . . . . . . . . . . 1 . . 1 1 1 . .
+        DB       $00,$05,$55,$01,$54 ; . . . . . . 1 1 1 1 1 1 . . . 1 1 1 1 .
+        DB       $00,$17,$D5,$11,$54 ; . . . . . 1 1 3 3 1 1 1 . 1 . 1 1 1 1 .
+        DB       $05,$5F,$D5,$41,$54 ; . . 1 1 1 1 3 3 3 1 1 1 1 . . 1 1 1 1 .
+        DB       $05,$55,$55,$41,$50 ; . . 1 1 1 1 1 1 1 1 1 1 1 . . 1 1 1 . .
+        DB       $0D,$D5,$55,$51,$50 ; . . 3 1 3 1 1 1 1 1 1 1 1 1 . 1 1 1 . .
+        DB       $3F,$FD,$55,$01,$40 ; . 3 3 3 3 3 3 1 1 1 1 1 . . . 1 1 . . .
+        DB       $01,$54,$15,$01,$00 ; . . . 1 1 1 1 . . 1 1 1 . . . 1 . . . .
+        DB       $30,$00,$15,$44,$00 ; . 3 . . . . . . . 1 1 1 1 . 1 . . . . .
+        DB       $01,$50,$15,$50,$14 ; . . . 1 1 1 . . . 1 1 1 1 1 . . . 1 1 .
+        DB       $01,$54,$15,$51,$54 ; . . . 1 1 1 1 . . 1 1 1 1 1 . 1 1 1 1 .
+        DB       $00,$55,$55,$55,$50 ; . . . . 1 1 1 1 1 1 1 1 1 1 1 1 1 1 . .
+        DB       $0C,$54,$55,$51,$50 ; . . 3 . 1 1 1 . 1 1 1 1 1 1 . 1 1 1 . .
+        DB       $00,$14,$15,$51,$40 ; . . . . . 1 1 . . 1 1 1 1 1 . 1 1 . . .
+        DB       $00,$05,$00,$01,$00 ; . . . . . . 1 1 . . . . . . . 1 . . . .
+        DB       $31,$55,$40,$05,$54 ; . 3 . 1 1 1 1 1 1 . . . . . 1 1 1 1 1 .
+
+;*******************************************************************************
+; BURWOR_FIRE_2
+; 5 bytes/row = 20 pixels wide, 18 rows
+;*******************************************************************************
+BURWOR_FIRE_2:
+        DB       $00,$01,$55,$40,$10 ; . . . . . . . 1 1 1 1 1 1 . . . . 1 . .
+        DB       $00,$05,$F5,$00,$54 ; . . . . . . 1 1 3 3 1 1 . . . . 1 1 1 .
+        DB       $01,$57,$F5,$51,$54 ; . . . 1 1 1 1 3 3 3 1 1 1 1 . 1 1 1 1 .
+        DB       $01,$55,$55,$41,$54 ; . . . 1 1 1 1 1 1 1 1 1 1 . . 1 1 1 1 .
+        DB       $30,$77,$55,$51,$54 ; . 3 . . 1 3 1 3 1 1 1 1 1 1 . 1 1 1 1 .
+        DB       $0F,$FF,$D5,$01,$54 ; . . 3 3 3 3 3 3 3 1 1 1 . . . 1 1 1 1 .
+        DB       $3E,$FF,$55,$41,$50 ; . 3 3 2 3 3 3 3 1 1 1 1 1 . . 1 1 1 . .
+        DB       $08,$55,$15,$01,$40 ; . . 2 . 1 1 1 1 . 1 1 1 . . . 1 1 . . .
+        DB       $00,$00,$15,$45,$00 ; . . . . . . . . . 1 1 1 1 . 1 1 . . . .
+        DB       $30,$01,$55,$54,$00 ; . 3 . . . . . 1 1 1 1 1 1 1 1 . . . . .
+        DB       $01,$55,$55,$54,$00 ; . . . 1 1 1 1 1 1 1 1 1 1 1 1 . . . . .
+        DB       $05,$55,$55,$55,$00 ; . . 1 1 1 1 1 1 1 1 1 1 1 1 1 1 . . . .
+        DB       $01,$50,$55,$55,$40 ; . . . 1 1 1 . . 1 1 1 1 1 1 1 1 1 . . .
+        DB       $20,$50,$00,$15,$40 ; . 2 . . 1 1 . . . . . . . 1 1 1 1 . . .
+        DB       $00,$14,$00,$05,$00 ; . . . . . 1 1 . . . . . . . 1 1 . . . .
+        DB       $05,$55,$00,$01,$00 ; . . 1 1 1 1 1 1 . . . . . . . 1 . . . .
+        DB       $00,$00,$30,$05,$40 ; . . . . . . . . . 3 . . . . 1 1 1 . . .
+        DB       $00,$0C,$00,$00,$14 ; . . . . . . 3 . . . . . . . . . . 1 1 .
+
+;*******************************************************************************
+; BURWOR_FIRE_3
+; 5 bytes/row = 20 pixels wide, 18 rows
+;*******************************************************************************
+BURWOR_FIRE_3:
+        DB       $00,$00,$55,$50,$04 ; . . . . . . . . 1 1 1 1 1 1 . . . . 1 .
+        DB       $00,$01,$7D,$40,$14 ; . . . . . . . 1 1 3 3 1 1 . . . . 1 1 .
+        DB       $00,$55,$FD,$54,$54 ; . . . . 1 1 1 1 3 3 3 1 1 1 1 . 1 1 1 .
+        DB       $00,$55,$55,$50,$54 ; . . . . 1 1 1 1 1 1 1 1 1 1 . . 1 1 1 .
+        DB       $20,$1D,$D5,$54,$54 ; . 2 . . . 1 3 1 3 1 1 1 1 1 1 . 1 1 1 .
+        DB       $0F,$FF,$F5,$40,$54 ; . . 3 3 3 3 3 3 3 3 1 1 1 . . . 1 1 1 .
+        DB       $3F,$BF,$D5,$50,$50 ; . 3 3 3 2 3 3 3 3 1 1 1 1 1 . . 1 1 . .
+        DB       $02,$15,$45,$41,$40 ; . . . 2 . 1 1 1 1 . 1 1 1 . . 1 1 . . .
+        DB       $00,$00,$05,$55,$00 ; . . . . . . . . . . 1 1 1 1 1 1 . . . .
+        DB       $00,$05,$55,$54,$00 ; . . . . . . 1 1 1 1 1 1 1 1 1 . . . . .
+        DB       $00,$55,$55,$55,$40 ; . . . . 1 1 1 1 1 1 1 1 1 1 1 1 1 . . .
+        DB       $01,$55,$00,$05,$50 ; . . . 1 1 1 1 1 . . . . . . 1 1 1 1 . .
+        DB       $00,$50,$00,$01,$40 ; . . . . 1 1 . . . . . . . . . 1 1 . . .
+        DB       $00,$14,$00,$05,$00 ; . . . . . 1 1 . . . . . . . 1 1 . . . .
+        DB       $00,$55,$00,$15,$40 ; . . . . 1 1 1 1 . . . . . 1 1 1 1 . . .
+        DB       $01,$00,$03,$00,$10 ; . . . 1 . . . . . . . 3 . . . . . 1 . .
+        DB       $04,$20,$00,$00,$04 ; . . 1 . . 2 . . . . . . . . . . . . 1 .
+        DB       $00,$00,$30,$00,$00 ; . . . . . . . . . 3 . . . . . . . . . .
+
+;*******************************************************************************
+; WORLUK_1_UP
+; 5 bytes/row = 20 pixels wide, 18 rows
+;*******************************************************************************
+WORLUK_1_UP:
+        DB       $00,$00,$00,$1A,$A0 ; . . . . . . . . . . . . . 1 2 2 2 2 . .
+        DB       $00,$00,$05,$5A,$A0 ; . . . . . . . . . . 1 1 1 1 2 2 2 2 . .
+        DB       $10,$00,$12,$6A,$80 ; . 1 . . . . . . . 1 . 2 1 2 2 2 2 . . .
+        DB       $10,$00,$41,$AA,$00 ; . 1 . . . . . . 1 . . 1 2 2 2 2 . . . .
+        DB       $15,$40,$09,$A8,$00 ; . 1 1 1 1 . . . . . 2 1 2 2 2 . . . . .
+        DB       $00,$10,$06,$8E,$04 ; . . . . . 1 . . . . 1 2 2 . 3 2 . . 1 .
+        DB       $00,$10,$1A,$2F,$84 ; . . . . . 1 . . . 1 2 2 . 2 3 3 2 . 1 .
+        DB       $00,$55,$54,$3F,$D0 ; . . . . 1 1 1 1 1 1 1 . . 3 3 3 3 1 . .
+        DB       $01,$55,$55,$AF,$80 ; . . . 1 1 1 1 1 1 1 1 1 2 2 3 3 2 . . .
+        DB       $05,$55,$56,$AA,$80 ; . . 1 1 1 1 1 1 1 1 1 2 2 2 2 2 2 . . .
+        DB       $01,$55,$55,$AF,$80 ; . . . 1 1 1 1 1 1 1 1 1 2 2 3 3 2 . . .
+        DB       $00,$55,$54,$3F,$D0 ; . . . . 1 1 1 1 1 1 1 . . 3 3 3 3 1 . .
+        DB       $00,$10,$1A,$2F,$84 ; . . . . . 1 . . . 1 2 2 . 2 3 3 2 . 1 .
+        DB       $00,$10,$26,$AE,$04 ; . . . . . 1 . . . 2 1 2 2 2 3 2 . . 1 .
+        DB       $15,$40,$09,$AA,$00 ; . 1 1 1 1 . . . . . 2 1 2 2 2 2 . . . .
+        DB       $10,$00,$01,$AA,$A0 ; . 1 . . . . . . . . . 1 2 2 2 2 2 2 . .
+        DB       $10,$00,$40,$6A,$A8 ; . 1 . . . . . . 1 . . . 1 2 2 2 2 2 2 .
+        DB       $00,$00,$15,$5A,$A8 ; . . . . . . . . . 1 1 1 1 1 2 2 2 2 2 .
+
+;*******************************************************************************
+; WORLUK_2_UP
+; 5 bytes/row = 20 pixels wide, 18 rows
+;*******************************************************************************
+WORLUK_2_UP:
+        DB       $00,$00,$2A,$A4,$00 ; . . . . . . . . . 2 2 2 2 2 1 . . . . .
+        DB       $00,$00,$A5,$56,$00 ; . . . . . . . . 2 2 1 1 1 1 1 2 . . . .
+        DB       $00,$02,$9A,$68,$00 ; . . . . . . . 2 2 1 2 2 1 2 2 . . . . .
+        DB       $10,$52,$69,$A0,$00 ; . 1 . . 1 1 . 2 1 2 2 1 2 2 . . . . . .
+        DB       $11,$12,$A6,$8E,$00 ; . 1 . 1 . 1 . 2 2 2 1 2 2 . 3 2 . . . .
+        DB       $14,$10,$9A,$2F,$80 ; . 1 1 . . 1 . . 2 1 2 2 . 2 3 3 2 . . .
+        DB       $00,$55,$54,$3F,$D4 ; . . . . 1 1 1 1 1 1 1 . . 3 3 3 3 1 1 .
+        DB       $01,$55,$55,$AF,$80 ; . . . 1 1 1 1 1 1 1 1 1 2 2 3 3 2 . . .
+        DB       $05,$55,$56,$AA,$80 ; . . 1 1 1 1 1 1 1 1 1 2 2 2 2 2 2 . . .
+        DB       $01,$55,$55,$AF,$80 ; . . . 1 1 1 1 1 1 1 1 1 2 2 3 3 2 . . .
+        DB       $00,$55,$54,$3F,$D0 ; . . . . 1 1 1 1 1 1 1 . . 3 3 3 3 1 . .
+        DB       $00,$10,$9A,$2F,$84 ; . . . . . 1 . . 2 1 2 2 . 2 3 3 2 . 1 .
+        DB       $00,$42,$A6,$8E,$00 ; . . . . 1 . . 2 2 2 1 2 2 . 3 2 . . . .
+        DB       $01,$02,$A9,$80,$00 ; . . . 1 . . . 2 2 2 2 1 2 . . . . . . .
+        DB       $14,$02,$69,$A0,$00 ; . 1 1 . . . . 2 1 2 2 1 2 2 . . . . . .
+        DB       $10,$02,$95,$A8,$00 ; . 1 . . . . . 2 2 1 1 1 2 2 2 . . . . .
+        DB       $10,$00,$A5,$68,$00 ; . 1 . . . . . . 2 2 1 1 1 2 2 . . . . .
+        DB       $00,$00,$2A,$68,$00 ; . . . . . . . . . 2 2 2 1 2 2 . . . . .
+
+;*******************************************************************************
+; WORLUK_3_UP
+; 5 bytes/row = 20 pixels wide, 18 rows
+;*******************************************************************************
+WORLUK_3_UP:
+        DB       $02,$A8,$04,$00,$00 ; . . . 2 2 2 2 . . . 1 . . . . . . . . .
+        DB       $02,$AA,$94,$00,$00 ; . . . 2 2 2 2 2 2 1 1 . . . . . . . . .
+        DB       $00,$AA,$64,$00,$00 ; . . . . 2 2 2 2 1 2 1 . . . . . . . . .
+        DB       $00,$29,$A6,$00,$00 ; . . . . . 2 2 1 2 2 1 2 . . . . . . . .
+        DB       $10,$5A,$A6,$00,$00 ; . 1 . . 1 1 2 2 2 2 1 2 . . . . . . . .
+        DB       $11,$12,$A6,$38,$00 ; . 1 . 1 . 1 . 2 2 2 1 2 . 3 2 . . . . .
+        DB       $14,$10,$98,$BE,$00 ; . 1 1 . . 1 . . 2 1 2 . 2 3 3 2 . . . .
+        DB       $10,$55,$50,$FF,$40 ; . 1 . . 1 1 1 1 1 1 . . 3 3 3 3 1 . . .
+        DB       $01,$55,$56,$BE,$10 ; . . . 1 1 1 1 1 1 1 1 2 2 3 3 2 . 1 . .
+        DB       $05,$55,$5A,$AA,$00 ; . . 1 1 1 1 1 1 1 1 2 2 2 2 2 2 . . . .
+        DB       $01,$55,$56,$BE,$00 ; . . . 1 1 1 1 1 1 1 1 2 2 3 3 2 . . . .
+        DB       $10,$55,$50,$FF,$40 ; . 1 . . 1 1 1 1 1 1 . . 3 3 3 3 1 . . .
+        DB       $14,$10,$98,$BE,$10 ; . 1 1 . . 1 . . 2 1 2 . 2 3 3 2 . 1 . .
+        DB       $11,$11,$A6,$38,$00 ; . 1 . 1 . 1 . 1 2 2 1 2 . 3 2 . . . . .
+        DB       $10,$5A,$66,$00,$00 ; . 1 . . 1 1 2 2 1 2 1 2 . . . . . . . .
+        DB       $00,$AA,$96,$00,$00 ; . . . . 2 2 2 2 2 1 1 2 . . . . . . . .
+        DB       $02,$AA,$94,$00,$00 ; . . . 2 2 2 2 2 2 1 1 . . . . . . . . .
+        DB       $02,$AA,$84,$00,$00 ; . . . 2 2 2 2 2 2 . 1 . . . . . . . . .
+
+;*******************************************************************************
+; WORLUK_1
+; 5 bytes/row = 20 pixels wide, 18 rows
+;*******************************************************************************
+WORLUK_1:
+        DB       $00,$05,$00,$14,$28 ; . . . . . . 1 1 . . . . . 1 1 . . 2 2 .
+        DB       $28,$00,$40,$40,$A8 ; . 2 2 . . . . . 1 . . . 1 . . . 2 2 2 .
+        DB       $2A,$02,$EA,$E0,$A8 ; . 2 2 2 . . . 2 3 2 2 2 3 2 . . 2 2 2 .
+        DB       $2A,$8B,$FB,$FA,$A8 ; . 2 2 2 2 . 2 3 3 3 2 3 3 3 2 2 2 2 2 .
+        DB       $2A,$AF,$FB,$FE,$A8 ; . 2 2 2 2 2 3 3 3 3 2 3 3 3 3 2 2 2 2 .
+        DB       $16,$A2,$EA,$EA,$A4 ; . 1 1 2 2 2 . 2 3 2 2 2 3 2 2 2 2 2 1 .
+        DB       $05,$A8,$2A,$0A,$94 ; . . 1 1 2 2 2 . . 2 2 2 . . 2 2 2 1 1 .
+        DB       $06,$5A,$19,$29,$44 ; . . 1 2 1 1 2 2 . 1 2 1 . 2 2 1 1 . 1 .
+        DB       $04,$26,$55,$66,$04 ; . . 1 . . 2 1 2 1 1 1 1 1 2 1 2 . . 1 .
+        DB       $01,$01,$55,$58,$04 ; . . . 1 . . . 1 1 1 1 1 1 1 2 . . . 1 .
+        DB       $00,$40,$55,$40,$10 ; . . . . 1 . . . 1 1 1 1 1 . . . . 1 . .
+        DB       $00,$00,$55,$40,$00 ; . . . . . . . . 1 1 1 1 1 . . . . . . .
+        DB       $00,$00,$55,$40,$00 ; . . . . . . . . 1 1 1 1 1 . . . . . . .
+        DB       $00,$05,$55,$54,$00 ; . . . . . . 1 1 1 1 1 1 1 1 1 . . . . .
+        DB       $00,$10,$55,$41,$00 ; . . . . . 1 . . 1 1 1 1 1 . . 1 . . . .
+        DB       $00,$10,$15,$01,$00 ; . . . . . 1 . . . 1 1 1 . . . 1 . . . .
+        DB       $00,$10,$04,$01,$00 ; . . . . . 1 . . . . 1 . . . . 1 . . . .
+        DB       $01,$50,$00,$01,$50 ; . . . 1 1 1 . . . . . . . . . 1 1 1 . .
+
+;*******************************************************************************
+; WORLUK_2
+; 5 bytes/row = 20 pixels wide, 18 rows
+;*******************************************************************************
+WORLUK_2:
+        DB       $00,$01,$00,$40,$00 ; . . . . . . . 1 . . . . 1 . . . . . . .
+        DB       $00,$01,$01,$00,$00 ; . . . . . . . 1 . . . 1 . . . . . . . .
+        DB       $00,$0B,$AB,$80,$00 ; . . . . . . 2 3 2 2 2 3 2 . . . . . . .
+        DB       $08,$2F,$EF,$E0,$00 ; . . 2 . . 2 3 3 3 2 3 3 3 2 . . . . . .
+        DB       $16,$3F,$EF,$F0,$A8 ; . 1 1 2 . 3 3 3 3 2 3 3 3 3 . . 2 2 2 .
+        DB       $26,$8B,$AB,$82,$A8 ; . 2 1 2 2 . 2 3 2 2 2 3 2 . . 2 2 2 2 .
+        DB       $25,$A0,$A8,$2A,$94 ; . 2 1 1 2 2 . . 2 2 2 . . 2 2 2 2 1 1 .
+        DB       $26,$68,$64,$A5,$58 ; . 2 1 2 1 2 2 . 1 2 1 . 2 2 1 1 1 1 2 .
+        DB       $26,$99,$55,$9A,$58 ; . 2 1 2 2 1 2 1 1 1 1 1 2 1 2 2 1 1 2 .
+        DB       $29,$A5,$55,$6A,$68 ; . 2 2 1 2 2 1 1 1 1 1 1 1 2 2 2 1 2 2 .
+        DB       $0A,$69,$55,$A9,$A0 ; . . 2 2 1 2 2 1 1 1 1 1 2 2 2 1 2 2 . .
+        DB       $02,$A1,$55,$2A,$80 ; . . . 2 2 2 . 1 1 1 1 1 . 2 2 2 2 . . .
+        DB       $00,$01,$55,$00,$00 ; . . . . . . . 1 1 1 1 1 . . . . . . . .
+        DB       $00,$55,$55,$40,$00 ; . . . . 1 1 1 1 1 1 1 1 1 . . . . . . .
+        DB       $00,$41,$55,$10,$00 ; . . . . 1 . . 1 1 1 1 1 . 1 . . . . . .
+        DB       $00,$10,$54,$04,$00 ; . . . . . 1 . . 1 1 1 . . . 1 . . . . .
+        DB       $00,$04,$10,$01,$00 ; . . . . . . 1 . . 1 . . . . . 1 . . . .
+        DB       $00,$54,$00,$01,$50 ; . . . . 1 1 1 . . . . . . . . 1 1 1 . .
+
+;*******************************************************************************
+; WORLUK_3
+; 5 bytes/row = 20 pixels wide, 18 rows
+;*******************************************************************************
+WORLUK_3:
+        DB       $00,$00,$00,$00,$00 ; . . . . . . . . . . . . . . . . . . . .
+        DB       $00,$00,$10,$10,$00 ; . . . . . . . . . 1 . . . 1 . . . . . .
+        DB       $00,$00,$40,$40,$00 ; . . . . . . . . 1 . . . 1 . . . . . . .
+        DB       $00,$02,$EA,$E0,$00 ; . . . . . . . 2 3 2 2 2 3 2 . . . . . .
+        DB       $00,$0B,$FB,$F8,$00 ; . . . . . . 2 3 3 3 2 3 3 3 2 . . . . .
+        DB       $00,$0F,$FB,$FC,$00 ; . . . . . . 3 3 3 3 2 3 3 3 3 . . . . .
+        DB       $00,$02,$EA,$E0,$00 ; . . . . . . . 2 3 2 2 2 3 2 . . . . . .
+        DB       $00,$A8,$2A,$0A,$80 ; . . . . 2 2 2 . . 2 2 2 . . 2 2 2 . . .
+        DB       $15,$56,$19,$25,$54 ; . 1 1 1 1 1 1 2 . 1 2 1 . 2 1 1 1 1 1 .
+        DB       $06,$A9,$55,$5A,$50 ; . . 1 2 2 2 2 1 1 1 1 1 1 1 2 2 1 1 . .
+        DB       $09,$AA,$55,$69,$A8 ; . . 2 1 2 2 2 2 1 1 1 1 1 2 2 1 2 2 2 .
+        DB       $0A,$68,$55,$46,$A8 ; . . 2 2 1 2 2 . 1 1 1 1 1 . 1 2 2 2 2 .
+        DB       $2A,$A0,$55,$42,$A8 ; . 2 2 2 2 2 . . 1 1 1 1 1 . . 2 2 2 2 .
+        DB       $2A,$95,$55,$55,$A8 ; . 2 2 2 2 1 1 1 1 1 1 1 1 1 1 1 2 2 2 .
+        DB       $2A,$10,$55,$41,$A8 ; . 2 2 2 . 1 . . 1 1 1 1 1 . . 1 2 2 2 .
+        DB       $28,$04,$15,$04,$28 ; . 2 2 . . . 1 . . 1 1 1 . . 1 . . 2 2 .
+        DB       $00,$01,$04,$10,$00 ; . . . . . . . 1 . . 1 . . 1 . . . . . .
+        DB       $00,$15,$40,$55,$00 ; . . . . . 1 1 1 1 . . . 1 1 1 1 . . . .
+
+;*******************************************************************************
+; WIZARD_1_UP
+; 5 bytes/row = 20 pixels wide, 18 rows
+;*******************************************************************************
+WIZARD_1_UP:
+        DB       $00,$00,$30,$00,$00 ; . . . . . . . . . 3 . . . . . . . . . .
+        DB       $00,$00,$30,$00,$00 ; . . . . . . . . . 3 . . . . . . . . . .
+        DB       $00,$00,$04,$00,$00 ; . . . . . . . . . . 1 . . . . . . . . .
+        DB       $00,$00,$05,$40,$00 ; . . . . . . . . . . 1 1 1 . . . . . . .
+        DB       $00,$14,$00,$50,$00 ; . . . . . 1 1 . . . . . 1 1 . . . . . .
+        DB       $11,$54,$00,$15,$40 ; . 1 . 1 1 1 1 . . . . . . 1 1 1 1 . . .
+        DB       $15,$55,$00,$16,$10 ; . 1 1 1 1 1 1 1 . . . . . 1 1 2 . 1 . .
+        DB       $15,$55,$40,$50,$10 ; . 1 1 1 1 1 1 1 1 . . . 1 1 . . . 1 . .
+        DB       $15,$55,$55,$42,$14 ; . 1 1 1 1 1 1 1 1 1 1 1 1 . . 2 . 1 1 .
+        DB       $15,$55,$55,$54,$14 ; . 1 1 1 1 1 1 1 1 1 1 1 1 1 1 . . 1 1 .
+        DB       $15,$55,$55,$55,$54 ; . 1 1 1 1 1 1 1 1 1 1 1 1 1 1 1 1 1 1 .
+        DB       $15,$55,$55,$55,$04 ; . 1 1 1 1 1 1 1 1 1 1 1 1 1 1 1 . . 1 .
+        DB       $15,$55,$54,$15,$00 ; . 1 1 1 1 1 1 1 1 1 1 . . 1 1 1 . . . .
+        DB       $15,$54,$00,$14,$00 ; . 1 1 1 1 1 1 . . . . . . 1 1 . . . . .
+        DB       $15,$40,$00,$10,$00 ; . 1 1 1 1 . . . . . . . . 1 . . . . . .
+        DB       $15,$00,$00,$50,$00 ; . 1 1 1 . . . . . . . . 1 1 . . . . . .
+        DB       $14,$00,$01,$40,$00 ; . 1 1 . . . . . . . . 1 1 . . . . . . .
+        DB       $00,$00,$3D,$00,$00 ; . . . . . . . . . 3 3 1 . . . . . . . .
+
+;*******************************************************************************
+; WIZARD_2_UP
+; 5 bytes/row = 20 pixels wide, 18 rows
+;*******************************************************************************
+WIZARD_2_UP:
+        DB       $00,$00,$00,$00,$00 ; . . . . . . . . . . . . . . . . . . . .
+        DB       $00,$00,$30,$00,$00 ; . . . . . . . . . 3 . . . . . . . . . .
+        DB       $00,$00,$30,$00,$00 ; . . . . . . . . . 3 . . . . . . . . . .
+        DB       $00,$00,$04,$00,$00 ; . . . . . . . . . . 1 . . . . . . . . .
+        DB       $00,$04,$05,$11,$50 ; . . . . . . 1 . . . 1 1 . 1 . 1 1 1 . .
+        DB       $10,$15,$00,$55,$84 ; . 1 . . . 1 1 1 . . . . 1 1 1 1 2 . 1 .
+        DB       $10,$55,$40,$14,$04 ; . 1 . . 1 1 1 1 1 . . . . 1 1 . . . 1 .
+        DB       $15,$55,$50,$50,$94 ; . 1 1 1 1 1 1 1 1 1 . . 1 1 . . 2 1 1 .
+        DB       $15,$55,$55,$55,$54 ; . 1 1 1 1 1 1 1 1 1 1 1 1 1 1 1 1 1 1 .
+        DB       $15,$55,$55,$55,$50 ; . 1 1 1 1 1 1 1 1 1 1 1 1 1 1 1 1 1 . .
+        DB       $05,$55,$55,$55,$00 ; . . 1 1 1 1 1 1 1 1 1 1 1 1 1 1 . . . .
+        DB       $05,$55,$55,$05,$00 ; . . 1 1 1 1 1 1 1 1 1 1 . . 1 1 . . . .
+        DB       $05,$54,$54,$14,$00 ; . . 1 1 1 1 1 . 1 1 1 . . 1 1 . . . . .
+        DB       $05,$50,$00,$50,$00 ; . . 1 1 1 1 . . . . . . 1 1 . . . . . .
+        DB       $05,$40,$01,$40,$00 ; . . 1 1 1 . . . . . . 1 1 . . . . . . .
+        DB       $01,$00,$3D,$00,$00 ; . . . 1 . . . . . 3 3 1 . . . . . . . .
+        DB       $00,$00,$00,$00,$00 ; . . . . . . . . . . . . . . . . . . . .
+        DB       $00,$00,$00,$00,$00 ; . . . . . . . . . . . . . . . . . . . .
+
+;*******************************************************************************
+; WIZARD_3_UP
+; 5 bytes/row = 20 pixels wide, 18 rows
+;*******************************************************************************
+WIZARD_3_UP:
+        DB       $00,$00,$00,$00,$00 ; . . . . . . . . . . . . . . . . . . . .
+        DB       $00,$00,$00,$00,$00 ; . . . . . . . . . . . . . . . . . . . .
+        DB       $00,$00,$00,$00,$00 ; . . . . . . . . . . . . . . . . . . . .
+        DB       $00,$00,$C0,$00,$00 ; . . . . . . . . 3 . . . . . . . . . . .
+        DB       $00,$00,$C0,$05,$40 ; . . . . . . . . 3 . . . . . 1 1 1 . . .
+        DB       $14,$14,$10,$56,$10 ; . 1 1 . . 1 1 . . 1 . . 1 1 1 2 . 1 . .
+        DB       $15,$55,$14,$50,$50 ; . 1 1 1 1 1 1 1 . 1 1 . 1 1 . . 1 1 . .
+        DB       $15,$55,$41,$41,$50 ; . 1 1 1 1 1 1 1 1 . . 1 1 . . 1 1 1 . .
+        DB       $15,$55,$55,$55,$54 ; . 1 1 1 1 1 1 1 1 1 1 1 1 1 1 1 1 1 1 .
+        DB       $15,$55,$55,$55,$54 ; . 1 1 1 1 1 1 1 1 1 1 1 1 1 1 1 1 1 1 .
+        DB       $15,$55,$55,$54,$04 ; . 1 1 1 1 1 1 1 1 1 1 1 1 1 1 . . . 1 .
+        DB       $15,$55,$55,$14,$00 ; . 1 1 1 1 1 1 1 1 1 1 1 . 1 1 . . . . .
+        DB       $14,$15,$D4,$50,$00 ; . 1 1 . . 1 1 1 3 1 1 . 1 1 . . . . . .
+        DB       $00,$01,$F5,$40,$00 ; . . . . . . . 1 3 3 1 1 1 . . . . . . .
+        DB       $00,$00,$05,$00,$00 ; . . . . . . . . . . 1 1 . . . . . . . .
+        DB       $00,$00,$00,$00,$00 ; . . . . . . . . . . . . . . . . . . . .
+        DB       $00,$00,$00,$00,$00 ; . . . . . . . . . . . . . . . . . . . .
+        DB       $00,$00,$00,$00,$00 ; . . . . . . . . . . . . . . . . . . . .
+
+;*******************************************************************************
+; WIZARD_4_UP
+; 5 bytes/row = 20 pixels wide, 18 rows
+;*******************************************************************************
+WIZARD_4_UP:
+        DB       $00,$00,$00,$00,$00 ; . . . . . . . . . . . . . . . . . . . .
+        DB       $00,$00,$00,$00,$00 ; . . . . . . . . . . . . . . . . . . . .
+        DB       $00,$00,$30,$00,$00 ; . . . . . . . . . 3 . . . . . . . . . .
+        DB       $00,$00,$30,$00,$00 ; . . . . . . . . . 3 . . . . . . . . . .
+        DB       $04,$05,$04,$00,$00 ; . . 1 . . . 1 1 . . 1 . . . . . . . . .
+        DB       $04,$55,$45,$01,$50 ; . . 1 . 1 1 1 1 1 . 1 1 . . . 1 1 1 . .
+        DB       $05,$55,$41,$55,$84 ; . . 1 1 1 1 1 1 1 . . 1 1 1 1 1 2 . 1 .
+        DB       $05,$55,$50,$54,$04 ; . . 1 1 1 1 1 1 1 1 . . 1 1 1 . . . 1 .
+        DB       $15,$55,$51,$50,$94 ; . 1 1 1 1 1 1 1 1 1 . 1 1 1 . . 2 1 1 .
+        DB       $15,$55,$55,$55,$54 ; . 1 1 1 1 1 1 1 1 1 1 1 1 1 1 1 1 1 1 .
+        DB       $15,$55,$55,$55,$50 ; . 1 1 1 1 1 1 1 1 1 1 1 1 1 1 1 1 1 . .
+        DB       $15,$55,$55,$55,$00 ; . 1 1 1 1 1 1 1 1 1 1 1 1 1 1 1 . . . .
+        DB       $15,$01,$54,$14,$00 ; . 1 1 1 . . . 1 1 1 1 . . 1 1 . . . . .
+        DB       $00,$00,$00,$14,$00 ; . . . . . . . . . . . . . 1 1 . . . . .
+        DB       $00,$00,$00,$50,$00 ; . . . . . . . . . . . . 1 1 . . . . . .
+        DB       $00,$00,$05,$40,$00 ; . . . . . . . . . . 1 1 1 . . . . . . .
+        DB       $00,$00,$F4,$00,$00 ; . . . . . . . . 3 3 1 . . . . . . . . .
+        DB       $00,$00,$00,$00,$00 ; . . . . . . . . . . . . . . . . . . . .
+
+;*******************************************************************************
+; WIZARD_1
+; 5 bytes/row = 20 pixels wide, 18 rows
+;*******************************************************************************
+WIZARD_1:
+        DB       $00,$00,$15,$40,$00 ; . . . . . . . . . 1 1 1 1 . . . . . . .
+        DB       $00,$01,$55,$00,$00 ; . . . . . . . 1 1 1 1 1 . . . . . . . .
+        DB       $00,$04,$01,$00,$00 ; . . . . . . 1 . . . . 1 . . . . . . . .
+        DB       $00,$06,$21,$50,$00 ; . . . . . . 1 2 . 2 . 1 1 1 . . . . . .
+        DB       $00,$05,$05,$54,$00 ; . . . . . . 1 1 . . 1 1 1 1 1 . . . . .
+        DB       $00,$15,$45,$55,$40 ; . . . . . 1 1 1 1 . 1 1 1 1 1 1 1 . . .
+        DB       $00,$50,$55,$40,$50 ; . . . . 1 1 . . 1 1 1 1 1 . . . 1 1 . .
+        DB       $00,$40,$15,$40,$14 ; . . . . 1 . . . . 1 1 1 1 . . . . 1 1 .
+        DB       $01,$40,$15,$50,$0C ; . . . 1 1 . . . . 1 1 1 1 1 . . . . 3 .
+        DB       $3C,$00,$15,$50,$0C ; . 3 3 . . . . . . 1 1 1 1 1 . . . . 3 .
+        DB       $00,$00,$55,$50,$00 ; . . . . . . . . 1 1 1 1 1 1 . . . . . .
+        DB       $00,$01,$55,$50,$00 ; . . . . . . . 1 1 1 1 1 1 1 . . . . . .
+        DB       $00,$15,$55,$54,$00 ; . . . . . 1 1 1 1 1 1 1 1 1 1 . . . . .
+        DB       $00,$15,$55,$54,$00 ; . . . . . 1 1 1 1 1 1 1 1 1 1 . . . . .
+        DB       $00,$05,$55,$55,$00 ; . . . . . . 1 1 1 1 1 1 1 1 1 1 . . . .
+        DB       $00,$05,$55,$55,$40 ; . . . . . . 1 1 1 1 1 1 1 1 1 1 1 . . .
+        DB       $00,$01,$55,$55,$50 ; . . . . . . . 1 1 1 1 1 1 1 1 1 1 1 . .
+        DB       $00,$05,$55,$55,$50 ; . . . . . . 1 1 1 1 1 1 1 1 1 1 1 1 . .
+
+;*******************************************************************************
+; WIZARD_2
+; 5 bytes/row = 20 pixels wide, 18 rows
+;*******************************************************************************
+WIZARD_2:
+        DB       $00,$05,$50,$00,$00 ; . . . . . . 1 1 1 1 . . . . . . . . . .
+        DB       $00,$10,$54,$00,$00 ; . . . . . 1 . . 1 1 1 . . . . . . . . .
+        DB       $00,$18,$94,$00,$00 ; . . . . . 1 2 . 2 1 1 . . . . . . . . .
+        DB       $00,$14,$15,$40,$00 ; . . . . . 1 1 . . 1 1 1 1 . . . . . . .
+        DB       $00,$05,$15,$50,$00 ; . . . . . . 1 1 . 1 1 1 1 1 . . . . . .
+        DB       $00,$15,$55,$14,$00 ; . . . . . 1 1 1 1 1 1 1 . 1 1 . . . . .
+        DB       $00,$04,$55,$05,$00 ; . . . . . . 1 . 1 1 1 1 . . 1 1 . . . .
+        DB       $00,$10,$15,$41,$40 ; . . . . . 1 . . . 1 1 1 1 . . 1 1 . . .
+        DB       $00,$50,$15,$50,$C0 ; . . . . 1 1 . . . 1 1 1 1 1 . . 3 . . .
+        DB       $0F,$00,$55,$50,$C0 ; . . 3 3 . . . . 1 1 1 1 1 1 . . 3 . . .
+        DB       $00,$01,$55,$50,$00 ; . . . . . . . 1 1 1 1 1 1 1 . . . . . .
+        DB       $00,$05,$55,$40,$00 ; . . . . . . 1 1 1 1 1 1 1 . . . . . . .
+        DB       $00,$15,$55,$50,$00 ; . . . . . 1 1 1 1 1 1 1 1 1 . . . . . .
+        DB       $00,$05,$55,$54,$00 ; . . . . . . 1 1 1 1 1 1 1 1 1 . . . . .
+        DB       $00,$01,$55,$55,$00 ; . . . . . . . 1 1 1 1 1 1 1 1 1 . . . .
+        DB       $00,$00,$55,$55,$40 ; . . . . . . . . 1 1 1 1 1 1 1 1 1 . . .
+        DB       $00,$00,$55,$55,$00 ; . . . . . . . . 1 1 1 1 1 1 1 1 . . . .
+        DB       $00,$05,$54,$00,$00 ; . . . . . . 1 1 1 1 1 . . . . . . . . .
+
+;*******************************************************************************
+; WIZARD_3
+; 5 bytes/row = 20 pixels wide, 18 rows
+;*******************************************************************************
+WIZARD_3:
+        DB       $00,$00,$15,$00,$00 ; . . . . . . . . . 1 1 1 . . . . . . . .
+        DB       $00,$05,$54,$00,$00 ; . . . . . . 1 1 1 1 1 . . . . . . . . .
+        DB       $00,$11,$54,$00,$00 ; . . . . . 1 . 1 1 1 1 . . . . . . . . .
+        DB       $00,$18,$54,$00,$00 ; . . . . . 1 2 . 1 1 1 . . . . . . . . .
+        DB       $00,$14,$15,$40,$00 ; . . . . . 1 1 . . 1 1 1 1 . . . . . . .
+        DB       $00,$05,$15,$50,$00 ; . . . . . . 1 1 . 1 1 1 1 1 . . . . . .
+        DB       $00,$05,$55,$14,$00 ; . . . . . . 1 1 1 1 1 1 . 1 1 . . . . .
+        DB       $00,$00,$55,$45,$00 ; . . . . . . . . 1 1 1 1 1 . 1 1 . . . .
+        DB       $00,$01,$15,$55,$00 ; . . . . . . . 1 . 1 1 1 1 1 1 1 . . . .
+        DB       $00,$05,$15,$5C,$00 ; . . . . . . 1 1 . 1 1 1 1 1 3 . . . . .
+        DB       $00,$F0,$55,$7C,$00 ; . . . . 3 3 . . 1 1 1 1 1 3 3 . . . . .
+        DB       $00,$01,$55,$54,$00 ; . . . . . . . 1 1 1 1 1 1 1 1 . . . . .
+        DB       $00,$05,$55,$50,$00 ; . . . . . . 1 1 1 1 1 1 1 1 . . . . . .
+        DB       $00,$05,$55,$50,$00 ; . . . . . . 1 1 1 1 1 1 1 1 . . . . . .
+        DB       $00,$01,$55,$40,$00 ; . . . . . . . 1 1 1 1 1 1 . . . . . . .
+        DB       $00,$01,$55,$40,$00 ; . . . . . . . 1 1 1 1 1 1 . . . . . . .
+        DB       $00,$05,$55,$50,$00 ; . . . . . . 1 1 1 1 1 1 1 1 . . . . . .
+        DB       $00,$05,$55,$50,$00 ; . . . . . . 1 1 1 1 1 1 1 1 . . . . . .
+
+;*******************************************************************************
+; WIZARD_4
+; 5 bytes/row = 20 pixels wide, 18 rows
+;*******************************************************************************
+WIZARD_4:
+        DB       $00,$01,$54,$00,$00 ; . . . . . . . 1 1 1 1 . . . . . . . . .
+        DB       $00,$04,$15,$00,$00 ; . . . . . . 1 . . 1 1 1 . . . . . . . .
+        DB       $00,$06,$25,$00,$00 ; . . . . . . 1 2 . 2 1 1 . . . . . . . .
+        DB       $00,$05,$05,$40,$00 ; . . . . . . 1 1 . . 1 1 1 . . . . . . .
+        DB       $00,$01,$45,$54,$00 ; . . . . . . . 1 1 . 1 1 1 1 1 . . . . .
+        DB       $00,$01,$55,$55,$00 ; . . . . . . . 1 1 1 1 1 1 1 1 1 . . . .
+        DB       $00,$01,$55,$41,$40 ; . . . . . . . 1 1 1 1 1 1 . . 1 1 . . .
+        DB       $00,$05,$15,$40,$40 ; . . . . . . 1 1 . 1 1 1 1 . . . 1 . . .
+        DB       $00,$14,$05,$50,$50 ; . . . . . 1 1 . . . 1 1 1 1 . . 1 1 . .
+        DB       $03,$C0,$55,$50,$30 ; . . . 3 3 . . . 1 1 1 1 1 1 . . . 3 . .
+        DB       $00,$05,$55,$50,$30 ; . . . . . . 1 1 1 1 1 1 1 1 . . . 3 . .
+        DB       $00,$15,$55,$50,$00 ; . . . . . 1 1 1 1 1 1 1 1 1 . . . . . .
+        DB       $00,$15,$55,$40,$00 ; . . . . . 1 1 1 1 1 1 1 1 . . . . . . .
+        DB       $00,$05,$55,$40,$00 ; . . . . . . 1 1 1 1 1 1 1 . . . . . . .
+        DB       $00,$05,$55,$40,$00 ; . . . . . . 1 1 1 1 1 1 1 . . . . . . .
+        DB       $00,$01,$55,$50,$00 ; . . . . . . . 1 1 1 1 1 1 1 . . . . . .
+        DB       $00,$15,$55,$50,$00 ; . . . . . 1 1 1 1 1 1 1 1 1 . . . . . .
+        DB       $00,$00,$15,$50,$00 ; . . . . . . . . . 1 1 1 1 1 . . . . . .
+
+;*******************************************************************************
+; WIZARD_1_FIRE_UP
+; 5 bytes/row = 20 pixels wide, 18 rows
+;*******************************************************************************
+WIZARD_1_FIRE_UP:
+        DB       $00,$00,$00,$03,$00 ; . . . . . . . . . . . . . . . 3 . . . .
+        DB       $00,$00,$00,$03,$00 ; . . . . . . . . . . . . . . . 3 . . . .
+        DB       $10,$00,$00,$03,$C0 ; . 1 . . . . . . . . . . . . . 3 3 . . .
+        DB       $14,$00,$00,$5F,$00 ; . 1 1 . . . . . . . . . 1 1 3 3 . . . .
+        DB       $15,$50,$01,$54,$00 ; . 1 1 1 1 1 . . . . . 1 1 1 1 . . . . .
+        DB       $15,$54,$01,$40,$00 ; . 1 1 1 1 1 1 . . . . 1 1 . . . . . . .
+        DB       $15,$55,$01,$50,$00 ; . 1 1 1 1 1 1 1 . . . 1 1 1 . . . . . .
+        DB       $15,$55,$41,$51,$50 ; . 1 1 1 1 1 1 1 1 . . 1 1 1 . 1 1 1 . .
+        DB       $15,$55,$55,$55,$84 ; . 1 1 1 1 1 1 1 1 1 1 1 1 1 1 1 2 . 1 .
+        DB       $15,$55,$55,$50,$04 ; . 1 1 1 1 1 1 1 1 1 1 1 1 1 . . . . 1 .
+        DB       $15,$55,$55,$40,$84 ; . 1 1 1 1 1 1 1 1 1 1 1 1 . . . 2 . 1 .
+        DB       $15,$55,$55,$55,$54 ; . 1 1 1 1 1 1 1 1 1 1 1 1 1 1 1 1 1 1 .
+        DB       $15,$55,$00,$50,$50 ; . 1 1 1 1 1 1 1 . . . . 1 1 . . 1 1 . .
+        DB       $15,$40,$01,$50,$00 ; . 1 1 1 1 . . . . . . 1 1 1 . . . . . .
+        DB       $10,$00,$05,$4C,$00 ; . 1 . . . . . . . . 1 1 1 . 3 . . . . .
+        DB       $00,$00,$05,$FC,$00 ; . . . . . . . . . . 1 1 3 3 3 . . . . .
+        DB       $00,$00,$01,$7C,$00 ; . . . . . . . . . . . 1 1 3 3 . . . . .
+        DB       $00,$00,$00,$5C,$00 ; . . . . . . . . . . . . 1 1 3 . . . . .
+
+;*******************************************************************************
+; WIZARD_2_FIRE_UP
+; 5 bytes/row = 20 pixels wide, 18 rows
+;*******************************************************************************
+WIZARD_2_FIRE_UP:
+        DB       $00,$00,$00,$0C,$00 ; . . . . . . . . . . . . . . 3 . . . . .
+        DB       $00,$00,$00,$0C,$00 ; . . . . . . . . . . . . . . 3 . . . . .
+        DB       $00,$00,$00,$0C,$00 ; . . . . . . . . . . . . . . 3 . . . . .
+        DB       $10,$00,$00,$3C,$00 ; . 1 . . . . . . . . . . . 3 3 . . . . .
+        DB       $10,$00,$03,$F0,$00 ; . 1 . . . . . . . . . 3 3 3 . . . . . .
+        DB       $15,$00,$03,$C0,$00 ; . 1 1 1 . . . . . . . 3 3 . . . . . . .
+        DB       $15,$54,$00,$14,$00 ; . 1 1 1 1 1 1 . . . . . . 1 1 . . . . .
+        DB       $15,$55,$00,$14,$00 ; . 1 1 1 1 1 1 1 . . . . . 1 1 . . . . .
+        DB       $15,$55,$40,$14,$00 ; . 1 1 1 1 1 1 1 1 . . . . 1 1 . . . . .
+        DB       $15,$55,$55,$55,$50 ; . 1 1 1 1 1 1 1 1 1 1 1 1 1 1 1 1 1 . .
+        DB       $15,$55,$55,$54,$94 ; . 1 1 1 1 1 1 1 1 1 1 1 1 1 1 . 2 1 1 .
+        DB       $15,$55,$55,$C0,$04 ; . 1 1 1 1 1 1 1 1 1 1 1 3 . . . . . 1 .
+        DB       $15,$05,$45,$D0,$94 ; . 1 1 1 . . 1 1 1 . 1 1 3 1 . . 2 1 1 .
+        DB       $14,$00,$01,$D5,$50 ; . 1 1 . . . . . . . . 1 3 1 1 1 1 1 . .
+        DB       $10,$00,$00,$D1,$50 ; . 1 . . . . . . . . . . 3 1 . 1 1 1 . .
+        DB       $00,$00,$03,$D0,$40 ; . . . . . . . . . . . 3 3 1 . . 1 . . .
+        DB       $00,$00,$0F,$40,$00 ; . . . . . . . . . . 3 3 1 . . . . . . .
+        DB       $00,$00,$0F,$00,$00 ; . . . . . . . . . . 3 3 . . . . . . . .
+
+;*******************************************************************************
+; WIZARD_3_FIRE_UP
+; 5 bytes/row = 20 pixels wide, 18 rows
+;*******************************************************************************
+WIZARD_3_FIRE_UP:
+        DB       $00,$00,$00,$22,$00 ; . . . . . . . . . . . . . 2 . 2 . . . .
+        DB       $00,$00,$00,$22,$00 ; . . . . . . . . . . . . . 2 . 2 . . . .
+        DB       $00,$00,$00,$20,$00 ; . . . . . . . . . . . . . 2 . . . . . .
+        DB       $00,$00,$00,$0C,$C0 ; . . . . . . . . . . . . . . 3 . 3 . . .
+        DB       $00,$00,$00,$3C,$C0 ; . . . . . . . . . . . . . 3 3 . 3 . . .
+        DB       $10,$00,$00,$F3,$C0 ; . 1 . . . . . . . . . . 3 3 . 3 3 . . .
+        DB       $10,$00,$01,$51,$40 ; . 1 . . . . . . . . . 1 1 1 . 1 1 . . .
+        DB       $15,$00,$00,$51,$40 ; . 1 1 1 . . . . . . . . 1 1 . 1 1 . . .
+        DB       $15,$54,$00,$15,$00 ; . 1 1 1 1 1 1 . . . . . . 1 1 1 . . . .
+        DB       $15,$55,$00,$15,$00 ; . 1 1 1 1 1 1 1 . . . . . 1 1 1 . . . .
+        DB       $15,$55,$40,$14,$00 ; . 1 1 1 1 1 1 1 1 . . . . 1 1 . . . . .
+        DB       $15,$55,$40,$14,$10 ; . 1 1 1 1 1 1 1 1 . . . . 1 1 . . 1 . .
+        DB       $15,$55,$50,$54,$94 ; . 1 1 1 1 1 1 1 1 1 . . 1 1 1 . 2 1 1 .
+        DB       $15,$55,$55,$54,$54 ; . 1 1 1 1 1 1 1 1 1 1 1 1 1 1 . 1 1 1 .
+        DB       $15,$55,$55,$55,$54 ; . 1 1 1 1 1 1 1 1 1 1 1 1 1 1 1 1 1 1 .
+        DB       $15,$01,$55,$55,$54 ; . 1 1 1 . . . 1 1 1 1 1 1 1 1 1 1 1 1 .
+        DB       $14,$00,$05,$51,$50 ; . 1 1 . . . . . . . 1 1 1 1 . 1 1 1 . .
+        DB       $10,$00,$00,$00,$40 ; . 1 . . . . . . . . . . . . . . 1 . . .
+
+;*******************************************************************************
+; WIZARD_1_FIRE
+; 5 bytes/row = 20 pixels wide, 18 rows
+;*******************************************************************************
+WIZARD_1_FIRE:
+        DB       $00,$00,$15,$40,$00 ; . . . . . . . . . 1 1 1 1 . . . . . . .
+        DB       $00,$00,$40,$50,$00 ; . . . . . . . . 1 . . . 1 1 . . . . . .
+        DB       $03,$00,$62,$50,$00 ; . . . 3 . . . . 1 2 . 2 1 1 . . . . . .
+        DB       $3F,$C0,$50,$40,$00 ; . 3 3 3 3 . . . 1 1 . . 1 . . . . . . .
+        DB       $00,$D0,$10,$43,$FC ; . . . . 3 1 . . . 1 . . 1 . . 3 3 3 3 .
+        DB       $00,$51,$54,$54,$F4 ; . . . . 1 1 . 1 1 1 1 . 1 1 1 . 3 3 1 .
+        DB       $00,$55,$55,$55,$D4 ; . . . . 1 1 1 1 1 1 1 1 1 1 1 1 3 1 1 .
+        DB       $00,$15,$55,$45,$50 ; . . . . . 1 1 1 1 1 1 1 1 . 1 1 1 1 . .
+        DB       $00,$00,$15,$41,$40 ; . . . . . . . . . 1 1 1 1 . . 1 1 . . .
+        DB       $00,$00,$15,$40,$00 ; . . . . . . . . . 1 1 1 1 . . . . . . .
+        DB       $00,$00,$55,$40,$00 ; . . . . . . . . 1 1 1 1 1 . . . . . . .
+        DB       $00,$01,$55,$50,$00 ; . . . . . . . 1 1 1 1 1 1 1 . . . . . .
+        DB       $00,$05,$55,$50,$00 ; . . . . . . 1 1 1 1 1 1 1 1 . . . . . .
+        DB       $00,$15,$55,$50,$00 ; . . . . . 1 1 1 1 1 1 1 1 1 . . . . . .
+        DB       $00,$15,$55,$54,$00 ; . . . . . 1 1 1 1 1 1 1 1 1 1 . . . . .
+        DB       $00,$15,$55,$54,$00 ; . . . . . 1 1 1 1 1 1 1 1 1 1 . . . . .
+        DB       $00,$55,$55,$54,$00 ; . . . . 1 1 1 1 1 1 1 1 1 1 1 . . . . .
+        DB       $01,$55,$55,$55,$00 ; . . . 1 1 1 1 1 1 1 1 1 1 1 1 1 . . . .
+
+;*******************************************************************************
+; WIZARD_2_FIRE
+; 5 bytes/row = 20 pixels wide, 18 rows
+;*******************************************************************************
+WIZARD_2_FIRE:
+        DB       $00,$00,$01,$50,$00 ; . . . . . . . . . . . 1 1 1 . . . . . .
+        DB       $00,$00,$05,$15,$00 ; . . . . . . . . . . 1 1 . 1 1 1 . . . .
+        DB       $00,$00,$06,$25,$40 ; . . . . . . . . . . 1 2 . 2 1 1 1 . . .
+        DB       $00,$00,$04,$05,$00 ; . . . . . . . . . . 1 . . . 1 1 . . . .
+        DB       $3F,$C1,$55,$04,$00 ; . 3 3 3 3 . . 1 1 1 1 1 . . 1 . . . . .
+        DB       $00,$F1,$55,$15,$40 ; . . . . 3 3 . 1 1 1 1 1 . 1 1 1 1 . . .
+        DB       $00,$3C,$05,$FF,$D0 ; . . . . . 3 3 . . . 1 1 3 3 3 3 3 1 . .
+        DB       $00,$3C,$05,$54,$FC ; . . . . . 3 3 . . . 1 1 1 1 1 . 3 3 3 .
+        DB       $00,$00,$05,$50,$3C ; . . . . . . . . . . 1 1 1 1 . . . 3 3 .
+        DB       $00,$00,$05,$40,$00 ; . . . . . . . . . . 1 1 1 . . . . . . .
+        DB       $00,$00,$15,$50,$00 ; . . . . . . . . . 1 1 1 1 1 . . . . . .
+        DB       $00,$00,$55,$50,$00 ; . . . . . . . . 1 1 1 1 1 1 . . . . . .
+        DB       $00,$01,$55,$50,$00 ; . . . . . . . 1 1 1 1 1 1 1 . . . . . .
+        DB       $00,$01,$55,$40,$00 ; . . . . . . . 1 1 1 1 1 1 . . . . . . .
+        DB       $00,$01,$55,$40,$00 ; . . . . . . . 1 1 1 1 1 1 . . . . . . .
+        DB       $00,$05,$55,$50,$00 ; . . . . . . 1 1 1 1 1 1 1 1 . . . . . .
+        DB       $00,$05,$55,$54,$00 ; . . . . . . 1 1 1 1 1 1 1 1 1 . . . . .
+        DB       $00,$55,$55,$55,$00 ; . . . . 1 1 1 1 1 1 1 1 1 1 1 1 . . . .
+
+;*******************************************************************************
+; WIZARD_3_FIRE
+; 5 bytes/row = 20 pixels wide, 18 rows
+;*******************************************************************************
+WIZARD_3_FIRE:
+        DB       $00,$00,$00,$15,$40 ; . . . . . . . . . . . . . 1 1 1 1 . . .
+        DB       $00,$00,$00,$55,$50 ; . . . . . . . . . . . . 1 1 1 1 1 1 . .
+        DB       $00,$FD,$40,$25,$54 ; . . . . 3 3 3 1 1 . . . . 2 1 1 1 1 1 .
+        DB       $28,$0D,$54,$01,$50 ; . 2 2 . . . 3 1 1 1 1 . . . . 1 1 1 . .
+        DB       $00,$F0,$15,$55,$40 ; . . . . 3 3 . . . 1 1 1 1 1 1 1 1 . . .
+        DB       $2A,$3D,$55,$55,$50 ; . 2 2 2 . 3 3 1 1 1 1 1 1 1 1 1 1 1 . .
+        DB       $00,$0D,$40,$15,$50 ; . . . . . . 3 1 1 . . . . 1 1 1 1 1 . .
+        DB       $00,$01,$00,$05,$50 ; . . . . . . . 1 . . . . . . 1 1 1 1 . .
+        DB       $00,$00,$00,$05,$50 ; . . . . . . . . . . . . . . 1 1 1 1 . .
+        DB       $00,$00,$00,$15,$40 ; . . . . . . . . . . . . . 1 1 1 1 . . .
+        DB       $00,$00,$01,$55,$40 ; . . . . . . . . . . . 1 1 1 1 1 1 . . .
+        DB       $00,$00,$05,$55,$40 ; . . . . . . . . . . 1 1 1 1 1 1 1 . . .
+        DB       $00,$00,$15,$55,$00 ; . . . . . . . . . 1 1 1 1 1 1 1 . . . .
+        DB       $00,$00,$15,$55,$00 ; . . . . . . . . . 1 1 1 1 1 1 1 . . . .
+        DB       $00,$00,$15,$55,$00 ; . . . . . . . . . 1 1 1 1 1 1 1 . . . .
+        DB       $00,$00,$55,$55,$40 ; . . . . . . . . 1 1 1 1 1 1 1 1 1 . . .
+        DB       $00,$00,$55,$55,$50 ; . . . . . . . . 1 1 1 1 1 1 1 1 1 1 . .
+        DB       $00,$05,$55,$55,$54 ; . . . . . . 1 1 1 1 1 1 1 1 1 1 1 1 1 .
+
+;*******************************************************************************
+; GARWOR_FIRE_0_UP
+; 5 bytes/row = 20 pixels wide, 18 rows
+;*******************************************************************************
+GARWOR_FIRE_0_UP:
+        DB       $00,$00,$08,$10,$00 ; . . . . . . . . . . 2 . . 1 . . . . . .
+        DB       $00,$00,$C3,$00,$00 ; . . . . . . . . 3 . . 3 . . . . . . . .
+        DB       $00,$00,$03,$28,$00 ; . . . . . . . . . . . 3 . 2 2 . . . . .
+        DB       $00,$00,$2F,$E8,$00 ; . . . . . . . . . 2 3 3 3 2 2 . . . . .
+        DB       $00,$00,$2F,$AA,$00 ; . . . . . . . . . 2 3 3 2 2 2 2 . . . .
+        DB       $00,$20,$2B,$EA,$00 ; . . . . . 2 . . . 2 2 3 3 2 2 2 . . . .
+        DB       $00,$08,$2F,$AA,$80 ; . . . . . . 2 . . 2 3 3 2 2 2 2 2 . . .
+        DB       $00,$08,$2B,$EA,$A0 ; . . . . . . 2 . . 2 2 3 3 2 2 2 2 2 . .
+        DB       $20,$0A,$0A,$A4,$A0 ; . 2 . . . . 2 2 . . 2 2 2 2 1 . 2 2 . .
+        DB       $20,$2A,$A2,$A0,$A0 ; . 2 . . . 2 2 2 2 2 . 2 2 2 . . 2 2 . .
+        DB       $2A,$AA,$AA,$AA,$A0 ; . 2 2 2 2 2 2 2 2 2 2 2 2 2 2 2 2 2 . .
+        DB       $0A,$AA,$AA,$AA,$A0 ; . . 2 2 2 2 2 2 2 2 2 2 2 2 2 2 2 2 . .
+        DB       $02,$AA,$AA,$AA,$80 ; . . . 2 2 2 2 2 2 2 2 2 2 2 2 2 2 . . .
+        DB       $00,$AA,$AA,$AA,$00 ; . . . . 2 2 2 2 2 2 2 2 2 2 2 2 . . . .
+        DB       $20,$AA,$AA,$A8,$0C ; . 2 . . 2 2 2 2 2 2 2 2 2 2 2 . . . 3 .
+        DB       $2A,$2A,$AA,$A0,$3C ; . 2 2 2 . 2 2 2 2 2 2 2 2 2 . . . 3 3 .
+        DB       $00,$2A,$AA,$00,$F0 ; . . . . . 2 2 2 2 2 2 2 . . . . 3 3 . .
+        DB       $00,$02,$A0,$AA,$F0 ; . . . . . . . 2 2 2 . . 2 2 2 2 3 3 . .
+
+;*******************************************************************************
+; GARWOR_FIRE_1_UP
+; 5 bytes/row = 20 pixels wide, 18 rows
+;*******************************************************************************
+GARWOR_FIRE_1_UP:
+        DB       $00,$00,$2E,$4C,$00 ; . . . . . . . . . 2 3 2 1 . 3 . . . . .
+        DB       $00,$00,$6A,$80,$00 ; . . . . . . . . 1 2 2 2 2 . . . . . . .
+        DB       $00,$00,$07,$0A,$00 ; . . . . . . . . . . 1 3 . . 2 2 . . . .
+        DB       $00,$00,$03,$0A,$00 ; . . . . . . . . . . . 3 . . 2 2 . . . .
+        DB       $00,$00,$2F,$EA,$80 ; . . . . . . . . . 2 3 3 3 2 2 2 2 . . .
+        DB       $00,$00,$2F,$FA,$80 ; . . . . . . . . . 2 3 3 3 3 2 2 2 . . .
+        DB       $00,$20,$2F,$EA,$A0 ; . . . . . 2 . . . 2 3 3 3 2 2 2 2 2 . .
+        DB       $00,$08,$2B,$FA,$A8 ; . . . . . . 2 . . 2 2 3 3 3 2 2 2 2 2 .
+        DB       $00,$02,$AB,$E9,$28 ; . . . . . . . 2 2 2 2 3 3 2 2 1 . 2 2 .
+        DB       $00,$2A,$AA,$F8,$28 ; . . . . . 2 2 2 2 2 2 2 3 3 2 . . 2 2 .
+        DB       $20,$AA,$AA,$AA,$A8 ; . 2 . . 2 2 2 2 2 2 2 2 2 2 2 2 2 2 2 .
+        DB       $22,$AA,$AA,$AA,$A8 ; . 2 . 2 2 2 2 2 2 2 2 2 2 2 2 2 2 2 2 .
+        DB       $2A,$AA,$AA,$AA,$80 ; . 2 2 2 2 2 2 2 2 2 2 2 2 2 2 2 2 . . .
+        DB       $00,$AA,$AA,$AA,$00 ; . . . . 2 2 2 2 2 2 2 2 2 2 2 2 . . . .
+        DB       $00,$AA,$AA,$A0,$F0 ; . . . . 2 2 2 2 2 2 2 2 2 2 . . 3 3 . .
+        DB       $02,$2A,$AA,$0B,$FC ; . . . 2 . 2 2 2 2 2 2 2 . . 2 3 3 3 3 .
+        DB       $02,$2A,$A0,$23,$F0 ; . . . 2 . 2 2 2 2 2 . . . 2 . 3 3 3 . .
+        DB       $0A,$0A,$AA,$80,$00 ; . . 2 2 . . 2 2 2 2 2 2 2 . . . . . . .
+
+;*******************************************************************************
+; GARWOR_FIRE_2_UP
+; 5 bytes/row = 20 pixels wide, 18 rows
+;*******************************************************************************
+GARWOR_FIRE_2_UP:
+        DB       $00,$00,$E2,$58,$C0 ; . . . . . . . . 3 2 . 2 1 1 2 . 3 . . .
+        DB       $00,$03,$0B,$40,$00 ; . . . . . . . 3 . . 2 3 1 . . . . . . .
+        DB       $00,$0A,$07,$0A,$00 ; . . . . . . 2 2 . . 1 3 . . 2 2 . . . .
+        DB       $00,$06,$03,$CA,$00 ; . . . . . . 1 2 . . . 3 3 . 2 2 . . . .
+        DB       $00,$00,$2F,$EA,$80 ; . . . . . . . . . 2 3 3 3 2 2 2 2 . . .
+        DB       $00,$00,$2F,$FA,$80 ; . . . . . . . . . 2 3 3 3 3 2 2 2 . . .
+        DB       $00,$20,$2F,$EA,$A0 ; . . . . . 2 . . . 2 3 3 3 2 2 2 2 2 . .
+        DB       $00,$08,$2B,$FA,$A8 ; . . . . . . 2 . . 2 2 3 3 3 2 2 2 2 2 .
+        DB       $00,$02,$AB,$E9,$28 ; . . . . . . . 2 2 2 2 3 3 2 2 1 . 2 2 .
+        DB       $00,$2A,$AA,$F8,$28 ; . . . . . 2 2 2 2 2 2 2 3 3 2 . . 2 2 .
+        DB       $20,$AA,$AA,$AA,$A8 ; . 2 . . 2 2 2 2 2 2 2 2 2 2 2 2 2 2 2 .
+        DB       $22,$AA,$AA,$AA,$A8 ; . 2 . 2 2 2 2 2 2 2 2 2 2 2 2 2 2 2 2 .
+        DB       $2A,$AA,$AA,$AA,$80 ; . 2 2 2 2 2 2 2 2 2 2 2 2 2 2 2 2 . . .
+        DB       $00,$AA,$AA,$AA,$00 ; . . . . 2 2 2 2 2 2 2 2 2 2 2 2 . . . .
+        DB       $00,$AA,$AA,$A3,$F0 ; . . . . 2 2 2 2 2 2 2 2 2 2 . 3 3 3 . .
+        DB       $02,$2A,$AA,$0B,$FC ; . . . 2 . 2 2 2 2 2 2 2 . . 2 3 3 3 3 .
+        DB       $02,$2A,$A0,$20,$FC ; . . . 2 . 2 2 2 2 2 . . . 2 . . 3 3 3 .
+        DB       $0A,$0A,$AA,$80,$0C ; . . 2 2 . . 2 2 2 2 2 2 2 . . . . . 3 .
+
+;*******************************************************************************
+; GARWOR_FIRE_3_UP
+; 5 bytes/row = 20 pixels wide, 18 rows
+;*******************************************************************************
+GARWOR_FIRE_3_UP:
+        DB       $00,$00,$C8,$04,$30 ; . . . . . . . . 3 . 2 . . . 1 . . 3 . .
+        DB       $00,$00,$00,$C0,$00 ; . . . . . . . . . . . . 3 . . . . . . .
+        DB       $00,$00,$13,$CA,$00 ; . . . . . . . . . 1 . 3 3 . 2 2 . . . .
+        DB       $00,$04,$03,$CA,$00 ; . . . . . . 1 . . . . 3 3 . 2 2 . . . .
+        DB       $00,$00,$2F,$EA,$80 ; . . . . . . . . . 2 3 3 3 2 2 2 2 . . .
+        DB       $00,$00,$2F,$FA,$80 ; . . . . . . . . . 2 3 3 3 3 2 2 2 . . .
+        DB       $00,$02,$2F,$EA,$A0 ; . . . . . . . 2 . 2 3 3 3 2 2 2 2 2 . .
+        DB       $02,$02,$2B,$FA,$A8 ; . . . 2 . . . 2 . 2 2 3 3 3 2 2 2 2 2 .
+        DB       $0A,$8A,$AB,$E9,$28 ; . . 2 2 2 . 2 2 2 2 2 3 3 2 2 1 . 2 2 .
+        DB       $28,$AA,$AA,$F8,$28 ; . 2 2 . 2 2 2 2 2 2 2 2 3 3 2 . . 2 2 .
+        DB       $00,$AA,$AA,$AA,$A8 ; . . . . 2 2 2 2 2 2 2 2 2 2 2 2 2 2 2 .
+        DB       $22,$AA,$AA,$AA,$A8 ; . 2 . 2 2 2 2 2 2 2 2 2 2 2 2 2 2 2 2 .
+        DB       $2A,$AA,$AA,$AA,$80 ; . 2 2 2 2 2 2 2 2 2 2 2 2 2 2 2 2 . . .
+        DB       $00,$AA,$AA,$AA,$00 ; . . . . 2 2 2 2 2 2 2 2 2 2 2 2 . . . .
+        DB       $00,$2A,$AA,$A0,$0C ; . . . . . 2 2 2 2 2 2 2 2 2 . . . . 3 .
+        DB       $00,$2A,$AA,$00,$3C ; . . . . . 2 2 2 2 2 2 2 . . . . . 3 3 .
+        DB       $00,$0A,$80,$00,$F0 ; . . . . . . 2 2 2 . . . . . . . 3 3 . .
+        DB       $00,$02,$AA,$AA,$F0 ; . . . . . . . 2 2 2 2 2 2 2 2 2 3 3 . .
+
+;*******************************************************************************
+; GARWOR_FIRE_0
+; 5 bytes/row = 20 pixels wide, 18 rows
+;*******************************************************************************
+GARWOR_FIRE_0:
+        DB       $00,$00,$00,$03,$C0 ; . . . . . . . . . . . . . . . 3 3 . . .
+        DB       $00,$00,$AA,$80,$FC ; . . . . . . . . 2 2 2 2 2 . . . 3 3 3 .
+        DB       $00,$02,$AA,$A0,$3C ; . . . . . . . 2 2 2 2 2 2 2 . . . 3 3 .
+        DB       $00,$2A,$82,$A8,$08 ; . . . . . 2 2 2 2 . . 2 2 2 2 . . . 2 .
+        DB       $02,$AA,$92,$AA,$08 ; . . . 2 2 2 2 2 2 1 . 2 2 2 2 2 . . 2 .
+        DB       $12,$AA,$AA,$AA,$88 ; . 1 . 2 2 2 2 2 2 2 2 2 2 2 2 2 2 . 2 .
+        DB       $00,$EE,$EA,$AA,$88 ; . . . . 3 2 3 2 3 2 2 2 2 2 2 2 2 . 2 .
+        DB       $0F,$FF,$EA,$AA,$A0 ; . . 3 3 3 3 3 3 3 2 2 2 2 2 2 2 2 2 . .
+        DB       $20,$FB,$A2,$AA,$A0 ; . 2 . . 3 3 2 3 2 2 . 2 2 2 2 2 2 2 . .
+        DB       $00,$AA,$8A,$AA,$A8 ; . . . . 2 2 2 2 2 . 2 2 2 2 2 2 2 2 2 .
+        DB       $0C,$00,$0A,$AA,$A8 ; . . 3 . . . . . . . 2 2 2 2 2 2 2 2 2 .
+        DB       $00,$00,$2A,$AA,$A8 ; . . . . . . . . . 2 2 2 2 2 2 2 2 2 2 .
+        DB       $00,$02,$AA,$AA,$A0 ; . . . . . . . 2 2 2 2 2 2 2 2 2 2 2 . .
+        DB       $00,$08,$0A,$AA,$A0 ; . . . . . . 2 . . . 2 2 2 2 2 2 2 2 . .
+        DB       $00,$00,$02,$AA,$00 ; . . . . . . . . . . . 2 2 2 2 2 . . . .
+        DB       $00,$00,$02,$A0,$80 ; . . . . . . . . . . . 2 2 2 . . 2 . . .
+        DB       $00,$00,$02,$80,$80 ; . . . . . . . . . . . 2 2 . . . 2 . . .
+        DB       $00,$00,$2A,$02,$80 ; . . . . . . . . . 2 2 2 . . . 2 2 . . .
+
+;*******************************************************************************
+; GARWOR_FIRE_1
+; 5 bytes/row = 20 pixels wide, 18 rows
+;*******************************************************************************
+GARWOR_FIRE_1:
+        DB       $00,$00,$AA,$80,$C0 ; . . . . . . . . 2 2 2 2 2 . . . 3 . . .
+        DB       $00,$02,$AA,$83,$F0 ; . . . . . . . 2 2 2 2 2 2 . . 3 3 3 . .
+        DB       $00,$2A,$82,$A3,$F0 ; . . . . . 2 2 2 2 . . 2 2 2 . 3 3 3 . .
+        DB       $02,$AA,$92,$A8,$F0 ; . . . 2 2 2 2 2 2 1 . 2 2 2 2 . 3 3 . .
+        DB       $32,$AA,$AA,$A8,$80 ; . 3 . 2 2 2 2 2 2 2 2 2 2 2 2 . 2 . . .
+        DB       $00,$2E,$EE,$AA,$20 ; . . . . . 2 3 2 3 2 3 2 2 2 2 2 . 2 . .
+        DB       $18,$3F,$FE,$AA,$08 ; . 1 2 . . 3 3 3 3 3 3 2 2 2 2 2 . . 2 .
+        DB       $2B,$FF,$FA,$AA,$88 ; . 2 2 3 3 3 3 3 3 3 2 2 2 2 2 2 2 . 2 .
+        DB       $39,$3F,$AA,$AA,$88 ; . 3 2 1 . 3 3 3 2 2 2 2 2 2 2 2 2 . 2 .
+        DB       $28,$2A,$AA,$AA,$A8 ; . 2 2 . . 2 2 2 2 2 2 2 2 2 2 2 2 2 2 .
+        DB       $04,$00,$2A,$AA,$A8 ; . . 1 . . . . . . 2 2 2 2 2 2 2 2 2 2 .
+        DB       $00,$00,$2A,$AA,$A8 ; . . . . . . . . . 2 2 2 2 2 2 2 2 2 2 .
+        DB       $00,$00,$8A,$AA,$A8 ; . . . . . . . . 2 . 2 2 2 2 2 2 2 2 2 .
+        DB       $00,$02,$0A,$AA,$A0 ; . . . . . . . 2 . . 2 2 2 2 2 2 2 2 . .
+        DB       $00,$00,$02,$AA,$00 ; . . . . . . . . . . . 2 2 2 2 2 . . . .
+        DB       $00,$00,$00,$A0,$A8 ; . . . . . . . . . . . . 2 2 . . 2 2 2 .
+        DB       $00,$00,$00,$20,$08 ; . . . . . . . . . . . . . 2 . . . . 2 .
+        DB       $00,$00,$02,$A0,$00 ; . . . . . . . . . . . 2 2 2 . . . . . .
+
+;*******************************************************************************
+; GARWOR_FIRE_2
+; 5 bytes/row = 20 pixels wide, 18 rows
+;*******************************************************************************
+GARWOR_FIRE_2:
+        DB       $00,$00,$AA,$80,$FC ; . . . . . . . . 2 2 2 2 2 . . . 3 3 3 .
+        DB       $00,$02,$AA,$83,$F0 ; . . . . . . . 2 2 2 2 2 2 . . 3 3 3 . .
+        DB       $30,$2A,$82,$A3,$F0 ; . 3 . . . 2 2 2 2 . . 2 2 2 . 3 3 3 . .
+        DB       $02,$AA,$92,$AB,$C0 ; . . . 2 2 2 2 2 2 1 . 2 2 2 2 3 3 . . .
+        DB       $22,$AA,$AA,$A8,$80 ; . 2 . 2 2 2 2 2 2 2 2 2 2 2 2 . 2 . . .
+        DB       $10,$2E,$EE,$AA,$20 ; . 1 . . . 2 3 2 3 2 3 2 2 2 2 2 . 2 . .
+        DB       $14,$FF,$FE,$AA,$08 ; . 1 1 . 3 3 3 3 3 3 3 2 2 2 2 2 . . 2 .
+        DB       $2F,$FF,$FA,$AA,$88 ; . 2 3 3 3 3 3 3 3 3 2 2 2 2 2 2 2 . 2 .
+        DB       $09,$3F,$AA,$AA,$88 ; . . 2 1 . 3 3 3 2 2 2 2 2 2 2 2 2 . 2 .
+        DB       $2C,$2A,$AA,$AA,$A8 ; . 2 3 . . 2 2 2 2 2 2 2 2 2 2 2 2 2 2 .
+        DB       $3C,$00,$2A,$AA,$A8 ; . 3 3 . . . . . . 2 2 2 2 2 2 2 2 2 2 .
+        DB       $0E,$80,$2A,$AA,$A8 ; . . 3 2 2 . . . . 2 2 2 2 2 2 2 2 2 2 .
+        DB       $02,$40,$8A,$AA,$A8 ; . . . 2 1 . . . 2 . 2 2 2 2 2 2 2 2 2 .
+        DB       $00,$02,$0A,$AA,$A0 ; . . . . . . . 2 . . 2 2 2 2 2 2 2 2 . .
+        DB       $00,$00,$02,$AA,$00 ; . . . . . . . . . . . 2 2 2 2 2 . . . .
+        DB       $00,$00,$00,$A0,$A8 ; . . . . . . . . . . . . 2 2 . . 2 2 2 .
+        DB       $00,$00,$00,$20,$08 ; . . . . . . . . . . . . . 2 . . . . 2 .
+        DB       $00,$00,$02,$A0,$00 ; . . . . . . . . . . . 2 2 2 . . . . . .
+
+;*******************************************************************************
+; GARWOR_FIRE_3
+; 5 bytes/row = 20 pixels wide, 18 rows
+;*******************************************************************************
+GARWOR_FIRE_3:
+        DB       $00,$00,$AA,$83,$C0 ; . . . . . . . . 2 2 2 2 2 . . 3 3 . . .
+        DB       $30,$02,$AA,$80,$FC ; . 3 . . . . . 2 2 2 2 2 2 . . . 3 3 3 .
+        DB       $00,$2A,$82,$A0,$3C ; . . . . . 2 2 2 2 . . 2 2 2 . . . 3 3 .
+        DB       $02,$AA,$92,$A8,$08 ; . . . 2 2 2 2 2 2 1 . 2 2 2 2 . . . 2 .
+        DB       $12,$AA,$AA,$A8,$08 ; . 1 . 2 2 2 2 2 2 2 2 2 2 2 2 . . . 2 .
+        DB       $00,$2E,$EE,$AA,$08 ; . . . . . 2 3 2 3 2 3 2 2 2 2 2 . . 2 .
+        DB       $0F,$FF,$FE,$AA,$08 ; . . 3 3 3 3 3 3 3 3 3 2 2 2 2 2 . . 2 .
+        DB       $03,$FF,$FA,$AA,$88 ; . . . 3 3 3 3 3 3 3 2 2 2 2 2 2 2 . 2 .
+        DB       $20,$3F,$AA,$AA,$88 ; . 2 . . . 3 3 3 2 2 2 2 2 2 2 2 2 . 2 .
+        DB       $01,$2A,$AA,$AA,$88 ; . . . 1 . 2 2 2 2 2 2 2 2 2 2 2 2 . 2 .
+        DB       $30,$00,$2A,$AA,$A8 ; . 3 . . . . . . . 2 2 2 2 2 2 2 2 2 2 .
+        DB       $00,$02,$AA,$AA,$A8 ; . . . . . . . 2 2 2 2 2 2 2 2 2 2 2 2 .
+        DB       $00,$40,$2A,$AA,$A0 ; . . . . 1 . . . . 2 2 2 2 2 2 2 2 2 . .
+        DB       $00,$00,$0A,$AA,$80 ; . . . . . . . . . . 2 2 2 2 2 2 2 . . .
+        DB       $00,$00,$2A,$A8,$00 ; . . . . . . . . . 2 2 2 2 2 2 . . . . .
+        DB       $00,$00,$A0,$A0,$00 ; . . . . . . . . 2 2 . . 2 2 . . . . . .
+        DB       $00,$00,$28,$20,$00 ; . . . . . . . . . 2 2 . . 2 . . . . . .
+        DB       $00,$00,$08,$A0,$00 ; . . . . . . . . . . 2 . 2 2 . . . . . .
+
+;*******************************************************************************
+; THORWOR_FIRE_0_UP
+; 5 bytes/row = 20 pixels wide, 18 rows
+;*******************************************************************************
+THORWOR_FIRE_0_UP:
+        DB       $00,$00,$C0,$C0,$00 ; . . . . . . . . 3 . . . 3 . . . . . . .
+        DB       $00,$0F,$00,$30,$00 ; . . . . . . 3 3 . . . . . 3 . . . . . .
+        DB       $00,$0C,$48,$4C,$00 ; . . . . . . 3 . 1 . 2 . 1 . 3 . . . . .
+        DB       $00,$30,$08,$0C,$00 ; . . . . . 3 . . . . 2 . . . 3 . . . . .
+        DB       $00,$3C,$28,$0C,$00 ; . . . . . 3 3 . . 2 2 . . . 3 . . . . .
+        DB       $00,$3F,$28,$3C,$00 ; . . . . . 3 3 3 . 2 2 . . 3 3 . . . . .
+        DB       $00,$0F,$EB,$CF,$00 ; . . . . . . 3 3 3 2 2 3 3 . 3 3 . . . .
+        DB       $00,$03,$FF,$C3,$C0 ; . . . . . . . 3 3 3 3 3 3 . . 3 3 . . .
+        DB       $1F,$0F,$FF,$D0,$F0 ; . 1 3 3 . . 3 3 3 3 3 3 3 1 . . 3 3 . .
+        DB       $13,$FF,$FF,$FF,$F8 ; . 1 . 3 3 3 3 3 3 3 3 3 3 3 3 3 3 3 2 .
+        DB       $00,$0F,$FF,$FF,$C8 ; . . . . . . 3 3 3 3 3 3 3 3 3 3 3 . 2 .
+        DB       $1F,$0F,$FF,$FF,$08 ; . 1 3 3 . . 3 3 3 3 3 3 3 3 3 3 . . 2 .
+        DB       $13,$FF,$FF,$FC,$20 ; . 1 . 3 3 3 3 3 3 3 3 3 3 3 3 . . 2 . .
+        DB       $00,$0F,$FC,$00,$20 ; . . . . . . 3 3 3 3 3 . . . . . . 2 . .
+        DB       $1F,$0F,$F0,$03,$80 ; . 1 3 3 . . 3 3 3 3 . . . . . 3 2 . . .
+        DB       $13,$FF,$F0,$0F,$80 ; . 1 . 3 3 3 3 3 3 3 . . . . 3 3 2 . . .
+        DB       $00,$03,$FC,$0C,$C0 ; . . . . . . . 3 3 3 3 . . . 3 . 3 . . .
+        DB       $00,$00,$3F,$F0,$3C ; . . . . . . . . . 3 3 3 3 3 . . . 3 3 .
+
+;*******************************************************************************
+; THORWOR_FIRE_1_UP
+; 5 bytes/row = 20 pixels wide, 18 rows
+;*******************************************************************************
+THORWOR_FIRE_1_UP:
+        DB       $00,$00,$30,$A0,$00 ; . . . . . . . . . 3 . . 2 2 . . . . . .
+        DB       $00,$03,$C2,$83,$00 ; . . . . . . . 3 3 . . 2 2 . . 3 . . . .
+        DB       $00,$03,$12,$03,$00 ; . . . . . . . 3 . 1 . 2 . . . 3 . . . .
+        DB       $00,$08,$0F,$14,$C0 ; . . . . . . 2 . . . 3 3 . 1 1 . 3 . . .
+        DB       $00,$0F,$0A,$03,$C0 ; . . . . . . 3 3 . . 2 2 . . . 3 3 . . .
+        DB       $00,$0F,$EA,$0F,$C0 ; . . . . . . 3 3 3 2 2 2 . . 3 3 3 . . .
+        DB       $00,$03,$FA,$3F,$C0 ; . . . . . . . 3 3 3 2 2 . 3 3 3 3 . . .
+        DB       $00,$03,$FF,$F0,$F0 ; . . . . . . . 3 3 3 3 3 3 3 . . 3 3 . .
+        DB       $00,$0F,$FF,$F4,$F0 ; . . . . . . 3 3 3 3 3 3 3 3 1 . 3 3 . .
+        DB       $00,$FF,$FF,$FC,$30 ; . . . . 3 3 3 3 3 3 3 3 3 3 3 . . 3 . .
+        DB       $13,$CF,$FF,$FF,$F0 ; . 1 . 3 3 . 3 3 3 3 3 3 3 3 3 3 3 3 . .
+        DB       $1F,$0F,$FF,$FF,$C8 ; . 1 3 3 . . 3 3 3 3 3 3 3 3 3 3 3 . 2 .
+        DB       $00,$3F,$FF,$F0,$08 ; . . . . . 3 3 3 3 3 3 3 3 3 . . . . 2 .
+        DB       $13,$FF,$FF,$00,$20 ; . 1 . 3 3 3 3 3 3 3 3 3 . . . . . 2 . .
+        DB       $1F,$0F,$F0,$3C,$80 ; . 1 3 3 . . 3 3 3 3 . . . 3 3 . 2 . . .
+        DB       $00,$3F,$C0,$CA,$C0 ; . . . . . 3 3 3 3 . . . 3 . 2 2 3 . . .
+        DB       $13,$FF,$F3,$20,$3C ; . 1 . 3 3 3 3 3 3 3 . 3 . 2 . . . 3 3 .
+        DB       $1F,$03,$FC,$00,$00 ; . 1 3 3 . . . 3 3 3 3 . . . . . . . . .
+
+;*******************************************************************************
+; THORWOR_FIRE_2_UP
+; 5 bytes/row = 20 pixels wide, 18 rows
+;*******************************************************************************
+THORWOR_FIRE_2_UP:
+        DB       $00,$00,$30,$20,$00 ; . . . . . . . . . 3 . . . 2 . . . . . .
+        DB       $00,$03,$C0,$23,$00 ; . . . . . . . 3 3 . . . . 2 . 3 . . . .
+        DB       $00,$03,$10,$83,$00 ; . . . . . . . 3 . 1 . . 2 . . 3 . . . .
+        DB       $00,$0C,$02,$84,$C0 ; . . . . . . 3 . . . . 2 2 . 1 . 3 . . .
+        DB       $00,$0F,$0A,$03,$C0 ; . . . . . . 3 3 . . 2 2 . . . 3 3 . . .
+        DB       $00,$0F,$CA,$0F,$C0 ; . . . . . . 3 3 3 . 2 2 . . 3 3 3 . . .
+        DB       $00,$03,$FA,$3F,$C0 ; . . . . . . . 3 3 3 2 2 . 3 3 3 3 . . .
+        DB       $00,$03,$FF,$F0,$F0 ; . . . . . . . 3 3 3 3 3 3 3 . . 3 3 . .
+        DB       $00,$0F,$FF,$F4,$F0 ; . . . . . . 3 3 3 3 3 3 3 3 1 . 3 3 . .
+        DB       $1F,$0F,$FF,$FC,$30 ; . 1 3 3 . . 3 3 3 3 3 3 3 3 3 . . 3 . .
+        DB       $13,$FF,$FF,$FF,$F0 ; . 1 . 3 3 3 3 3 3 3 3 3 3 3 3 3 3 3 . .
+        DB       $00,$0F,$FF,$FF,$C8 ; . . . . . . 3 3 3 3 3 3 3 3 3 3 3 . 2 .
+        DB       $1F,$0F,$FF,$F0,$08 ; . 1 3 3 . . 3 3 3 3 3 3 3 3 . . . . 2 .
+        DB       $13,$FF,$FF,$0A,$A0 ; . 1 . 3 3 3 3 3 3 3 3 3 . . 2 2 2 2 . .
+        DB       $00,$0F,$F0,$20,$00 ; . . . . . . 3 3 3 3 . . . 2 . . . . . .
+        DB       $1F,$0F,$C0,$8F,$F0 ; . 1 3 3 . . 3 3 3 . . . 2 . 3 3 3 3 . .
+        DB       $13,$FF,$FF,$F0,$3C ; . 1 . 3 3 3 3 3 3 3 3 3 3 3 . . . 3 3 .
+        DB       $00,$03,$F0,$00,$F0 ; . . . . . . . 3 3 3 . . . . . . 3 3 . .
+
+;*******************************************************************************
+; THORWOR_FIRE_3_UP
+; 5 bytes/row = 20 pixels wide, 18 rows
+;*******************************************************************************
+THORWOR_FIRE_3_UP:
+        DB       $00,$00,$30,$28,$00 ; . . . . . . . . . 3 . . . 2 2 . . . . .
+        DB       $00,$03,$C0,$A3,$00 ; . . . . . . . 3 3 . . . 2 2 . 3 . . . .
+        DB       $00,$03,$10,$83,$00 ; . . . . . . . 3 . 1 . . 2 . . 3 . . . .
+        DB       $00,$0C,$02,$84,$C0 ; . . . . . . 3 . . . . 2 2 . 1 . 3 . . .
+        DB       $00,$0F,$0A,$83,$C0 ; . . . . . . 3 3 . . 2 2 2 . . 3 3 . . .
+        DB       $00,$0F,$EA,$0F,$C0 ; . . . . . . 3 3 3 2 2 2 . . 3 3 3 . . .
+        DB       $00,$03,$F8,$3F,$C0 ; . . . . . . . 3 3 3 2 . . 3 3 3 3 . . .
+        DB       $00,$03,$FF,$F0,$F0 ; . . . . . . . 3 3 3 3 3 3 3 . . 3 3 . .
+        DB       $00,$0F,$FF,$F4,$F0 ; . . . . . . 3 3 3 3 3 3 3 3 1 . 3 3 . .
+        DB       $00,$FF,$FF,$FC,$30 ; . . . . 3 3 3 3 3 3 3 3 3 3 3 . . 3 . .
+        DB       $13,$CF,$FF,$FF,$F0 ; . 1 . 3 3 . 3 3 3 3 3 3 3 3 3 3 3 3 . .
+        DB       $1F,$0F,$FF,$FF,$C8 ; . 1 3 3 . . 3 3 3 3 3 3 3 3 3 3 3 . 2 .
+        DB       $00,$3F,$FF,$F0,$20 ; . . . . . 3 3 3 3 3 3 3 3 3 . . . 2 . .
+        DB       $13,$FF,$FF,$00,$80 ; . 1 . 3 3 3 3 3 3 3 3 3 . . . . 2 . . .
+        DB       $1F,$0F,$F0,$2A,$F0 ; . 1 3 3 . . 3 3 3 3 . . . 2 2 2 3 3 . .
+        DB       $00,$3F,$C0,$0C,$3C ; . . . . . 3 3 3 3 . . . . . 3 . . 3 3 .
+        DB       $13,$FF,$F0,$33,$0C ; . 1 . 3 3 3 3 3 3 3 . . . 3 . 3 . . 3 .
+        DB       $1F,$03,$FF,$C3,$FF ; . 1 3 3 . . . 3 3 3 3 3 3 . . 3 3 3 3 3
+
+;*******************************************************************************
+; THORWOR_FIRE_0
+; 5 bytes/row = 20 pixels wide, 18 rows
+;*******************************************************************************
+THORWOR_FIRE_0:
+        DB       $00,$00,$0A,$80,$0C ; . . . . . . . . . . 2 2 2 . . . . . 3 .
+        DB       $00,$00,$3C,$28,$0C ; . . . . . . . . . 3 3 . . 2 2 . . . 3 .
+        DB       $00,$00,$FF,$02,$B0 ; . . . . . . . . 3 3 3 3 . . . 2 2 3 . .
+        DB       $00,$03,$CF,$C3,$C0 ; . . . . . . . 3 3 . 3 3 3 . . 3 3 . . .
+        DB       $03,$FF,$0F,$F0,$F0 ; . . . 3 3 3 3 3 . . 3 3 3 3 . . 3 3 . .
+        DB       $0C,$0C,$1F,$F0,$0C ; . . 3 . . . 3 . . 1 3 3 3 3 . . . . 3 .
+        DB       $31,$03,$FF,$F0,$0C ; . 3 . 1 . . . 3 3 3 3 3 3 3 . . . . 3 .
+        DB       $00,$03,$FF,$F0,$0C ; . . . . . . . 3 3 3 3 3 3 3 . . . . 3 .
+        DB       $02,$AA,$FF,$FC,$3C ; . . . 2 2 2 2 2 3 3 3 3 3 3 3 . . 3 3 .
+        DB       $00,$2A,$FF,$FF,$FC ; . . . . . 2 2 2 3 3 3 3 3 3 3 3 3 3 3 .
+        DB       $31,$03,$FF,$FF,$F0 ; . 3 . 1 . . . 3 3 3 3 3 3 3 3 3 3 3 . .
+        DB       $0C,$0F,$FF,$FF,$F0 ; . . 3 . . . 3 3 3 3 3 3 3 3 3 3 3 3 . .
+        DB       $0F,$3F,$3F,$FF,$C0 ; . . 3 3 . 3 3 3 . 3 3 3 3 3 3 3 3 . . .
+        DB       $00,$FC,$0C,$30,$C0 ; . . . . 3 3 3 . . . 3 . . 3 . . 3 . . .
+        DB       $00,$00,$0C,$30,$C0 ; . . . . . . . . . . 3 . . 3 . . 3 . . .
+        DB       $00,$00,$3C,$F3,$C0 ; . . . . . . . . . 3 3 . 3 3 . 3 3 . . .
+        DB       $00,$00,$30,$C3,$00 ; . . . . . . . . . 3 . . 3 . . 3 . . . .
+        DB       $00,$00,$14,$51,$40 ; . . . . . . . . . 1 1 . 1 1 . 1 1 . . .
+
+;*******************************************************************************
+; THORWOR_FIRE_1
+; 5 bytes/row = 20 pixels wide, 18 rows
+;*******************************************************************************
+THORWOR_FIRE_1:
+        DB       $00,$00,$00,$A0,$30 ; . . . . . . . . . . . . 2 2 . . . 3 . .
+        DB       $00,$00,$FF,$08,$30 ; . . . . . . . . 3 3 3 3 . . 2 . . 3 . .
+        DB       $00,$FF,$F3,$C2,$C0 ; . . . . 3 3 3 3 3 3 . 3 3 . . 2 3 . . .
+        DB       $0F,$3F,$03,$C0,$80 ; . . 3 3 . 3 3 3 . . . 3 3 . . . 2 . . .
+        DB       $00,$4F,$1F,$C3,$80 ; . . . . 1 . 3 3 . 1 3 3 3 . . 3 2 . . .
+        DB       $20,$43,$FF,$F3,$20 ; . 2 . . 1 . . 3 3 3 3 3 3 3 . 3 . 2 . .
+        DB       $28,$00,$FF,$F0,$C0 ; . 2 2 . . . . . 3 3 3 3 3 3 . . 3 . . .
+        DB       $0A,$AA,$FF,$FC,$30 ; . . 2 2 2 2 2 2 3 3 3 3 3 3 3 . . 3 . .
+        DB       $00,$AA,$FF,$FC,$0C ; . . . . 2 2 2 2 3 3 3 3 3 3 3 . . . 3 .
+        DB       $31,$0B,$FF,$FF,$3C ; . 3 . 1 . . 2 3 3 3 3 3 3 3 3 3 . 3 3 .
+        DB       $0C,$0F,$FF,$FF,$FC ; . . 3 . . . 3 3 3 3 3 3 3 3 3 3 3 3 3 .
+        DB       $0F,$3F,$FF,$FF,$FC ; . . 3 3 . 3 3 3 3 3 3 3 3 3 3 3 3 3 3 .
+        DB       $00,$FC,$3F,$FF,$F0 ; . . . . 3 3 3 . . 3 3 3 3 3 3 3 3 3 . .
+        DB       $00,$00,$0C,$3C,$F0 ; . . . . . . . . . . 3 . . 3 3 . 3 3 . .
+        DB       $00,$00,$0F,$0C,$30 ; . . . . . . . . . . 3 3 . . 3 . . 3 . .
+        DB       $00,$00,$03,$CF,$3C ; . . . . . . . . . . . 3 3 . 3 3 . 3 3 .
+        DB       $00,$00,$00,$C3,$0C ; . . . . . . . . . . . . 3 . . 3 . . 3 .
+        DB       $00,$00,$01,$45,$14 ; . . . . . . . . . . . 1 1 . 1 1 . 1 1 .
+
+;*******************************************************************************
+; THORWOR_FIRE_2
+; 5 bytes/row = 20 pixels wide, 18 rows
+;*******************************************************************************
+THORWOR_FIRE_2:
+        DB       $00,$00,$00,$A0,$30 ; . . . . . . . . . . . . 2 2 . . . 3 . .
+        DB       $00,$00,$FF,$08,$FC ; . . . . . . . . 3 3 3 3 . . 2 . 3 3 3 .
+        DB       $00,$FF,$F3,$C8,$CC ; . . . . 3 3 3 3 3 3 . 3 3 . 2 . 3 . 3 .
+        DB       $0F,$3F,$03,$C8,$C0 ; . . 3 3 . 3 3 3 . . . 3 3 . 2 . 3 . . .
+        DB       $00,$4F,$1F,$C8,$C0 ; . . . . 1 . 3 3 . 1 3 3 3 . 2 . 3 . . .
+        DB       $28,$03,$FF,$F2,$30 ; . 2 2 . . . . 3 3 3 3 3 3 3 . 2 . 3 . .
+        DB       $02,$80,$FF,$F0,$B0 ; . . . 2 2 . . . 3 3 3 3 3 3 . . 2 3 . .
+        DB       $00,$AA,$FF,$FC,$30 ; . . . . 2 2 2 2 3 3 3 3 3 3 3 . . 3 . .
+        DB       $00,$2A,$FF,$FC,$30 ; . . . . . 2 2 2 3 3 3 3 3 3 3 . . 3 . .
+        DB       $31,$03,$FF,$FF,$3C ; . 3 . 1 . . . 3 3 3 3 3 3 3 3 3 . 3 3 .
+        DB       $0C,$0F,$FF,$FF,$FC ; . . 3 . . . 3 3 3 3 3 3 3 3 3 3 3 3 3 .
+        DB       $0F,$3F,$FF,$FF,$FC ; . . 3 3 . 3 3 3 3 3 3 3 3 3 3 3 3 3 3 .
+        DB       $00,$FC,$3F,$FF,$F0 ; . . . . 3 3 3 . . 3 3 3 3 3 3 3 3 3 . .
+        DB       $00,$00,$03,$0C,$30 ; . . . . . . . . . . . 3 . . 3 . . 3 . .
+        DB       $00,$00,$03,$0C,$30 ; . . . . . . . . . . . 3 . . 3 . . 3 . .
+        DB       $00,$00,$0F,$3C,$F0 ; . . . . . . . . . . 3 3 . 3 3 . 3 3 . .
+        DB       $00,$00,$0C,$30,$C0 ; . . . . . . . . . . 3 . . 3 . . 3 . . .
+        DB       $00,$00,$05,$14,$50 ; . . . . . . . . . . 1 1 . 1 1 . 1 1 . .
+
+;*******************************************************************************
+; THORWOR_FIRE_3
+; 5 bytes/row = 20 pixels wide, 18 rows
+;*******************************************************************************
+THORWOR_FIRE_3:
+        DB       $00,$00,$00,$80,$FC ; . . . . . . . . . . . . 2 . . . 3 3 3 .
+        DB       $00,$00,$FF,$23,$CC ; . . . . . . . . 3 3 3 3 . 2 . 3 3 . 3 .
+        DB       $00,$FF,$F3,$CB,$0C ; . . . . 3 3 3 3 3 3 . 3 3 . 2 3 . . 3 .
+        DB       $0F,$3F,$03,$C2,$3C ; . . 3 3 . 3 3 3 . . . 3 3 . . 2 . 3 3 .
+        DB       $20,$4F,$1F,$C2,$C0 ; . 2 . . 1 . 3 3 . 1 3 3 3 . . 2 3 . . .
+        DB       $28,$03,$FF,$F2,$30 ; . 2 2 . . . . 3 3 3 3 3 3 3 . 2 . 3 . .
+        DB       $0A,$A0,$FF,$F0,$0C ; . . 2 2 2 2 . . 3 3 3 3 3 3 . . . . 3 .
+        DB       $00,$A8,$FF,$FC,$0C ; . . . . 2 2 2 . 3 3 3 3 3 3 3 . . . 3 .
+        DB       $00,$2A,$FF,$FC,$0C ; . . . . . 2 2 2 3 3 3 3 3 3 3 . . . 3 .
+        DB       $31,$0B,$FF,$FF,$3C ; . 3 . 1 . . 2 3 3 3 3 3 3 3 3 3 . 3 3 .
+        DB       $0C,$0F,$FF,$FF,$FC ; . . 3 . . . 3 3 3 3 3 3 3 3 3 3 3 3 3 .
+        DB       $0F,$3F,$FF,$FF,$FC ; . . 3 3 . 3 3 3 3 3 3 3 3 3 3 3 3 3 3 .
+        DB       $00,$FC,$3F,$FF,$F0 ; . . . . 3 3 3 . . 3 3 3 3 3 3 3 3 3 . .
+        DB       $00,$00,$0C,$3C,$F0 ; . . . . . . . . . . 3 . . 3 3 . 3 3 . .
+        DB       $00,$00,$0F,$0C,$30 ; . . . . . . . . . . 3 3 . . 3 . . 3 . .
+        DB       $00,$00,$03,$CF,$3C ; . . . . . . . . . . . 3 3 . 3 3 . 3 3 .
+        DB       $00,$00,$00,$C3,$0C ; . . . . . . . . . . . . 3 . . 3 . . 3 .
+        DB       $00,$00,$01,$45,$14 ; . . . . . . . . . . . 1 1 . 1 1 . 1 1 .
+
+;*******************************************************************************
+; Bytes following the sprite boundary
+;*******************************************************************************
+        DB       $00
+
+
+            ; "285AVE" Text (i.e., garbage)
+            DB      $32, $38, $35, $41, $56, $45
+
+            ; 5 FFs and a 00 - Fragment Data (i.e., garbage)
+            DB      $FF, $FF, $FF, $FF, $FF, $00
+
+            ; ROM Padding: 63 bytes ($FF)
+            DB      $FF, $FF, $FF, $FF, $FF, $FF, $FF, $FF
+            DB      $FF, $FF, $FF, $FF, $FF, $FF, $FF, $FF
+            DB      $FF, $FF, $FF, $FF, $FF, $FF, $FF, $FF
+            DB      $FF, $FF, $FF, $FF, $FF, $FF, $FF, $FF
+            DB      $FF, $FF, $FF, $FF, $FF, $FF, $FF, $FF
+            DB      $FF, $FF, $FF, $FF, $FF, $FF, $FF, $FF
+            DB      $FF, $FF, $FF, $FF, $FF, $FF, $FF, $FF
+            DB      $FF, $FF, $FF, $FF, $FF, $FF, $FF
+
+;*****************************************************************************************
+; ----> Build_Grid
+;
+;       Builds the CRT alignment grid by painting a dot pattern across the screen,
+;       drawing a solid left border, and then drawing evenly spaced horizontal lines.
+;*****************************************************************************************
+Build_Grid:
+            ld      a,$07               ; A = 7 (Color White)
+            out     (COL3L),a           ; Set Color 3 to White
+            xor     a                   ; A = 0
+            out     (COL0L),a           ; Set Color 0 to Black (Background)
+            ld      hl,$404F            ; Start near top left of Video RAM
+            ld      c,$CA               ; Outer loop counter = 202 rows
+Buil1:      ld      b,$14               ; Inner loop counter = 20 dots across
+Buil2:      inc     hl                  ; Skip 4 bytes (16 pixels) between dots
+            inc     hl                  ;
+            inc     hl                  ;
+            inc     hl                  ;
+            ld      (hl),$03            ; Write a dot (Color 3)
+            djnz    Buil2               ; Loop until 20 dots are drawn
+            dec     c                   ; Decrement row counter
+            jr      nz,Buil1            ; Loop until 202 rows are dotted!
+            ld      hl,$4050            ; Start at top left of VRAM
+            ld      b,$CA               ; B = 202 rows (pixels) down
+            ld      de,$0050            ; DE = 80 bytes (1 scanline offset)
+Buil3:      ld      (hl),$C0            ; Write $C0 (Solid pixels on left edge)
+            add     hl,de               ; Move pointer exactly one scanline down
+            djnz    Buil3               ; Loop until the left line is drawn
+            ld      hl,$4000            ; Start at top left of VRAM
+            ld      c,$0A               ; C = 10 horizontal lines to draw
+            ld      de,$05F0            ; DE = 1520 bytes (19 scanlines)
+Buil4:      call    Draw_Grid_Line      ; Call routine to draw a solid horizontal line
+            add     hl,de               ; Move pointer 19 scanlines down
+            dec     c                   ; Decrement line counter
+            jr      nz,Buil4            ; Loop until 10 lines are drawn
+            ld      hl,$7F70            ; Point to bottom edge of VRAM
+            call    Draw_Grid_Line      ; Draw the final horizontal boundary
+
+;*****************************************************************************************
+; ----> Wait_For_Service_Off
+;
+;       Infinite loop that holds the alignment grid on screen. Exits and reboots
+;       the arcade machine only when the physical service switch is flipped OFF.
+;*****************************************************************************************
+Wait_For_Service_Off:
+            in      a, (COINPORT)       ; Read System Inputs (Port $10)
+            bit     3,a                 ; Check Bit 3 (Service Switch, Active LOW)
+            jr      z,Wait_For_Service_Off ; IF 0 (Switch ON): Loop back and wait!
+            rst     00H                 ; IF 1 (Switch OFF): Soft reset the cabinet!
+
+;*****************************************************************************************
+; ----> Draw_Grid_Line
+;
+;       Helper routine for the CRT alignment grid. Draws a solid horizontal line
+;       across the screen by writing 80 bytes ($50) of solid pixels ($FF).
+;*****************************************************************************************
+Draw_Grid_Line:
+            ld      b,$50               ; Loop counter = 80 bytes (320 pixels)
+Draw1:      ld      (hl),$FF            ; Write $FF (4 solid pixels) to Video RAM
+            inc     hl                  ; Advance pointer to next byte
+            djnz    Draw1               ; Decrement B and loop until line is drawn
+            ret                         ; Return to caller
+
+;*****************************************************************************************
+; ----> ROM Identification / Developer Signature
+;*****************************************************************************************
+            ; 29 bytes of padding for ROM
+            DB      $FF, $FF, $FF, $FF, $FF, $FF, $FF, $FF
+            DB      $FF, $FF, $FF, $FF, $FF, $FF, $FF, $FF
+            DB      $FF, $FF, $FF, $FF, $FF, $FF, $FF, $FF
+            DB      $FF, $FF, $FF, $FF, $FF
+
+            DB      "THE", $00          ; $54, $48, $45, $00
+            DB      "WIZARD", $00       ; $57, $49, $5A, $41, $52, $44, $00
+            DB      "OF", $00           ; $4F, $46, $00
+            DB      "WOR", $00          ; $57, $4F, $52, $00
+            DB      "DNA", $00          ; $44, $4E, $41, $00 (Dave Nutting Associates)
+            DB      $04, $22, $81       ; 04-22-81 (April 22, 1981)
+
+            END     ;END OF ASSEMBLY
