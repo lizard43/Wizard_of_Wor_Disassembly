@@ -1387,7 +1387,6 @@ L07D3:      call    Stream_Fetch_Byte_A
             ld      e,a
 L07FF:      push    hl
 L0800:      call    Compute_80_Byte_Row_Offset
-L0800:      call    Compute_80_Byte_Row_Offset
             ex      de,hl
             pop     hl
             jr      L07D3
