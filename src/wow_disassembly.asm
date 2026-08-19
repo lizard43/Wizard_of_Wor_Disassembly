@@ -9084,7 +9084,7 @@ L83E3:      ex      de,hl
             ex      de,hl
             ret
 
-Sound_Stream_Op_Set_Modulator_Completion_Count:
+Sound_Stream_Op_Set_Modulator_Comp_Count:
 Sound_Stream_Op_Set_Modulator_Value:    ; opcode $05
             ; Operands: signed record-relative slot offset, completion count.
             ; Stores the count at slot +6.
@@ -9105,7 +9105,7 @@ Sound_Stream_Op_Set_Modulator_Value:    ; opcode $05
             xor     a
             ret
 
-Sound_Stream_Op_Enable_Master_Volume_Coupling:
+Sound_Stream_Op_Enable_Master_Volume_Cpl:
 Sound_Stream_Op_Set_Record_Flag_0C:     ; opcode $08: enable slot-5-to-slot-4 coupling
             ld      (iy+$0c),$01
             xor     a
