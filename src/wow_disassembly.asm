@@ -1,13 +1,4 @@
-            INCLUDE src/wow_equates.include ; EQU for the code
-
-;*****************************************************************************
-; SOUND STREAM ENTRY ALIASES
-;
-; Dispatcher-visible stream entries that fall inside byte-emitting statements
-; in the stream-data representation.
-;*****************************************************************************
-Sound_Stream_R3_B1_Secondary     EQU     L890E       ; R3.B1 MONSTER DEATH, secondary stream
-Sound_Stream_R1_B5_Primary       EQU     L8971       ; R1.B5 primary stream; requested by coin-input handler
+            INCLUDE src/wow_equates.include ; Hardware, RAM-map, gameplay, and legacy address equates
 
 ;*****************************************************************************
 ; SYSTEM BOOT & HARDWARE INITIALIZATION
@@ -1072,12 +1063,13 @@ CHRTBL:
 
             nop                         ; Not sure why there is a NOP here... left in just in case.
 ;*****************************************************************************************
-; ----> Update_Color_Fade_1
-;       Processes fading/cycling timers and triggers new palette loads.
+; ----> Update foreground fade-out and fade-in state
+;       Processes both palette countdowns and triggers new palette loads.
 ;*****************************************************************************************
+Update_Foreground_Palette_Fades:
 Update_Color_Fade_1:
-            call    Update_Color_Fade_2
-            ld      hl, LD1BF
+            call    Update_Foreground_Palette_Fade_In
+            ld      hl, Foreground_Fade_Out_Countdown
             ld      a, (hl)
             and     a
             ret     z
@@ -1107,8 +1099,9 @@ Update_Color_Fade_1:
 ;*****************************************************************************************
 ; ----> Update_Color_Fade_2
 ;*****************************************************************************************
+Update_Foreground_Palette_Fade_In:
 Update_Color_Fade_2:
-            ld      hl, LD1C1
+            ld      hl, Foreground_Fade_In_Countdown
             ld      a, (hl)
             and     a
             ret     z
@@ -1244,18 +1237,27 @@ BG_Color_Data:
             DB      $2B, $08, $AB, $88, $3B, $98, $CB, $FB
 
 ;*****************************************************************************************
-; ----> Load_Fade_Col_3
+; ----> Restore the default foreground palette and sparkle scanline setup
 ;*****************************************************************************************
+Restore_Default_Foreground_Palette:
 Load_Fade_Col_3:
             ld      hl, Fade_Palette_Data
             call    Load_Color_3
             jp      Set_Scanline_Int        ; Jump to scanline interrupt routine
 
 ;*****************************************************************************************
-; ----> Proc_Scan_Tmr_2
+; ----> Worluk death maze-color flash
+;
+; GAME_COMMAND_STREAM $1291 seeds Worluk_Death_Flash_Countdown with $20 only
+; when Special_Actor_Color_State is zero after the Worluk result check: the
+; Worluk was killed, not escaped. On the alternating frame-service phase this
+; routine divides each
+; step by four, alternates palette colors 1-3 between $00 and $07, then reloads
+; the normal palette and sparkle state when the countdown reaches zero.
 ;*****************************************************************************************
+Update_Worluk_Death_Maze_Flash:
 Proc_Scan_Tmr_2:
-            ld      hl, LD1BD
+            ld      hl, Worluk_Death_Flash_Countdown
             ld      a, (hl)
             and     a
             ret     z
@@ -1264,20 +1266,22 @@ Proc_Scan_Tmr_2:
             inc     hl
             ld      a, (hl)
             and     a
-            jr      z, L076C
+            jr      z, Advance_Worluk_Death_Flash_Step
             dec     (hl)
             ret
 ;
 ;*********************************************************
 ;
+Advance_Worluk_Death_Flash_Step:
 L076C:      ld      (hl),$03
             dec     hl
             dec     (hl)
-            jr      z, Load_Fade_Col_3
+            jr      z, Restore_Default_Foreground_Palette
             bit     0,(hl)
             ld      a,$07
-            jr      z,L0779
+            jr      z,Write_Worluk_Death_Flash_Colors
             xor     a
+Write_Worluk_Death_Flash_Colors:
 L0779:      out     (COL3L),a
             out     (COL2L),a
             out     (COL1L),a
@@ -1388,6 +1392,8 @@ L0800:      call    Compute_80_Byte_Row_Offset
             jr      L07D3
 ;
 ; Write an immediate byte to a stream-selected address.
+; Operands: byte value, little-endian destination address.
+Stream_Write_Byte:
             call    Stream_Fetch_Byte_A_Then_Word_HL
             ld      (hl),a
             ret
@@ -1412,6 +1418,9 @@ L0823:      call    Stream_Fetch_Word_HL
             and     a
             ret     nz
             jr      L086E
+; Branch to the second operand when the byte at the first operand is nonzero.
+; Operands: little-endian test address, little-endian stream target.
+Stream_Jump_If_Nonzero:
             call    Stream_Fetch_Word_DE
             call    Stream_Fetch_Word_HL
             ld      a,(de)
@@ -1786,7 +1795,7 @@ L0A06:      call    L0AA6
 L0A15:      ld      hl,LD13F
             call    L0AA6
             call    L0BD7
-            call    Proc_Scan_Tmr_2
+            call    Update_Worluk_Death_Maze_Flash
             ld      a,$05
             jr      L0A5D
 L0A25:      ld      hl,LD07C
@@ -1812,7 +1821,7 @@ L0A5D:      ld      hl,LD1C3
             or      (hl)
             ld      (hl),a
             call    L0A72
-            call    Update_Color_Fade_1
+            call    Update_Foreground_Palette_Fades
 L0A68:      ld      a,(Sound_Service_Entry)
             cp      $C3
             call    z,Sound_Service_Entry
@@ -2203,7 +2212,7 @@ L0D02:      ld      (LD352),a
             jr      z,L0CEA
             ld      (LD1C8),a
             xor     a
-            ld      (LD1D8),a
+            ld      (Special_Actor_Color_State),a
             ld      e,$25
             jr      L0CEA
 L0D18:      ld      a,(ix+$07)
@@ -2704,8 +2713,17 @@ GAME_COMMAND_STREAM:
             DB      $4F,$08,$78,$61,$1F,$68,$08,$FD
             DB      $10,$CA,$07,$11,$33,$0D,$6C,$2D
             DB      $53,$30,$0C,$20,$08,$03,$D3,$FD
-            DB      $10,$61,$1F,$2B,$08,$D8,$D1,$B0
-            DB      $12,$07,$08,$20,$BD,$D1,$5A,$08
+            DB      $10,$61,$1F
+; $128B branches around the kill-only effect when Special_Actor_Color_State
+; records a Worluk escape. Fall-through at $1291 reproduces the maze-color
+; flash after a kill.
+            DW      Stream_Jump_If_Nonzero
+            DW      Special_Actor_Color_State
+            DW      $12B0
+            DW      Stream_Write_Byte
+            DB      $20
+            DW      Worluk_Death_Flash_Countdown
+            DB      $5A,$08
             DB      $05,$FD,$10,$61,$1F,$CA,$07,$C5
             DB      $32,$0C,$6D,$2D,$53,$30,$08,$07
             DB      $08,$20,$BB,$D1,$68,$08,$65,$12
@@ -2933,15 +2951,19 @@ Adjust_Credit_From_Settings:
             ld      c,(hl)
             dec     c
             jp      Protected_RAM_Write ; Write protected credit byte
+; Seed the nine-step normal-to-dark foreground fade.
+Start_Foreground_Palette_Fade_Out:
             ld      a,$CC
             out     (INLIN),a
             ld      hl,L0109
-            ld      (LD1BF),hl
+            ld      (Foreground_Fade_Out_Countdown),hl
             ret
+; Seed the nine-step dark-to-normal foreground fade.
+Start_Foreground_Palette_Fade_In:
             ld      a,$CC
 L16C9:      out     (INLIN),a
             ld      hl,L0109
-            ld      (LD1C1),hl
+            ld      (Foreground_Fade_In_Countdown),hl
             ret
 
 ;
@@ -3132,59 +3154,76 @@ L17A4:      ld      (hl),c              ; Write $00 to memory
 ;
 
             nop
-            call    L17C5
+; Draw the selected maze from Maze_Expanded_Cells, then overlay the two red
+; portal gates at the outer edges of row 2.  The game command stream addresses
+; this complete entry and also addresses Draw_Maze_From_Expanded_Cells directly
+; in contexts that require only the core maze operation.
+Draw_Maze_With_Portal_Gates:
+            call    Draw_Maze_From_Expanded_Cells
             ld      a,$0C
             out     (XPAND),a
             ld      a,$18
             out     (MAGIC),a
             ld      hl,L0F07
             ld      a,$0B
-            call    L185F
+            call    Draw_Maze_Cell_At_HL
             ld      hl,L0F43
             ld      a,$07
-            jp      L185F
-L17C5:      call    L181D
+            jp      Draw_Maze_Cell_At_HL
+
+; Draw the complete 11-by-6 expanded maze, its fixed side corridors, and the
+; two closed lower boundary cells.  Input topology is the 66-byte buffer at
+; Maze_Expanded_Cells.  This is the resident maze-display entry used by WoW.
+Draw_Maze_From_Expanded_Cells:
+L17C5:      call    Configure_Maze_Draw_Mode
             ld      hl,L0781
-            call    L1855
+            call    Draw_Maze_Cell_Bottom_Only
             ld      hl,L07C9
-            call    L1855
+            call    Draw_Maze_Cell_Bottom_Only
             ld      hl,L0F01
-            call    L1859
+            call    Draw_Maze_Cell_Horizontal_Only
             ld      hl,L0F49
-            call    L1859
+            call    Draw_Maze_Cell_Horizontal_Only
             ld      hl,L1681
-            call    L185D
+            call    Draw_Maze_Cell_Top_Only
             ld      hl,L16C9
-            call    L185D
+            call    Draw_Maze_Cell_Top_Only
             ld      c,$17
             ld      hl,L0007
             exx
-            ld      hl,LD178
+            ld      hl,Maze_Expanded_Cells
             ld      c,$06
+Draw_Maze_Row_Loop:
 L17F7:      ld      b,$0B
+Draw_Maze_Cell_Loop:
 L17F9:      ld      a,(hl)
             inc     hl
             exx
-            call    L1813
+            call    Draw_Maze_Cell_And_Advance
             exx
-            djnz    L17F9
+            djnz    Draw_Maze_Cell_Loop
             exx
             ld      de,Write_BG_Color
             add     hl,de
             exx
             dec     c
-            jr      nz,L17F7
+            jr      nz,Draw_Maze_Row_Loop
             exx
-            call    L1812
+            call    Draw_Maze_Lower_Left_Cell
             ld      hl,L2D43
+Draw_Maze_Lower_Left_Cell:
 L1812:      xor     a
+Draw_Maze_Cell_And_Advance:
 L1813:      push    hl
-            call    L185F
+            call    Draw_Maze_Cell_At_HL
             pop     hl
             ld      de,L0006
             add     hl,de
             ret
 ;
+; Select the normal blue maze color when no special actor is active, or the
+; alternate red expansion color otherwise, then enable Magic EXPAND+OR.
+Configure_Maze_Draw_Mode:
 L181D:      di
             ld      a,(LD1EB)
             and     a
@@ -3195,7 +3234,7 @@ L1828:      out     (XPAND),a
             ld      a,$18
             out     (MAGIC),a
             ret
-            call    L181D
+            call    Configure_Maze_Draw_Mode
             ld      hl,L30DD
             ld      de,L18D0
             ld      c,$2F
@@ -3211,11 +3250,18 @@ L1850:      ld      (hl),a
             inc     hl
             djnz    L1850
             ret
+Draw_Maze_Cell_Bottom_Only:
 L1855:      ld      a,$0D
-            jr      L185F
+            jr      Draw_Maze_Cell_At_HL
+Draw_Maze_Cell_Horizontal_Only:
 L1859:      ld      a,$0C
-            jr      L185F
+            jr      Draw_Maze_Cell_At_HL
+Draw_Maze_Cell_Top_Only:
 L185D:      ld      a,$0E
+
+; Draw one 24-by-24-pixel maze cell at Magic-RAM destination HL.  A is the
+; four-bit opening mask: clear bits draw left, right, top, and bottom walls.
+Draw_Maze_Cell_At_HL:
 L185F:      bit     2,a
             jr      nz,L186B
             ex      af,af'
@@ -3233,18 +3279,20 @@ L186B:      bit     3,a
             pop     hl
             ex      af,af'
 L187D:      bit     0,a
-            call    z,L1889
+            call    z,Draw_Maze_Horizontal_Wall
             bit     1,a
             ret     nz
             ld      de,Load_Palette_Colors_Loop
             add     hl,de
+Draw_Maze_Horizontal_Wall:
 L1889:      push    hl
-            call    L1896
+            call    Draw_Maze_Horizontal_Six_Bytes
             ld      de,L004B
             add     hl,de
-            call    L1896
+            call    Draw_Maze_Horizontal_Six_Bytes
             pop     hl
             ret
+Draw_Maze_Horizontal_Six_Bytes:
 L1896:      ld      (hl),$FF
             inc     hl
             ld      (hl),$FF
@@ -3557,8 +3605,17 @@ L1A6D:      and     $0F
             dec     hl
             ret
             nop
+; Advance the dungeon counter, then expand Maze_Index through the resident
+; pointer table into Maze_Expanded_Cells.  The command stream calls this entry
+; when it starts a new dungeon.
+Load_And_Expand_Selected_Maze:
             ld      hl,Dungeon_Number
             inc     (hl)
+
+; Expand Maze_Index without changing Dungeon_Number.  This sub-entry is useful
+; to native diagnostics and browsers that need the game's decoder without the
+; gameplay progression side effect.
+Expand_Selected_Maze:
             ld      a,(Maze_Index)
             ld      c,a
             ld      b,$00
@@ -3568,8 +3625,9 @@ L1A6D:      and     $0F
             ld      c,(hl)
             inc     hl
             ld      b,(hl)
-            ld      hl,LD172
+            ld      hl,Maze_Expansion_Prebase
             ld      a,$06
+Expand_Selected_Maze_Row:
 L1A90:      ex      af,af'
             ld      de,L0006
             add     hl,de
@@ -3579,37 +3637,44 @@ L1A90:      ex      af,af'
             ex      de,hl
             dec     de
             pop     hl
-            call    L1AB4
-            call    L1ABB
-            call    L1AB4
-            call    L1ABB
-            call    L1AB4
+            call    Expand_Maze_High_Nibble
+            call    Expand_Maze_Low_Nibble
+            call    Expand_Maze_High_Nibble
+            call    Expand_Maze_Low_Nibble
+            call    Expand_Maze_High_Nibble
             ld      a,(bc)
             inc     bc
             and     $0F
             ld      (hl),a
             ex      af,af'
             dec     a
-            jr      nz,L1A90
+            jr      nz,Expand_Selected_Maze_Row
             ret
+Expand_Maze_High_Nibble:
 L1AB4:      ld      a,(bc)
             rrca
             rrca
             rrca
             rrca
-            jr      L1ABD
+            jr      Expand_Maze_Nibble_And_Mirror
+Expand_Maze_Low_Nibble:
 L1ABB:      ld      a,(bc)
             inc     bc
+Expand_Maze_Nibble_And_Mirror:
 L1ABD:      and     $0F
             ld      (hl),a
             and     $0C
             ld      a,(hl)
             inc     hl
-            jp      pe,L1AC9
+            jp      pe,Store_Mirrored_Maze_Cell
             xor     $0C
+Store_Mirrored_Maze_Cell:
 L1AC9:      dec     de
             ld      (de),a
             ret
+
+; Convert actor-space X/Y coordinates in E/D to the corresponding expanded
+; maze-cell byte.  The returned HL points into Maze_Expanded_Cells.
 Maze_Cell_Address_From_XY:
             ld      a,e
             ld      e,$FF
@@ -3629,7 +3694,7 @@ L1AE0:      add     a,l
             add     a,e
             ld      e,a
             ld      d,$00
-            ld      hl,LD178
+            ld      hl,Maze_Expanded_Cells
             add     hl,de
             ret
 ;*****************************************************************************
@@ -3639,14 +3704,14 @@ L1AE0:      add     a,l
 ; bytes: six rows of six four-bit cell values.
 ;*****************************************************************************
 Maze_Pointer_Table:
-            DW      Maze_01_Data, Maze_15_Data, Maze_02_Data, Maze_03_Data, Maze_04_Data, Maze_05_Data
+            DW      Maze_00_Data, Maze_01_Data, Maze_02_Data, Maze_03_Data, Maze_04_Data, Maze_05_Data
             DW      Maze_06_Data, Maze_07_Data, Maze_08_Data, Maze_09_Data, Maze_10_Data, Maze_11_Data
-            DW      Maze_12_Data, Maze_13_Data, Maze_14_Data, Maze_16_Data, Maze_17_Data, Maze_18_Data
-            DW      Maze_19_Data, Maze_20_Data, Maze_21_Data, Maze_22_Data, Maze_23_Data, Maze_24_Data
-Maze_01_Data:
+            DW      Maze_12_Data, Maze_13_Data, Maze_14_Data, Maze_15_Data, Maze_16_Data, Maze_17_Data
+            DW      Maze_18_Data, Maze_19_Data, Maze_20_Data, Maze_21_Data, Maze_22_Data, Maze_23_Data
+Maze_00_Data:
             DB      $AC,$EC,$CE,$BC,$5A,$EF,$BC,$EF,$FF
             DB      $B6,$9F
-Maze_01_Data_Byte_11:
+Maze_00_Data_Byte_11:
             DB      $DD,$3B,$EF,$EC,$95,$95,$9C
 Maze_02_Data:
             DB      $AC,$EE,$CE,$3A,$D7,$AD,$97,$AF,$FC
@@ -3689,38 +3754,38 @@ Maze_14_Data:
             DB      $AE,$DC,$73,$3B
 Maze_14_Data_Byte_13:
             DB      $EE,$FD,$95,$95,$9C
-Maze_15_Data:
+Maze_01_Data:
             DB      $AE,$EE,$EE,$BF,$FF,$FF,$BF,$FF,$FF
             DB      $BF,$FF,$FF,$BF,$FF,$FF,$9D,$DD,$DD
-Maze_16_Data:
+Maze_15_Data:
             DB      $AC,$EE,$EE,$B6,$BD,$53,$B5
-Maze_16_Data_Byte_07:
+Maze_15_Data_Byte_07:
             DB      $3A,$EF
             DB      $BE,$D5,$BF,$B7,$AE,$FF,$9D,$DD,$DD
-Maze_17_Data:
+Maze_16_Data:
             DB      $AE
-Maze_17_Data_Byte_01:
+Maze_16_Data_Byte_01:
             DB      $EE,$CE,$BF,$F5,$AF,$BF,$5A,$FF
             DB      $B5,$AF,$53,$BE,$F5,$AF,$9D,$DC,$DD
-Maze_18_Data:
+Maze_17_Data:
             DB      $AE,$EE,$EE,$3B,$73,$BF,$33,$B7,$33
             DB      $B7,$3B,$73,$BF,$73,$BF,$9D,$DD,$DD
-Maze_19_Data:
+Maze_18_Data:
             DB      $AE,$EE,$EE,$39,$F5,$BF,$B6,$BE,$73
             DB      $BD,$79,$73,$3A,$F6,$BF,$9D,$DD,$DD
-Maze_20_Data:
+Maze_19_Data:
             DB      $AE,$EE,$CE,$39,$F5,$AF,$B6,$9E,$FF
             DB      $BF,$6B,$DF,$BF,$F5,$AF,$9D,$DC,$DD
-Maze_21_Data:
+Maze_20_Data:
             DB      $AE,$EE,$CE,$B5,$9F,$63,$B6,$A5,$9F
             DB      $39,$F6,$AF,$B6,$9D,$FF,$9D,$CC,$DD
-Maze_22_Data:
+Maze_21_Data:
             DB      $AC,$EE,$EE,$B6,$9F,$53,$BF,$63,$AF
             DB      $BF,$53,$9F,$B5,$AF,$63,$9C,$DD,$DD
-Maze_23_Data:
+Maze_22_Data:
             DB      $AC,$EE,$CE,$B6,$9F,$ED,$BF,$69,$FE
             DB      $BF,$F6,$9F,$B7,$BF,$63,$9D,$DD,$DD
-Maze_24_Data:
+Maze_23_Data:
             DB      $AC,$EE,$EC,$BE,$D7,$BC,$3B,$ED,$FE
             DB      $3B,$DE,$FD,$BD,$E7,$BC,$9C,$DD,$DC
 Draw_Player_Lives:
@@ -5821,7 +5886,7 @@ L2CD6:      ld      a,$03
             ld      (hl),a
             inc     hl
             ld      (hl),a
-            ld      (LD1D8),a
+            ld      (Special_Actor_Color_State),a
             ld      (LD1C9),a
             ld      (Timer_Group_2_Start),a
             ld      hl,$0403
@@ -6130,7 +6195,7 @@ L2F1B:      jr      z,L2F42
             ld      a,$F3
             out     (COL3L),a
             ld      (LD1BA),a
-            ld      (LD1D8),a
+            ld      (Special_Actor_Color_State),a
 ; Active Worluk has crossed the maze boundary. The actor slot is cleared above,
 ; matching the documented Worluk escape through a magic door.
 Post_Worluk_Escape_Sound:
@@ -9019,7 +9084,7 @@ L83E3:      ex      de,hl
             ex      de,hl
             ret
 
-Sound_Stream_Op_Set_Modulator_Completion_Count:
+Sound_Stream_Op_Set_Modulator_Comp_Count:
 Sound_Stream_Op_Set_Modulator_Value:    ; opcode $05
             ; Operands: signed record-relative slot offset, completion count.
             ; Stores the count at slot +6.
@@ -9040,7 +9105,7 @@ Sound_Stream_Op_Set_Modulator_Value:    ; opcode $05
             xor     a
             ret
 
-Sound_Stream_Op_Enable_Master_Volume_Coupling:
+Sound_Stream_Op_Enable_Master_Volume_Cpl:
 Sound_Stream_Op_Set_Record_Flag_0C:     ; opcode $08: enable slot-5-to-slot-4 coupling
             ld      (iy+$0c),$01
             xor     a
