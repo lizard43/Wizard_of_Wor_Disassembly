@@ -6,15 +6,16 @@
 -- Play All are executed by injected Z80 code.  Lua installs the native image,
 -- prepares the text display list, exposes diagnostic console commands, captures
 -- read-only execution evidence, and participates in the Lab application lifecycle.
--- Capture taps observe WoW engine RAM and Astrocade I/O; they never synthesize
--- sound, alter stream bytes, or post sound requests.
+-- Capture observes WoW engine RAM through module-local program taps and receives
+-- Astrocade I/O writes from the Lab's shared hardware probe when available. It
+-- never synthesizes sound, alters stream bytes, or posts sound requests.
 --
 -- The Lab ABI and permanent IM2 kernel remain below $D400.  1P Return is
 -- therefore supervisor-owned and remains available even while this module owns
 -- the complete native application workspace.
 
 local M = {}
-M.VERSION = '1.1.8-20260817-1344'
+M.VERSION = '1.1.9-20260820-0925'
 
 local C = {
   SOUND_REQUEST_1          = 0xD240,
@@ -133,6 +134,8 @@ local S = {
   controller_labels = {},
   step_logging = false,
   taps = {},
+  probe_write_subscription = nil,
+  capture_io_source = nil,
   capture = {
     available = false,
     error = nil,
@@ -1239,22 +1242,46 @@ local function observe_engine_write(offset, data, mask)
 end
 
 local function remove_capture_taps()
+  if S.probe_write_subscription then
+    pcall(function() S.probe_write_subscription:unsubscribe() end)
+    S.probe_write_subscription = nil
+  end
   for _, tap in pairs(S.taps) do
     if tap then pcall(function() tap:remove() end) end
   end
   S.taps = {}
+  S.capture_io_source = nil
   S.capture.available = false
 end
 
 local function install_capture_taps()
   remove_capture_taps()
-  if not S.io_space or not S.program then
-    S.capture.error = 'MAME address spaces unavailable'
+  if not S.program then
+    S.capture.error = 'MAME program address space unavailable'
     return false, S.capture.error
   end
+
+  local probe = S.lab and S.lab.hardware_probe or nil
+  local active_probe = probe and probe.active
+  local shared_probe = active_probe and type(probe.add_write_observer) == 'function'
+
   local ok, err = pcall(function()
-    S.taps.io = S.io_space:install_write_tap(0, S.io_space.address_mask,
-      'wow_lab_sound_astrocade_writes', observe_astrocade_write)
+    if shared_probe then
+      S.probe_write_subscription = probe:add_write_observer(observe_astrocade_write)
+      S.capture_io_source = 'LAB PROBE'
+    elseif active_probe then
+      -- Never install a second full-I/O tap over an active Lab probe. MAME 0.289
+      -- can crash natively when a module mutates the same tapped I/O space while
+      -- the probe's change notifier is servicing that mutation. An old probe is
+      -- therefore a diagnostics-version mismatch, not a reason to risk MAME.
+      error('active Astrocade probe lacks shared write-observer API; update core/astrocade_probe.lua')
+    else
+      assert(S.io_space, 'MAME I/O address space unavailable')
+      S.taps.io = S.io_space:install_write_tap(0, S.io_space.address_mask,
+        'wow_lab_sound_astrocade_writes', observe_astrocade_write)
+      S.capture_io_source = 'PRIVATE TAP'
+    end
+
     S.taps.engine = S.program:install_write_tap(C.PRIMARY_MODULATORS, C.SECONDARY_ENGINE + 17,
       'wow_lab_sound_engine_writes', observe_engine_write)
     S.taps.play = S.program:install_write_tap(C.STATE_PLAY_BEGIN_SEQ, C.STATE_PLAY_BEGIN_SEQ,
@@ -1723,7 +1750,8 @@ function M.start(lab)
     hex4(C.NATIVE_CODE), hex4(C.NATIVE_CODE + #code - 1), hex4(C.STATE_BASE),
     C.STATE_PLAY_BEGIN_SEQ, hex4(C.REQUEST_TABLE))
   if capture_ok then
-    print('[WOW SOUND] diagnostics: read-only engine/I/O capture enabled; detailed step console log OFF')
+    printf('[WOW SOUND] diagnostics: read-only engine/I/O capture enabled via %s; detailed step console log OFF',
+      tostring(S.capture_io_source or 'UNKNOWN'))
   else
     printf('[WOW SOUND] diagnostics unavailable: %s', tostring(capture_err))
   end

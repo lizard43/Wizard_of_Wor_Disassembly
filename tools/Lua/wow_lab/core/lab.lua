@@ -3,14 +3,21 @@
 
 local Lab = {}
 Lab.__index = Lab
-Lab.VERSION = '1.2.0-20260817-1645'
+Lab.VERSION = '1.4.1-20260820-0825'
 
-function Lab.new(root, path_api, memory, Native, ModuleLoader, VideoDebug)
+function Lab.new(root, path_api, memory, Native, ModuleLoader, VideoDebug, LabFonts, LabText, HardwareProbe)
   local machine = assert(manager and manager.machine, 'MAME running machine is unavailable')
   local native = Native.new(machine, memory)
   local modules_path = path_api.join(root, 'modules')
   local video_debug_core = assert(VideoDebug, 'video debug core is unavailable')
   local video_debug = video_debug_core.new(native.program)
+  local fonts = assert(LabFonts, 'lab font core is unavailable')
+  local text = assert(LabText, 'lab text core is unavailable')
+  assert(type(fonts.face) == 'function' and type(fonts.encode) == 'function',
+    'lab font core API is incomplete')
+  assert(type(text.metrics) == 'function' and type(text.emit_row_font) == 'function',
+    'lab text core API is incomplete')
+  text.audit(fonts)
 
   return setmetatable({
     root = root,
@@ -19,6 +26,10 @@ function Lab.new(root, path_api, memory, Native, ModuleLoader, VideoDebug)
     machine = machine,
     native = native,
     video_debug = video_debug,
+    fonts = fonts,
+    text = text,
+    hardware_probe = HardwareProbe,
+    takeover_snapshot_frozen = false,
     loader = ModuleLoader.new(modules_path, path_api),
     modules = {},
     active = nil,
@@ -29,6 +40,7 @@ function Lab.new(root, path_api, memory, Native, ModuleLoader, VideoDebug)
     status = '',
     frame_subscription = nil,
     stop_subscription = nil,
+    initial_scan_ok = false,
   }, Lab)
 end
 
@@ -36,7 +48,16 @@ function Lab:log(fmt, ...)
   print(string.format('[WOW LAB] ' .. fmt, ...))
 end
 
-function Lab:scan_modules()
+function Lab:_log_module_inventory(prefix)
+  self:log('%s %d module%s', tostring(prefix or 'modules:'), #self.modules, #self.modules == 1 and '' or 's')
+  for i, entry in ipairs(self.modules) do
+    print(string.format('[WOW LAB]   %2d  %-22s %-24s %s',
+      i, tostring(entry.label or 'MODULE'), tostring(entry.version or 'UNVERSIONED'),
+      tostring(entry.filename or '?')))
+  end
+end
+
+function Lab:scan_modules(prefix)
   local ok, result = pcall(function() return self.loader:scan() end)
   if not ok then
     self.modules = {}
@@ -49,7 +70,7 @@ function Lab:scan_modules()
     while #result > 255 do table.remove(result) end
   end
   self.modules = result
-  self:log('discovered %d module%s', #self.modules, #self.modules == 1 and '' or 's')
+  self:_log_module_inventory(prefix or 'discovered')
   return true
 end
 
@@ -160,7 +181,7 @@ function Lab:show_module_page(title, body)
   self.native:draw(lines)
 end
 
-function Lab:enter_menu(reason)
+function Lab:enter_menu(reason, rescan)
   if self.active then
     local module = self.active
     self.active = nil
@@ -170,7 +191,7 @@ function Lab:enter_menu(reason)
     end
   end
 
-  self:scan_modules()
+  if rescan ~= false then self:scan_modules('rescanned') end
   self.native:install(#self.modules)
   self.native:set_mode(0)
   self.state = 'MENU'
@@ -222,7 +243,16 @@ end
 function Lab:update()
   if self.state == 'BOOT' then
     self.boot_frames = self.boot_frames + 1
-    if self.boot_frames >= self.takeover_frames then self:enter_menu('READY') end
+    if self.boot_frames >= self.takeover_frames then
+      -- Freeze the game's initialized Astrocade I/O state before the Lab menu
+      -- performs any resident WoW text/video writes.  The hardware information
+      -- module uses this snapshot as its unmodified takeover reference.
+      if self.hardware_probe and not self.takeover_snapshot_frozen then
+        self.hardware_probe:freeze('takeover')
+        self.takeover_snapshot_frozen = true
+      end
+      self:enter_menu('READY', not self.initial_scan_ok)
+    end
     return
   end
 
@@ -280,14 +310,16 @@ function Lab:print_status()
   self:log('PC=$%04X SP=$%04X selected=%d request=%d heartbeat=%d',
     pc & 0xFFFF, sp & 0xFFFF, self.native:selected(), self.native:request(),
     self.native.program:read_u8(self.memory.abi.HEARTBEAT))
+  if self.hardware_probe then
+    local snapshot = self.hardware_probe:snapshot()
+    self:log('Astrocade probe=%s seq=%d writes=%d reads=%d takeover=%s',
+      tostring(snapshot.detail), snapshot.sequence or 0, snapshot.write_count or 0,
+      snapshot.read_count or 0, self.takeover_snapshot_frozen and 'YES' or 'NO')
+  end
 end
 
 function Lab:print_modules()
-  self:log('%d module%s discovered', #self.modules, #self.modules == 1 and '' or 's')
-  for i, entry in ipairs(self.modules) do
-    print(string.format('[WOW LAB]   %2d  %-22s %-5s  %-24s %s',
-      i, entry.label, entry.version_tag or 'V---', entry.version or 'UNVERSIONED', entry.filename))
-  end
+  self:_log_module_inventory('modules:')
 end
 
 function Lab:print_native()
@@ -313,7 +345,7 @@ end
 function Lab:start()
   self:log('resident supervisor starting')
   self:log('module directory: %s', self.loader.path)
-  self:scan_modules()
+  self.initial_scan_ok = self:scan_modules('discovered')
 
   self.frame_subscription = emu.add_machine_frame_notifier(function() self:update() end)
   self.stop_subscription = emu.add_machine_stop_notifier(function()

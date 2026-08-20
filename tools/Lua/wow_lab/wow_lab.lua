@@ -23,19 +23,36 @@ local Memory = load_core('memory')
 local Native = load_core('native')
 local ModuleLoader = load_core('module_loader')
 local VideoDebug = load_core('video_debug')
+local LabFonts = load_core('lab_fonts')
+local LabText = load_core('lab_text')
+local AstrocadeProbe = load_core('astrocade_probe')
 local Lab = load_core('lab')
+
+-- Start hardware observation before the game's two-second Lab takeover point so
+-- boot-time output latches are captured from the writes that actually program
+-- them.  Failure is non-fatal: the information module will report it plainly.
+local hardware_probe = AstrocadeProbe.new(assert(manager and manager.machine, 'MAME running machine is unavailable'))
+local probe_ok, probe_detail = hardware_probe:start()
 
 print('============================================================')
 print(string.format('[WOW LAB] WIZARD OF WOR LAB %s', tostring(Lab.VERSION)))
 print('[WOW LAB] entry module: wow_lab.lua')
 print('[WOW LAB] native menu + resident Lua supervisor')
 print('[WOW LAB] ROM patching: NONE')
-print(string.format('[WOW LAB] core versions: lab=%s native=%s memory=%s loader=%s video=%s path=%s',
+print(string.format('[WOW LAB] core versions: lab=%s native=%s memory=%s loader=%s video=%s fonts=%s text=%s probe=%s path=%s',
   tostring(Lab.VERSION), tostring(Native.VERSION), tostring(Memory.VERSION),
-  tostring(ModuleLoader.VERSION), tostring(VideoDebug.VERSION), tostring(Path.VERSION)))
+  tostring(ModuleLoader.VERSION), tostring(VideoDebug.VERSION), tostring(LabFonts.VERSION),
+  tostring(LabText.VERSION), tostring(AstrocadeProbe.VERSION), tostring(Path.VERSION)))
+print(string.format('[WOW LAB] Astrocade I/O probe: %s%s',
+  probe_ok and 'ACTIVE - ' or 'UNAVAILABLE - ', tostring(probe_detail)))
+local tiny = LabText.metrics(LabFonts, 'tiny')
+local compact = LabText.metrics(LabFonts, 'compact')
+print(string.format('[WOW LAB] lab fonts: tiny=%dx%d/%dx%d cell (%dx%d); compact=%dx%d/%dx%d cell (%dx%d)',
+  tiny.glyph_width, tiny.glyph_height, tiny.cell_width, tiny.cell_height, tiny.columns, tiny.rows,
+  compact.glyph_width, compact.glyph_height, compact.cell_width, compact.cell_height, compact.columns, compact.rows))
 print('============================================================')
 
-local lab = Lab.new(root, Path, Memory, Native, ModuleLoader, VideoDebug)
+local lab = Lab.new(root, Path, Memory, Native, ModuleLoader, VideoDebug, LabFonts, LabText, hardware_probe)
 rawset(_G, 'WowLab', lab)
 lab:start()
 
