@@ -6581,1039 +6581,367 @@ Text_Rights_Reserved:
             DB      "ALL@RIGHTS@RESERVED"
 Text_Score_Values:
             DB      "10020050010002500",$00
-; Actor animation and frame-pointer tables.
+;*******************************************************************************
+; ACTOR DEATH ANIMATION TABLES
+;
+; L2633 selects the monster table when IX+$07 bit 7 is set. Player deaths
+; select one of four 14-entry groups with IX+$07 bits 5-4. Repeated actor
+; and effect pointers are the frame sequence used by the game.
+;*******************************************************************************
 Actor_Frame_Pointer_Table_A:
-            DW      $33CE,$3428,$3482,$34DC,$3536
+Monster_Death_Frame_Pointers:
+            DW      SPLOT_5,SPLOT_4,SPLOT_3,SPLOT_2,SPLOT
+
 Actor_Frame_Pointer_Table_B:
-            DW      $3B12,$374D,$3B12,$374D,$3B12,$374D
-            DW      $3B12,$374D,$3B12,$374D,$3801
-Actor_Frame_Metadata:
-            DB      $01,$38,$DC
-            inc     (hl)
-L336C:      ld      (hl),$35
-            nop
-L336F:      nop
-L3370:      nop
-            nop
-            sbc     a,h
-            jr      c,L3368
-            ld      (hl),$9C
-L3377:      jr      c,L336C
-            ld      (hl),$9C
-            jr      c,L3370
-            ld      (hl),$9C
-            jr      c,L3374
-            ld      (hl),$9C
-            jr      c,L3378
-            ld      (hl),$A7
-            scf
-            and     a
-            scf
-            call    c,L3634
-            dec     (hl)
-            nop
-            nop
-            nop
-            nop
-            cp      b
-            ld      a,(L35EA)
-            cp      b
-            ld      a,(L35EA)
-            cp      b
-            ld      a,(L35EA)
-            cp      b
-            ld      a,(L35EA)
-            cp      b
-            ld      a,(L35EA)
-            sbc     a,c
-            ld      (hl),$99
-            ld      (hl),$DC
-            inc     (hl)
-            ld      (hl),$35
-            nop
-            nop
-            nop
-            nop
-            or      $38
-            sub     b
-            dec     (hl)
-            or      $38
-            sub     b
-            dec     (hl)
-            or      $38
-            sub     b
-            dec     (hl)
-            or      $38
-            sub     b
-            dec     (hl)
-            or      $38
-            sub     b
-            dec     (hl)
-            ld      b,h
-            ld      (hl),$44
-            ld      (hl),$DC
-            inc     (hl)
-            ld      (hl),$35
-            nop
-            nop
-            nop
-            nop
-            nop
-            nop
-            nop
-            nop
-            nop
-            nop
-            nop
-            nop
-            nop
-            nop
-            nop
-            nop
-            ret     nz
-            inc     b
-            nop
-            nop
-            ret     nz
-            di
-            nop
-            nop
-            nop
-            ccf
-            rst     38H
-            inc     c
-            nop
-            nop
-            rrca
-            rst     38H
-            call    m,$0000
-            rrca
-            rst     18H
-            ld      a,a
-            nop
-            nop
-            rst     38H
-            ld      d,l
-            ld      a,h
-            nop
-            nop
-            DB      $fd,$55
-            ld      a,h
-            nop
-            nop
-            ccf
-L3401:      push    af
-            ld      a,h
-            nop
-            nop
-            rrca
-            ccf
-            ret     p
-            nop
-            nop
-            ld      c,h
-            rrca
-            pop     bc
-            nop
-            nop
-            nop
-            rrca
-            ret     nz
-            nop
-            nop
-            nop
-            inc     bc
-            nop
-            nop
-            nop
-            nop
-            nop
-            nop
-            nop
-            nop
-            nop
-            nop
-            nop
-            nop
-            nop
-            nop
-            nop
-            nop
-            nop
-            nop
-            ld      bc,$0000
-            nop
-            nop
-            nop
-            ld      b,b
-            nop
-            nop
-            nop
-            nop
-            ld      d,h
-L3434:      nop
-            nop
-            nop
-            nop
-            inc     d
-            inc     b
-            nop
-            nop
-            nop
-            dec     d
-            ld      d,h
-            nop
-            ret     nz
-            nop
-            dec     e
-            ld      d,h
-            inc     d
-            nop
-            nop
-            ld      e,a
-            push    de
-            ld      d,l
-            nop
-            nop
-            ld      e,a
-            rst     38H
-            push    af
-            nop
-            pop     bc
-            ld      a,a
-            rst     38H
-            call    p,$1500
-            ld      a,a
-            rst     38H
-            call    nc,$1500
-            rst     38H
-            rst     38H
-            call    nc,$0500
-            rst     38H
-            rst     38H
-            push    af
-            nop
-            dec     b
-            push    af
-            DB      $fd,$f4
-            nop
-            nop
-            ld      d,l
-            ld      d,l
-            ld      d,h
-            nop
-            dec     b
-            inc     d
-            inc     d
-            ld      b,l
-            ld      b,b
-            inc     b
-            nop
-            nop
-            ld      b,b
-            ld      b,b
-            ld      d,b
-            nop
-L347A:      nop
-            ld      b,b
-            nop
-            nop
-            nop
-            nop
-            nop
-            nop
-            nop
-            nop
-            jr      nz,L3486
-L3486:      nop
-            add     a,b
-            nop
-            add     a,b
-            nop
-            add     a,b
-            jr      nz,L3490
-            nop
-            ld      (bc),a
-L3490:      nop
-            ex      af,af'
-L3492:      ld      (bc),a
-            nop
-            ex      af,af'
-            nop
-            ld      (bc),a
-            adc     a,d
-            adc     a,d
-            ex      af,af'
-            nop
-            nop
-            xor     a
-            jp      m,L0088
-            ld      (bc),a
-            cp      a
-            cp      $A0
-            nop
-            ld      (bc),a
-            cp      a
-            rst     38H
-            and     b
-            jr      nz,L34B5
-            rst     38H
-            rst     38H
-            and     b
-            nop
-            ld      a,(bc)
-            rst     38H
-            rst     38H
-            and     b
-            nop
-            ld      a,(bc)
-L34B5:      rst     38H
-            rst     38H
-            and     b
-            nop
-            ld      a,(bc)
-            cp      a
-            rst     38H
-            ret     pe
-            nop
-            jr      nz,L347A
-            cp      a
-            ret     po
-            nop
-            add     a,b
-            and     b
-            xor     a
-            xor     b
-            nop
-            nop
-            nop
-            ld      hl,(L808A)
-            nop
-            nop
-            jr      nz,L34D1
-L34D1:      add     a,b
-            nop
-            nop
-            add     a,b
-            nop
-            nop
-            nop
-            ld      (bc),a
-            nop
-            nop
-            nop
-            nop
-            ex      af,af'
-            djnz    L34E0
-L34E0:      nop
-            inc     de
-            ld      (bc),a
-            ld      (bc),a
-            djnz    L34E6
-L34E6:      nop
-            add     a,h
-            ret     nz
-            jr      nc,L34EB
-L34EB:      nop
-            pop     bc
-            inc     b
-            nop
-            nop
-            ex      af,af'
-            nop
-            nop
-            inc     c
-            nop
-            nop
-            ld      b,b
-            ld      b,$00
-            nop
-            ret     nz
-            ld      c,$03
-            inc     de
-            nop
-            inc     bc
-            nop
-            ld      c,b
-L3502:      nop
-            nop
-            ld      (bc),a
-            ld      bc,L2001
-            nop
-            ld      b,b
-            inc     b
-            djnz    L350E
-            nop
-L350E:      nop
-            nop
-            jr      nz,L3492
-            nop
-            jr      nc,L3538
-            nop
-            inc     c
-            nop
-            ld      bc,L2004
-            call    nz,L2300
-            ld      (bc),a
-            inc     bc
-            ld      bc,L0100
-            jr      nz,L3555
-            ld      sp,$0000
-            jr      nc,L34AA
-            ld      b,h
-L352B:      nop
-            nop
-            inc     b
-            ex      af,af'
-            nop
-            nop
-            nop
-            nop
-            nop
-            nop
-            nop
-            nop
-            nop
-L3538:      jr      nc,L355A
-            nop
-            nop
-            jr      nz,L353E
-L353E:      ld      b,b
-            nop
-            jr      nz,L3502
-            djnz    L354C
-            nop
-            nop
-            inc     b
-            nop
-            add     a,b
-            ld      b,b
-            nop
-            ld      b,b
-L354C:      nop
-            jr      nz,L354F
-L354F:      jr      nc,L3551
-L3551:      djnz    L3583
-            nop
-            nop
-L3555:      add     a,b
-            ld      (bc),a
-            nop
-            djnz    L359A
-L355A:      inc     b
-            jr      nc,L3560
-            nop
-            inc     bc
-            nop
-L3560:      nop
-            ld      (bc),a
-            nop
-            nop
-            nop
-            add     a,b
-            nop
-            nop
-            jr      nc,L358A
-            jr      nc,L356D
-            nop
-L356D:      ld      bc,$0002
-            inc     c
-            djnz    L3574
-            nop
-L3574:      add     a,c
-            nop
-            add     a,b
-            ld      b,b
-            inc     c
-            nop
-            inc     c
-            nop
-            ld      (bc),a
-            djnz    L358F
-            inc     bc
-            nop
-            nop
-            inc     bc
-L3583:      nop
-            ex      af,af'
-            nop
-            nop
-            ld      b,b
-            ld      bc,$0000
-            nop
-            inc     bc
-            nop
-            nop
-L358F:      nop
-            nop
-            nop
-            dec     a
-            ld      e,a
-            nop
-            nop
-            nop
-            dec     sp
-            ld      d,a
-            nop
-L359A:      nop
-            nop
-            rst     38H
-            ld      d,a
-            nop
-            nop
-            nop
-            push    de
-            ld      e,a
-            ret     p
-            nop
-            nop
-            DB      $fd,$5d
-            ld      (hl),b
-            nop
-            nop
-            dec     c
-            ld      d,l
-            ld      d,b
-            inc     sp
-            nop
-            dec     (hl)
-            and     (hl)
-            ld      d,b
-            DB      $dd,$ff
-            push    de
-            and     (hl)
-            ld      (hl),b
-            sbc     a,c
-            xor     d
-            xor     d
-            and     l
-            ld      (hl),b
-            DB      $dd,$fe
-            xor     d
-            sub     l
-            ld      (hl),b
-            inc     sp
-            rrca
-            push    de
-            ld      e,l
-            ld      (hl),b
-            nop
-            nop
-            dec     (hl)
-            ld      e,a
-            ret     p
-            nop
-            nop
-            dec     (hl)
-            ld      d,a
-            nop
-            nop
-            nop
-            push    de
-            ld      d,a
-            nop
-            nop
-            inc     bc
-            ld      d,a
-            rst     10H
-            nop
-            nop
-            dec     c
-            ld      e,h
-            push    de
-            ret     nz
-            nop
-            ld      (iy-$0b),b
-            ret     nz
-            nop
-            push    de
-            ld      (hl),e
-            ld      d,l
-            ret     nz
-L35EA:      nop
-            nop
-            call    pe,$0000
-            nop
-            inc     bc
-            ld      d,a
-            nop
-            nop
-            nop
-            nop
-            call    pe,$0000
-            nop
-            inc     bc
-            ld      d,a
-            nop
-            nop
-            ret     p
-            nop
-            call    pe,$0000
-            ld      (hl),b
-            nop
-            call    pe,$0000
-            ld      a,h
-L3609:      inc     bc
-            call    pe,$0000
-            ld      d,a
-            inc     bc
-            xor     h
-            nop
-            nop
-            ld      d,l
-            jp      $3FAC
-            nop
-            push    af
-            ld      a,l
-            and     a
-            scf
-            ret     p
-            dec     c
-            ld      d,l
-            and     l
-            rst     30H
-            or      b
-            jp      $A555
-            ld      d,a
-            ret     nc
-            ld      a,a
-            ld      d,l
-            xor     d
-L3629:      ld      d,l
-L362A:      ld      d,b
-            ld      (hl),l
-            ld      d,l
-            ld      l,d
-            ld      d,l
-            ld      d,b
-            ld      d,l
-            ld      e,a
-            ld      d,l
-            ld      a,l
-L3634:      ld      (hl),b
-            ld      d,a
-            DB      $fd,$5a
-            ld      e,a
-            ret     p
-            call    m,L550D
-            ld      e,h
-            nop
-            nop
-            rrca
-            DB      $fd,$7c
-            nop
-            nop
-            nop
-            nop
-            inc     b
-            nop
-            ld      b,h
-            nop
-            nop
-            inc     d
-            nop
-            ld      h,(hl)
-            xor     d
-            add     a,b
-            inc     d
-            add     a,b
-            ld      b,h
-            ld      a,(bc)
-            add     a,b
-            dec     d
-            ld      d,b
-            nop
-            nop
-            ld      bc,L4001
-            nop
-            nop
-            add     a,b
-            add     a,e
-            nop
-            nop
-            inc     bc
-            ld      d,d
-            ld      bc,$0000
-            nop
-            nop
-            ld      ($0000),a
-            nop
-            ld      de,L4004
-            nop
-            nop
-            ld      c,(hl)
-            ld      (bc),a
-            nop
-            nop
-            inc     d
-            jr      nz,L369E
-            ret     nz
-            nop
-            ld      d,h
-            ld      bc,$0000
-            ld      bc,L0050
-            ld      bc,L0150
-            ld      b,b
-            nop
-            dec     b
-            ld      d,b
-            dec     d
-            ld      b,b
-            nop
-            dec     b
-            djnz    L3690
-L3690:      nop
-            nop
-            nop
-            djnz    L3695
-L3695:      nop
-            nop
-            nop
-            nop
-            nop
-            nop
-            nop
-            dec     b
-            ld      b,b
-L369E:      inc     b
-            nop
-            nop
-            ld      (bc),a
-            nop
-            inc     b
-            nop
-            nop
-            dec     b
-            ld      b,b
-            dec     b
-            ld      b,b
-            nop
-            ld      (bc),a
-            nop
-            dec     b
-            ld      d,b
-            nop
-            ld      (bc),a
-            nop
-            nop
-            ld      d,h
-            nop
-            ld      (bc),a
-            nop
-            nop
-            inc     d
-            nop
-            ld      a,(bc)
-            nop
-            nop
-            nop
-            inc     c
-            ld      a,(bc)
-            nop
-            nop
-            ld      bc,L0A06
-            nop
-            nop
-            ex      af,af'
-            ld      b,h
-            djnz    L36CB
-L36CB:      nop
-            inc     bc
-            nop
-            nop
-            nop
-            nop
-            ld      (de),a
-            ld      c,b
-            ld      b,b
-            nop
-            nop
-            nop
-            ld      (bc),a
-            nop
-            nop
-            nop
-            ex      af,af'
-            jr      nc,L36E3
-            ld      b,b
-            dec     b
-            inc     b
-            ld      b,b
-            dec     d
-L36E3:      ld      d,b
-            dec     b
-            ld      b,d
-            daa
-            ld      d,h
-            nop
-            ld      bc,L404C
-            ld      d,(hl)
-            nop
-            dec     d
-            ld      b,b
-            nop
-            inc     d
-            nop
-            nop
-            nop
-            ld      a,$AF
-            nop
-            nop
-            nop
-            scf
-            xor     e
-            nop
-            nop
-            nop
-            rst     38H
-            xor     e
-            nop
-            nop
-            nop
-            jp      pe,LF0AF
-            nop
-            nop
-L3709:      cp      $AE
-            or      b
-            nop
-            nop
-            ld      c,$AA
-            and     b
-            inc     sp
-            nop
-            ld      a,($A059)
-            xor     $FF
-            jp      pe,LB059
-            ld      h,(hl)
-            ld      d,l
-            ld      d,l
-            ld      e,d
-            or      b
-            xor     $FD
-            ld      d,l
-            ld      l,d
-            or      b
-            inc     sp
-            rrca
-            jp      pe,LB0AE
-            nop
-            nop
-            ld      a,(LF0AF)
-            nop
-            nop
-            ld      a,(L00AB)
-            nop
-            nop
-L3736:      jp      pe,L00AB
-            nop
-            inc     bc
-            xor     e
-            ex      de,hl
-            nop
-            nop
-            ld      c,$AC
-            jp      pe,L00C0
-            cp      $B0
-            jp      m,L00C0
-            jp      pe,$AAB3
-            ret     nz
-            nop
-            nop
-            call    c,$0000
-            nop
-            inc     bc
-            xor     e
-            nop
-            nop
-            nop
-            nop
-            call    c,$0000
-            nop
-            inc     bc
-            xor     e
-            nop
-            nop
-            ret     p
-            nop
-            call    c,$0000
-            or      b
-            nop
-            call    c,$0000
-            cp      h
-            inc     bc
-            call    c,$0000
-            xor     e
-            inc     bc
-            ld      e,h
-            nop
-            nop
-            xor     d
-            jp      $3F5C
-            nop
-            jp      m,L5BBE
-            dec     sp
-            ret     p
-            ld      c,$AA
-            ld      e,d
-            ei
-            ld      (hl),b
-            jp      L5AAA
-            xor     e
-            ret     po
-            cp      a
-            xor     d
-            ld      d,l
-            xor     d
-            and     b
-            cp      d
-            xor     d
-            sub     l
-            xor     d
-            and     b
-            xor     d
-            xor     a
-            xor     d
-            cp      (hl)
-            or      b
-            xor     e
-            cp      $A5
-            xor     a
-            ret     p
-            call    m,$AA0E
-            xor     h
-            nop
-Radar_Line_Pattern_A:
-            DB      $00,$0F,$FE,$BC,$00,$00,$00,$00,$08,$00,$88,$00,$00,$28,$00,$99
-Radar_Line_Pattern_B:
-            DB      $55,$40,$28,$40,$88,$05,$40,$2A,$A0,$00,$00,$20,$0A,$A0,$00,$00
-Radar_Line_Pattern_Extra:
-            DB      $02,$02,$80,$00,$00,$40,$43,$00,$00,$03,$A1,$02,$00,$00,$00,$00
-            DB      $31,$00,$00,$00,$22,$08,$80,$00,$00,$8D
-Radar_Line_Pattern_C:
-            DB      $01,$00,$00,$28,$10,$18,$C0,$00,$A8,$02,$00,$00,$02,$A0,$00,$02
-Radar_Line_Pattern_D:
-            DB      $A0,$02,$80,$00,$0A,$A0,$2A,$80,$00,$0A,$20,$00,$00,$00,$00,$20
-Radar_Line_Pattern_Padding:
+Player_Death_Blue_Up_Frame_Pointers:
+            DW      WORRIOR_BLUE_1_UP,WORRIOR_BLOW_3_UP
+            DW      WORRIOR_BLUE_1_UP,WORRIOR_BLOW_3_UP
+            DW      WORRIOR_BLUE_1_UP,WORRIOR_BLOW_3_UP
+            DW      WORRIOR_BLUE_1_UP,WORRIOR_BLOW_3_UP
+            DW      WORRIOR_BLUE_1_UP,WORRIOR_BLOW_3_UP
+            DW      WORRIOR_BLOW_4_UP,WORRIOR_BLOW_4_UP,SPLOT_2,SPLOT
+            DW      $0000,$0000       ; Unused indices $0E-$0F
+
+Player_Death_Blue_Frame_Pointers:
+            DW      WORRIOR_BLUE_1,WORRIOR_BLOW_3
+            DW      WORRIOR_BLUE_1,WORRIOR_BLOW_3
+            DW      WORRIOR_BLUE_1,WORRIOR_BLOW_3
+            DW      WORRIOR_BLUE_1,WORRIOR_BLOW_3
+            DW      WORRIOR_BLUE_1,WORRIOR_BLOW_3
+            DW      WORRIOR_BLOW_4,WORRIOR_BLOW_4,SPLOT_2,SPLOT
+            DW      $0000,$0000       ; Unused indices $1E-$1F
+
+Player_Death_Yellow_Up_Frame_Pointers:
+            DW      WORRIOR_YELLOW_1_UP,WORRIOR_BLOW_1_UP
+            DW      WORRIOR_YELLOW_1_UP,WORRIOR_BLOW_1_UP
+            DW      WORRIOR_YELLOW_1_UP,WORRIOR_BLOW_1_UP
+            DW      WORRIOR_YELLOW_1_UP,WORRIOR_BLOW_1_UP
+            DW      WORRIOR_YELLOW_1_UP,WORRIOR_BLOW_1_UP
+            DW      WORRIOR_BLOW_2_UP,WORRIOR_BLOW_2_UP,SPLOT_2,SPLOT
+            DW      $0000,$0000       ; Unused indices $2E-$2F
+
+Player_Death_Yellow_Frame_Pointers:
+            DW      WORRIOR_YELLOW_1,WORRIOR_BLOW_1
+            DW      WORRIOR_YELLOW_1,WORRIOR_BLOW_1
+            DW      WORRIOR_YELLOW_1,WORRIOR_BLOW_1
+            DW      WORRIOR_YELLOW_1,WORRIOR_BLOW_1
+            DW      WORRIOR_YELLOW_1,WORRIOR_BLOW_1
+            DW      WORRIOR_BLOW_2,WORRIOR_BLOW_2,SPLOT_2,SPLOT
+
+; Radar line patterns share ROM bytes with WORRIOR_BLOW_3_UP and
+; WORRIOR_BLOW_4. These aliases preserve their pattern-board entry points.
+Radar_Line_Pattern_A       EQU     $37A2
+Radar_Line_Pattern_B       EQU     $37B2
+Radar_Line_Pattern_Extra   EQU     $37C2
+Radar_Line_Pattern_C       EQU     $37DC
+Radar_Line_Pattern_D       EQU     $37EC
+Radar_Line_Pattern_Padding EQU     $37FC
+
+;*******************************************************************************
+; DEATH GRAPHICS
+; 5 bytes/row = 20 pixels wide, 18 rows per source.
+;*******************************************************************************
+
+; Monster death frame 1 at $33CE
+SPLOT_5:
+            DB      $00,$00,$00,$00,$00 ; . . . . . . . . . . . . . . . . . . . .
+            DB      $00,$00,$00,$00,$00 ; . . . . . . . . . . . . . . . . . . . .
+            DB      $00,$00,$00,$00,$00 ; . . . . . . . . . . . . . . . . . . . .
+            DB      $00,$C0,$04,$00,$00 ; . . . . 3 . . . . . 1 . . . . . . . . .
+            DB      $C0,$F3,$00,$00,$00 ; 3 . . . 3 3 . 3 . . . . . . . . . . . .
+            DB      $3F,$FF,$0C,$00,$00 ; . 3 3 3 3 3 3 3 . . 3 . . . . . . . . .
+            DB      $0F,$FF,$FC,$00,$00 ; . . 3 3 3 3 3 3 3 3 3 . . . . . . . . .
+            DB      $0F,$DF,$7F,$00,$00 ; . . 3 3 3 1 3 3 1 3 3 3 . . . . . . . .
+            DB      $FF,$55,$7C,$00,$00 ; 3 3 3 3 1 1 1 1 1 3 3 . . . . . . . . .
+            DB      $FD,$55,$7C,$00,$00 ; 3 3 3 1 1 1 1 1 1 3 3 . . . . . . . . .
+            DB      $3F,$F5,$7C,$00,$00 ; . 3 3 3 3 3 1 1 1 3 3 . . . . . . . . .
+            DB      $0F,$3F,$F0,$00,$00 ; . . 3 3 . 3 3 3 3 3 . . . . . . . . . .
+            DB      $4C,$0F,$C1,$00,$00 ; 1 . 3 . . . 3 3 3 . . 1 . . . . . . . .
+            DB      $00,$0F,$C0,$00,$00 ; . . . . . . 3 3 3 . . . . . . . . . . .
+            DB      $00,$03,$00,$00,$00 ; . . . . . . . 3 . . . . . . . . . . . .
+            DB      $00,$00,$00,$00,$00 ; . . . . . . . . . . . . . . . . . . . .
+            DB      $00,$00,$00,$00,$00 ; . . . . . . . . . . . . . . . . . . . .
+            DB      $00,$00,$00,$00,$00 ; . . . . . . . . . . . . . . . . . . . .
+
+; Monster death frame 2 at $3428
+SPLOT_4:
+            DB      $01,$00,$00,$00,$00 ; . . . 1 . . . . . . . . . . . . . . . .
+            DB      $00,$40,$00,$00,$00 ; . . . . 1 . . . . . . . . . . . . . . .
+            DB      $00,$54,$00,$00,$00 ; . . . . 1 1 1 . . . . . . . . . . . . .
+            DB      $00,$14,$04,$00,$00 ; . . . . . 1 1 . . . 1 . . . . . . . . .
+            DB      $00,$15,$54,$00,$C0 ; . . . . . 1 1 1 1 1 1 . . . . . 3 . . .
+            DB      $00,$1D,$54,$14,$00 ; . . . . . 1 3 1 1 1 1 . . 1 1 . . . . .
+            DB      $00,$5F,$D5,$55,$00 ; . . . . 1 1 3 3 3 1 1 1 1 1 1 1 . . . .
+            DB      $00,$5F,$FF,$F5,$00 ; . . . . 1 1 3 3 3 3 3 3 3 3 1 1 . . . .
+            DB      $C1,$7F,$FF,$F4,$00 ; 3 . . 1 1 3 3 3 3 3 3 3 3 3 1 . . . . .
+            DB      $15,$7F,$FF,$D4,$00 ; . 1 1 1 1 3 3 3 3 3 3 3 3 1 1 . . . . .
+            DB      $15,$FF,$FF,$D4,$00 ; . 1 1 1 3 3 3 3 3 3 3 3 3 1 1 . . . . .
+            DB      $05,$FF,$FF,$F5,$00 ; . . 1 1 3 3 3 3 3 3 3 3 3 3 1 1 . . . .
+            DB      $05,$F5,$FD,$F4,$00 ; . . 1 1 3 3 1 1 3 3 3 1 3 3 1 . . . . .
+            DB      $00,$55,$55,$54,$00 ; . . . . 1 1 1 1 1 1 1 1 1 1 1 . . . . .
+            DB      $05,$14,$14,$45,$40 ; . . 1 1 . 1 1 . . 1 1 . 1 . 1 1 1 . . .
+            DB      $04,$00,$00,$40,$40 ; . . 1 . . . . . . . . . 1 . . . 1 . . .
+            DB      $50,$00,$00,$40,$00 ; 1 1 . . . . . . . . . . 1 . . . . . . .
+            DB      $00,$00,$00,$00,$00 ; . . . . . . . . . . . . . . . . . . . .
+
+; Monster death frame 3 at $3482
+SPLOT_3:
+            DB      $00,$00,$20,$00,$00 ; . . . . . . . . . 2 . . . . . . . . . .
+            DB      $80,$00,$80,$00,$80 ; 2 . . . . . . . 2 . . . . . . . 2 . . .
+            DB      $20,$02,$00,$02,$00 ; . 2 . . . . . 2 . . . . . . . 2 . . . .
+            DB      $08,$02,$00,$08,$00 ; . . 2 . . . . 2 . . . . . . 2 . . . . .
+            DB      $02,$8A,$8A,$08,$00 ; . . . 2 2 . 2 2 2 . 2 2 . . 2 . . . . .
+            DB      $00,$AF,$FA,$88,$00 ; . . . . 2 2 3 3 3 3 2 2 2 . 2 . . . . .
+            DB      $02,$BF,$FE,$A0,$00 ; . . . 2 2 3 3 3 3 3 3 2 2 2 . . . . . .
+            DB      $02,$BF,$FF,$A0,$20 ; . . . 2 2 3 3 3 3 3 3 3 2 2 . . . 2 . .
+            DB      $0A,$FF,$FF,$A0,$00 ; . . 2 2 3 3 3 3 3 3 3 3 2 2 . . . . . .
+            DB      $0A,$FF,$FF,$A0,$00 ; . . 2 2 3 3 3 3 3 3 3 3 2 2 . . . . . .
+            DB      $0A,$FF,$FF,$A0,$00 ; . . 2 2 3 3 3 3 3 3 3 3 2 2 . . . . . .
+            DB      $0A,$BF,$FF,$E8,$00 ; . . 2 2 2 3 3 3 3 3 3 3 3 2 2 . . . . .
+            DB      $20,$BA,$BF,$E0,$00 ; . 2 . . 2 3 2 2 2 3 3 3 3 2 . . . . . .
+            DB      $80,$A0,$AF,$A8,$00 ; 2 . . . 2 2 . . 2 2 3 3 2 2 2 . . . . .
+            DB      $00,$00,$2A,$8A,$80 ; . . . . . . . . . 2 2 2 2 . 2 2 2 . . .
+            DB      $00,$00,$20,$00,$80 ; . . . . . . . . . 2 . . . . . . 2 . . .
+            DB      $00,$00,$80,$00,$00 ; . . . . . . . . 2 . . . . . . . . . . .
+            DB      $00,$02,$00,$00,$00 ; . . . . . . . 2 . . . . . . . . . . . .
+
+; Monster death frame 4 at $34DC
+SPLOT_2:
+            DB      $00,$08,$10,$00,$00 ; . . . . . . 2 . . 1 . . . . . . . . . .
+            DB      $13,$02,$02,$10,$00 ; . 1 . 3 . . . 2 . . . 2 . 1 . . . . . .
+            DB      $00,$84,$C0,$30,$00 ; . . . . 2 . 1 . 3 . . . . 3 . . . . . .
+            DB      $00,$C1,$04,$00,$00 ; . . . . 3 . . 1 . . 1 . . . . . . . . .
+            DB      $08,$00,$00,$0C,$00 ; . . 2 . . . . . . . . . . . 3 . . . . .
+            DB      $00,$40,$06,$00,$00 ; . . . . 1 . . . . . 1 2 . . . . . . . .
+            DB      $C0,$0E,$03,$13,$00 ; 3 . . . . . 3 2 . . . 3 . 1 . 3 . . . .
+            DB      $03,$00,$48,$00,$00 ; . . . 3 . . . . 1 . 2 . . . . . . . . .
+            DB      $02,$01,$01,$20,$00 ; . . . 2 . . . 1 . . . 1 . 2 . . . . . .
+            DB      $40,$04,$10,$01,$00 ; 1 . . . . . 1 . . 1 . . . . . 1 . . . .
+            DB      $00,$00,$20,$80,$00 ; . . . . . . . . . 2 . . 2 . . . . . . .
+            DB      $30,$23,$00,$0C,$00 ; . 3 . . . 2 . 3 . . . . . . 3 . . . . .
+            DB      $01,$04,$20,$C4,$00 ; . . . 1 . . 1 . . 2 . . 3 . 1 . . . . .
+            DB      $23,$02,$03,$01,$00 ; . 2 . 3 . . . 2 . . . 3 . . . 1 . . . .
+            DB      $01,$20,$30,$31,$00 ; . . . 1 . 2 . . . 3 . . . 3 . 1 . . . .
+            DB      $00,$30,$80,$44,$00 ; . . . . . 3 . . 2 . . . 1 . 1 . . . . .
+            DB      $00,$04,$08,$00,$00 ; . . . . . . 1 . . . 2 . . . . . . . . .
+            DB      $00,$00,$00,$00,$00 ; . . . . . . . . . . . . . . . . . . . .
+
+; Monster death frame 5 at $3536
+SPLOT:
+            DB      $00,$00,$30,$20,$00 ; . . . . . . . . . 3 . . . 2 . . . . . .
+            DB      $00,$20,$00,$40,$00 ; . . . . . 2 . . . . . . 1 . . . . . . .
+            DB      $20,$C0,$10,$08,$00 ; . 2 . . 3 . . . . 1 . . . . 2 . . . . .
+            DB      $00,$04,$00,$80,$40 ; . . . . . . 1 . . . . . 2 . . . 1 . . .
+            DB      $00,$40,$00,$20,$00 ; . . . . 1 . . . . . . . . 2 . . . . . .
+            DB      $30,$00,$10,$30,$00 ; . 3 . . . . . . . 1 . . . 3 . . . . . .
+            DB      $00,$80,$02,$00,$10 ; . . . . 2 . . . . . . 2 . . . . . 1 . .
+            DB      $40,$04,$30,$03,$00 ; 1 . . . . . 1 . . 3 . . . . . 3 . . . .
+            DB      $03,$00,$00,$02,$00 ; . . . 3 . . . . . . . . . . . 2 . . . .
+            DB      $00,$00,$80,$00,$00 ; . . . . . . . . 2 . . . . . . . . . . .
+            DB      $30,$20,$30,$01,$00 ; . 3 . . . 2 . . . 3 . . . . . 1 . . . .
+            DB      $01,$02,$00,$0C,$10 ; . . . 1 . . . 2 . . . . . . 3 . . 1 . .
+            DB      $01,$00,$81,$00,$80 ; . . . 1 . . . . 2 . . 1 . . . . 2 . . .
+            DB      $40,$0C,$00,$0C,$00 ; 1 . . . . . 3 . . . . . . . 3 . . . . .
+            DB      $02,$10,$10,$03,$00 ; . . . 2 . 1 . . . 1 . . . . . 3 . . . .
+            DB      $00,$03,$00,$08,$00 ; . . . . . . . 3 . . . . . . 2 . . . . .
+            DB      $00,$40,$01,$00,$00 ; . . . . 1 . . . . . . 1 . . . . . . . .
+            DB      $00,$03,$00,$00,$00 ; . . . . . . . 3 . . . . . . . . . . . .
+
+; Yellow horizontal death effect 1 at $3590
+WORRIOR_BLOW_1:
+            DB      $00,$00,$3D,$5F,$00 ; . . . . . . . . . 3 3 1 1 1 3 3 . . . .
+            DB      $00,$00,$3B,$57,$00 ; . . . . . . . . . 3 2 3 1 1 1 3 . . . .
+            DB      $00,$00,$FF,$57,$00 ; . . . . . . . . 3 3 3 3 1 1 1 3 . . . .
+            DB      $00,$00,$D5,$5F,$F0 ; . . . . . . . . 3 1 1 1 1 1 3 3 3 3 . .
+            DB      $00,$00,$FD,$5D,$70 ; . . . . . . . . 3 3 3 1 1 1 3 1 1 3 . .
+            DB      $00,$00,$0D,$55,$50 ; . . . . . . . . . . 3 1 1 1 1 1 1 1 . .
+            DB      $33,$00,$35,$A6,$50 ; . 3 . 3 . . . . . 3 1 1 2 2 1 2 1 1 . .
+            DB      $DD,$FF,$D5,$A6,$70 ; 3 1 3 1 3 3 3 3 3 1 1 1 2 2 1 2 1 3 . .
+            DB      $99,$AA,$AA,$A5,$70 ; 2 1 2 1 2 2 2 2 2 2 2 2 2 2 1 1 1 3 . .
+            DB      $DD,$FE,$AA,$95,$70 ; 3 1 3 1 3 3 3 2 2 2 2 2 2 1 1 1 1 3 . .
+            DB      $33,$0F,$D5,$5D,$70 ; . 3 . 3 . . 3 3 3 1 1 1 1 1 3 1 1 3 . .
+            DB      $00,$00,$35,$5F,$F0 ; . . . . . . . . . 3 1 1 1 1 3 3 3 3 . .
+            DB      $00,$00,$35,$57,$00 ; . . . . . . . . . 3 1 1 1 1 1 3 . . . .
+            DB      $00,$00,$D5,$57,$00 ; . . . . . . . . 3 1 1 1 1 1 1 3 . . . .
+            DB      $00,$03,$57,$D7,$00 ; . . . . . . . 3 1 1 1 3 3 1 1 3 . . . .
+            DB      $00,$0D,$5C,$D5,$C0 ; . . . . . . 3 1 1 1 3 . 3 1 1 1 3 . . .
+            DB      $00,$FD,$70,$F5,$C0 ; . . . . 3 3 3 1 1 3 . . 3 3 1 1 3 . . .
+            DB      $00,$D5,$73,$55,$C0 ; . . . . 3 1 1 1 1 3 . 3 1 1 1 1 3 . . .
+
+; Yellow vertical death effect 1 at $35EA
+WORRIOR_BLOW_1_UP:
+            DB      $00,$00,$EC,$00,$00 ; . . . . . . . . 3 2 3 . . . . . . . . .
+            DB      $00,$03,$57,$00,$00 ; . . . . . . . 3 1 1 1 3 . . . . . . . .
+            DB      $00,$00,$EC,$00,$00 ; . . . . . . . . 3 2 3 . . . . . . . . .
+            DB      $00,$03,$57,$00,$00 ; . . . . . . . 3 1 1 1 3 . . . . . . . .
+            DB      $F0,$00,$EC,$00,$00 ; 3 3 . . . . . . 3 2 3 . . . . . . . . .
+            DB      $70,$00,$EC,$00,$00 ; 1 3 . . . . . . 3 2 3 . . . . . . . . .
+            DB      $7C,$03,$EC,$00,$00 ; 1 3 3 . . . . 3 3 2 3 . . . . . . . . .
+            DB      $57,$03,$AC,$00,$00 ; 1 1 1 3 . . . 3 2 2 3 . . . . . . . . .
+            DB      $55,$C3,$AC,$3F,$00 ; 1 1 1 1 3 . . 3 2 2 3 . . 3 3 3 . . . .
+            DB      $F5,$7D,$A7,$37,$F0 ; 3 3 1 1 1 3 3 1 2 2 1 3 . 3 1 3 3 3 . .
+            DB      $0D,$55,$A5,$F7,$B0 ; . . 3 1 1 1 1 1 2 2 1 1 3 3 1 3 2 3 . .
+            DB      $C3,$55,$A5,$57,$D0 ; 3 . . 3 1 1 1 1 2 2 1 1 1 1 1 3 3 1 . .
+            DB      $7F,$55,$AA,$55,$50 ; 1 3 3 3 1 1 1 1 2 2 2 2 1 1 1 1 1 1 . .
+            DB      $75,$55,$6A,$55,$50 ; 1 3 1 1 1 1 1 1 1 2 2 2 1 1 1 1 1 1 . .
+            DB      $55,$5F,$55,$7D,$70 ; 1 1 1 1 1 1 3 3 1 1 1 1 1 3 3 1 1 3 . .
+            DB      $57,$FD,$5A,$5F,$F0 ; 1 1 1 3 3 3 3 1 1 1 2 2 1 1 3 3 3 3 . .
+            DB      $FC,$0D,$55,$5C,$00 ; 3 3 3 . . . 3 1 1 1 1 1 1 1 3 . . . . .
+            DB      $00,$0F,$FD,$7C,$00 ; . . . . . . 3 3 3 3 3 1 1 3 3 . . . . .
+
+; Yellow horizontal death effect 2 at $3644
+WORRIOR_BLOW_2:
+            DB      $00,$00,$00,$04,$00 ; . . . . . . . . . . . . . . 1 . . . . .
+            DB      $44,$00,$00,$14,$00 ; 1 . 1 . . . . . . . . . . 1 1 . . . . .
+            DB      $66,$AA,$80,$14,$80 ; 1 2 1 2 2 2 2 2 2 . . . . 1 1 . 2 . . .
+            DB      $44,$0A,$80,$15,$50 ; 1 . 1 . . . 2 2 2 . . . . 1 1 1 1 1 . .
+            DB      $00,$00,$01,$01,$40 ; . . . . . . . . . . . 1 . . . 1 1 . . .
+            DB      $00,$00,$80,$83,$00 ; . . . . . . . . 2 . . . 2 . . 3 . . . .
+            DB      $00,$03,$52,$01,$00 ; . . . . . . . 3 1 1 . 2 . . . 1 . . . .
+            DB      $00,$00,$00,$32,$00 ; . . . . . . . . . . . . . 3 . 2 . . . .
+            DB      $00,$00,$11,$04,$40 ; . . . . . . . . . 1 . 1 . . 1 . 1 . . .
+            DB      $00,$00,$4E,$02,$00 ; . . . . . . . . 1 . 3 2 . . . 2 . . . .
+            DB      $00,$14,$20,$24,$C0 ; . . . . . 1 1 . . 2 . . . 2 1 . 3 . . .
+            DB      $00,$54,$01,$00,$00 ; . . . . 1 1 1 . . . . 1 . . . . . . . .
+            DB      $01,$50,$00,$01,$50 ; . . . 1 1 1 . . . . . . . . . 1 1 1 . .
+            DB      $01,$40,$00,$05,$50 ; . . . 1 1 . . . . . . . . . 1 1 1 1 . .
+            DB      $15,$40,$00,$05,$10 ; . 1 1 1 1 . . . . . . . . . 1 1 . 1 . .
+            DB      $00,$00,$00,$00,$10 ; . . . . . . . . . . . . . . . . . 1 . .
+            DB      $00,$00,$00,$00,$00 ; . . . . . . . . . . . . . . . . . . . .
+
+; Yellow vertical death effect 2; first row also completes WORRIOR_BLOW_2 at $3699
+WORRIOR_BLOW_2_UP:
+            DB      $00,$00,$00,$05,$40 ; . . . . . . . . . . . . . . 1 1 1 . . .
+            DB      $04,$00,$00,$02,$00 ; . . 1 . . . . . . . . . . . . 2 . . . .
+            DB      $04,$00,$00,$05,$40 ; . . 1 . . . . . . . . . . . 1 1 1 . . .
+            DB      $05,$40,$00,$02,$00 ; . . 1 1 1 . . . . . . . . . . 2 . . . .
+            DB      $05,$50,$00,$02,$00 ; . . 1 1 1 1 . . . . . . . . . 2 . . . .
+            DB      $00,$54,$00,$02,$00 ; . . . . 1 1 1 . . . . . . . . 2 . . . .
+            DB      $00,$14,$00,$0A,$00 ; . . . . . 1 1 . . . . . . . 2 2 . . . .
+            DB      $00,$00,$0C,$0A,$00 ; . . . . . . . . . . 3 . . . 2 2 . . . .
+            DB      $00,$01,$06,$0A,$00 ; . . . . . . . 1 . . 1 2 . . 2 2 . . . .
+            DB      $00,$08,$44,$10,$00 ; . . . . . . 2 . 1 . 1 . . 1 . . . . . .
+            DB      $00,$03,$00,$00,$00 ; . . . . . . . 3 . . . . . . . . . . . .
+            DB      $00,$12,$48,$40,$00 ; . . . . . 1 . 2 1 . 2 . 1 . . . . . . .
+            DB      $00,$00,$02,$00,$00 ; . . . . . . . . . . . 2 . . . . . . . .
+            DB      $00,$08,$30,$05,$40 ; . . . . . . 2 . . 3 . . . . 1 1 1 . . .
+            DB      $05,$04,$40,$15,$50 ; . . 1 1 . . 1 . 1 . . . . 1 1 1 1 1 . .
+            DB      $05,$42,$27,$54,$00 ; . . 1 1 1 . . 2 . 2 1 3 1 1 1 . . . . .
+            DB      $01,$4C,$40,$56,$00 ; . . . 1 1 . 3 . 1 . . . 1 1 1 2 . . . .
+            DB      $15,$40,$00,$14,$00 ; . 1 1 1 1 . . . . . . . . 1 1 . . . . .
+
+; Blue horizontal death effect 1 at $36F3
+WORRIOR_BLOW_3:
+            DB      $00,$00,$3E,$AF,$00 ; . . . . . . . . . 3 3 2 2 2 3 3 . . . .
+            DB      $00,$00,$37,$AB,$00 ; . . . . . . . . . 3 1 3 2 2 2 3 . . . .
+            DB      $00,$00,$FF,$AB,$00 ; . . . . . . . . 3 3 3 3 2 2 2 3 . . . .
+            DB      $00,$00,$EA,$AF,$F0 ; . . . . . . . . 3 2 2 2 2 2 3 3 3 3 . .
+            DB      $00,$00,$FE,$AE,$B0 ; . . . . . . . . 3 3 3 2 2 2 3 2 2 3 . .
+            DB      $00,$00,$0E,$AA,$A0 ; . . . . . . . . . . 3 2 2 2 2 2 2 2 . .
+            DB      $33,$00,$3A,$59,$A0 ; . 3 . 3 . . . . . 3 2 2 1 1 2 1 2 2 . .
+            DB      $EE,$FF,$EA,$59,$B0 ; 3 2 3 2 3 3 3 3 3 2 2 2 1 1 2 1 2 3 . .
+            DB      $66,$55,$55,$5A,$B0 ; 1 2 1 2 1 1 1 1 1 1 1 1 1 1 2 2 2 3 . .
+            DB      $EE,$FD,$55,$6A,$B0 ; 3 2 3 2 3 3 3 1 1 1 1 1 1 2 2 2 2 3 . .
+            DB      $33,$0F,$EA,$AE,$B0 ; . 3 . 3 . . 3 3 3 2 2 2 2 2 3 2 2 3 . .
+            DB      $00,$00,$3A,$AF,$F0 ; . . . . . . . . . 3 2 2 2 2 3 3 3 3 . .
+            DB      $00,$00,$3A,$AB,$00 ; . . . . . . . . . 3 2 2 2 2 2 3 . . . .
+            DB      $00,$00,$EA,$AB,$00 ; . . . . . . . . 3 2 2 2 2 2 2 3 . . . .
+            DB      $00,$03,$AB,$EB,$00 ; . . . . . . . 3 2 2 2 3 3 2 2 3 . . . .
+            DB      $00,$0E,$AC,$EA,$C0 ; . . . . . . 3 2 2 2 3 . 3 2 2 2 3 . . .
+            DB      $00,$FE,$B0,$FA,$C0 ; . . . . 3 3 3 2 2 3 . . 3 3 2 2 3 . . .
+            DB      $00,$EA,$B3,$AA,$C0 ; . . . . 3 2 2 2 2 3 . 3 2 2 2 2 3 . . .
+
+; Blue vertical death effect 1 at $374D
+WORRIOR_BLOW_3_UP:
+            DB      $00,$00,$DC,$00,$00 ; . . . . . . . . 3 1 3 . . . . . . . . .
+            DB      $00,$03,$AB,$00,$00 ; . . . . . . . 3 2 2 2 3 . . . . . . . .
+            DB      $00,$00,$DC,$00,$00 ; . . . . . . . . 3 1 3 . . . . . . . . .
+            DB      $00,$03,$AB,$00,$00 ; . . . . . . . 3 2 2 2 3 . . . . . . . .
+            DB      $F0,$00,$DC,$00,$00 ; 3 3 . . . . . . 3 1 3 . . . . . . . . .
+            DB      $B0,$00,$DC,$00,$00 ; 2 3 . . . . . . 3 1 3 . . . . . . . . .
+            DB      $BC,$03,$DC,$00,$00 ; 2 3 3 . . . . 3 3 1 3 . . . . . . . . .
+            DB      $AB,$03,$5C,$00,$00 ; 2 2 2 3 . . . 3 1 1 3 . . . . . . . . .
+            DB      $AA,$C3,$5C,$3F,$00 ; 2 2 2 2 3 . . 3 1 1 3 . . 3 3 3 . . . .
+            DB      $FA,$BE,$5B,$3B,$F0 ; 3 3 2 2 2 3 3 2 1 1 2 3 . 3 2 3 3 3 . .
+            DB      $0E,$AA,$5A,$FB,$70 ; . . 3 2 2 2 2 2 1 1 2 2 3 3 2 3 1 3 . .
+            DB      $C3,$AA,$5A,$AB,$E0 ; 3 . . 3 2 2 2 2 1 1 2 2 2 2 2 3 3 2 . .
+            DB      $BF,$AA,$55,$AA,$A0 ; 2 3 3 3 2 2 2 2 1 1 1 1 2 2 2 2 2 2 . .
+            DB      $BA,$AA,$95,$AA,$A0 ; 2 3 2 2 2 2 2 2 2 1 1 1 2 2 2 2 2 2 . .
+            DB      $AA,$AF,$AA,$BE,$B0 ; 2 2 2 2 2 2 3 3 2 2 2 2 2 3 3 2 2 3 . .
+            DB      $AB,$FE,$A5,$AF,$F0 ; 2 2 2 3 3 3 3 2 2 2 1 1 2 2 3 3 3 3 . .
+            DB      $FC,$0E,$AA,$AC,$00 ; 3 3 3 . . . 3 2 2 2 2 2 2 2 3 . . . . .
+            DB      $00,$0F,$FE,$BC,$00 ; . . . . . . 3 3 3 3 3 2 2 3 3 . . . . .
+
+; Blue horizontal death effect 2 at $37A7
+WORRIOR_BLOW_4:
+            DB      $00,$00,$00,$08,$00 ; . . . . . . . . . . . . . . 2 . . . . .
+            DB      $88,$00,$00,$28,$00 ; 2 . 2 . . . . . . . . . . 2 2 . . . . .
+            DB      $99,$55,$40,$28,$40 ; 2 1 2 1 1 1 1 1 1 . . . . 2 2 . 1 . . .
+            DB      $88,$05,$40,$2A,$A0 ; 2 . 2 . . . 1 1 1 . . . . 2 2 2 2 2 . .
+            DB      $00,$00,$20,$0A,$A0 ; . . . . . . . . . 2 . . . . 2 2 2 2 . .
+            DB      $00,$00,$02,$02,$80 ; . . . . . . . . . . . 2 . . . 2 2 . . .
+            DB      $00,$00,$40,$43,$00 ; . . . . . . . . 1 . . . 1 . . 3 . . . .
+            DB      $00,$03,$A1,$02,$00 ; . . . . . . . 3 2 2 . 1 . . . 2 . . . .
+            DB      $00,$00,$00,$31,$00 ; . . . . . . . . . . . . . 3 . 1 . . . .
+            DB      $00,$00,$22,$08,$80 ; . . . . . . . . . 2 . 2 . . 2 . 2 . . .
+            DB      $00,$00,$8D,$01,$00 ; . . . . . . . . 2 . 3 1 . . . 1 . . . .
+            DB      $00,$28,$10,$18,$C0 ; . . . . . 2 2 . . 1 . . . 1 2 . 3 . . .
+            DB      $00,$A8,$02,$00,$00 ; . . . . 2 2 2 . . . . 2 . . . . . . . .
+            DB      $02,$A0,$00,$02,$A0 ; . . . 2 2 2 . . . . . . . . . 2 2 2 . .
+            DB      $02,$80,$00,$0A,$A0 ; . . . 2 2 . . . . . . . . . 2 2 2 2 . .
+            DB      $2A,$80,$00,$0A,$20 ; . 2 2 2 2 . . . . . . . . . 2 2 . 2 . .
+            DB      $00,$00,$00,$00,$20 ; . . . . . . . . . . . . . . . . . 2 . .
+            DB      $00,$00,$00,$00,$00 ; . . . . . . . . . . . . . . . . . . . .
+
+; Blue vertical death effect 2 at $3801
+WORRIOR_BLOW_4_UP:
+            DB      $00,$00,$00,$0A,$80 ; . . . . . . . . . . . . . . 2 2 2 . . .
+            DB      $08,$00,$00,$01,$00 ; . . 2 . . . . . . . . . . . . 1 . . . .
+            DB      $08,$00,$00,$0A,$80 ; . . 2 . . . . . . . . . . . 2 2 2 . . .
+            DB      $0A,$80,$00,$01,$00 ; . . 2 2 2 . . . . . . . . . . 1 . . . .
+            DB      $0A,$A0,$00,$01,$00 ; . . 2 2 2 2 . . . . . . . . . 1 . . . .
+            DB      $00,$A8,$00,$01,$00 ; . . . . 2 2 2 . . . . . . . . 1 . . . .
+            DB      $00,$28,$00,$05,$00 ; . . . . . 2 2 . . . . . . . 1 1 . . . .
+            DB      $00,$00,$0C,$05,$00 ; . . . . . . . . . . 3 . . . 1 1 . . . .
+            DB      $00,$02,$09,$05,$00 ; . . . . . . . 2 . . 2 1 . . 1 1 . . . .
+            DB      $00,$04,$88,$20,$00 ; . . . . . . 1 . 2 . 2 . . 2 . . . . . .
+            DB      $00,$03,$00,$00,$00 ; . . . . . . . 3 . . . . . . . . . . . .
+            DB      $00,$21,$84,$80,$00 ; . . . . . 2 . 1 2 . 1 . 2 . . . . . . .
+            DB      $00,$00,$01,$00,$00 ; . . . . . . . . . . . 1 . . . . . . . .
+            DB      $00,$04,$30,$0A,$80 ; . . . . . . 1 . . 3 . . . . 2 2 2 . . .
+            DB      $0A,$08,$80,$2A,$A0 ; . . 2 2 . . 2 . 2 . . . . 2 2 2 2 2 . .
+            DB      $0A,$81,$1B,$A8,$00 ; . . 2 2 2 . . 1 . 1 2 3 2 2 2 . . . . .
+            DB      $02,$8C,$80,$A9,$00 ; . . . 2 2 . 3 . 2 . . . 2 2 2 1 . . . .
+            DB      $2A,$80,$00,$28,$00 ; . 2 2 2 2 . . . . . . . . 2 2 . . . . .
+
+Death_Graphics_Padding:
             DB      $00
-L37FD:      nop
-            nop
-            nop
-            nop
-            nop
-            nop
-            nop
-            ld      a,(bc)
-            add     a,b
-            ex      af,af'
-            nop
-            nop
-            ld      bc,L0800
-            nop
-            nop
-            ld      a,(bc)
-            add     a,b
-L3810:      ld      a,(bc)
-            add     a,b
-            nop
-            ld      bc,L0A00
-            and     b
-            nop
-            ld      bc,$0000
-            xor     b
-            nop
-            ld      bc,$0000
-            jr      z,L3822
-L3822:      dec     b
-            nop
-            nop
-            nop
-            inc     c
-            dec     b
-            nop
-            nop
-            ld      (bc),a
-            add     hl,bc
-            dec     b
-            nop
-            nop
-            inc     b
-            adc     a,b
-            jr      nz,L3833
-L3833:      nop
-            inc     bc
-            nop
-            nop
-            nop
-            nop
-L3839:      ld      hl,L8084
-            nop
-            nop
-            nop
-            ld      bc,$0000
-            nop
-            inc     b
-            jr      nc,L3850
-            add     a,b
-            ld      a,(bc)
-            ex      af,af'
-            add     a,b
-            ld      hl,(L0AA0)
-            add     a,c
-            dec     de
-            xor     b
-L3850:      nop
-            ld      (bc),a
-            adc     a,h
-            add     a,b
-            xor     c
-            nop
-            ld      hl,(L0080)
-            jr      z,L385B
-L385B:      nop
-L385C:      ld      (de),a
-            dec     sp
-            add     a,$3B
-            ld      a,d
-            inc     a
-            add     a,$3B
-            nop
-            sbc     a,b
-            ld      e,d
-            sbc     a,b
-            or      h
-            sbc     a,b
-            ld      c,$99
-            sbc     a,h
-            jr      c,WORRIOR_BLUE_1 + $23
-            add     hl,sp
-            inc     b
-            ld      a,(L3950)
-            ld      l,b
-            sbc     a,c
-            jp      nz,L1C99
-            sbc     a,d
-            halt
-            sbc     a,d
-            cp      b
-            ld      a,(WORRIOR_YELLOW_2_UP)
-            jr      nz,L38BE
-            ld      l,h
-            dec     sp
-            ret     nc
-            sbc     a,d
-            ld      hl,(L849B)
-            sbc     a,e
-            sbc     a,$9B
-            or      $38
-            xor     d
-            add     hl,sp
-            ld      e,(hl)
-            ld      a,(WORRIOR_YELLOW_2)
-            jr      c,L3832
-            sub     d
-            sbc     a,h
-            call    pe,L469C
-            sbc     a,l
+
+;*******************************************************************************
+; WORRIOR MOVEMENT AND FIRING FRAME POINTERS
+; Movement uses a 1-2-3-2 cycle; firing advances through frames 1-4.
+;*******************************************************************************
+L385C:
+Worrior_Blue_Up_Frame_Pointers:
+            DW      WORRIOR_BLUE_1_UP,WORRIOR_BLUE_2_UP
+            DW      WORRIOR_BLUE_3_UP,WORRIOR_BLUE_2_UP
+            DW      WORRIOR_BLUE_FIRE_1_UP,WORRIOR_BLUE_FIRE_2_UP
+            DW      WORRIOR_BLUE_FIRE_3_UP,WORRIOR_BLUE_FIRE_4_UP
+Worrior_Blue_Frame_Pointers:
+            DW      WORRIOR_BLUE_1,WORRIOR_BLUE_2
+            DW      WORRIOR_BLUE_3,WORRIOR_BLUE_2
+            DW      WORRIOR_BLUE_FIRE_1,WORRIOR_BLUE_FIRE_2
+            DW      WORRIOR_BLUE_FIRE_3,WORRIOR_BLUE_FIRE_4
+Worrior_Yellow_Up_Frame_Pointers:
+            DW      WORRIOR_YELLOW_1_UP,WORRIOR_YELLOW_2_UP
+            DW      WORRIOR_YELLOW_3_UP,WORRIOR_YELLOW_2_UP
+            DW      WORRIOR_YELLOW_FIRE_1_UP,WORRIOR_YELLOW_FIRE_2_UP
+            DW      WORRIOR_YELLOW_FIRE_3_UP,WORRIOR_YELLOW_FIRE_4_UP
+Worrior_Yellow_Frame_Pointers:
+            DW      WORRIOR_YELLOW_1,WORRIOR_YELLOW_2
+            DW      WORRIOR_YELLOW_3,WORRIOR_YELLOW_2
+            DW      WORRIOR_YELLOW_FIRE_1,WORRIOR_YELLOW_FIRE_2
+            DW      WORRIOR_YELLOW_FIRE_3,WORRIOR_YELLOW_FIRE_4
 ;*******************************************************************************
 ; WORRIOR_BLUE_1
 ; 5 bytes/row = 20 pixels wide, 18 rows
