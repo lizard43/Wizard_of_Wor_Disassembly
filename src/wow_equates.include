@@ -151,12 +151,21 @@ Maze_Expansion_Prebase           EQU     $D172
 Maze_Expanded_Cells              EQU     $D178
 Maze_Expanded_Cells_End          EQU     $D1B9
 
-; Worluk-death maze palette flash
-; GAME_COMMAND_STREAM writes $20 to the countdown at $1291.  The resident
-; $075B service advances the three-frame divider and restores the base palette
-; when the countdown reaches zero.
-Worluk_Death_Flash_Countdown      EQU     $D1BD
-Worluk_Death_Flash_Divider        EQU     $D1BE
+; Worluk result palette effects
+; Kill path: $1291 writes $20 to the foreground countdown, then $1296 starts a
+; five-second Timer Group 1 delay.  The resumed kill path reaches $12A7 and
+; writes $20 to the background countdown.  The escape branch skips the
+; foreground flash and enters at $12B0, where it seeds the same background
+; countdown immediately.
+;
+; $075B advances the foreground countdown/divider and alternates COL1L-COL3L
+; between $00 and $07 before restoring the default foreground palette.  $0714
+; advances the background countdown/divider and walks COL0L through BG_Color_Data
+; before restoring the default $C7 background entry.
+Worluk_Result_Background_Countdown EQU     $D1BB
+Worluk_Result_Background_Divider   EQU     $D1BC
+Worluk_Death_Flash_Countdown       EQU     $D1BD
+Worluk_Death_Flash_Divider         EQU     $D1BE
 Foreground_Fade_Out_Countdown     EQU     $D1BF
 Foreground_Fade_Out_Divider       EQU     $D1C0
 Foreground_Fade_In_Countdown      EQU     $D1C1

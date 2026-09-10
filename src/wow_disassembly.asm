@@ -1188,8 +1188,18 @@ Trigger_CCMISC_4:
             jr      Set_Scanline_Int
 
 ;*****************************************************************************************
-; ----> Process_Scanline_Timer
+; ----> Process_Scanline_Timer / Worluk result background-color cycle
+;
+;       GAME_COMMAND_STREAM seeds $D1BB with $20 on both Worluk result paths:
+;       the killed path reaches the write at $12A7 after its five-second timer,
+;       while the escaped path branches directly to the equivalent write at
+;       $12B0.  This routine runs on the opposite main-frame phase from $075B.
+;
+;       The $D1BB/$D1BC countdown pair walks COL0L through BG_Color_Data.  When
+;       the countdown reaches zero, BG_Color_Data[0] ($C7) restores the default
+;       background and the normal sparkle scanline setup is re-enabled.
 ;*****************************************************************************************
+Update_Worluk_Result_Background_Cycle:
 Process_Scanline_Timer:
             ld      hl, LD1BB
             ld      a, (hl)
@@ -1246,14 +1256,20 @@ Load_Fade_Col_3:
             jp      Set_Scanline_Int        ; Jump to scanline interrupt routine
 
 ;*****************************************************************************************
-; ----> Worluk death maze-color flash
+; ----> Worluk death foreground maze-color flash
 ;
 ; GAME_COMMAND_STREAM $1291 seeds Worluk_Death_Flash_Countdown with $20 only
 ; when Special_Actor_Color_State is zero after the Worluk result check: the
-; Worluk was killed, not escaped. On the alternating frame-service phase this
-; routine divides each
-; step by four, alternates palette colors 1-3 between $00 and $07, then reloads
-; the normal palette and sparkle state when the countdown reaches zero.
+; Worluk was killed, not escaped. On its alternating main-frame phase this
+; routine divides each countdown step by four, alternates palette colors 1-3
+; between $00 and $07, then reloads the normal foreground palette and sparkle
+; state when the countdown reaches zero.
+;
+; This is only the first palette phase of the killed-result visual sequence.
+; The stream starts a five-second timer at $1296; after that delay the kill path
+; reaches $12A7 and seeds $D1BB=$20 for Process_Scanline_Timer's background
+; color cycle. The Worluk-escape path skips this foreground flash and branches
+; to $12B0, which seeds that background cycle immediately.
 ;*****************************************************************************************
 Update_Worluk_Death_Maze_Flash:
 Proc_Scan_Tmr_2:
@@ -1445,6 +1461,11 @@ L083E:      push    de
             call    Stream_Fetch_Byte_A
             ld      (Timer_Group_2_Start),a
             ret
+; Start Timer Group 1 from the command stream.  This entry is $085A.
+; Operands: one-second tick count, little-endian stream resume address.
+; The one-second service decrements Timer_Group_1_Start; on expiration L20E8
+; restores IY from LD051 so interpretation resumes at the stored stream address.
+Stream_Start_Timer_Group_1:
             xor     a
             ld      (LD053),a
             call    Stream_Fetch_Byte_A_Then_Word_HL
@@ -2714,9 +2735,12 @@ GAME_COMMAND_STREAM:
             DB      $10,$CA,$07,$11,$33,$0D,$6C,$2D
             DB      $53,$30,$0C,$20,$08,$03,$D3,$FD
             DB      $10,$61,$1F
-; $128B branches around the kill-only effect when Special_Actor_Color_State
-; records a Worluk escape. Fall-through at $1291 reproduces the maze-color
-; flash after a kill.
+; $128B selects the Worluk result palette path using Special_Actor_Color_State.
+; A kill falls through to $1291, writes $20 to the foreground flash countdown,
+; then $1296 starts a five-second Timer Group 1 delay.  The resumed kill path
+; reaches $12A7 and writes $20 to the background-cycle countdown at $D1BB.
+; A Worluk escape branches to $12B0, skipping the foreground flash and seeding
+; the same $D1BB background cycle immediately.
             DW      Stream_Jump_If_Nonzero
             DW      Special_Actor_Color_State
             DW      $12B0
