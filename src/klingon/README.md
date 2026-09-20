@@ -251,7 +251,7 @@ build.bat -k
 
 The build creates `roms/klingon.x11` and the project archive `roms/wowk.zip`. It then runs `src/klingon/renameK.sh` or `renameK.bat` automatically, creating the MAME-compatible `roms/wowg.zip` with the same X11 bytes stored under the member name `german.x11`.
 
-The current Linux script writes the seven populated CPU members, `wow.x1` through `wow.x7`, and uses `sc01.bin` when present. The Windows script also emits `wow.x8` from the `$B000` socket and uses `sc01a.bin` when present.
+The current Linux script writes the seven populated CPU members, `wow.x1` through `wow.x7`, and uses `sc01.bin` when present. The Windows script also emits `wow.x8` from the `$B000` socket and uses `sc01.bin` when present.
 
 ## MAME compatibility
 

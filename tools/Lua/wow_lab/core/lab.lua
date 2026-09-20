@@ -1,0 +1,357 @@
+-- core/lab.lua
+-- Resident Wizard of Wor Lab supervisor.
+
+local Lab = {}
+Lab.__index = Lab
+Lab.VERSION = '1.4.1-20260820-0825'
+
+function Lab.new(root, path_api, memory, Native, ModuleLoader, VideoDebug, LabFonts, LabText, HardwareProbe)
+  local machine = assert(manager and manager.machine, 'MAME running machine is unavailable')
+  local native = Native.new(machine, memory)
+  local modules_path = path_api.join(root, 'modules')
+  local video_debug_core = assert(VideoDebug, 'video debug core is unavailable')
+  local video_debug = video_debug_core.new(native.program)
+  local fonts = assert(LabFonts, 'lab font core is unavailable')
+  local text = assert(LabText, 'lab text core is unavailable')
+  assert(type(fonts.face) == 'function' and type(fonts.encode) == 'function',
+    'lab font core API is incomplete')
+  assert(type(text.metrics) == 'function' and type(text.emit_row_font) == 'function',
+    'lab text core API is incomplete')
+  text.audit(fonts)
+
+  return setmetatable({
+    root = root,
+    path = path_api,
+    memory = memory,
+    machine = machine,
+    native = native,
+    video_debug = video_debug,
+    fonts = fonts,
+    text = text,
+    hardware_probe = HardwareProbe,
+    takeover_snapshot_frozen = false,
+    loader = ModuleLoader.new(modules_path, path_api),
+    modules = {},
+    active = nil,
+    state = 'BOOT',
+    boot_frames = 0,
+    takeover_frames = 120,
+    last_selected = -1,
+    status = '',
+    frame_subscription = nil,
+    stop_subscription = nil,
+    initial_scan_ok = false,
+  }, Lab)
+end
+
+function Lab:log(fmt, ...)
+  print(string.format('[WOW LAB] ' .. fmt, ...))
+end
+
+function Lab:_log_module_inventory(prefix)
+  self:log('%s %d module%s', tostring(prefix or 'modules:'), #self.modules, #self.modules == 1 and '' or 's')
+  for i, entry in ipairs(self.modules) do
+    print(string.format('[WOW LAB]   %2d  %-22s %-24s %s',
+      i, tostring(entry.label or 'MODULE'), tostring(entry.version or 'UNVERSIONED'),
+      tostring(entry.filename or '?')))
+  end
+end
+
+function Lab:scan_modules(prefix)
+  local ok, result = pcall(function() return self.loader:scan() end)
+  if not ok then
+    self.modules = {}
+    self.status = 'MODULE SCAN ERROR'
+    self:log('module scan failed: %s', tostring(result))
+    return false
+  end
+  if #result > 255 then
+    self:log('module directory contains %d entries; only the first 255 can be addressed by the native ABI', #result)
+    while #result > 255 do table.remove(result) end
+  end
+  self.modules = result
+  self:_log_module_inventory(prefix or 'discovered')
+  return true
+end
+
+local function menu_window(selected, count, visible)
+  if count <= visible then return 0 end
+  local first = selected - math.floor(visible / 2)
+  if first < 0 then first = 0 end
+  if first > count - visible then first = count - visible end
+  return first
+end
+
+function Lab:_menu_entries()
+  return self.modules
+end
+
+local function compact_version(version)
+  local major, minor, patch = tostring(version or ''):match('^(%d+)%.(%d+)%.(%d+)')
+  if not major then return 'V---' end
+  return 'V' .. major .. minor .. patch
+end
+
+function Lab:_menu_row_lines(entries, first, selected, index)
+  local colors = self.native.colors
+  local visible_row = index - first
+  local entry = entries[index + 1]
+  if not entry or visible_row < 0 or visible_row >= 8 then return nil end
+
+  local row = visible_row + 2
+  local is_selected = index == selected
+  local label = tostring(entry.label or 'MODULE'):sub(1, 29)
+  local version = entry.version_tag or compact_version(entry.version)
+  return {
+    {
+      row = row,
+      col = 2,
+      text = (is_selected and '> ' or '  ') .. label,
+      color = is_selected and colors.YELLOW or colors.RED,
+    },
+    {
+      row = row,
+      col = 40 - #version,
+      text = version,
+      color = is_selected and colors.YELLOW or colors.BLUE,
+    },
+  }
+end
+
+function Lab:draw_menu()
+  local colors = self.native.colors
+  local entries = self:_menu_entries()
+  local selected = self.native:selected()
+  local first = menu_window(selected, #entries, 8)
+  local major, minor, patch = Lab.VERSION:match('^(%d+)%.(%d+)%.(%d+)')
+  local tag = major and ('V' .. major .. minor .. patch) or 'VER'
+  local tag_col = 40 - #tag
+  local lines = {
+    { row = 0, col = 4,       text = 'WIZARD OF WOR LAB', color = colors.BLUE },
+    { row = 0, col = tag_col, text = tag,                 color = colors.YELLOW },
+  }
+
+  for index = first, math.min(first + 7, #entries - 1) do
+    local row_lines = self:_menu_row_lines(entries, first, selected, index)
+    if row_lines then
+      for _, line in ipairs(row_lines) do lines[#lines + 1] = line end
+    end
+  end
+
+  -- CHRTBL codes ']' and '^' are the resident up/down arrow glyphs.
+  lines[#lines + 1] = { row = 11, col = 6, text = '] ^ - FIRE SELECT - 1P EXIT', color = colors.YELLOW }
+  self.native:draw(lines, true)
+  self.menu_first = first
+end
+
+function Lab:redraw_menu_selection(old_selected, new_selected)
+  local entries = self:_menu_entries()
+  local old_first = self.menu_first or menu_window(old_selected, #entries, 8)
+  local new_first = menu_window(new_selected, #entries, 8)
+
+  -- Crossing a scroll-window boundary changes more than two visible rows.
+  if old_first ~= new_first then
+    self:draw_menu()
+    return
+  end
+
+  local lines = {}
+  local old_lines = self:_menu_row_lines(entries, new_first, new_selected, old_selected)
+  local new_lines = self:_menu_row_lines(entries, new_first, new_selected, new_selected)
+  if old_lines then
+    for _, line in ipairs(old_lines) do lines[#lines + 1] = line end
+  end
+  if new_lines and new_selected ~= old_selected then
+    for _, line in ipairs(new_lines) do lines[#lines + 1] = line end
+  end
+  if #lines > 0 then self.native:draw(lines, false) end
+  self.menu_first = new_first
+end
+
+function Lab:show_module_page(title, body)
+  local colors = self.native.colors
+  local lines = {
+    { row = 0, col = 3, text = tostring(title or 'MODULE'), color = colors.BLUE },
+  }
+  for i, text in ipairs(body or {}) do
+    if i > 8 then break end
+    lines[#lines + 1] = { row = i + 2, col = 3, text = tostring(text), color = colors.RED }
+  end
+  lines[#lines + 1] = { row = 11, col = 3, text = '1P - RETURN TO LAB', color = colors.YELLOW }
+  self.native:draw(lines)
+end
+
+function Lab:enter_menu(reason, rescan)
+  if self.active then
+    local module = self.active
+    self.active = nil
+    if module.stop then
+      local ok, err = pcall(module.stop, self)
+      if not ok then self:log('module stop error: %s', tostring(err)) end
+    end
+  end
+
+  if rescan ~= false then self:scan_modules('rescanned') end
+  self.native:install(#self.modules)
+  self.native:set_mode(0)
+  self.state = 'MENU'
+  self.last_selected = self.native:selected()
+  self.status = reason or ''
+  self:draw_menu()
+end
+
+function Lab:launch_selected()
+  local selected = self.native:selected()
+  if selected >= #self.modules then return end
+
+  self.native:clear_request()
+  local module, err = self.loader:load(selected + 1)
+  if not module then
+    self:log('module load failed: %s', tostring(err))
+    self:show_module_page('MODULE LOAD ERROR', { self.modules[selected + 1].label, tostring(err):sub(1, 34) })
+    self.native:set_mode(1)
+    self.state = 'MODULE_ERROR'
+    return
+  end
+
+  self.active = module
+  self.state = 'MODULE'
+  self.native:set_mode(1)
+  self:log('launch %s', module.__entry.label)
+
+  if module.start then
+    local ok, start_err = pcall(module.start, self)
+    if not ok then
+      self:log('module start error: %s', tostring(start_err))
+      -- A native module may already have replaced the $D400 application image.
+      -- Reinstall the menu instead of attempting to draw through unknown code.
+      self:return_to_menu('MODULE START ERROR')
+    end
+  end
+end
+
+function Lab:return_to_menu(reason)
+  self:enter_menu(reason or 'RETURN')
+end
+
+function Lab:exit_mame()
+  self:log('exit requested')
+  self.state = 'EXIT'
+  self.machine:exit()
+end
+
+function Lab:update()
+  if self.state == 'BOOT' then
+    self.boot_frames = self.boot_frames + 1
+    if self.boot_frames >= self.takeover_frames then
+      -- Freeze the game's initialized Astrocade I/O state before the Lab menu
+      -- performs any resident WoW text/video writes.  The hardware information
+      -- module uses this snapshot as its unmodified takeover reference.
+      if self.hardware_probe and not self.takeover_snapshot_frozen then
+        self.hardware_probe:freeze('takeover')
+        self.takeover_snapshot_frozen = true
+      end
+      self:enter_menu('READY', not self.initial_scan_ok)
+    end
+    return
+  end
+
+  if self.state == 'MENU' then
+    local selected = self.native:selected()
+    if selected ~= self.last_selected then
+      local previous = self.last_selected
+      self.last_selected = selected
+      self:redraw_menu_selection(previous, selected)
+    end
+
+    local request = self.native:request()
+    if request == 1 then
+      self:launch_selected()
+    elseif request == 3 then
+      self.native:clear_request()
+      self:exit_mame()
+    elseif request ~= 0 then
+      self.native:clear_request()
+    end
+    return
+  end
+
+  if self.state == 'MODULE' or self.state == 'MODULE_ERROR' then
+    local request = self.native:request()
+    if request == 2 then
+      self.native:clear_request()
+      self:return_to_menu('RETURN')
+      return
+    elseif request == 3 then
+      self.native:clear_request()
+      self:exit_mame()
+      return
+    end
+
+    if self.state == 'MODULE' and self.active and self.active.update then
+      local ok, err = pcall(self.active.update, self)
+      if not ok then
+        self:log('module update error: %s', tostring(err))
+        -- Recover the resident menu immediately.  Application RAM is disposable;
+        -- the ABI/kernel below $D400 remains authoritative.
+        self:return_to_menu('MODULE RUNTIME ERROR')
+      end
+    end
+  end
+end
+
+
+function Lab:print_status()
+  local pc = self.native.cpu.state['PC'] and self.native.cpu.state['PC'].value or 0
+  local sp = self.native.cpu.state['SP'] and self.native.cpu.state['SP'].value or 0
+  self:log('state=%s frames=%d installed=%s active=%s',
+    tostring(self.state), self.boot_frames, tostring(self.native.installed),
+    self.active and self.active.__entry.label or 'NONE')
+  self:log('PC=$%04X SP=$%04X selected=%d request=%d heartbeat=%d',
+    pc & 0xFFFF, sp & 0xFFFF, self.native:selected(), self.native:request(),
+    self.native.program:read_u8(self.memory.abi.HEARTBEAT))
+  if self.hardware_probe then
+    local snapshot = self.hardware_probe:snapshot()
+    self:log('Astrocade probe=%s seq=%d writes=%d reads=%d takeover=%s',
+      tostring(snapshot.detail), snapshot.sequence or 0, snapshot.write_count or 0,
+      snapshot.read_count or 0, self.takeover_snapshot_frozen and 'YES' or 'NO')
+  end
+end
+
+function Lab:print_modules()
+  self:_log_module_inventory('modules:')
+end
+
+function Lab:print_native()
+  local p = self.native.program
+  local A = self.memory.addr
+  local B = self.memory.abi
+  local sig = {}
+  for i = 0, 3 do sig[#sig + 1] = string.char(p:read_u8(B.SIGNATURE + i)) end
+  local vec_lo = p:read_u8(A.IM2_VECTOR)
+  local vec_hi = p:read_u8(A.IM2_VECTOR + 1)
+  local vector = vec_lo | (vec_hi << 8)
+  local entry = self.native.labels.entry or 0
+  local interrupt = self.native.kernel_labels.interrupt or 0
+  self:log('signature=%q mode=%d selected=%d count=%d request=%d draw=%d heartbeat=%d',
+    table.concat(sig), p:read_u8(B.MODE), p:read_u8(B.SELECTED),
+    p:read_u8(B.ITEM_COUNT), p:read_u8(B.REQUEST), p:read_u8(B.DRAW_PENDING),
+    p:read_u8(B.HEARTBEAT))
+  self:log('menu=$%04X kernel=$%04X vector=$%04X application=$%04X-$%04X',
+    entry & 0xFFFF, interrupt & 0xFFFF, vector & 0xFFFF,
+    A.APPLICATION_START, A.APPLICATION_END)
+end
+
+function Lab:start()
+  self:log('resident supervisor starting')
+  self:log('module directory: %s', self.loader.path)
+  self.initial_scan_ok = self:scan_modules('discovered')
+
+  self.frame_subscription = emu.add_machine_frame_notifier(function() self:update() end)
+  self.stop_subscription = emu.add_machine_stop_notifier(function()
+    self.state = 'STOPPED'
+    self.active = nil
+  end)
+end
+
+return Lab

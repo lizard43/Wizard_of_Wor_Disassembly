@@ -39,8 +39,8 @@ if "%~1"=="--help" (
     echo Usage: build.bat [options]
     echo Options:
     echo   -g, --german              Build German wowg.zip
-    echo   -k, --klingon   Build wowk.zip and the MAME wowg.zip alias
-    echo   --help                     Display this help message
+    echo   -k, --klingon             Build wowk.zip and the MAME wowg.zip alias
+    echo   --help                    Display this help message
     exit /b 0
 )
 echo ERROR: Unknown argument %1
@@ -86,6 +86,7 @@ echo [1/4] Preparing clean build environment...
 if exist "src\zout" rmdir /s /q "src\zout"
 mkdir "src\zout"
 if not exist "roms" mkdir "roms"
+if exist "roms\wow.x?" del /f /q "roms\wow.x?"
 if exist "roms\german.x11" del /f /q "roms\german.x11"
 if "%BUILD_KLINGON%"=="true" (
     if exist "roms\klingon.x11" del /f /q "roms\klingon.x11"
@@ -180,13 +181,13 @@ if "%BUILD_KLINGON%"=="true" (
     )
 )
 
-echo [3/4] Splitting image into Wizard of Wor ROMs (8 Sockets: X1-X8)...
+echo [3/4] Splitting image into seven populated Wizard of Wor ROMs (X1-X7)...
 powershell -NoProfile -ExecutionPolicy Bypass -Command ^
     "$inputFile = 'src\zout\wow_disassembly.hex';" ^
     "$outputDir = 'roms';" ^
     "if (-not (Test-Path $inputFile)) { Write-Error 'Input HEX file missing.'; exit 1 };" ^
-    "$memory = [byte[]]::new(0xC000);" ^
-    "for ($i = 0; $i -lt 0xC000; $i++) { $memory[$i] = 0xFF };" ^
+    "$memory = [byte[]]::new(0xB000);" ^
+    "for ($i = 0; $i -lt 0xB000; $i++) { $memory[$i] = 0xFF };" ^
     "$hexLines = Get-Content $inputFile;" ^
     "foreach ($line in $hexLines) {" ^
     "    if (-not $line.StartsWith(':')) { continue };" ^
@@ -197,7 +198,7 @@ powershell -NoProfile -ExecutionPolicy Bypass -Command ^
     "        for ($i = 0; $i -lt $byteCount; $i++) {" ^
     "            $dataByte = [Convert]::ToByte($line.Substring(9 + ($i * 2), 2), 16);" ^
     "            $targetAddr = $address + $i;" ^
-    "            if ($targetAddr -lt 0xC000) { $memory[$targetAddr] = $dataByte };" ^
+    "            if ($targetAddr -lt 0xB000) { $memory[$targetAddr] = $dataByte };" ^
     "        }" ^
     "    }" ^
     "};" ^
@@ -205,7 +206,7 @@ powershell -NoProfile -ExecutionPolicy Bypass -Command ^
     "    'wow.x1' = 0x0000..0x0FFF; 'wow.x2' = 0x1000..0x1FFF;" ^
     "    'wow.x3' = 0x2000..0x2FFF; 'wow.x4' = 0x3000..0x3FFF;" ^
     "    'wow.x5' = 0x8000..0x8FFF; 'wow.x6' = 0x9000..0x9FFF;" ^
-    "    'wow.x7' = 0xA000..0xAFFF; 'wow.x8' = 0xB000..0xBFFF;" ^
+    "    'wow.x7' = 0xA000..0xAFFF;" ^
     "    };" ^
     "foreach ($romName in $romMap.Keys) {" ^
     "    $slice = $memory[$romMap[$romName]];" ^
@@ -231,9 +232,15 @@ if "%BUILD_KLINGON%"=="true" (
 
 powershell -NoProfile -ExecutionPolicy Bypass -Command ^
     "$filesToZip = [System.Collections.Generic.List[string]]::new();" ^
-    "(Get-ChildItem -Path 'roms\wow.x?').FullName | ForEach-Object { $filesToZip.Add($_) };" ^
-    "$speechRom = 'roms\sc01a.bin';" ^
-    "if (Test-Path $speechRom) { $filesToZip.Add((Get-Item $speechRom).FullName); Write-Host '  -> Including Votrax speech ROM (sc01a.bin)' };" ^
+    "$programRoms = @('wow.x1','wow.x2','wow.x3','wow.x4','wow.x5','wow.x6','wow.x7');" ^
+    "foreach ($romName in $programRoms) {" ^
+    "    $romPath = Join-Path 'roms' $romName;" ^
+    "    if (-not (Test-Path $romPath)) { throw ('Program ROM missing before zip phase: ' + $romName) };" ^
+    "    $filesToZip.Add((Get-Item $romPath).FullName);" ^
+    "};" ^
+    "$speechRom = 'roms\sc01.bin';" ^
+    "if (-not (Test-Path $speechRom)) { $speechRom = 'roms\original\sc01.bin' };" ^
+    "if (Test-Path $speechRom) { $filesToZip.Add((Get-Item $speechRom).FullName); Write-Host '  -> Including Votrax speech ROM (sc01.bin)' };" ^
     "if ('%BUILD_GERMAN%' -eq 'true') {" ^
     "    $germanRom = 'roms\german.x11';" ^
     "    if (Test-Path $germanRom) { $filesToZip.Add((Get-Item $germanRom).FullName); Write-Host '  -> Including German language ROM (german.x11)' } else { throw 'German ROM file was missing before zip phase.' }" ^
@@ -263,6 +270,7 @@ if "%BUILD_KLINGON%"=="true" (
 echo.
 echo =======================================================================
 echo BUILD SUCCESSFUL!
+echo Program ROMs:          roms\wow.x1 through roms\wow.x7
 if "%BUILD_GERMAN%"=="true" (
     echo German ROM:          roms\german.x11
     echo MAME runtime archive: roms\wowg.zip
