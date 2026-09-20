@@ -30,5 +30,4 @@ console_history
 !src/klingon/*.bat
 !tools/
 !tools/.gitkeep
-!roms/sc01.bin
-!roms/sc01a.bin
+!roms/original/sc01.bin

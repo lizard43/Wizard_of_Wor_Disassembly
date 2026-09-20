@@ -245,7 +245,7 @@ build.bat -g
 
 Both scripts assemble `src/wow_disassembly.asm` and `src/german/GERMAN_X11.asm`. The X11 output is `roms/german.x11`.
 
-The German build packages the result directly as `roms/wowg.zip`. The default build remains `roms/wow.zip`; using `-g` does not overwrite the English archive. The Linux script writes the seven populated CPU members, `wow.x1` through `wow.x7`, and includes `sc01.bin` when present. The Windows script also emits `wow.x8` from the `$B000` socket and includes `sc01a.bin` when present.
+The German build packages the result directly as `roms/wowg.zip`. The default build remains `roms/wow.zip`; using `-g` does not overwrite the English archive. The Linux script writes the seven populated CPU members, `wow.x1` through `wow.x7`, and includes `sc01.bin` when present. The Windows script also emits `wow.x8` from the `$B000` socket and includes `sc01.bin` when present.
 
 ## MAME compatibility
 

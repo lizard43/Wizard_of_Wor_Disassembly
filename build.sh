@@ -18,7 +18,7 @@ readonly LST_FILE="$BUILD_DIR/$SOURCE_STEM.lst"
 readonly ZIP_FILE="$ROMS_DIR/$ZIP_NAME"
 readonly GERMAN_ZIP_FILE="$ROMS_DIR/$GERMAN_ZIP_NAME"
 readonly KLINGON_ZIP_FILE="$ROMS_DIR/$KLINGON_ZIP_NAME"
-readonly SC01_FILE="$ROMS_DIR/sc01.bin"
+readonly SC01_FILE="$ROMS_DIR/original/sc01.bin"
 
 # Optional language ROM paths
 readonly GERMAN_SOURCE="$SOURCE_DIR/german/GERMAN_X11.asm"
