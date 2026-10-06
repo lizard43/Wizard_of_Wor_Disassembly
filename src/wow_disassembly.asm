@@ -3727,88 +3727,113 @@ L1AE0:      add     a,l
 ; Maze_Index selects one of 24 pointers. Each maze record contains 18 packed
 ; bytes: six rows of six four-bit cell values.
 ;*****************************************************************************
+; @maze pointers address=$1AED
 Maze_Pointer_Table:
             DW      Maze_00_Data, Maze_01_Data, Maze_02_Data, Maze_03_Data, Maze_04_Data, Maze_05_Data
             DW      Maze_06_Data, Maze_07_Data, Maze_08_Data, Maze_09_Data, Maze_10_Data, Maze_11_Data
             DW      Maze_12_Data, Maze_13_Data, Maze_14_Data, Maze_15_Data, Maze_16_Data, Maze_17_Data
             DW      Maze_18_Data, Maze_19_Data, Maze_20_Data, Maze_21_Data, Maze_22_Data, Maze_23_Data
+; @maze id=0 address=$1B1D encoding=wow-packed rows=6 columns=11
 Maze_00_Data:
             DB      $AC,$EC,$CE,$BC,$5A,$EF,$BC,$EF,$FF
             DB      $B6,$9F
 Maze_00_Data_Byte_11:
             DB      $DD,$3B,$EF,$EC,$95,$95,$9C
+; @maze id=2 address=$1B2F encoding=wow-packed rows=6 columns=11
 Maze_02_Data:
             DB      $AC,$EE,$CE,$3A,$D7,$AD,$97,$AF,$FC
             DB      $AD,$73,$9E,$BC,$7B,$ED,$9C,$D5,$9C
+; @maze id=3 address=$1B41 encoding=wow-packed rows=6 columns=11
 Maze_03_Data:
             DB      $AC,$6A,$CE,$BC,$D7,$AD,$9E,$EF,$FE
             DB      $A5,$33,$33,$BC,$F7,$9F,$9C,$59,$CD
+; @maze id=4 address=$1B53 encoding=wow-packed rows=6 columns=11
 Maze_04_Data:
             DB      $AC,$6A,$CE,$3A,$DF,$CF,$97,$AF,$63
             DB      $AD,$73,$33,$BC,$F5,$BF,$9C,$DC,$51
+; @maze id=5 address=$1B65 encoding=wow-packed rows=6 columns=11
 Maze_05_Data:
             DB      $AC,$C6,$AE,$3A,$CD,$73,$97,$AE,$DF
             DB      $A7,$3B,$CD,$3B,$FF,$CE,$9D,$59,$CD
+; @maze id=6 address=$1B77 encoding=wow-packed rows=6 columns=11
 Maze_06_Data:
             DB      $AC,$6A,$CE,$BC,$DF,$63,$9E,$C7,$BF
             DB      $AD,$6B,$53,$BC,$7B,$ED,$9C,$D5,$9C
+; @maze id=7 address=$1B89 encoding=wow-packed rows=6 columns=11
 Maze_07_Data:
             DB      $A6,$AC,$EC,$3B,$5A,$FC,$9F,$E7,$BC
             DB      $A7,$33,$BE,$33,$BF,$53,$9D,$59,$CD
+; @maze id=8 address=$1B9B encoding=wow-packed rows=6 columns=11
 Maze_08_Data:
             DB      $AE,$EE,$EE,$33,$33,$33,$9F,$79,$73
             DB      $A7,$9E,$FF,$3B,$6B,$53,$95,$9D,$CD
+; @maze id=9 address=$1BAD encoding=wow-packed rows=6 columns=11
 Maze_09_Data:
             DB      $AC,$CE,$EC,$BC,$E5,$BC,$9E,$7A,$DE
             DB      $A5,$B7,$AF,$3A,$5B,$73,$9D,$C5,$9D
+; @maze id=10 address=$1BBF encoding=wow-packed rows=6 columns=11
 Maze_10_Data:
             DB      $AC,$6A,$CE,$BC,$FF,$EF,$9E,$53,$33
             DB      $A5,$A5,$BF,$BC,$5A,$73,$9C,$C5,$9D
+; @maze id=11 address=$1BD1 encoding=wow-packed rows=6 columns=11
 Maze_11_Data:
             DB      $AC,$6A,$EC,$BC,$73,$9E,$96,$BF,$ED
             DB      $AD,$53,$BC,$BC,$EF,$FC,$9C,$D5,$9C
+; @maze id=12 address=$1BE3 encoding=wow-packed rows=6 columns=11
 Maze_12_Data:
             DB      $A6,$AC,$EC,$3B,$FC,$FC,$97,$B6,$9E
             DB      $A7,$97,$AD,$3B,$EF,$DE,$9D,$59,$CD
+; @maze id=13 address=$1BF5 encoding=wow-packed rows=6 columns=11
 Maze_13_Data:
             DB      $AC,$6A,$CE,$3A,$FD,$CF,$B7,$BC,$63
             DB      $B5,$3A,$DF,$3A,$DF,$63,$9D,$C5,$9D
+; @maze id=14 address=$1C07 encoding=wow-packed rows=6 columns=11
 Maze_14_Data:
             DB      $A6,$AC,$EC,$3B,$7A,$DE,$95,$39,$63
             DB      $AE,$DC,$73,$3B
 Maze_14_Data_Byte_13:
             DB      $EE,$FD,$95,$95,$9C
+; @maze id=1 address=$1C19 encoding=wow-packed rows=6 columns=11
 Maze_01_Data:
             DB      $AE,$EE,$EE,$BF,$FF,$FF,$BF,$FF,$FF
             DB      $BF,$FF,$FF,$BF,$FF,$FF,$9D,$DD,$DD
+; @maze id=15 address=$1C2B encoding=wow-packed rows=6 columns=11
 Maze_15_Data:
             DB      $AC,$EE,$EE,$B6,$BD,$53,$B5
 Maze_15_Data_Byte_07:
             DB      $3A,$EF
             DB      $BE,$D5,$BF,$B7,$AE,$FF,$9D,$DD,$DD
+; @maze id=16 address=$1C3D encoding=wow-packed rows=6 columns=11
 Maze_16_Data:
             DB      $AE
 Maze_16_Data_Byte_01:
             DB      $EE,$CE,$BF,$F5,$AF,$BF,$5A,$FF
             DB      $B5,$AF,$53,$BE,$F5,$AF,$9D,$DC,$DD
+; @maze id=17 address=$1C4F encoding=wow-packed rows=6 columns=11
 Maze_17_Data:
             DB      $AE,$EE,$EE,$3B,$73,$BF,$33,$B7,$33
             DB      $B7,$3B,$73,$BF,$73,$BF,$9D,$DD,$DD
+; @maze id=18 address=$1C61 encoding=wow-packed rows=6 columns=11
 Maze_18_Data:
             DB      $AE,$EE,$EE,$39,$F5,$BF,$B6,$BE,$73
             DB      $BD,$79,$73,$3A,$F6,$BF,$9D,$DD,$DD
+; @maze id=19 address=$1C73 encoding=wow-packed rows=6 columns=11
 Maze_19_Data:
             DB      $AE,$EE,$CE,$39,$F5,$AF,$B6,$9E,$FF
             DB      $BF,$6B,$DF,$BF,$F5,$AF,$9D,$DC,$DD
+; @maze id=20 address=$1C85 encoding=wow-packed rows=6 columns=11
 Maze_20_Data:
             DB      $AE,$EE,$CE,$B5,$9F,$63,$B6,$A5,$9F
             DB      $39,$F6,$AF,$B6,$9D,$FF,$9D,$CC,$DD
+; @maze id=21 address=$1C97 encoding=wow-packed rows=6 columns=11
 Maze_21_Data:
             DB      $AC,$EE,$EE,$B6,$9F,$53,$BF,$63,$AF
             DB      $BF,$53,$9F,$B5,$AF,$63,$9C,$DD,$DD
+; @maze id=22 address=$1CA9 encoding=wow-packed rows=6 columns=11
 Maze_22_Data:
             DB      $AC,$EE,$CE,$B6,$9F,$ED,$BF,$69,$FE
             DB      $BF,$F6,$9F,$B7,$BF,$63,$9D,$DD,$DD
+; @maze id=23 address=$1CBB encoding=wow-packed rows=6 columns=11
 Maze_23_Data:
             DB      $AC,$EE,$EC,$BE,$D7,$BC,$3B,$ED,$FE
             DB      $3B,$DE,$FD,$BD,$E7,$BC,$9C,$DD,$DC
