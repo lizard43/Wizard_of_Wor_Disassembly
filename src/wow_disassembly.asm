@@ -9068,6 +9068,7 @@ L88FC:
 Sound_Stream_R4_B0_Secondary:
 L8905:
             DB      $13,$64,$12,$50,$11,$3C,$02,$EA,$88,$10,$20,$13
+; @sound stream label=Sound_Stream_R3_B1_Secondary address=$890E engine=secondary request=R3_B1 priority=0
 L8911:
             DB      $13,$12,$12,$11,$10,$17,$10,$16,$67,$15,$17,$04
             DB      $F9,$FF,$18,$20,$F8,$01,$02,$02,$01,$28,$03
@@ -9097,6 +9098,7 @@ Sound_Stream_R2_B6_Secondary:
 L8988:
             DB      $10,$20,$04,$F9,$FF,$20,$0C,$FF,$03,$02,$01,$16
             DB      $55,$15,$06,$13,$54,$12,$6A
+; @sound stream label=Sound_Stream_R1_B5_Primary address=$8971 engine=primary request=R1_B5 priority=0
 L899B:
             DB      $11,$FD,$01,$28,$03
 ; @sound stream address=$89A0 engine=primary request=R1_B1 priority=0
