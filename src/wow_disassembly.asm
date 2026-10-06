@@ -8958,21 +8958,26 @@ L8717:      ret
 ; Sound_Stream_* labels identify dispatcher-visible bytecode entry points.
 ; Lxxxx anchors remain exact ROM-address anchors for cross-reference purposes.
 ;*****************************************************************************************
+; @sound data address=$8740
 Sound_Stream_Invalid_Fallback:
 L8740:
             DB      $03                 ; $03 RESET_ENGINE fallback command
-Sound_Stream_R1_B2_Primary:             ; R1.B2 primary, priority 0
-Sound_Stream_R2_B7_Primary:             ; R2.B7 primary, priority 1; same stream entry
+; @sound stream address=$8741 engine=primary request=R1_B2 priority=0
+Sound_Stream_R1_B2_Primary:
+; @sound stream address=$8741 engine=primary request=R2_B7 priority=1
+Sound_Stream_R2_B7_Primary:
 L8741:
             DB      $13,$34,$12,$A8,$11,$FD,$10,$A7,$04,$F9,$FF,$B1
             DB      $A7,$05,$03,$55,$55,$04,$D6,$FF,$55,$06,$FF,$01
             DB      $17,$01,$05,$D6,$FF,$01,$16,$FF,$15,$0F,$04,$F2
             DB      $FF,$0F,$03,$FF,$03,$05,$01,$08,$05,$F2,$FF,$01
             DB      $00
-Sound_Stream_R1_B2_Secondary:             ; R1.B2 secondary, priority 0
+; @sound stream address=$8772 engine=secondary request=R1_B2 priority=0
+Sound_Stream_R1_B2_Secondary:
 L8772:
             DB      $13,$6A,$12,$96,$11,$B2,$02,$47,$87
-Sound_Stream_R3_B7_Primary:             ; R3.B7 WORLUK ENTRY, primary, priority 1
+; @sound stream address=$877B engine=primary request=R3_B7 priority=1
+Sound_Stream_R3_B7_Primary:
 L877B:
             DB      $10,$10,$04,$F9,$FF,$A0,$10,$04,$21,$01,$01,$13
 L8787:
@@ -8986,7 +8991,8 @@ L878D:
             DB      $11,$5E,$01,$08,$10,$50,$13,$54,$12,$6A,$11,$7E
             DB      $01,$08,$13,$4F,$12,$5E,$11,$6A,$01,$08,$13,$46
             DB      $12,$54,$11,$5E,$01,$08,$02,$99,$87
-Sound_Stream_R2_B2_Secondary:             ; R2.B2 WORLUK PROXIMITY, secondary, priority 1
+; @sound stream address=$87EA engine=secondary request=R2_B2 priority=1
+Sound_Stream_R2_B2_Secondary:
 L87EA:
             DB      $10,$A0,$04,$F9
 L87EE:
@@ -9004,17 +9010,20 @@ L881A:
             DB      $FF,$01,$13,$27,$12
 L881F:
             DB      $1B,$11,$17,$02,$07,$88
-Sound_Stream_R2_B4_Secondary:             ; R2.B4 GARWOR VISIBLE, secondary, priority 0
+; @sound stream address=$8825 engine=secondary request=R2_B4 priority=0
+Sound_Stream_R2_B4_Secondary:
 L8825:
             DB      $04,$F9,$FF,$20,$04,$FE,$23,$02,$01,$05,$F9,$FF
             DB      $02,$13,$13,$12,$0D,$11,$0B,$02,$07,$88
-Sound_Stream_R2_B3_Secondary:             ; R2.B3 THORWOR VISIBLE, secondary, priority 0
+; @sound stream address=$883B engine=secondary request=R2_B3 priority=0
+Sound_Stream_R2_B3_Secondary:
 L883B:
             DB      $04,$F9,$FF,$20,$02,$FE,$23
 L8842:
             DB      $01,$01,$05,$F9,$FF,$03,$13,$0A,$12,$08,$11,$06
             DB      $02,$07,$88
-Sound_Stream_R3_B2_B3_Secondary:             ; R3.B2/B3 MONSTER FIRE, secondary, priority 0
+; @sound stream address=$8851 engine=secondary request=R3_B2_B3 priority=0
+Sound_Stream_R3_B2_B3_Secondary:
 L8851:
             DB      $13,$2C,$12,$14,$11,$0F,$10,$10,$05,$F9,$FF,$02
             DB      $04,$F9
@@ -9028,7 +9037,8 @@ L887A:
             DB      $03
 ; R2.B1 is posted by Post_Player_Fire_Sound in the projectile-launch path.
 ; The dispatcher installs this bytecode entry in the secondary engine.
-Sound_Stream_R2_B1_Secondary:             ; R2.B1 PLAYER FIRE, secondary, priority 0
+; @sound stream address=$887B engine=secondary request=R2_B1 priority=0
+Sound_Stream_R2_B1_Secondary:
 L887B:
             DB      $10,$18,$04,$F9,$FF,$18,$02,$FE,$21
 L8884:
@@ -9045,7 +9055,8 @@ L88BB:
             DB      $01,$01,$05,$DD,$FF,$04,$13,$11,$12,$17,$11,$1F
             DB      $16,$9A,$15,$1A,$00,$05,$F9,$FF,$01,$06,$F9,$FF
             DB      $01,$00,$03
-Sound_Stream_R4_B0_Primary:             ; R4.B0 WIZARD DEATH, primary, priority 2
+; @sound stream address=$88E2 engine=primary request=R4_B0 priority=2
+Sound_Stream_R4_B0_Primary:
 L88E2:
             DB      $01,$02,$13,$2A,$12,$18,$11,$06,$10,$30,$04,$F9
             DB      $FF,$30,$20
@@ -9053,7 +9064,8 @@ L88F1:
             DB      $FC,$01,$01,$01,$17,$00,$04,$DD,$FF,$20,$00
 L88FC:
             DB      $02,$01,$04,$04,$16,$FF,$15,$1F,$00
-Sound_Stream_R4_B0_Secondary:             ; R4.B0 WIZARD DEATH, secondary, priority 2
+; @sound stream address=$8905 engine=secondary request=R4_B0 priority=2
+Sound_Stream_R4_B0_Secondary:
 L8905:
             DB      $13,$64,$12,$50,$11,$3C,$02,$EA,$88,$10,$20,$13
 L8911:
@@ -9061,7 +9073,8 @@ L8911:
             DB      $F9,$FF,$18,$20,$F8,$01,$02,$02,$01,$28,$03
 ; R2.B0 is posted by Request_Player_Death_Sound from the player branch of
 ; Handle_Actor_Death. The dispatcher installs this secondary stream at $8928.
-Sound_Stream_R2_B0_Secondary:             ; R2.B0 secondary - PLAYER DEATH, priority 1
+; @sound stream address=$8928 engine=secondary request=R2_B0 priority=1
+Sound_Stream_R2_B0_Secondary:
 L8928:
             DB      $10,$28,$17,$84,$04,$DD,$FF
 L892F:
@@ -9075,27 +9088,32 @@ L8961:
 L8969:
             DB      $01,$60,$09,$06,$F9,$FF,$01,$00,$16,$FF,$15,$1F
             DB      $04,$F2,$FF,$0F,$02,$FF,$03,$19,$19,$02,$54,$89
-Sound_Stream_R1_B3_Primary:             ; R1.B3 primary, priority 0
+; @sound stream address=$8981 engine=primary request=R1_B3 priority=0
+Sound_Stream_R1_B3_Primary:
 L8981:
             DB      $16,$22,$15,$12,$02,$54,$89
-Sound_Stream_R2_B6_Secondary:             ; R2.B6 PLAYER INPUT STATE, secondary, priority 0
+; @sound stream address=$8988 engine=secondary request=R2_B6 priority=0
+Sound_Stream_R2_B6_Secondary:
 L8988:
             DB      $10,$20,$04,$F9,$FF,$20,$0C,$FF,$03,$02,$01,$16
             DB      $55,$15,$06,$13,$54,$12,$6A
 L899B:
             DB      $11,$FD,$01,$28,$03
-Sound_Stream_R1_B1_Primary:             ; R1.B1 primary, priority 0
+; @sound stream address=$89A0 engine=primary request=R1_B1 priority=0
+Sound_Stream_R1_B1_Primary:
 L89A0:
             DB      $10,$30,$14
 L89A3:
             DB      $81,$16,$FC,$15,$0E,$13,$46
 L89AA:
             DB      $12,$2C,$11,$FD,$00
-Sound_Stream_R1_B1_Secondary:             ; R1.B1 secondary, priority 0
+; @sound stream address=$89AF engine=secondary request=R1_B1 priority=0
+Sound_Stream_R1_B1_Secondary:
 L89AF:
             DB      $10,$30,$14,$81,$16,$FD,$15,$0E,$13,$7E,$12,$59
             DB      $11,$6A,$00
-Sound_Stream_R1_B0_Primary:             ; R1.B0 primary, priority 0
+; @sound stream address=$89BE engine=primary request=R1_B0 priority=0
+Sound_Stream_R1_B0_Primary:
 L89BE:
             DB      $10,$30,$16,$FE,$15,$0F,$14,$81,$13,$3E,$12,$A8
             DB      $11,$6A,$01,$42,$13,$37,$12,$70
@@ -9104,26 +9122,30 @@ L89D2:
             DB      $13,$3E,$12
 L89E1:
             DB      $A8,$11,$6A,$00
-Sound_Stream_R1_B0_Secondary:             ; R1.B0 secondary, priority 0
+; @sound stream address=$89E5 engine=secondary request=R1_B0 priority=0
+Sound_Stream_R1_B0_Secondary:
 L89E5:
             DB      $10,$30,$14,$81,$16,$EE,$15,$0F,$13,$54,$12
 L89F0:
             DB      $6A,$11,$FD,$01,$42,$13,$5E,$12,$54,$11,$E1,$01
             DB      $16,$13,$46,$12,$3E,$11,$D4,$01,$34,$13,$54,$12
             DB      $7E,$11,$FD,$00
-Sound_Stream_R1_B4_Primary:             ; R1.B4 primary, priority 0
+; @sound stream address=$8A0C engine=primary request=R1_B4 priority=0
+Sound_Stream_R1_B4_Primary:
 L8A0C:
             DB      $10,$30,$16,$EF,$15,$0F,$14,$81,$13,$70,$12
 L8A17:
             DB      $3E,$11,$A8,$01,$60,$13,$70,$12,$42,$11,$A8,$01
             DB      $58,$02,$BE,$89
-Sound_Stream_R1_B4_Secondary:             ; R1.B4 secondary, priority 0
+; @sound stream address=$8A27 engine=secondary request=R1_B4 priority=0
+Sound_Stream_R1_B4_Secondary:
 L8A27:
             DB      $10,$30,$14,$81,$16,$EF,$15,$0F,$13,$4F,$12,$34
             DB      $11,$5E,$01,$60,$13,$54,$12,$37,$11,$5E,$01
 L8A3E:
             DB      $58,$02,$E5,$89
-Sound_Stream_R3_B4_Secondary:             ; R3.B4 MAGIC DOOR TRANSIT, priority 0
+; @sound stream address=$8A42 engine=secondary request=R3_B4 priority=0
+Sound_Stream_R3_B4_Secondary:
 L8A42:
             DB      $10,$14,$14,$48,$04,$F9,$FF,$14,$08,$FF,$23,$02
             DB      $03,$15,$28,$17,$20,$04,$DD,$FF,$54,$20,$04
@@ -9133,11 +9155,13 @@ L8A5D:
             DB      $F9,$FF,$01,$16,$88,$13,$FD,$12,$FE,$11,$FF,$00
 L8A69:
             DB      $01,$06,$03
-Sound_Stream_R3_B5_Secondary:             ; R3.B5 WORLUK ESCAPE, priority 1
+; @sound stream address=$8A6C engine=secondary request=R3_B5 priority=1
+Sound_Stream_R3_B5_Secondary:
 L8A6C:
             DB      $13,$E0,$12,$C8,$11,$B6,$10,$14,$14,$48,$16,$88
             DB      $15,$28,$17,$20,$01,$20,$02,$42,$8A
-Sound_Stream_R3_B5_Primary:             ; R3.B5 WORLUK ESCAPE, priority 1
+; @sound stream address=$8A81 engine=primary request=R3_B5 priority=1
+Sound_Stream_R3_B5_Primary:
 L8A81:
             DB      $10,$09,$14,$48,$13,$E0,$12,$C8,$11,$B6,$16
 L8A8C:
@@ -9145,34 +9169,40 @@ L8A8C:
 L8A92:
             DB      $F9,$FF,$21,$09,$02,$21,$02,$03,$05,$F9,$FF,$01
             DB      $02,$62,$8A
-Sound_Stream_R3_B0_Primary:             ; R3.B0 WORLUK DEATH, primary, priority 1
+; @sound stream address=$8AA1 engine=primary request=R3_B0 priority=1
+Sound_Stream_R3_B0_Primary:
 L8AA1:
             DB      $04,$DD,$FF,$80,$00,$FE,$21,$01,$01,$17,$80,$10
             DB      $40,$13,$68,$12,$44,$11,$21,$05,$DD,$FF,$01,$15
             DB      $1F,$16,$EE,$00,$15,$2F,$05,$F9,$FF,$02,$06,$DD
             DB      $FF,$01,$04,$F9,$FF,$80,$02,$FF,$21,$01,$01,$14
             DB      $80,$04,$EB,$FF,$BF,$80,$01,$01,$02,$02,$00,$03
-Sound_Stream_R3_B0_Secondary:             ; R3.B0 WORLUK DEATH, secondary, priority 1
+; @sound stream address=$8ADD engine=secondary request=R3_B0 priority=1
+Sound_Stream_R3_B0_Secondary:
 L8ADD:
             DB      $13,$33,$12,$30,$11,$02,$01,$04,$04,$DD,$FF,$80
             DB      $00,$02,$21,$01,$01
 L8AEE:
             DB      $17,$00,$02,$AC,$8A
-Sound_Stream_R4_B2_Secondary:             ; R4.B2 WIZARD FIRE, secondary, priority 1
+; @sound stream address=$8AF3 engine=secondary request=R4_B2 priority=1
+Sound_Stream_R4_B2_Secondary:
 L8AF3:
             DB      $02,$B3,$88
-Sound_Stream_R4_B1_Primary:             ; R4.B1 WIZARD APPEAR, priority 1
+; @sound stream address=$8AF6 engine=primary request=R4_B1 priority=1
+Sound_Stream_R4_B1_Primary:
 L8AF6:
             DB      $10,$14,$14,$88,$13,$37,$12,$85,$11,$8D,$17,$00
             DB      $16,$AA,$15,$2A,$01,$28,$14,$00,$04,$F9
 L8B0C:
             DB      $FF,$5C,$14,$06,$01,$04,$04,$17,$28,$04,$D6,$FF
             DB      $04,$01,$FF,$01,$30,$30,$00
-Sound_Stream_R4_B1_Secondary:             ; R4.B1 WIZARD APPEAR, priority 1
+; @sound stream address=$8B1F engine=secondary request=R4_B1 priority=1
+Sound_Stream_R4_B1_Secondary:
 L8B1F:
             DB      $10,$10,$14,$86,$13,$29,$12,$35,$11,$7E,$16,$99
             DB      $15,$29,$00
-Sound_Stream_R4_B3_Primary:             ; R4.B3 WORLUK ESCAPED, primary, priority 1
+; @sound stream address=$8B2E engine=primary request=R4_B3 priority=1
+Sound_Stream_R4_B3_Primary:
 L8B2E:
             DB      $13,$A8,$12
 L8B31:
@@ -9182,9 +9212,12 @@ L8B31:
 L8B4E:
             DB      $FF,$01,$14,$1C,$04,$EB,$FF,$1C,$01,$FD,$23,$07
             DB      $07,$00,$03
-Sound_Stream_R4_B3_Secondary:             ; R4.B3 WORLUK ESCAPED, secondary, priority 1
+; @sound stream address=$8B5D engine=secondary request=R4_B3 priority=1
+Sound_Stream_R4_B3_Secondary:
 L8B5D:
             DB      $13,$54,$12,$34,$11,$FD,$02,$34,$8B
+
+; @sound end
 
 ;******************************************************************************
 ; ENGLISH SC-01 SPEECH FRAGMENTS - $8B66-$9475
@@ -9204,7 +9237,7 @@ L8B5D:
 ; are intentionally sentence fragments that are combined by the phrase table.
 ;******************************************************************************
 
-; @votrax fragment encoding=wow text="Kill Worluk for double score"
+; @votrax fragment id=$00 address=$8B66 encoding=wow text="Kill Worluk for double score"
 SPK_Kill_Worluk_For_Double_Score:
             DB      $1D                 ; encoded SC-01 byte count
             DB      $83,$19,$27,$09,$18,$03,$2D,$26
@@ -9212,7 +9245,7 @@ SPK_Kill_Worluk_For_Double_Score:
             DB      $2B,$1E,$33,$0E,$23,$18,$1F,$19
             DB      $26,$35,$2B,$3E,$83
 
-; @votrax fragment encoding=wow text="If you get too powerful, I'll take care of you myself"
+; @votrax fragment id=$01 address=$8B84 encoding=wow text="If you get too powerful, I'll take care of you myself"
 SPK_F01_If_Too_Powerful:
             DB      $31                 ; encoded SC-01 byte count
             DB      $27,$1D,$22,$09,$36,$28,$1C,$3B
@@ -9223,32 +9256,32 @@ SPK_F01_If_Too_Powerful:
             DB      $15,$09,$29,$1F,$3B,$18,$1D,$3E
             DB      $83
 
-; @votrax fragment encoding=wow text="You're in"
+; @votrax fragment id=$4E address=$8BB6 encoding=wow text="You're in"
 SPK_Youre_In:
             DB      $0A                 ; encoded SC-01 byte count
             DB      $83,$22,$36,$28,$33,$2B,$27,$0D
             DB      $3E,$83
 
-; @votrax fragment encoding=wow text="The dungeons of Wor"
+; @votrax fragment id=$02 address=$8BC1 encoding=wow text="The dungeons of Wor"
 SPK_The_Dungeons_Of_Wor:
             DB      $14                 ; encoded SC-01 byte count
             DB      $83,$38,$33,$03,$1E,$33,$0D,$1A
             DB      $02,$0D,$12,$33,$0F,$2D,$26,$35
             DB      $2B,$2B,$3E,$BE
 
-; @votrax fragment encoding=wow text="I am"
+; @votrax fragment id=$03 address=$8BD6 encoding=wow text="I am"
 SPK_I_Am:
             DB      $08                 ; encoded SC-01 byte count
             DB      $15,$23,$09,$29,$2F,$00,$0C,$3E
 
-; @votrax fragment encoding=wow text="The Wizard of Wor"
+; @votrax fragment id=$04 address=$8BDF encoding=wow text="The Wizard of Wor"
 SPK_The_Wizard_Of_Wor:
             DB      $11                 ; encoded SC-01 byte count
             DB      $3E,$38,$73,$2D,$67,$12,$3A,$1E
             DB      $73,$4F,$03,$6D,$26,$35,$2B,$2B
             DB      $3E
 
-; @votrax fragment encoding=wow text="One bite from my pretties, and you'll explode"
+; @votrax fragment id=$05 address=$8BF1 encoding=wow text="One bite from my pretties, and you'll explode"
 SPK_F05_One_Bite_Pretties:
             DB      $2B                 ; encoded SC-01 byte count
             DB      $2D,$33,$0D,$0E,$23,$08,$29,$2A
@@ -9258,7 +9291,7 @@ SPK_F05_One_Bite_Pretties:
             DB      $18,$3B,$19,$03,$1F,$25,$18,$26
             DB      $37,$1E,$3E
 
-; @votrax fragment encoding=wow text="My creatures are radioactive"
+; @votrax fragment id=$06 address=$8C1D encoding=wow text="My creatures are radioactive"
 SPK_My_Creatures_Are_Radioactive:
             DB      $1C                 ; encoded SC-01 byte count
             DB      $0C,$15,$00,$09,$29,$19,$2B,$3C
@@ -9266,7 +9299,7 @@ SPK_My_Creatures_Are_Radioactive:
             DB      $06,$1E,$29,$35,$37,$2F,$00,$19
             DB      $2A,$0B,$0F,$3E
 
-; @votrax fragment encoding=wow text="Worluk will escape through the door"
+; @votrax fragment id=$07 address=$8C3A encoding=wow text="Worluk will escape through the door"
 SPK_Worluk_Will_Escape_Through_The_Door:
             DB      $1E                 ; encoded SC-01 byte count
             DB      $2D,$26,$2B,$18,$33,$19,$03,$2D
@@ -9274,7 +9307,7 @@ SPK_Worluk_Will_Escape_Through_The_Door:
             DB      $09,$22,$25,$03,$38,$2B,$28,$38
             DB      $33,$1E,$26,$35,$2B,$3E
 
-; @votrax fragment encoding=wow text="You won't have a chance for your dance"
+; @votrax fragment id=$22 address=$8C59 encoding=wow text="You won't have a chance for your dance"
 SPK_F22_No_Chance_For_Dance:
             DB      $1E                 ; encoded SC-01 byte count
             DB      $22,$36,$28,$2D,$35,$0D,$2A,$1B
@@ -9282,7 +9315,7 @@ SPK_F22_No_Chance_For_Dance:
             DB      $0D,$1F,$03,$1D,$34,$2B,$29,$35
             DB      $2B,$1E,$6E,$0D,$1F,$3E
 
-; @votrax fragment encoding=wow text="Remember, I'm the Wizard, not you"
+; @votrax fragment id=$23 address=$8C78 encoding=wow text="Remember, I'm the Wizard, not you"
 SPK_Remember_Im_The_Wizard_Not_You:
             DB      $1F                 ; encoded SC-01 byte count
             DB      $83,$2B,$3C,$0C,$7B,$0C,$0E,$3A
@@ -9290,7 +9323,7 @@ SPK_Remember_Im_The_Wizard_Not_You:
             DB      $2D,$27,$12,$3A,$1E,$3E,$0D,$15
             DB      $2A,$29,$36,$37,$37,$3E,$83
 
-; @votrax fragment encoding=wow text="If you can't beat the rest, then you'll never get the best"
+; @votrax fragment id=$24 address=$8C98 encoding=wow text="If you can't beat the rest, then you'll never get the best"
 SPK_F24_Cant_Beat_Rest:
             DB      $2C                 ; encoded SC-01 byte count
             DB      $4B,$5D,$29,$09,$37,$19,$2F,$00
@@ -9300,7 +9333,7 @@ SPK_F24_Cant_Beat_Rest:
             DB      $3E,$1C,$42,$2A,$38,$32,$0E,$3B
             DB      $1F,$2A,$03,$83
 
-; @votrax fragment encoding=wow text="If you destroy my babies, I'll pop you in the oven"
+; @votrax fragment id=$25 address=$8CC5 encoding=wow text="If you destroy my babies, I'll pop you in the oven"
 SPK_F25_Destroy_My_Babies:
             DB      $31                 ; encoded SC-01 byte count
             DB      $83,$27,$1D,$29,$09,$28,$1E,$3C
@@ -9311,14 +9344,14 @@ SPK_F25_Destroy_My_Babies:
             DB      $38,$21,$21,$33,$0F,$3B,$0D,$3E
             DB      $83
 
-; @votrax fragment encoding=wow text="Now I'm getting mad"
+; @votrax fragment id=$26 address=$8CF7 encoding=wow text="Now I'm getting mad"
 SPK_Now_Im_Getting_Mad:
             DB      $15                 ; encoded SC-01 byte count
             DB      $83,$0D,$55,$23,$37,$15,$00,$09
             DB      $29,$0C,$1C,$3B,$2A,$27,$14,$0C
             DB      $2E,$00,$1E,$3E,$83
 
-; @votrax fragment encoding=wow text="You'll never leave Wor alive"
+; @votrax fragment id=$27 address=$8D0D encoding=wow text="You'll never leave Wor alive"
 SPK_Youll_Never_Leave_Wor_Alive:
             DB      $1B                 ; encoded SC-01 byte count
             DB      $83,$22,$36,$28,$2D,$27,$18,$0D
@@ -9326,25 +9359,25 @@ SPK_Youll_Never_Leave_Wor_Alive:
             DB      $66,$75,$2B,$32,$18,$55,$00,$29
             DB      $0F,$3E,$83
 
-; @votrax fragment encoding=wow text="Garwor, go after them"
+; @votrax fragment id=$1B address=$8D29 encoding=wow text="Garwor, go after them"
 SPK_Garwor_Go_After_Them:
             DB      $15                 ; encoded SC-01 byte count
             DB      $83,$1C,$55,$2B,$2D,$35,$2B,$3E
             DB      $1C,$35,$35,$6F,$00,$1D,$2A,$3A
             DB      $38,$3B,$0C,$3E,$83
 
-; @votrax fragment encoding=wow text="Watch the radar"
+; @votrax fragment id=$08 address=$8D3F encoding=wow text="Watch the radar"
 SPK_Watch_The_Radar:
             DB      $0E                 ; encoded SC-01 byte count
             DB      $83,$2D,$15,$2A,$10,$38,$33,$2B
             DB      $20,$1E,$15,$2B,$03,$83
 
-; @votrax fragment encoding=wow text="Worrior"
+; @votrax fragment id=$09 address=$8D4E encoding=wow text="Worrior"
 SPK_Worrior:
             DB      $06                 ; encoded SC-01 byte count
             DB      $2D,$26,$2B,$29,$3A,$3E
 
-; @votrax fragment encoding=wow text="Now you get the heavyweights"
+; @votrax fragment id=$1A address=$8D55 encoding=wow text="Now you get the heavyweights"
 SPK_Now_You_Get_The_Heavyweights:
             DB      $1D                 ; encoded SC-01 byte count
             DB      $83,$0D,$15,$63,$77,$22,$36,$37
@@ -9352,14 +9385,14 @@ SPK_Now_You_Get_The_Heavyweights:
             DB      $5B,$42,$49,$0F,$3C,$2D,$45,$09
             DB      $22,$2A,$1F,$3E,$83
 
-; @votrax fragment encoding=wow text="You're asking for trouble"
+; @votrax fragment id=$35 address=$8D73 encoding=wow text="You're asking for trouble"
 SPK_Youre_Asking_For_Trouble:
             DB      $16                 ; encoded SC-01 byte count
             DB      $83,$29,$34,$34,$2B,$6F,$00,$5F
             DB      $59,$27,$14,$1D,$26,$2B,$2A,$2B
             DB      $73,$4E,$23,$18,$3E,$83
 
-; @votrax fragment encoding=wow text="If you try any harder, you'll only meet with doom"
+; @votrax fragment id=$1C address=$8D8A encoding=wow text="If you try any harder, you'll only meet with doom"
 SPK_F1C_Try_Harder_Meet_Doom:
             DB      $2A                 ; encoded SC-01 byte count
             DB      $27,$1D,$29,$36,$28,$2A,$2B,$15
@@ -9369,7 +9402,7 @@ SPK_F1C_Try_Harder_Meet_Doom:
             DB      $2A,$2D,$27,$39,$5E,$28,$28,$0C
             DB      $3E,$83
 
-; @votrax fragment encoding=wow text="Burwor, Garwor, and Thorwor will do you in"
+; @votrax fragment id=$1D address=$8DB5 encoding=wow text="Burwor, Garwor, and Thorwor will do you in"
 SPK_F1D_Bur_Gar_Thor_Do_You_In:
             DB      $27                 ; encoded SC-01 byte count
             DB      $83,$0E,$7A,$6B,$2D,$26,$2B,$3E
@@ -9378,7 +9411,7 @@ SPK_F1D_Bur_Gar_Thor_Do_You_In:
             DB      $2B,$3E,$2D,$27,$18,$1E,$36,$68
             DB      $22,$36,$28,$27,$0D,$3E,$83
 
-; @votrax fragment encoding=wow text="My worlings are very very hungry"
+; @votrax fragment id=$1E address=$8DDD encoding=wow text="My worlings are very very hungry"
 SPK_My_Worlings_Are_Very_Very_Hungry:
             DB      $22                 ; encoded SC-01 byte count
             DB      $83,$0C,$15,$00,$09,$29,$2D,$66
@@ -9387,7 +9420,7 @@ SPK_My_Worlings_Are_Very_Very_Hungry:
             DB      $2B,$29,$1B,$73,$0D,$1C,$2B,$29
             DB      $3E,$83
 
-; @votrax fragment encoding=wow text="My magic is stronger than your weapons"
+; @votrax fragment id=$1F address=$8E00 encoding=wow text="My magic is stronger than your weapons"
 SPK_F1F_Magic_Stronger_Weapons:
             DB      $23                 ; encoded SC-01 byte count
             DB      $0C,$15,$40,$49,$69,$0C,$6F,$1E
@@ -9396,7 +9429,7 @@ SPK_F1F_Magic_Stronger_Weapons:
             DB      $29,$34,$34,$2B,$2D,$7B,$65,$32
             DB      $0D,$1F,$3E
 
-; @votrax fragment encoding=wow text="Your bones will lie in the dungeons of Wor"
+; @votrax fragment id=$21 address=$8E24 encoding=wow text="Your bones will lie in the dungeons of Wor"
 SPK_F21_Bones_In_Dungeons:
             DB      $26                 ; encoded SC-01 byte count
             DB      $83,$29,$34,$34,$2B,$4E,$26,$34
@@ -9405,7 +9438,7 @@ SPK_F21_Bones_In_Dungeons:
             DB      $0D,$1A,$02,$0D,$1F,$33,$0F,$2D
             DB      $26,$35,$2B,$2B,$3E,$83
 
-; @votrax fragment encoding=wow text="While you developed science, we developed magic"
+; @votrax fragment id=$20 address=$8E4B encoding=wow text="While you developed science, we developed magic"
 SPK_F20_Science_Vs_Magic:
             DB      $2B                 ; encoded SC-01 byte count
             DB      $2D,$15,$00,$09,$18,$22,$76,$68
@@ -9415,32 +9448,32 @@ SPK_F20_Science_Vs_Magic:
             DB      $23,$25,$2A,$0C,$2F,$00,$1E,$1A
             DB      $0B,$19,$3E
 
-; @votrax fragment encoding=wow text="Hey, insert coin"
+; @votrax fragment id=$0A address=$8E77 encoding=wow text="Hey, insert coin"
 SPK_Hey_Insert_Coin:
             DB      $13                 ; encoded SC-01 byte count
             DB      $1B,$60,$4B,$62,$3E,$3E,$27,$0D
             DB      $1F,$7A,$6A,$3E,$59,$75,$34,$09
             DB      $22,$0D,$3E
 
-; @votrax fragment encoding=wow text="Find me"
+; @votrax fragment id=$0B address=$8E8B encoding=wow text="Find me"
 SPK_Find_Me:
             DB      $0A                 ; encoded SC-01 byte count
             DB      $1D,$55,$49,$69,$0D,$1E,$0C,$2C
             DB      $3C,$3E
 
-; @votrax fragment encoding=wow text="I'm out of sight"
+; @votrax fragment id=$0C address=$8E96 encoding=wow text="I'm out of sight"
 SPK_Im_Out_Of_Sight:
             DB      $12                 ; encoded SC-01 byte count
             DB      $15,$49,$69,$0C,$03,$08,$35,$37
             DB      $1E,$15,$03,$1F,$25,$08,$4B,$69
             DB      $2A,$3E
 
-; @votrax fragment encoding=wow text="Get ready"
+; @votrax fragment id=$0D address=$8EA9 encoding=wow text="Get ready"
 SPK_Get_Ready:
             DB      $08                 ; encoded SC-01 byte count
             DB      $1C,$3B,$2A,$2B,$3B,$1E,$29,$3E
 
-; @votrax fragment encoding=wow text="You'd better hope you don't find me"
+; @votrax fragment id=$0E address=$8EB2 encoding=wow text="You'd better hope you don't find me"
 SPK_Youd_Better_Hope_You_Dont_Find_Me:
             DB      $20                 ; encoded SC-01 byte count
             DB      $22,$36,$28,$1E,$03,$0E,$42,$2A
@@ -9448,7 +9481,7 @@ SPK_Youd_Better_Hope_You_Dont_Find_Me:
             DB      $1E,$26,$0D,$2A,$5D,$55,$09,$22
             DB      $0D,$1E,$4C,$2C,$3C,$3E,$3E,$3E
 
-; @votrax fragment encoding=wow text="Another coin for my treasure chest"
+; @votrax fragment id=$0F address=$8ED3 encoding=wow text="Another coin for my treasure chest"
 SPK_Another_Coin_For_My_Treasure_Chest:
             DB      $1E                 ; encoded SC-01 byte count
             DB      $15,$0D,$33,$39,$3A,$03,$19,$35
@@ -9456,13 +9489,13 @@ SPK_Another_Coin_For_My_Treasure_Chest:
             DB      $55,$49,$62,$2A,$2B,$02,$07,$3A
             DB      $2A,$10,$3B,$1F,$2A,$3E
 
-; @votrax fragment encoding=wow text="Ha ha ha ha"
+; @votrax fragment id=$10 address=$8EF2 encoding=wow text="Ha ha ha ha"
 SPK_Ha_Ha_Ha_Ha:
             DB      $0A                 ; encoded SC-01 byte count
             DB      $3E,$1B,$55,$1B,$55,$1B,$15,$1B
             DB      $15,$3E
 
-; @votrax fragment encoding=wow text="Ah good! My pets were getting hungry"
+; @votrax fragment id=$11 address=$8EFD encoding=wow text="Ah good! My pets were getting hungry"
 SPK_Ah_Good_My_Pets_Were_Getting_Hungry:
             DB      $22                 ; encoded SC-01 byte count
             DB      $64,$08,$03,$5C,$76,$76,$36,$36
@@ -9471,20 +9504,20 @@ SPK_Ah_Good_My_Pets_Were_Getting_Hungry:
             DB      $27,$14,$1B,$73,$54,$1C,$2B,$29
             DB      $3E,$3E
 
-; @votrax fragment encoding=wow text="You'll get the Arena"
+; @votrax fragment id=$12 address=$8F20 encoding=wow text="You'll get the Arena"
 SPK_Youll_Get_The_Arena:
             DB      $14                 ; encoded SC-01 byte count
             DB      $83,$22,$36,$28,$18,$1C,$3B,$2A
             DB      $3E,$3E,$38,$2C,$03,$48,$2B,$2C
             DB      $0D,$15,$3E,$BE
 
-; @votrax fragment encoding=wow text="Ha ha ha ha (padded)"
+; @votrax fragment id=$36 address=$8F35 encoding=wow text="Ha ha ha ha (padded)"
 SPK_Ha_Ha_Ha_Ha_Padded:
             DB      $0B                 ; encoded SC-01 byte count
             DB      $BE,$1B,$15,$1B,$15,$1B,$15,$1B
             DB      $15,$3E,$83
 
-; @votrax fragment encoding=wow text="Another worrior for my babies to devour"
+; @votrax fragment id=$13 address=$8F41 encoding=wow text="Another worrior for my babies to devour"
 SPK_F13_Worrior_For_Babies:
             DB      $23                 ; encoded SC-01 byte count
             DB      $15,$0D,$32,$38,$3A,$03,$2D,$26
@@ -9493,7 +9526,7 @@ SPK_F13_Worrior_For_Babies:
             DB      $1F,$2A,$28,$1E,$2C,$0F,$15,$34
             DB      $37,$2B,$3E
 
-; @votrax fragment encoding=wow text="Keep going and you will find me"
+; @votrax fragment id=$14 address=$8F65 encoding=wow text="Keep going and you will find me"
 SPK_Keep_Going_And_You_Will_Find_Me:
             DB      $1D                 ; encoded SC-01 byte count
             DB      $19,$6C,$25,$03,$1C,$26,$0B,$22
@@ -9501,7 +9534,7 @@ SPK_Keep_Going_And_You_Will_Find_Me:
             DB      $2D,$27,$18,$1D,$55,$0B,$22,$0D
             DB      $1E,$0C,$2C,$3C,$3E
 
-; @votrax fragment encoding=wow text="A few more dungeons and you'll be a"
+; @votrax fragment id=$15 address=$8F83 encoding=wow text="A few more dungeons and you'll be a"
 SPK_A_Few_More_Dungeons_And_Youll_Be_A:
             DB      $1D                 ; encoded SC-01 byte count
             DB      $15,$1D,$3C,$28,$28,$0C,$26,$2B
@@ -9509,25 +9542,25 @@ SPK_A_Few_More_Dungeons_And_Youll_Be_A:
             DB      $15,$0D,$1E,$29,$36,$68,$58,$0E
             DB      $2C,$3C,$03,$20,$06
 
-; @votrax fragment encoding=wow text="Worlord"
+; @votrax fragment id=$40 address=$8FA1 encoding=wow text="Worlord"
 SPK_Worlord:
             DB      $08                 ; encoded SC-01 byte count
             DB      $2D,$66,$6B,$18,$26,$2B,$1E,$3E
 
-; @votrax fragment encoding=wow text="Worlord (padded)"
+; @votrax fragment id=$41 address=$8FAA encoding=wow text="Worlord (padded)"
 SPK_Worlord_Padded:
             DB      $0A                 ; encoded SC-01 byte count
             DB      $83,$2D,$66,$6B,$18,$26,$2B,$1E
             DB      $3E,$83
 
-; @votrax fragment encoding=wow text="Come back for more with"
+; @votrax fragment id=$16 address=$8FB5 encoding=wow text="Come back for more with"
 SPK_Come_Back_For_More_With:
             DB      $12                 ; encoded SC-01 byte count
             DB      $19,$15,$0C,$0E,$2E,$19,$1D,$26
             DB      $2B,$0C,$26,$35,$2B,$3E,$3E,$2D
             DB      $27,$39
 
-; @votrax fragment encoding=wow text="The dungeons of Wor await your return"
+; @votrax fragment id=$17 address=$8FC8 encoding=wow text="The dungeons of Wor await your return"
 SPK_F17_Dungeons_Await_Return:
             DB      $27                 ; encoded SC-01 byte count
             DB      $83,$38,$33,$1E,$73,$4D,$1A,$3B
@@ -9536,7 +9569,7 @@ SPK_F17_Dungeons_Await_Return:
             DB      $2A,$03,$29,$26,$35,$2B,$2B,$09
             DB      $3C,$2A,$7A,$2B,$0D,$3E,$83
 
-; @votrax fragment encoding=wow text="Deep in the caverns of Wor, you will meet me"
+; @votrax fragment id=$18 address=$8FF0 encoding=wow text="Deep in the caverns of Wor, you will meet me"
 SPK_F18_Deep_Caverns_Meet_Me:
             DB      $2B                 ; encoded SC-01 byte count
             DB      $83,$1E,$6C,$3C,$25,$27,$0D,$38
@@ -9546,20 +9579,20 @@ SPK_F18_Deep_Caverns_Meet_Me:
             DB      $18,$0C,$6C,$7C,$2A,$03,$0C,$2C
             DB      $3C,$03,$83
 
-; @votrax fragment encoding=wow text="thanks you"
+; @votrax fragment id=$19 address=$901C encoding=wow text="thanks you"
 SPK_Thanks_You:
             DB      $0E                 ; encoded SC-01 byte count
             DB      $3E,$39,$39,$2F,$00,$14,$19,$1F
             DB      $03,$29,$36,$28,$37,$3E
 
-; @votrax fragment encoding=wow text="You know you can do better"
+; @votrax fragment id=$29 address=$902B encoding=wow text="You know you can do better"
 SPK_You_Know_You_Can_Do_Better:
             DB      $18                 ; encoded SC-01 byte count
             DB      $83,$22,$36,$28,$0D,$75,$75,$35
             DB      $22,$36,$28,$19,$2F,$00,$0D,$1E
             DB      $36,$28,$0E,$7B,$2A,$3A,$3E,$83
 
-; @votrax fragment encoding=wow text="Hurry back, I can't wait to do it again"
+; @votrax fragment id=$2A address=$9044 encoding=wow text="Hurry back, I can't wait to do it again"
 SPK_F2A_Hurry_Back:
             DB      $26                 ; encoded SC-01 byte count
             DB      $1B,$7A,$6B,$29,$0E,$2F,$00,$19
@@ -9568,7 +9601,7 @@ SPK_F2A_Hurry_Back:
             DB      $2A,$36,$37,$1E,$76,$28,$27,$2A
             DB      $32,$1C,$45,$42,$0D,$3E
 
-; @votrax fragment encoding=wow text="You can start anew, but for now you're through"
+; @votrax fragment id=$2B address=$906B encoding=wow text="You can start anew, but for now you're through"
 SPK_F2B_Start_Anew_Youre_Through:
             DB      $27                 ; encoded SC-01 byte count
             DB      $22,$36,$28,$19,$2F,$00,$0D,$1F
@@ -9577,7 +9610,7 @@ SPK_F2B_Start_Anew_Youre_Through:
             DB      $2B,$0D,$15,$63,$77,$29,$34,$34
             DB      $2B,$39,$2B,$77,$37,$3E,$BE
 
-; @votrax fragment encoding=wow text="He he he ho ho ho ha ha ha ha, that was fun"
+; @votrax fragment id=$2C address=$9093 encoding=wow text="He he he ho ho ho ha ha ha ha, that was fun"
 SPK_F2C_He_Ho_Ha_That_Was_Fun:
             DB      $22                 ; encoded SC-01 byte count
             DB      $1B,$6C,$1B,$6C,$1B,$6C,$1B,$26
@@ -9586,7 +9619,7 @@ SPK_F2C_He_Ho_Ha_That_Was_Fun:
             DB      $2A,$03,$03,$2D,$33,$12,$1D,$33
             DB      $0D,$3E
 
-; @votrax fragment encoding=wow text="Welcome to my world of Wor"
+; @votrax fragment id=$2D address=$90B6 encoding=wow text="Welcome to my world of Wor"
 SPK_Welcome_To_My_World_Of_Wor:
             DB      $19                 ; encoded SC-01 byte count
             DB      $2D,$7B,$18,$19,$33,$0C,$3E,$2A
@@ -9594,7 +9627,7 @@ SPK_Welcome_To_My_World_Of_Wor:
             DB      $58,$1E,$33,$0F,$2D,$26,$35,$2B
             DB      $3E
 
-; @votrax fragment encoding=wow text="So you've come to score in the world of Wor"
+; @votrax fragment id=$2E address=$90D0 encoding=wow text="So you've come to score in the world of Wor"
 SPK_F2E_Come_To_Score:
             DB      $21                 ; encoded SC-01 byte count
             DB      $1F,$66,$29,$36,$37,$0F,$19,$73
@@ -9603,7 +9636,7 @@ SPK_F2E_Come_To_Score:
             DB      $18,$1E,$33,$0F,$2D,$66,$35,$2B
             DB      $3E
 
-; @votrax fragment encoding=wow text="You're off to see the Wizard, the magical Wizard of Wor"
+; @votrax fragment id=$2F address=$90F2 encoding=wow text="You're off to see the Wizard, the magical Wizard of Wor"
 SPK_F2F_Off_To_See_Wizard:
             DB      $2C                 ; encoded SC-01 byte count
             DB      $29,$34,$34,$2B,$3D,$1D,$2A,$36
@@ -9613,7 +9646,7 @@ SPK_F2F_Off_To_See_Wizard:
             DB      $27,$12,$3A,$1E,$B3,$0F,$2D,$35
             DB      $34,$2B,$3E,$3E
 
-; @votrax fragment encoding=wow text="Burwor hasn't eaten anyone in months"
+; @votrax fragment id=$30 address=$911F encoding=wow text="Burwor hasn't eaten anyone in months"
 SPK_Burwor_Hasnt_Eaten_Anyone_In_Months:
             DB      $20                 ; encoded SC-01 byte count
             DB      $83,$0E,$3A,$2B,$2D,$26,$2B,$1B
@@ -9621,14 +9654,14 @@ SPK_Burwor_Hasnt_Eaten_Anyone_In_Months:
             DB      $3B,$0D,$29,$2D,$33,$0D,$03,$0B
             DB      $0D,$0C,$33,$0D,$39,$1F,$3E,$83
 
-; @votrax fragment encoding=wow text="My babies breathe fire"
+; @votrax fragment id=$31 address=$9140 encoding=wow text="My babies breathe fire"
 SPK_My_Babies_Breathe_Fire:
             DB      $16                 ; encoded SC-01 byte count
             DB      $0C,$15,$09,$29,$0E,$60,$0E,$29
             DB      $22,$1F,$03,$0E,$2B,$3C,$29,$39
             DB      $1D,$55,$00,$21,$2B,$3E
 
-; @votrax fragment encoding=wow text="I'll fry you with my lightning bolts"
+; @votrax fragment id=$32 address=$9157 encoding=wow text="I'll fry you with my lightning bolts"
 SPK_Ill_Fry_You_With_My_Lightning_Bolts:
             DB      $26                 ; encoded SC-01 byte count
             DB      $83,$15,$00,$09,$29,$18,$1D,$2B
@@ -9637,7 +9670,7 @@ SPK_Ill_Fry_You_With_My_Lightning_Bolts:
             DB      $23,$48,$69,$2A,$0D,$27,$14,$0E
             DB      $26,$18,$2A,$1F,$3E,$83
 
-; @votrax fragment encoding=wow text="Garwor and Thorwor become invisible"
+; @votrax fragment id=$28 address=$917E encoding=wow text="Garwor and Thorwor become invisible"
 SPK_Garwor_And_Thorwor_Become_Invisible:
             DB      $22                 ; encoded SC-01 byte count
             DB      $1C,$15,$2B,$2D,$26,$2B,$2F,$00
@@ -9646,7 +9679,7 @@ SPK_Garwor_And_Thorwor_Become_Invisible:
             DB      $27,$0D,$0F,$4B,$52,$0B,$0E,$18
             DB      $3E,$83
 
-; @votrax fragment encoding=wow text="Thorwor is red, mean, and hungry for space food"
+; @votrax fragment id=$33 address=$91A1 encoding=wow text="Thorwor is red, mean, and hungry for space food"
 SPK_F33_Thorwor_Red_Hungry:
             DB      $2C                 ; encoded SC-01 byte count
             DB      $83,$39,$26,$2B,$2D,$26,$2B,$3E
@@ -9656,7 +9689,7 @@ SPK_F33_Thorwor_Red_Hungry:
             DB      $1F,$25,$06,$09,$29,$1F,$1D,$37
             DB      $37,$1E,$3E,$83
 
-; @votrax fragment encoding=wow text="Worrior fear, I draw near, each time I appear"
+; @votrax fragment id=$34 address=$91CE encoding=wow text="Worrior fear, I draw near, each time I appear"
 SPK_F34_Worrior_Fear:
             DB      $28                 ; encoded SC-01 byte count
             DB      $2D,$26,$2B,$29,$3A,$1D,$21,$0A
@@ -9665,25 +9698,25 @@ SPK_F34_Worrior_Fear:
             DB      $10,$2A,$15,$09,$22,$0C,$15,$00
             DB      $09,$29,$32,$25,$61,$49,$2B,$3E
 
-; @votrax fragment encoding=wow text="Worrior (padded)"
+; @votrax fragment id=$37 address=$91F7 encoding=wow text="Worrior (padded)"
 SPK_Worrior_Padded:
             DB      $07                 ; encoded SC-01 byte count
             DB      $AD,$26,$2B,$29,$3A,$3E,$83
 
-; @votrax fragment encoding=wow text="You've just been fried by"
+; @votrax fragment id=$38 address=$91FF encoding=wow text="You've just been fried by"
 SPK_Youve_Just_Been_Fried_By:
             DB      $17                 ; encoded SC-01 byte count
             DB      $29,$36,$37,$0F,$03,$1A,$33,$1F
             DB      $2A,$0E,$3B,$0D,$1D,$2B,$15,$0B
             DB      $22,$1E,$3E,$0E,$15,$0A,$22
 
-; @votrax fragment encoding=wow text="Bite the bolt"
+; @votrax fragment id=$39 address=$9217 encoding=wow text="Bite the bolt"
 SPK_Bite_The_Bolt:
             DB      $0F                 ; encoded SC-01 byte count
             DB      $83,$0E,$23,$15,$29,$2A,$38,$33
             DB      $0E,$35,$35,$18,$2A,$3E,$83
 
-; @votrax fragment encoding=wow text="Wasn't that lightning bolt delicious"
+; @votrax fragment id=$3A address=$9227 encoding=wow text="Wasn't that lightning bolt delicious"
 SPK_Wasnt_That_Lightning_Bolt_Delicious:
             DB      $1D                 ; encoded SC-01 byte count
             DB      $2D,$33,$1F,$0D,$2A,$38,$2F,$2A
@@ -9691,7 +9724,7 @@ SPK_Wasnt_That_Lightning_Bolt_Delicious:
             DB      $0E,$26,$18,$2A,$03,$1E,$2C,$18
             DB      $0B,$11,$32,$1F,$3E
 
-; @votrax fragment encoding=wow text="And my teleporting spell can be even faster"
+; @votrax fragment id=$3B address=$9245 encoding=wow text="And my teleporting spell can be even faster"
 SPK_F3B_Teleport_Spell_Faster:
             DB      $2A                 ; encoded SC-01 byte count
             DB      $83,$2E,$0D,$1E,$03,$0C,$15,$0B
@@ -9701,7 +9734,7 @@ SPK_F3B_Teleport_Spell_Faster:
             DB      $0F,$3B,$0D,$1D,$2E,$1F,$2A,$3A
             DB      $3E,$83
 
-; @votrax fragment encoding=wow text="Now you know the taste of my magic"
+; @votrax fragment id=$3C address=$9270 encoding=wow text="Now you know the taste of my magic"
 ; The decoded SC-01 commands at $9286-$9287 are the valid V -> M transition.
 SPK_Now_You_Know_The_Taste_Of_My_Magic:
             DB      $23                 ; encoded SC-01 byte count
@@ -9711,14 +9744,14 @@ SPK_Now_You_Know_The_Taste_Of_My_Magic:
             DB      $0A,$22,$0C,$2F,$00,$1E,$1A,$0B
             DB      $19,$03,$83
 
-; @votrax fragment encoding=wow text="Maybe you'll see me again"
+; @votrax fragment id=$3D address=$9294 encoding=wow text="Maybe you'll see me again"
 SPK_Maybe_Youll_See_Me_Again:
             DB      $16                 ; encoded SC-01 byte count
             DB      $0C,$20,$29,$0E,$2C,$29,$36,$37
             DB      $18,$1F,$2C,$3C,$0C,$3C,$2C,$03
             DB      $33,$1C,$06,$01,$0D,$3E
 
-; @votrax fragment encoding=wow text="Your explosion was music to my ears"
+; @votrax fragment id=$3E address=$92AB encoding=wow text="Your explosion was music to my ears"
 SPK_Your_Explosion_Was_Music_To_My_Ears:
             DB      $23                 ; encoded SC-01 byte count
             DB      $22,$34,$34,$2B,$02,$19,$5F,$25
@@ -9727,13 +9760,13 @@ SPK_Your_Explosion_Was_Music_To_My_Ears:
             DB      $28,$0C,$15,$09,$22,$03,$3C,$3A
             DB      $2B,$1F,$3E
 
-; @votrax fragment encoding=wow text="I'll say it again"
+; @votrax fragment id=$3F address=$92CF encoding=wow text="I'll say it again"
 SPK_Ill_Say_It_Again:
             DB      $10                 ; encoded SC-01 byte count
             DB      $15,$00,$09,$29,$18,$1F,$20,$22
             DB      $27,$2A,$33,$1C,$06,$01,$0D,$3E
 
-; @votrax fragment encoding=wow text="Be forewarned! You approach the Pit"
+; @votrax fragment id=$42 address=$92E0 encoding=wow text="Be forewarned! You approach the Pit"
 SPK_Be_Forewarned_You_Approach_The_Pit:
             DB      $22                 ; encoded SC-01 byte count
             DB      $83,$0E,$3C,$2C,$1D,$26,$2B,$2D
@@ -9742,7 +9775,7 @@ SPK_Be_Forewarned_You_Approach_The_Pit:
             DB      $2A,$10,$3E,$38,$33,$25,$27,$2A
             DB      $3E,$83
 
-; @votrax fragment encoding=wow text="Your path leads directly to the Pit"
+; @votrax fragment id=$43 address=$9303 encoding=wow text="Your path leads directly to the Pit"
 SPK_Your_Path_Leads_Directly_To_The_Pit:
             DB      $22                 ; encoded SC-01 byte count
             DB      $83,$29,$34,$34,$2B,$25,$2E,$39
@@ -9751,14 +9784,14 @@ SPK_Your_Path_Leads_Directly_To_The_Pit:
             DB      $37,$3E,$3E,$38,$33,$25,$27,$2A
             DB      $3E,$83
 
-; @votrax fragment encoding=wow text="Deeper, ever deeper into"
+; @votrax fragment id=$44 address=$9326 encoding=wow text="Deeper, ever deeper into"
 SPK_Deeper_Ever_Deeper_Into:
             DB      $16                 ; encoded SC-01 byte count
             DB      $83,$1E,$3C,$2C,$25,$3A,$3E,$3B
             DB      $0F,$3A,$1E,$3C,$2C,$25,$3A,$3E
             DB      $27,$0D,$2A,$28,$3E,$83
 
-; @votrax fragment encoding=wow text="Beware! You are in the Worlord dungeons"
+; @votrax fragment id=$45 address=$933D encoding=wow text="Beware! You are in the Worlord dungeons"
 SPK_F45_Worlord_Dungeons:
             DB      $21                 ; encoded SC-01 byte count
             DB      $83,$0E,$29,$2D,$3B,$2B,$3E,$29
@@ -9767,7 +9800,7 @@ SPK_F45_Worlord_Dungeons:
             DB      $1E,$33,$0D,$1A,$02,$0D,$12,$3E
             DB      $83
 
-; @votrax fragment encoding=wow text="Ah! You thought you could hide, but I'm the dungeon master"
+; @votrax fragment id=$46 address=$935F encoding=wow text="Ah! You thought you could hide, but I'm the dungeon master"
 SPK_F46_Dungeon_Master:
             DB      $2F                 ; encoded SC-01 byte count
             DB      $83,$24,$15,$3E,$29,$36,$28,$39
@@ -9777,7 +9810,7 @@ SPK_F46_Dungeon_Master:
             DB      $38,$33,$1E,$33,$0D,$1A,$02,$0D
             DB      $0C,$2E,$1F,$2A,$3A,$3E,$83
 
-; @votrax fragment encoding=wow text="Thor, Bur, Gar! Dinner's ready"
+; @votrax fragment id=$47 address=$938F encoding=wow text="Thor, Bur, Gar! Dinner's ready"
 SPK_Thor_Bur_Gar_Dinners_Ready:
             DB      $1B                 ; encoded SC-01 byte count
             DB      $83,$39,$26,$35,$2B,$03,$0E,$3A
@@ -9785,7 +9818,7 @@ SPK_Thor_Bur_Gar_Dinners_Ready:
             DB      $4D,$3A,$1F,$03,$2B,$7B,$09,$1E
             DB      $29,$3E,$83
 
-; @votrax fragment encoding=wow text="Hey! Your space boots untied"
+; @votrax fragment id=$48 address=$93AB encoding=wow text="Hey! Your space boots untied"
 SPK_Hey_Your_Space_Boots_Untied:
             DB      $1F                 ; encoded SC-01 byte count
             DB      $1B,$60,$4B,$62,$3E,$3E,$29,$34
@@ -9793,7 +9826,7 @@ SPK_Hey_Your_Space_Boots_Untied:
             DB      $03,$0E,$28,$37,$2A,$1F,$03,$33
             DB      $0D,$2A,$15,$0A,$22,$1E,$3E
 
-; @votrax fragment encoding=wow text="My beasts run wild in the Worlord dungeons"
+; @votrax fragment id=$49 address=$93CB encoding=wow text="My beasts run wild in the Worlord dungeons"
 SPK_F49_Beasts_Wild_Worlord:
             DB      $2C                 ; encoded SC-01 byte count
             DB      $83,$0C,$15,$00,$09,$22,$0E,$2C
@@ -9803,7 +9836,7 @@ SPK_F49_Beasts_Wild_Worlord:
             DB      $2B,$1E,$3E,$1E,$33,$0D,$1A,$02
             DB      $0D,$12,$3E,$83
 
-; @votrax fragment encoding=wow text="Now your only chance is your dance"
+; @votrax fragment id=$4A address=$93F8 encoding=wow text="Now your only chance is your dance"
 SPK_Now_Your_Only_Chance_Is_Your_Dance:
             DB      $1C                 ; encoded SC-01 byte count
             DB      $0D,$15,$63,$77,$29,$34,$34,$2B
@@ -9811,7 +9844,7 @@ SPK_Now_Your_Only_Chance_Is_Your_Dance:
             DB      $1F,$0B,$1F,$29,$34,$34,$2B,$1E
             DB      $2E,$0D,$1F,$3E
 
-; @votrax fragment encoding=wow text="Are you fit to survive the Pit"
+; @votrax fragment id=$4B address=$9415 encoding=wow text="Are you fit to survive the Pit"
 SPK_Are_You_Fit_To_Survive_The_Pit:
             DB      $24                 ; encoded SC-01 byte count
             DB      $83,$24,$2B,$03,$03,$22,$36,$28
@@ -9820,7 +9853,7 @@ SPK_Are_You_Fit_To_Survive_The_Pit:
             DB      $22,$0F,$03,$03,$38,$33,$03,$83
             DB      $25,$27,$2A,$3E
 
-; @votrax fragment encoding=wow text="Oops! I must have forgotten the walls"
+; @votrax fragment id=$4C address=$943A encoding=wow text="Oops! I must have forgotten the walls"
 SPK_Oops_I_Must_Have_Forgotten_The_Walls:
             DB      $1F                 ; encoded SC-01 byte count
             DB      $28,$25,$1F,$3E,$3E,$15,$23,$09
@@ -9828,7 +9861,7 @@ SPK_Oops_I_Must_Have_Forgotten_The_Walls:
             DB      $1D,$26,$2B,$1C,$15,$2A,$02,$0D
             DB      $38,$33,$2D,$3D,$18,$1F,$3E
 
-; @votrax fragment encoding=wow text="Where are you going to hide now"
+; @votrax fragment id=$4D address=$945A encoding=wow text="Where are you going to hide now"
 SPK_Where_Are_You_Going_To_Hide_Now:
             DB      $1B                 ; encoded SC-01 byte count
             DB      $83,$2D,$2F,$3A,$15,$2B,$22,$36
