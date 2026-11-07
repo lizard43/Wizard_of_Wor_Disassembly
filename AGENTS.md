@@ -1,0 +1,3 @@
+# Mandatory coding-assistant instructions
+
+Read ENGINEERING-RULES.md, docs/SPRINT-PLAN.md, docs/TECHNICAL-DEBT.md before code changes. Preserve original software, source, language, interpreters/compilers/XCs, runtimes and DATA. Load original-style TERSE programs through the real TERSE environment/XC, not via host-language definition parsing, synthetic word maps or token rewriting. Host scripts are for orchestration, packaging genuine native output and independent verification ONLY. Hardware adapters must be explicit; STOP and request user approval BEFORE any deviation. Passing tests is no exception. Preserve prior work and report only executed tests.
